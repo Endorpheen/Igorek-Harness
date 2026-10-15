@@ -138,14 +138,30 @@ jobs:
               user.GetWindowThreadProcessId.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_ulong)]
               user.PostMessageW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_size_t, ctypes.c_ssize_t]
               callback_type = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_ssize_t)
-              def close_owned_window(handle, _):
-                  identity = ctypes.c_ulong()
-                  user.GetWindowThreadProcessId(handle, ctypes.byref(identity))
-                  if identity.value == launched.pid:
+              user.IsWindowVisible.argtypes = [ctypes.c_void_p]
+              def owned_windows():
+                  windows = []
+                  def collect(handle, _):
+                      identity = ctypes.c_ulong()
+                      user.GetWindowThreadProcessId(handle, ctypes.byref(identity))
+                      if identity.value == launched.pid and user.IsWindowVisible(handle):
+                          windows.append(handle)
+                      return True
+                  user.EnumWindows(callback_type(collect), 0)
+                  return windows
+              deadline = time.monotonic() + 20
+              while len(owned_windows()) < 2 and launched.poll() is None and time.monotonic() < deadline:
+                  time.sleep(0.1)
+              windows = owned_windows()
+              assert len(windows) >= 2, 'Main and first-run owner windows did not become visible'
+              for handle in windows:
+                  user.PostMessageW(handle, 0x0010, 0, 0)
+              deadline = time.monotonic() + 20
+              while launched.poll() is None and time.monotonic() < deadline:
+                  for handle in owned_windows():
                       user.PostMessageW(handle, 0x0010, 0, 0)
-                  return True
-              user.EnumWindows(callback_type(close_owned_window), 0)
-              assert launched.wait(timeout=20) == 0
+                  time.sleep(0.1)
+              assert launched.poll() == 0, 'Packaged desktop did not close gracefully'
           finally:
               if launched.poll() is None:
                   subprocess.run(['taskkill', '/PID', str(launched.pid), '/T', '/F'], check=False,
@@ -167,7 +183,7 @@ jobs:
           @'
           import json, os, shutil
           from pathlib import Path
-          source = Path(os.environ['RUNNER_TEMP']) / 'igorek-installed/resources/app/runtime'
+          source = Path(os.environ['RUNNER_TEMP']) / 'igorek installed проверка/resources/app/runtime'
           destination = Path(os.environ['IGOREK_DIAG_RUNTIME'])
           if not source.is_dir():
               raise SystemExit('No installed runtime is available for diagnosis')
