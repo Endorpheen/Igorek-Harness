@@ -339,6 +339,11 @@ rm -f /tmp/uv.tar.gz
 chmod 0755 /usr/local/bin/uv /usr/local/bin/uvx
 
 # Install the pinned source snapshot without passing git credentials to the guest.
+# A reused template must not retain modules deleted from the current snapshot.
+rm -rf -- "${IGOREK_GUEST_REPO_DIR}"
+rm -rf -- /opt/igorek/runtime
+rm -rf -- "/home/${IGOREK_GUEST_USER}/.local/share/uv/tools/igorek-agent-factory"
+rm -f -- "/home/${IGOREK_GUEST_USER}/.local/bin/igorek-factory"
 install -d -m 0755 "${IGOREK_GUEST_REPO_DIR}"
 tar -xf /opt/igorek/repo.tar -C "${IGOREK_GUEST_REPO_DIR}"
 chown -R root:root "${IGOREK_GUEST_REPO_DIR}"

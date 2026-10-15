@@ -43,4 +43,5 @@ def test_image_controller_and_launcher_are_not_agent_writable():
     assert 'chown -R root:root /opt/igorek/runtime /opt/igorek/python' in recipe
     assert 'exec /opt/igorek/runtime/bin/python -I -m factory.cli' in recipe
     assert 'Environment=IGOREK_ISOLATION_GUEST=1' in recipe
+    assert recipe.index('rm -rf -- "${IGOREK_GUEST_REPO_DIR}"') < recipe.index('tar -xf /opt/igorek/repo.tar')
     assert unprivileged_argv(['python3', 'fixture.py'])[-2:] == ['python3', 'fixture.py']
