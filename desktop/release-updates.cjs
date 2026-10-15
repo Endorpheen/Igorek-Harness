@@ -14,10 +14,10 @@ function newer(candidate, current) {
   for (let i = 0; i < 3; i++) { if (a[i] !== b[i]) return a[i] > b[i]; }
   return false;
 }
-function assetFor(release, platform, arch, portable = false) {
+function assetFor(release, platform, arch, portable = false, preview = false) {
   const tag = release.tag_name;
   const number = version(tag).join('.');
-  if (release.draft || release.prerelease || arch !== 'x64') throw Error('unsupported_release');
+  if (release.draft || (release.prerelease && !preview) || arch !== 'x64') throw Error('unsupported_release');
   const name = platform === 'win32' ? `igorek-${number}-win-x64.exe`
     : platform === 'linux' ? portable ? `igorek-${number}-linux-x86_64.AppImage` : `igorek-${number}-linux-amd64.deb` : null;
   const assets = Array.isArray(release.assets) ? release.assets.filter(asset => asset.name === name) : [];
@@ -27,7 +27,7 @@ function assetFor(release, platform, arch, portable = false) {
   if (asset.browser_download_url !== expected || !Number.isSafeInteger(asset.size)
       || asset.size < 1 || asset.size > MAX_DOWNLOAD || !/^sha256:[a-f0-9]{64}$/.test(asset.digest || ''))
     throw Error('unverified_release_asset');
-  return Object.freeze({name, url: expected, size: asset.size, sha256: asset.digest.slice(7), portable});
+  return Object.freeze({name, url: expected, size: asset.size, sha256: asset.digest.slice(7), portable,version:number});
 }
 function allowedRedirect(value) {
   try {
@@ -37,14 +37,14 @@ function allowedRedirect(value) {
   } catch { return false; }
 }
 class ReleaseUpdates {
-  constructor({current, cache, fetch = globalThis.fetch, platform = process.platform, arch = process.arch, portable = false}) {
+  constructor({current, cache, fetch = globalThis.fetch, platform = process.platform, arch = process.arch, portable = false, preview = false}) {
     version(current); this.current = current; this.cache = cache; this.fetch = fetch;
-    this.platform = platform; this.arch = arch; this.portable = portable; this.asset = null; this.busy = false;
+    this.platform = platform; this.arch = arch; this.portable = portable; this.preview = preview; this.asset = null; this.busy = false;
   }
   async check() {
     if (this.busy) throw Error('update_busy');
     this.asset = null;
-    const response = await this.fetch(RELEASES, {redirect:'error',credentials:'omit',signal:AbortSignal.timeout(20000),
+    const response = await this.fetch(this.preview?RELEASES.replace('/latest','?per_page=20'):RELEASES, {redirect:'error',credentials:'omit',signal:AbortSignal.timeout(20000),
       headers:{Accept:'application/vnd.github+json','User-Agent':'Igorek-Harness-updates','X-GitHub-Api-Version':'2022-11-28'}});
     if (response.status === 404) return {state:'no_release',current:this.current};
     if (response.status === 403 || response.status === 429) throw Error('release_check_rate_limited');
@@ -54,9 +54,15 @@ class ReleaseUpdates {
       const bytes = Buffer.from(chunk); length += bytes.length; chunks.push(bytes);
       if (length > 1024 * 1024) throw Error('release_metadata_too_large');
     }
-    const release = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    let release = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    if (this.preview) {
+      if (!Array.isArray(release) || release.length > 20) throw Error('invalid_release_metadata');
+      release = release.filter(item=>{try{version(item.tag_name);return !item.draft;}catch{return false;}})
+        .sort((a,b)=>newer(a.tag_name,b.tag_name)?-1:newer(b.tag_name,a.tag_name)?1:Number(a.prerelease)-Number(b.prerelease))[0];
+      if (!release) return {state:'no_release',current:this.current};
+    }
     if (!newer(release.tag_name, this.current)) return {state:'current',current:this.current};
-    this.asset = assetFor(release, this.platform, this.arch, this.portable);
+    this.asset = assetFor(release, this.platform, this.arch, this.portable, this.preview);
     return {state:'available',current:this.current,version:version(release.tag_name).join('.'),
       name:this.asset.name,size:this.asset.size,url:`https://github.com/${REPOSITORY}/releases/tag/${release.tag_name}`};
   }
@@ -95,7 +101,7 @@ class ReleaseUpdates {
         await handle.sync();
       } finally { await handle.close(); }
       if (asset.portable) await fs.chmod(destination,0o700);
-      return {path:destination,portable:asset.portable};
+      return {path:destination,portable:asset.portable,size:asset.size,sha256:asset.sha256,version:asset.version};
     } catch (error) {
       if (directory) await fs.rm(directory,{recursive:true,force:true});
       throw error;

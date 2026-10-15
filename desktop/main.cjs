@@ -3,6 +3,7 @@ const { pathToFileURL } = require('node:url');
 const { isOwnerFrame, shouldRefreshProfiles, ownedDataLocations } = require('./owner-policy.cjs');
 const { installedImage } = require('./installed-image.cjs');
 const { updateDialog } = require('./release-updates-ui.cjs');
+const { launchInstallation, showInstallationResult } = require('./release-install.cjs');
 let showReleaseUpdates;
 const { saveRecovery, verifyRecovery, restoreRecovery } = require('./recovery-files.cjs');
 const { access, stat } = require('node:fs/promises');
@@ -30,6 +31,7 @@ const { GitHubReviews } = require('./github-reviews.cjs');
 const { reviewRequest } = require('./github-controller.cjs');
 let githubReviews;
 let quitting = false;
+let installingUpdate = false;
 const managed = app.isPackaged || process.argv.slice(2).includes("--managed");
 const partition = managed ? "persist:igorek-desktop-owned" : "persist:igorek-desktop-prototype";
 let window;
@@ -222,9 +224,9 @@ async function toggleTrace() {
 }
 function desktopReleaseInfo(){
   const version=String(config?.factoryVersion||config?.factory_version||app.getVersion());
-  let changes=[];
-  try{const notes=JSON.parse(readFileSync(join(__dirname,'assets','release-notes.json'),'utf8'));if(notes.version===version&&Array.isArray(notes.changes))changes=notes.changes.filter(text=>typeof text==='string'&&text.trim()&&text.length<=160).slice(0,4);}catch{}
-  return {version,changes};
+  let changes=[],channel='stable';
+  try{const notes=JSON.parse(readFileSync(join(__dirname,'assets','release-notes.json'),'utf8'));if(notes.version===version&&Array.isArray(notes.changes)){changes=notes.changes.filter(text=>typeof text==='string'&&text.trim()&&text.length<=160).slice(0,4);if(notes.channel==='preview')channel='preview';}}catch{}
+  return {version,changes,...(channel==='preview'?{channel}: {})};
 }
 function openAbout(){
   if(aboutWindow&&!aboutWindow.isDestroyed()){aboutWindow.focus();return;}
@@ -498,6 +500,7 @@ ipcMain.handle('igorek:browser', async (event, action, fields = {}) => {
 ipcMain.handle('igorek:session-mcp', (event, action, fields) => sessionMcp.dispatch(event, action, fields));
 ipcMain.handle('igorek:session-agent',async(event,fields)=>{
   if(!sessionMcp.trusted(event))throw new Error('Доступ запрещён.');
+  if(installingUpdate)throw Error('Идёт подготовка обновления.');
   if(!fields||typeof fields!=='object'||Array.isArray(fields)||Object.keys(fields).length!==2||!['catalog','status','start'].includes(fields.operation)||typeof fields.profile!=='string'||fields.profile.length>64||(!fields.profile.trim()&&fields.operation!=='catalog'))return {error:'invalid_request'};
   if(runtime.requests.size)return {error:'operation_busy'};
   const reply=await runtime.requestOwner('session_agent',fields);
@@ -594,6 +597,7 @@ ipcMain.handle('igorek:owner-workspace', async (event, action) => {
 ipcMain.handle('igorek:owner-vault', async (event, action, fields) => {
   if (!managed || !isOwnerFrame(event, ownerWindow?.webContents, ownerUrl))
     throw new Error('Доступ запрещён.');
+  if(installingUpdate && !['status','image_status'].includes(action))throw Error('Идёт подготовка обновления.');
   if (action === 'plugins_status' && runtime.requests.size) return {error:'operation_busy'};
   if (['gmail_configure_file','calendar_configure_file'].includes(action)) {
     if (!fields || Object.keys(fields).length !== 1 || typeof fields.password !== 'string') return {error:'invalid_request'};
@@ -801,11 +805,25 @@ async function openWindow() {
 
 app.whenReady().then(async () => {
   try {
-    showReleaseUpdates = updateDialog({app,dialog,shell,session:electronSession.fromPartition('igorek-release-checks'),current:()=>desktopReleaseInfo().version,portable:process.platform==='linux' && Boolean(process.env.APPIMAGE)});
+    showReleaseUpdates = updateDialog({app,dialog,shell,session:electronSession.fromPartition('igorek-release-checks'),current:()=>desktopReleaseInfo().version,channel:()=>desktopReleaseInfo().channel,portable:app.isPackaged && process.platform==='linux' && Boolean(process.env.APPIMAGE),
+      install:async file=>{
+        if(!managed||!runtime)throw Error('unknown_update_installation');
+        const {python}=loadBundle(runtime.bundle);
+        installingUpdate=true;
+        try{return await launchInstallation(file,{app,python,dataDir:runtime.dataDir,prepare:async()=>{
+          const status=await runtime.requestOwner('status');
+          if(status.error||status.result?.state!=='unlocked'||status.result?.interface_locked)throw Error('update_locked');
+          const image=await runtime.requestOwner('image_status');
+          if(image.error||image.result?.image?.running)throw Error('update_tasks_active');
+          if(['ready','running','starting','stopping','installing'].includes(opencodeService?.status().state))throw Error('update_opencode_active');
+          const stopped=await runtime.requestOwner('stop_agent');
+          if(stopped.error||stopped.result?.agent?.running)throw Error('update_tasks_active');
+        }});}catch(error){installingUpdate=false;throw error;}
+      }});
     if (managed) {
       if (!app.requestSingleInstanceLock()) { app.quit(); return; }
       const options = { bundle: join(__dirname, 'runtime'), dataDir: join(app.getPath('appData'), 'igorek-desktop-runtime') };
-      const argv = process.argv.slice(2);
+      const argv = process.argv.slice(app.isPackaged?1:2);
       for (let i = 0; i < argv.length; i++) {
         if (argv[i] === '--managed') continue;
         if (['--runtime', '--data-dir'].includes(argv[i]) && argv[i + 1] && !argv[i + 1].startsWith('--')) {
@@ -870,6 +888,7 @@ app.whenReady().then(async () => {
   nativeTheme.themeSource = 'dark';
   updateApplicationMenu();
   await openWindow();
+  await showInstallationResult({app,dialog,parent:window});
   if (managed && !quitting) {
     const reply = await runtime.requestOwner('status').catch(() => null);
     if (reply?.result?.state !== 'unlocked') openOwnerWindow();

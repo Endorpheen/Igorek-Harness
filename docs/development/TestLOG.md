@@ -1,5 +1,22 @@
 # Test results
 
+## Automatic desktop installation — 0.2.0 candidate
+
+The 0.2.0 candidate adds native confirmation, a separate verified installer helper,
+closed-app replacement and relaunch with the same data directory. Active executor
+work refuses installation; a postponed download can be reused. Windows copies
+its bundled Python helper outside the application before replacement. Linux
+snapshot installation uses the existing verified installer and AppImage preserves
+previous bytes for rollback. Preview builds can discover newer preliminary releases.
+
+Targeted installer/runtime/packaging checks passed **76 cases**; the complete
+desktop suite passed **330 cases**. A real temporary Linux update from 0.1.889
+to 0.2.0 retained the previous generation and an encrypted Vault credential.
+Windows acceptance includes the actual NSIS helper, a spaces/Unicode install
+path, retained synthetic data, packaged relaunch with the same data directory
+and graceful shutdown. The [PR checks](https://github.com/Endorpheen/Igorek-Harness/pull/21/checks)
+record its exact result; publishing requires this complete check to pass.
+
 ## Current snapshot — 15 October 2026
 
 Python/desktop **0.2.0**; Android **0.1.105 / versionCode 106**.
@@ -7,10 +24,10 @@ Results below describe identified candidates, not a stable three-platform releas
 
 | Layer | Result | Scope |
 | --- | --- | --- |
-| Python | **4787 collected; 4756 passed; 31 skipped; zero failures/errors** | Both roots, 299 isolated files; **614 additional passing subtests** |
-| Python statements | **45690 / 77180, 59.20%** | Shared agent, inference API, desktop Python and build helpers |
-| Python branches | **12702 / 27588, 46.04%** | Measured independently from line coverage |
-| Desktop Node | **322 passed; zero failures/skips** | Controllers, IPC, permissions, transport, updates and state |
+| Python | **4793 collected; 4762 passed; 31 skipped; zero failures/errors** | Both roots, 300 isolated files; **614 additional passing subtests** |
+| Python statements | **45773 / 77338, 59.19%** | Shared agent, inference API, desktop Python and build helpers |
+| Python branches | **12720 / 27640, 46.02%** | Measured independently from line coverage |
+| Desktop Node | **330 passed; zero failures/skips** | Controllers, IPC, permissions, transport, updates and state |
 | Android JVM | **318 passed** | Unit contracts; lint and debug/release packaging checked separately |
 | Hosted CI | **All eight CI jobs passed** | Python 3.13/3.14, desktop Linux/Windows, native Linux, Android, publication checks and secret detection |
 | Hosted packaging | **Linux and Windows jobs passed** | Actual platform builds; native Windows installer acceptance |

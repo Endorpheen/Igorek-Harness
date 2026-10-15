@@ -7,7 +7,7 @@ LEGAL_FILES = ('LICENSE', 'docs/THIRD_PARTY_NOTICES.md',
 APP_FILES = (
     'opencode-service.cjs', 'opencode-egress.cjs', 'opencode-workspace.cjs', 'opencode-sandbox.py', 'opencode-kvm-guest.py', 'opencode-host-services-client.py',
     'browser-favorites.cjs', 'workspace-agent.cjs', 'completion-sound.cjs', 'completion-sound-settings.js',
-    'release-updates.cjs', 'release-updates-ui.cjs', 'links.cjs', 'about.html', 'about.css', 'about.js',
+    'release-updates.cjs', 'release-updates-ui.cjs', 'release-install.cjs', 'release-install.py', 'links.cjs', 'about.html', 'about.css', 'about.js',
     'main.cjs', 'session-preload.cjs', 'ui-navigation.cjs', 'mcp-task.cjs', 'policy.cjs', 'runtime.cjs', 'owner-policy.cjs', 'recovery-files.cjs', 'installed-image.cjs',
     'window-menu.cjs', 'window-chrome.js', 'window-chrome.css', 'diagnostics.html', 'diagnostics.js', 'diagnostics-preload.cjs',
     'owner-preload.cjs', 'owner-ui.js', 'onboarding-state.cjs', 'profile-cards.cjs', 'owner.html', 'owner.css',

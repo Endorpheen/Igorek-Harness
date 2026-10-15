@@ -1,1 +1,1 @@
-module.exports={GITHUB_URL:'https://github.com/Endorpheen'};
+module.exports={GITHUB_URL:'https://github.com/Endorpheen/Igorek-Harness'};

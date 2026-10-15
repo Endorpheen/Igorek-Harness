@@ -262,7 +262,7 @@ function workspaceIpcHarness() {
   const event = { sender: contents, senderFrame: frame };
   let handler, selected = { canceled: false, filePaths: ['/tmp/workspace'] }, status = { state: 'unlocked', agent: { running: true } };
   const scripts = []; let closed = 0, dialogs = 0;
-  const context = vm.createContext({ managed: true, selectedWorkspace: undefined, ownerUrl: frame.url,
+  const context = vm.createContext({ managed: true, installingUpdate: false, selectedWorkspace: undefined, ownerUrl: frame.url,
     ownerWindow: { webContents: contents, close: () => closed++ }, isOwnerFrame,
     ipcMain: { handle: (_, fn) => { handler = fn; } },
     runtime: { requestOwner: async () => ({ result: status }) },
@@ -492,7 +492,7 @@ function ownerKeyIpcHarness(action = 'reveal_profile_key') {
   const url = 'file:///owner.html', mainFrame = { url };
   const contents = { mainFrame, isDestroyed: () => false };
   const calls = []; let handler, deliver;
-  const context = vm.createContext({ managed: true, ownerUrl: url, ownerWindow: { webContents: contents }, isOwnerFrame,
+  const context = vm.createContext({ managed: true, installingUpdate: false, ownerUrl: url, ownerWindow: { webContents: contents }, isOwnerFrame,
     runtime: { requestOwner: (action, fields) => { calls.push({ action, fields }); return new Promise(resolve => { deliver = resolve; }); } },
     shouldRefreshProfiles: () => false, ipcMain: { handle: (_, callback) => { handler = callback; } } });
   vm.runInContext(source.slice(start, end), context);

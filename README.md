@@ -102,10 +102,10 @@ See [Desktop](#desktop) for packaging and Electron sandbox requirements.
   window is inactive or minimized. The persistent toggle is under
   **Settings → Notifications**.
 
-- **Desktop updates.** Check stable GitHub releases from the update icon and
-  download the matching Linux or Windows installer with SHA-256 verification.
-  Installation remains an explicit user action; portable AppImages are replaced
-  manually after download.
+- **Desktop updates.** Check GitHub releases from the update icon, download
+  the matching Linux or Windows package with SHA-256 verification, then choose
+  Install and restart. Active tasks block installation; connections and history
+  stay separate. Preliminary builds also receive newer preview releases.
 
 ## Interface
 

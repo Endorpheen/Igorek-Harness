@@ -6,6 +6,7 @@ const path = require('node:path');
 const {createHash} = require('node:crypto');
 const {ReleaseUpdates,assetFor,newer,allowedRedirect,REPOSITORY} = require('../release-updates.cjs');
 const {updateDialog} = require('../release-updates-ui.cjs');
+const {installerEnvironment,installationTarget,launchInstallation,showInstallationResult} = require('../release-install.cjs');
 const payload = Buffer.from('synthetic installer; never executed');
 function release(platform='win32') {
   const name=platform==='win32'?'igorek-0.2.1-win-x64.exe':'igorek-0.2.1-linux-amd64.deb';
@@ -34,6 +35,48 @@ test('release selection is numeric and binds system, repository, size and digest
   assert.ok(allowedRedirect('https://release-assets.githubusercontent.com/asset?temporary=value'));
   for(const url of ['http://github.com/a','https://github.com.evil.invalid/a','https://127.0.0.1/a','https://user:pass@github.com/a','https://github.com:444/a'])assert.ok(!allowedRedirect(url));
 });
+test('native install requires a second owner confirmation and keeps verified metadata',async t=>{
+  const f=await fixture(t,release(process.platform));let launched=0;
+  const parent={isDestroyed:()=>false,setProgressBar:()=>{}};
+  const choices=[0,2,0,0];
+  const show=updateDialog({app:{getPath:()=>f.root},dialog:{showMessageBox:async()=>({response:choices.shift()})},
+    shell:{showItemInFolder:()=>assert.fail('Install was selected')},session:{fetch:f.fetch},current:()=> '0.2.0',portable:false,
+    install:async file=>{launched++;assert.equal(file.sha256,createHash('sha256').update(payload).digest('hex'));
+      assert.equal(file.version,'0.2.1');assert.deepEqual(await fs.readFile(file.path),payload);return {state:'installing'};}});
+  assert.equal((await show(parent)).state,'downloaded');assert.equal(launched,0);
+  assert.equal((await show(parent)).state,'installing');assert.equal(launched,1);
+});
+test('update helper receives OS/display paths but no account credentials',()=>{
+  assert.deepEqual(installerEnvironment({HOME:'/fixture',PATH:'/bin',DISPLAY:':99',OPENAI_API_KEY:'private',
+    ANTHROPIC_AUTH_TOKEN:'private',FACTORY_EXTERNAL_CODEX_HOME:'/private'}),{PATH:'/bin',HOME:'/fixture',DISPLAY:':99'});
+});
+test('a source checkout cannot become an automatic installed-snapshot target',async t=>{
+  const f=await fixture(t);
+  await assert.rejects(installationTarget({app:{getAppPath:()=>f.root},platform:'linux',appimage:null}));
+});
+test('installation waits for helper readiness and refuses a busy owner before spawn', {skip:process.platform!=='linux'},async t=>{
+  const f=await fixture(t);f.updater.cache=path.join(f.root,'release-downloads');await f.updater.check();const file=await f.updater.download();
+  const appPath=path.join(f.root,'installed/releases/build/app');await fs.mkdir(appPath,{recursive:true});
+  await fs.writeFile(path.join(f.root,'installed/installation.json'),JSON.stringify({schema_version:1,kind:'igorek-linux-user-installation'}));
+  let quit=0,spawned=0;
+  const app={getPath:()=>f.root,getAppPath:()=>appPath,quit:()=>quit++};
+  await assert.rejects(launchInstallation(file,{app,python:'/fixture/python',dataDir:f.root,prepare:async()=>{throw Error('update_tasks_active');},
+    spawnChild:()=>{spawned++;assert.fail('Busy owner must not spawn installer');}}),/tasks_active/);
+  assert.equal(spawned,0);assert.equal(quit,0);
+  const second=await f.updater.download();
+  const {EventEmitter}=require('node:events');
+  const result=await launchInstallation(second,{app,python:'/fixture/python',dataDir:f.root,prepare:async()=>{},spawnChild:(python,args,options)=>{
+    spawned++;assert.equal(options.env.OPENAI_API_KEY,undefined);assert.equal(options.detached,true);
+    const child=new EventEmitter();child.exitCode=null;child.unref=()=>{};child.kill=()=>assert.fail('Ready helper must survive desktop exit');
+    fs.writeFile(args.at(-1).replace(/\.json$/,'.ready'),'ready');return child;}});
+  assert.equal(result.state,'installing');assert.equal(spawned,1);assert.equal(quit,1);
+});
+test('update completion receipt is displayed once and cannot execute a payload',async t=>{
+  const f=await fixture(t);const cache=path.join(f.root,'release-downloads');await fs.mkdir(cache);
+  await fs.writeFile(path.join(cache,'last-install-result.json'),JSON.stringify({state:'failed'}));
+  let shown=0;const options={app:{getPath:()=>f.root},dialog:{showMessageBox:async()=>shown++},parent:{}};
+  await showInstallationResult(options);await showInstallationResult(options);assert.equal(shown,1);
+});
 test('check performs no install or download; verified bytes are stored without credentials',async t=>{
   const f=await fixture(t);assert.equal((await f.updater.check()).state,'available');assert.equal(f.requests.length,1);
   const saved=await f.updater.download();assert.deepEqual(await fs.readFile(saved.path),payload);
@@ -54,6 +97,22 @@ test('foreign redirects and stale failed metadata cannot authorize a download',a
 test('no releases is a normal first-publication state; current version needs no asset',async t=>{
   const f=await fixture(t);f.updater.fetch=async()=>new Response(null,{status:404});assert.equal((await f.updater.check()).state,'no_release');
   f.updater.fetch=async()=>Response.json({tag_name:'v0.2.0'});assert.equal((await f.updater.check()).state,'current');
+});
+test('preview channel discovers newer preliminary builds while drafts and foreign tags stay excluded',async t=>{
+  const f=await fixture(t);f.updater.preview=true;
+  const candidate=release();candidate.prerelease=true;
+  f.updater.fetch=async url=>{assert.ok(url.endsWith('/releases?per_page=20'));return Response.json([
+    {...release(),tag_name:'v9.0.0',draft:true},{tag_name:'android-v9.0.0'},candidate]);};
+  assert.equal((await f.updater.check()).version,'0.2.1');
+  assert.throws(()=>assetFor(candidate,'win32','x64'));
+});
+test('a postponed verified download is reused after a busy task instead of being fetched again',async t=>{
+  const f=await fixture(t,release(process.platform));let downloads=0,attempts=0;
+  const show=updateDialog({app:{getPath:()=>f.root},dialog:{showMessageBox:async()=>({response:0})},shell:{},
+    session:{fetch:async(url,options)=>{if(!url.includes('/releases/latest'))downloads++;return f.fetch(url,options);}},
+    current:()=> '0.2.0',portable:false,install:async()=>{if(!attempts++)throw Error('update_tasks_active');return {state:'installing'};}});
+  const parent={isDestroyed:()=>false,setProgressBar:()=>{}};
+  assert.equal((await show(parent)).state,'failed');assert.equal((await show(parent)).state,'installing');assert.equal(downloads,1);
 });
 test('native cancel never downloads; confirmed download only reveals verified installer',async t=>{
   const f=await fixture(t,release(process.platform));const shown=[];let index=0;
