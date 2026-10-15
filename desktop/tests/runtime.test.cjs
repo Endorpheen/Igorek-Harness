@@ -52,7 +52,7 @@ function fixture(mode = 'ready', timeoutMs = 2000) {
     python = 'py/Scripts/python.exe';
     writeFileSync(join(bundle, 'backend.py'), `
 import json, pathlib, shutil, sys, time
-root = pathlib.Path(sys.argv[-1])
+root = pathlib.Path(sys.argv[-1]).resolve()
 cert = root / 'web-ui' / 'tls' / 'localhost-cert.pem'
 cert.parent.mkdir(parents=True, exist_ok=True)
 shutil.copyfile(pathlib.Path(__file__).with_name('cert.pem'), cert)

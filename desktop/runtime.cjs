@@ -4,6 +4,7 @@ const { join, resolve, relative, isAbsolute, sep } = require('node:path');
 const { EventEmitter } = require('node:events');
 const { randomUUID } = require('node:crypto');
 const { settings } = require('./policy.cjs');
+const canonicalPath = value => process.platform === 'win32' ? realpathSync.native(value) : realpathSync(value);
 
 function runtimeEnvironment(root, source = process.env, platform = process.platform, bundle = null) {
   const paths = platform === 'win32' ? require('node:path').win32 : require('node:path').posix;
@@ -69,7 +70,7 @@ class OwnedRuntime extends EventEmitter {
     if (this.child) throw new Error('Backend уже запущен.');
     const { python, entry } = loadBundle(this.bundle);
     mkdirSync(this.dataDir, { recursive: true, mode: 0o700 });
-    this.dataDir = realpathSync(this.dataDir);
+    this.dataDir = canonicalPath(this.dataDir);
     mkdirSync(join(this.dataDir, 'home'), { recursive: true, mode: 0o700 });
     mkdirSync(join(this.dataDir, 'cache'), { recursive: true, mode: 0o700 });
     this.child = spawn(python, ['-I', entry, this.dataDir], {
@@ -114,12 +115,16 @@ class OwnedRuntime extends EventEmitter {
               }
               if (event.type === 'error') { finish(new Error('Локальный backend не запустился.')); return; }
               if (event.type === 'ready') {
-                if (!Number.isInteger(event.web_port) || event.web_port < 1 || event.web_port > 65535
-                    || typeof event.pairing_code !== 'string' || event.pairing_code.length > 32
-                    || typeof event.cert !== 'string'
-                    || realpathSync(event.cert) !== realpathSync(join(this.dataDir, 'web-ui', 'tls', 'localhost-cert.pem'))
-                    || relative(this.dataDir, realpathSync(event.cert)) !== join('web-ui', 'tls', 'localhost-cert.pem')) {
-                  finish(new Error('Некорректные параметры backend.')); return;
+                if (!Number.isInteger(event.web_port) || event.web_port < 1 || event.web_port > 65535) {
+                  finish(new Error('Backend передал некорректный порт.')); return;
+                }
+                if (typeof event.pairing_code !== 'string' || event.pairing_code.length > 32) {
+                  finish(new Error('Backend передал некорректный код сопряжения.')); return;
+                }
+                if (typeof event.cert !== 'string'
+                    || canonicalPath(event.cert) !== canonicalPath(join(this.dataDir, 'web-ui', 'tls', 'localhost-cert.pem'))
+                    || relative(this.dataDir, canonicalPath(event.cert)) !== join('web-ui', 'tls', 'localhost-cert.pem')) {
+                  finish(new Error('Сертификат backend находится вне ожидаемого каталога.')); return;
                 }
                 const config = settings(['--url', `https://127.0.0.1:${event.web_port}`, '--cert', event.cert], {});
                 finish(null, { ...config, pairingCode: event.pairing_code,

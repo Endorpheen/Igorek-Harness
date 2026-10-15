@@ -1,5 +1,18 @@
 # Test results
 
+## 2026-10-15 — Windows native canonical path follow-up
+
+- Managed startup now uses native Windows realpath resolution, matching Python's
+  expansion of short DOS paths. The Windows Python fixture resolves its root
+  exactly like the actual backend, rather than preserving the input alias.
+  Startup refusal distinguishes invalid port, pairing-code shape and certificate
+  boundary without logging codes, private paths or certificate contents.
+- Integrated 0.2.0 snapshot after dependency and VM changes:
+  **4782 collected / 4752 passed / 30 skipped / zero failures/errors**,
+  **614 subtests**, both roots; **322 desktop cases passed**. Native Windows
+  remains pending the hosted follow-up. The earlier unsuccessful hosted startup
+  is retained as failed evidence.
+
 ## 2026-10-15 — Release updates, VM compatibility and dependency review
 
 - Final layout snapshot: **4780 collected / 4750 passed / 30 skipped / zero
