@@ -3,10 +3,10 @@ name: Desktop packages
 on:
   workflow_dispatch:
   pull_request:
-    paths: ['factory/**', 'desktop/**', 'tests/test_platform_support.py', 'tests/test_vault_lifecycle.py', 'pyproject.toml', 'uv.lock', '.python-version', '.github/workflows/desktop-build.yml']
+    paths: ['factory/**', 'desktop/**', 'tests/test_platform_support.py', 'tests/test_vault_lifecycle.py', 'pyproject.toml', 'uv.lock', '.python-version', '.gitattributes', '.github/workflows/desktop-build.yml']
   push:
     branches: [main]
-    paths: ['factory/**', 'desktop/**', 'pyproject.toml', 'uv.lock', '.python-version', '.github/workflows/desktop-build.yml']
+    paths: ['factory/**', 'desktop/**', 'pyproject.toml', 'uv.lock', '.python-version', '.gitattributes', '.github/workflows/desktop-build.yml']
 
 permissions:
   contents: read

@@ -4,10 +4,23 @@ from factory.core import cc_backend_executor
 from factory.core.cc_backend_executor import (
     _extract_context_window_from_payload,
     _resolve_backend_context_window,
+    _is_prompt_too_long_error,
 )
 
 
 class CcBackendContextWindowTest(unittest.TestCase):
+    def test_context_error_formats_preserve_cloud_and_local_recovery(self):
+        for error in (
+            'HTTP 400: {"error":{"type":"exceed_context_size_error"}}',
+            'request (35512 tokens) exceeds the available context size (32768 tokens)',
+            'prompt too long', 'maximum context length exceeded',
+        ):
+            with self.subTest(error=error):
+                self.assertTrue(_is_prompt_too_long_error(error))
+        for error in ('HTTP 401: unauthorized', 'HTTP 429: rate limit', 'connection refused', ''):
+            with self.subTest(error=error):
+                self.assertFalse(_is_prompt_too_long_error(error))
+
     def test_extracts_llama_props_n_ctx(self):
         payload = {"default_generation_settings": {"n_ctx": 65536}}
 

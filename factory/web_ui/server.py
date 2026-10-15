@@ -42,7 +42,7 @@ from ..core.opencode_quota import (
     opencode_api_key,
 )
 from ..core.mobile_bridge.uploads import MAX_UPLOAD_BYTES
-from ..core.runtime import DEFAULT_CLI_HOME, get_chat_sessions_dir, get_profile_path
+from ..core.runtime import DEFAULT_CLI_HOME, get_chat_sessions_dir, get_profile_path, profile_display_model_name
 from ..core.isolation.terminal_manager import (
     TICKET_TTL_S as TERMINAL_TICKET_TTL_S,
     PtyTerminalBackend,
@@ -326,7 +326,7 @@ def _worker_profiles() -> list[str]:
 
 
 def _profile_model(profile: str) -> str:
-    """Model from profile config ('' — unknown profile or unreadable)."""
+    """Current local server model, or configured cloud model when available."""
     name = str(profile or "").strip()
     if not name or not _PROFILE_NAME.fullmatch(name):
         return ""
@@ -335,7 +335,9 @@ def _profile_model(profile: str) -> str:
     except (OSError, json.JSONDecodeError):
         return ""
     model = data.get("model") if isinstance(data, dict) else ""
-    return model.strip() if isinstance(model, str) else ""
+    if not isinstance(model, str) or not model.strip():
+        return ""
+    return profile_display_model_name(data).strip()
 
 
 def _model_context_window(model: str) -> int | None:
@@ -1722,7 +1724,8 @@ class _Handler(BaseHTTPRequestHandler):
     def _model_info(self, raw_query: str) -> None:
         """Actual profile model for the Igorek composer chip and context window.
 
-        The web interface operates on the same host and data root as runtime, so the model is read directly from the profile config. The passed model is used only as a fallback when the config does not contain it.
+        Local profiles resolve the running server's model. Cloud profiles keep
+        their configured model; the passed model is a fallback for missing profiles.
         """
         if not self._local_token():
             return

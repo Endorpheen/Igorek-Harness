@@ -125,6 +125,60 @@ class SessionMemoryTest(unittest.TestCase):
         self.assertEqual(summarize_history([{"role": "user", "content": "evidence"}], request=request, input_budget_tokens=20000), SUMMARY)
         self.assertIn("summary_structure_invalid", prompts[-1])
 
+    def test_provider_rejected_summary_splits_input_without_losing_evidence(self):
+        prompts = []
+        def request(prompt):
+            prompts.append(prompt)
+            piece = prompt.split("<conversation>\n", 1)[1].split("\n</conversation>", 1)[0]
+            if len(piece) > 9000:
+                raise ValueError("summary_input_budget_exceeded")
+            return SUMMARY
+        result = summarize_history([{"role": "user", "content": "markerA" + "x" * 26000 + "markerB"}], request=request, input_budget_tokens=20000)
+        self.assertEqual(result, SUMMARY)
+        self.assertTrue(any("markerA" in p for p in prompts))
+        self.assertTrue(any("markerB" in p for p in prompts))
+
+    def test_server_context_rejection_compacts_and_retries_despite_low_estimate(self):
+        fixtures = Path(__file__).parent / "fixtures/context_overflow"
+        cases = [
+            ("HTTP 400: " + (fixtures / "llama_server.json").read_text().strip(), 32768),
+            ("HTTP 400: " + (fixtures / "llama_server_98k.json").read_text().strip(), 98048),
+            ("prompt too long", 32768),
+        ]
+        for error, window in cases:
+            with self.subTest(error=error), tempfile.TemporaryDirectory() as directory:
+                calls = []
+                history = [
+                    {"role": "user", "content": "old evidence " + "x" * (window // 2), "history_id": "u"},
+                    {"role": "assistant", "content": "old answer " + "y" * (window // 2), "history_id": "a"},
+                ]
+                original = json.dumps(history)
+                def main(url, payload, headers, *args, **kwargs):
+                    calls.append(json.loads(json.dumps(payload)))
+                    if len(calls) == 1:
+                        return {"error": error}, 1
+                    return {"choices": [{"message": {"content": "Продолжение"}, "finish_reason": "stop"}]}, 1
+                summary_calls = []
+                def summary(url, payload, headers, *args, **kwargs):
+                    summary_calls.append(payload)
+                    if len(summary_calls) == 1:
+                        return {"error": error}, 1
+                    return {"choices": [{"message": {"content": SUMMARY}, "finish_reason": "stop"}]}, 1
+                with patch.object(executor, "_resolve_backend_context_window", return_value=(window, "/props")), patch.object(executor, "_http_post_streaming_openai", side_effect=main), patch.object(executor, "_http_post", side_effect=summary):
+                    result = executor.execute_cc_backend_task(base_url="http://localhost/v1", model="fixture-model", system_prompt="test", user_message="continue", workdir=directory, api_format="openai", history_messages=history, max_tokens=1024, enabled_tools=[])
+                trace = [json.loads(line) for line in (Path(directory) / "cc_backend_trace.jsonl").read_text().splitlines()]
+                self.assertEqual(result["status"], "ok")
+                self.assertEqual(len(calls), 2)
+                self.assertGreater(len(summary_calls), 1)
+                self.assertTrue(any(e["kind"] == "compaction.completed" for e in trace))
+                self.assertTrue(any(e["kind"] == "compaction.check" and e.get("prompt_too_long") for e in trace))
+                self.assertIn("carried evidence", json.dumps(calls[-1]))
+                self.assertNotIn("x" * 1000, json.dumps(calls[-1]))
+                self.assertEqual(json.dumps(history), original)
+                archives = list((Path(directory) / ".session_compaction").glob("*_history.jsonl"))
+                self.assertTrue(archives)
+                self.assertIn("x" * 1000, archives[0].read_text())
+
     def _run_executor(self, api_format, fail_summary=False, fail_persistence=False, truncated_first=False, oversized=False, context_window=20000):
         payloads = []
         def response(text, summary=False):

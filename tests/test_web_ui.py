@@ -1779,6 +1779,32 @@ class WebUiModelInfoTest(WebUiServerTestCase):
             {"profile": "cc-missing", "model": "unknown-model", "context_window": None},
         )
 
+    def test_local_model_info_tracks_running_server_instead_of_stale_profile(self):
+        self._write_profile("cc-test", {
+            "backend": "cc-backend", "provider": "local", "model": "old-model",
+            "base_url": "http://127.0.0.1:8081/v1",
+        })
+        cookie = self._pair()
+        with patch("factory.core.runtime.resolve_local_model_display_name", side_effect=["Nemotron-Bolt", "next-model"]) as resolve, patch("factory.web_ui.server._model_context_window", return_value=None):
+            for expected in ("Nemotron-Bolt", "next-model"):
+                status, _, data = self._request("GET", "/api/model-info?profile=cc-test", cookie=cookie)
+                self.assertEqual(status, 200)
+                self.assertEqual(json.loads(data)["model"], expected)
+        self.assertEqual(resolve.call_count, 2)
+        self.assertEqual(resolve.call_args.args, ("http://127.0.0.1:8081/v1", "old-model"))
+
+    def test_cloud_model_info_does_not_probe_provider(self):
+        self._write_profile("cc-test", {
+            "backend": "cc-backend", "provider": "glm", "model": "cloud-model",
+            "base_url": "https://provider.example/v1",
+        })
+        cookie = self._pair()
+        with patch("factory.core.runtime.resolve_local_model_display_name") as resolve, patch("factory.web_ui.server._model_context_window", return_value=None):
+            status, _, data = self._request("GET", "/api/model-info?profile=cc-test", cookie=cookie)
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(data)["model"], "cloud-model")
+        resolve.assert_not_called()
+
     def test_model_info_rejects_unsafe_profile_before_filesystem(self):
         cookie = self._pair()
         before = len(_FakeBridgeHandler.records)

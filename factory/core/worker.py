@@ -53,6 +53,7 @@ try:
         profile_backend_name,
         profile_filesystem_mode,
         profile_model_name,
+        resolve_local_model_id,
     )
     from . import security_levels, security_settings
     from .schema import ensure_schema, initialize_database, open_db
@@ -106,6 +107,7 @@ except ImportError:  # pragma: no cover - direct script fallback
         profile_backend_name,
         profile_filesystem_mode,
         profile_model_name,
+        resolve_local_model_id,
     )
     import security_levels
     import security_settings
@@ -886,24 +888,8 @@ def _extract_raw_user_message(task_text: str) -> str:
 
 
 def _resolve_cc_backend_model(base_url: str, fallback: str) -> str:
-    """# Reads the actual model currently managed by the local CC backend."""
-    fallback = str(fallback or "").strip()
-    try:
-        with urllib.request.urlopen(
-            f"{base_url.rstrip('/')}/v1/models", timeout=2
-        ) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-    except (OSError, urllib.error.URLError, json.JSONDecodeError):
-        return fallback
-
-    data = payload.get("data") if isinstance(payload, dict) else None
-    if isinstance(data, list):
-        for item in data:
-            if isinstance(item, dict):
-                model_id = str(item.get("id") or "").strip()
-                if model_id:
-                    return model_id
-    return fallback
+    """Read the served model using the same endpoint normalization as the UI."""
+    return resolve_local_model_id(base_url, str(fallback or "").strip())
 
 
 def _foundation_context_block(data_dir: str | None = None) -> str:

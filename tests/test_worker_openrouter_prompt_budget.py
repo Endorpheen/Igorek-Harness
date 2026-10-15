@@ -7,11 +7,26 @@ from factory.core.worker import (
     _filter_by_toolsets,
     _reload_enabled_mcp_servers_for_cc_backend,
     _task_supports_interactive_input,
+    _effective_cc_backend_model,
 )
 from factory.core.tool_registry import registry
 
 
 class WorkerOpenRouterPromptBudgetTest(unittest.TestCase):
+    def test_local_request_uses_exact_served_id_without_duplicate_v1(self):
+        from tests.test_local_model_display import _FakeResponse, _fake_payload
+
+        with patch("factory.core.runtime.urllib.request.urlopen", return_value=_FakeResponse(_fake_payload("/models/Bolt.gguf"))) as request:
+            model = _effective_cc_backend_model(provider="local", configured_model="old-model", task_metadata={}, base_url="http://localhost:8081/v1")
+        self.assertEqual(model, "/models/Bolt.gguf")
+        self.assertEqual(request.call_args.args[0], "http://localhost:8081/v1/models")
+
+    def test_cloud_request_keeps_explicit_override_without_model_discovery(self):
+        with patch("factory.core.worker.resolve_local_model_id") as resolve:
+            model = _effective_cc_backend_model(provider="openrouter", configured_model="cloud-default", task_metadata={"model_override": "chosen-model"}, base_url="https://provider.example/v1")
+        self.assertEqual(model, "chosen-model")
+        resolve.assert_not_called()
+
     def test_openrouter_defaults_to_compact_prompt_and_lean_toolsets(self):
         config = {"backend": "cc-backend", "provider": "openrouter"}
 

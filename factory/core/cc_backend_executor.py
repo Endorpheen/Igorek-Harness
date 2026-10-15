@@ -898,6 +898,8 @@ def _is_prompt_too_long_error(error_text: str) -> bool:
     return any(
         marker in lowered
         for marker in (
+            "exceed_context_size_error",
+            "exceeds the available context size",
             "prompt too long",
             "context length",
             "context window",
@@ -1721,6 +1723,8 @@ def execute_cc_backend_task(
                             request_payload["thinking"] = {"type": "disabled"}
                     body, _ = _http_post(url, request_payload, headers, timeout_s, use_curl=is_openai_api)
                     if not isinstance(body, dict) or body.get("error"):
+                        if isinstance(body, dict) and _is_prompt_too_long_error(str(body.get("error") or "")):
+                            raise ValueError("summary_input_budget_exceeded")
                         raise ValueError("summary_provider_error")
                     if is_openai_api:
                         body = _openai_response_to_anthropic(body, set())

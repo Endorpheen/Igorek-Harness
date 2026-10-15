@@ -6,12 +6,12 @@ from pathlib import Path
 def test_files_refresh_after_committed_success_and_reject_stale_replies():
     script = r'''
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
-const source=fs.readFileSync(process.argv[1],'utf8'),requests=[],notices=[],rows=new Map();
+const source=fs.readFileSync(process.argv[1],'utf8'),requests=[],notices=[],rows=new Map();let modelRefreshes=0;
 const state={paired:true,selected:'session',panel:{workspace:{resetSession(){}},open:true,tab:'files',files:{status:'ready',data:{files:[]}}},
  finishNotes:new Map(),finishedTasks:new Set(),activeTasks:new Set(),textStreamRounds:new Map(),textStreams:new Map(),lateDeltas:new Map(),reasoningStreams:new Map(),items:[],subagents:new Map()};
 const context=vm.createContext({state,Date,Map,Set,Number,String,Promise,Boolean,console,
  encode:encodeURIComponent,toMillis:value=>Number(value)||0,renderPanel(){},toast:error=>notices.push(error),finishSuffix:()=>'',
- upsert:row=>rows.set(row.id,row),setIndicator(){},setRuntime(){},loadSessions:async()=>{},
+ upsert:row=>rows.set(row.id,row),setIndicator(){},setRuntime(){},loadSessions:async()=>{},refreshComposerModel(){modelRefreshes++;},
  activateWorkspaceTab:async()=>{},closeFileViewerSession(){},unmountTerminal(){},resetPlanState(){},
  api:path=>new Promise((resolve,reject)=>requests.push({path,resolve,reject}))});
 for(const [start,end] of [['function finishTask(', 'function knownSubagentFor('],
@@ -23,8 +23,10 @@ for(const [start,end] of [['function finishTask(', 'function knownSubagentFor(']
 const tick=async()=>{await Promise.resolve();await Promise.resolve()};
 (async()=>{
  context.handleEvent({kind:'task.finish',task_id:'fixture-task',payload:{status:'ok'}});
+ assert.equal(modelRefreshes,1,'task completion must refresh the running model');
  assert.equal(requests.length,1);requests[0].resolve({files:[]});await tick();
  context.handleEvent({kind:'task.status',task_id:'fixture-task',payload:{status:'ok'}});
+ assert.equal(modelRefreshes,2,'committed status must refresh the running model too');
  assert.equal(requests.length,2,'committed task.status(ok) must re-fetch files');
  requests[1].resolve({files:[{name:'existing-sheet.xlsx',id:'updated'}]});await tick();
  assert.equal(state.panel.files.data.files[0].name,'existing-sheet.xlsx');assert.equal(rows.size,1);

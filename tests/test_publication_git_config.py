@@ -111,3 +111,21 @@ def test_process_output_budget_is_enforced_before_capture(repository, monkeypatc
     with pytest.raises(ValueError, match='output budget'):
         readonly_git.read_git(repository, ['cat-file', 'blob', 'HEAD:large.txt'])
     assert len(readonly_git.read_git(repository, ['rev-parse', 'HEAD']).strip()) == 40
+
+
+def test_release_checkout_keeps_source_bytes_with_windows_autocrlf(repository):
+    attributes = Path(__file__).resolve().parents[1] / '.gitattributes'
+    (repository / '.gitattributes').write_bytes(attributes.read_bytes())
+    source = b'VALUE = "fixture"\n'
+    binary = b'\x89PNG\0\r\nfixture\r\n'
+    (repository / 'source.py').write_bytes(source)
+    (repository / 'image.png').write_bytes(binary)
+    git(repository, 'add', '.gitattributes', 'source.py', 'image.png')
+    git(repository, 'commit', '-m', 'Canonical fixture bytes')
+    checkout = repository.parent / 'windows-checkout'
+    git(repository, '-c', 'core.autocrlf=true', 'clone', '--no-hardlinks', str(repository), str(checkout))
+    git(checkout, 'config', 'core.autocrlf', 'true')
+    git(checkout, 'reset', '--hard', 'HEAD')
+    assert (checkout / 'source.py').read_bytes() == source
+    assert (checkout / 'image.png').read_bytes() == binary
+    assert git(checkout, 'status', '--porcelain') == ''

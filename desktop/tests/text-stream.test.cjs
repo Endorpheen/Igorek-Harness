@@ -2,7 +2,7 @@ const {test}=require('node:test'),assert=require('node:assert/strict'),fs=requir
 const source=fs.readFileSync(require('node:path').join(__dirname, '..','../factory/web_ui/static/app.js'),'utf8');
 function fixture(){
  const state={items:[],textStreams:new Map(),textStreamRounds:new Map(),closedStreams:new Map(),knownAssistantText:new Set(),finishedTasks:new Set(),finishNotes:new Map(),startedTasks:new Set(),activeTasks:new Set(),taskStarts:new Map()};
- const context={state,window:{},upsert(item){const index=state.items.findIndex(row=>row.id===item.id);if(index<0)state.items.push(item);else state.items[index]={...state.items[index],...item};},setRuntime(){},setIndicator(){},startTask(){},isolationStarting:()=>false,renderTimeline(){},noteUsage(){},requeueText:()=>'',Date};
+ const context={state,window:{},upsert(item){const index=state.items.findIndex(row=>row.id===item.id);if(index<0)state.items.push(item);else state.items[index]={...state.items[index],...item};},setRuntime(){},setIndicator(){},startTask(){},refreshComposerModel(){},isolationStarting:()=>false,renderTimeline(){},noteUsage(){},requeueText:()=>'',Date};
  vm.createContext(context);vm.runInContext(source.slice(source.indexOf('function resetTextStream('),source.indexOf('function knownSubagentFor(')),context);
  let seq=0;return {state,event:context.handleEvent,send(kind,round,text='',task_id='task'){context.handleEvent({kind,task_id,seq:++seq,payload:{round,text}});},stream:()=>state.items.find(row=>row.id==='stream-task'),answers:()=>state.items.filter(row=>row.type==='assistant'&&!row.streaming)};
 }
