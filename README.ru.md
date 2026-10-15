@@ -12,7 +12,7 @@
 
 [Быстрый старт](#быстрый-старт) · [Возможности](#что-умеет-приложение) ·
 [Android](#android-и-web-ui) · [Безопасность](#данные-и-границы-защиты) ·
-[Документация](#документация) · [Подготовка к GitHub](docs/GITHUB_PUBLICATION_CHECKLIST.md)
+[Документация](#документация) · [Подготовка релиза](docs/development/RELEASE_CHECKLIST.md)
 
 Игорёк — персональное приложение для работы с AI-агентом на своём компьютере.
 Основной интерфейс — desktop-приложение на Electron: чаты, файлы, инструменты,
@@ -165,9 +165,12 @@ Desktop имеет собственный управляемый backend и ка
 В репозитории есть Linux-сборка для **x86_64**, комплектные Python/Electron,
 portable snapshot и DEB-установщик. Текущее целевое Linux-окружение — Ubuntu 26.04.
 Для Windows x64 добавлена предварительная упаковка через общий Electron builder.
-Приёмка на настоящей Windows и подпись пока не завершены; это не стабильный релиз.
+В CI пройдены установка на Windows, первая задача, перезапуск, переустановка
+и удаление. Ручная проверка чистой системы и подпись издателя остаются открытыми.
+Это предварительная сборка, а не стабильный релиз.
 Команды описаны в [руководстве по сборкам](docs/development/CROSS_PLATFORM_DESKTOP.md).
-Для публичного релиза обязательны стабильные сборки Linux, Android и Windows.
+Для стабильного релиза нужны принятые сборки Linux, Android и Windows.
+Публикация исходников и предварительных сборок — отдельный этап.
 
 При первом запуске пользователь создаёт или открывает Vault, добавляет
 подключение модели, проверяет его и запускает исполнитель. Настройки, история
@@ -373,13 +376,10 @@ subtests, нативный UI и проверки на физическом ус
 - [`docs/integrations/desktop-plugins.md`](docs/integrations/desktop-plugins.md) — настройка desktop-плагинов.
 - [`docs/architecture/ISOLATION.md`](docs/architecture/ISOLATION.md), [`docs/architecture/POLICY.md`](docs/architecture/POLICY.md) — изоляция и политика.
 - [`AGENTS.md`](AGENTS.md), [`CLAUDE.md`](CLAUDE.md) — инструкции агентам.
-- [`docs/GITHUB_PUBLICATION_CHECKLIST.md`](docs/GITHUB_PUBLICATION_CHECKLIST.md) —
-  проверяемые условия подготовки к публичному GitHub: секреты и история,
-  удаление legacy, комментарии, документация, сборки и приёмка.
-- [`docs/PROJECT_LAYOUT.md`](docs/PROJECT_LAYOUT.md) — карта модулей и план
-  упорядочивания каталогов без поломки импортов и поставки.
-- [`docs/ONBOARDING_REVIEW.md`](docs/ONBOARDING_REVIEW.md) — путь новичка,
-  обнаруженные пробелы и сценарий первой успешной задачи.
+- [`docs/development/RELEASE_CHECKLIST.md`](docs/development/RELEASE_CHECKLIST.md) —
+  проверки исходников, сборок, подписей и приёмки перед релизом.
+- [`docs/PROJECT_LAYOUT.md`](docs/PROJECT_LAYOUT.md) — карта модулей и границы упаковки.
+- [`docs/development/FIRST_RUN_ACCEPTANCE.md`](docs/development/FIRST_RUN_ACCEPTANCE.md) — первый запуск и сценарии приёмки.
 
 ## Участие и лицензия
 

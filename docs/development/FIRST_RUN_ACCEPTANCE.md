@@ -48,26 +48,9 @@ network tests. Linux checks do not establish Windows acceptance.
 
 ## Remaining acceptance gates
 
-Clean Windows installation and its runtime packaging require a Windows test
-environment. Physical Android update/background/voice acceptance requires a
+Hosted Windows candidate installation and the maintained first-task scenario
+are checked by CI. Clean-machine and manual Windows acceptance remain separate. Physical Android update/background/voice acceptance requires a
 connected device. Real OAuth consent requires the account owner's interaction.
 Keep these gates open until their actual results are recorded.
 
-## Linux candidate evidence — 15 October 2026
-
-The actual installed Electron/Python 0.1.889 was exercised with clean temporary
-data and a synthetic loopback provider: Vault creation, profile save/check,
-worker start, HTTPS browser pairing, session creation, a completed ordinary
-message, saved first-result progress, lock and unlock. The first-result step
-remained incomplete while only the worker was running. The profile/history
-survived lock/unlock and a full test backend/window restart. A second task
-continued the saved session. The eight-step `/demo` completed actual file-tool
-calls; its contextual links opened Plugins, Notifications and Primary model
-settings. All nine native acceptance stages passed. This proves those paths
-with a controlled provider; it does not establish real account consent, cloud
-model quality, long-session recovery or Windows/physical Android behavior.
-
-The snapshot installer also passed a real temporary 0.1.888 → 0.1.889 update,
-rollback, reapplication, uninstall retaining data and reinstallation. Synthetic
-canaries remained intact; application/menu files were removed on uninstall.
-This is not acceptance of a clean OS's dependencies or system installer dialogs.
+Current platform results are recorded in [TestLOG.md](TestLOG.md).

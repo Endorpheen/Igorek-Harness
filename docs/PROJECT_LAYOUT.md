@@ -31,22 +31,17 @@ layout separates runtime code, interfaces, tests, assets, packaging and docs.
 
 `pyproject.toml` registers `igorek-factory`, `factory-acp` and `igorek-sudo`.
 `desktop/main.cjs` owns Electron windows, IPC and controller lifecycles.
-`desktop/backend.py` starts the managed bridge and Web UI; it does not use the
-retired web monitor. Android connects to that same session service.
+`desktop/backend.py` starts the managed bridge and Web UI; Android connects to the same session service.
 
 The task API in `factory/factory_api.py` and inference server in
 `factory/api_server_core/server.py` have different contracts. The inference prompt assembler in
 `factory/api_server_core/prompt_assembly.py` and `factory/core/prompt_assembly.py`
-serve distinct callers;
-matching basenames do not establish duplication or dead code.
+serve the inference API and shared agent executor respectively.
 
-The single CLI frontend is Rich/prompt_toolkit. Its shared history and prompt
-helpers also serve other interfaces. The current `core/tui/` modules remain live.
-The unused prototype `core/tui/app.py` coordinator has been retired; the active
-CLI builds its application in `cli_chat_active.py`. Shared widgets, event types,
-frame rendering and mouse handling retain their existing consumers.
+The CLI uses Rich/prompt_toolkit. `cli_chat_active.py` composes its active
+application; `core/tui/` supplies widgets, cells, frame rendering and mouse
+handling. Shared history and prompt helpers also serve other interfaces.
 Skills are external instruction packages; see [skills](development/SKILLS.md).
-The old `factory/Skills/` catalog advertised missing files and has been removed.
 
 ## Packaging boundaries
 

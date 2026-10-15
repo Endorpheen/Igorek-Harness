@@ -1,8 +1,7 @@
 # Terminal interface architecture
 
-Rich/prompt_toolkit is the only CLI frontend. Its current rendering and mouse
-modules are retained; the Textual/plain frontends and their unused helpers are
-retired. Display modes inside the current frontend are not separate clients.
+Rich/prompt_toolkit is the only CLI frontend. Its rendering and mouse
+modules share the same task and session state. Display modes inside the current frontend are not separate clients.
 
 ## Responsibilities
 

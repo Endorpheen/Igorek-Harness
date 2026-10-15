@@ -157,10 +157,12 @@ uses its own prompt modules.
 
 Linux **x86_64** packaging includes bundled Python/Electron, a portable snapshot,
 and a DEB installer. The current target environment is Ubuntu 26.04.
-Windows x64 has preview packaging through the shared Electron builder. Native
-Windows acceptance and signing are still pending; it is not a stable release.
+Windows x64 has preview packaging through the shared Electron builder. Hosted Windows installation, first-task/restart and reinstallation/uninstallation
+checks pass. Manual clean-machine acceptance and publisher signing remain open.
+This is a preview, not a stable release.
 See [cross-platform builds](docs/development/CROSS_PLATFORM_DESKTOP.md).
-Stable Linux, Android, and Windows builds are required before the planned public release.
+A stable release requires accepted Linux, Android and Windows builds; source
+publication and preliminary downloads are separate milestones.
 
 The initial setup opens or creates Vault, adds and verifies a model connection,
 and starts the executor. Profiles, conversation history, and workspaces persist.
@@ -315,14 +317,14 @@ Technical documentation is maintained in English. The complete Russian project
 overview is available in [README.ru.md](README.ru.md):
 
 - [`docs/PROJECT_LAYOUT.md`](docs/PROJECT_LAYOUT.md) — module map and organization;
-- [`docs/ONBOARDING_REVIEW.md`](docs/ONBOARDING_REVIEW.md) — first-run review and acceptance;
+- [`docs/development/FIRST_RUN_ACCEPTANCE.md`](docs/development/FIRST_RUN_ACCEPTANCE.md) — first-run behavior and acceptance;
 - [`docs/TESTING.md`](docs/TESTING.md) and [`docs/development/TestLOG.md`](docs/development/TestLOG.md) — test inventory and results;
 - [`docs/integrations/desktop-plugins.md`](docs/integrations/desktop-plugins.md) — desktop integrations;
 - [`docs/development/DEBUGGING_PLAYBOOK.md`](docs/development/DEBUGGING_PLAYBOOK.md) — structured troubleshooting;
 - [`docs/development/TRACE_EVENTS.md`](docs/development/TRACE_EVENTS.md) — inference API/workflow events;
 - [`docs/architecture/RICH_CLI_RENDERING_EXPLAINED.md`](docs/architecture/RICH_CLI_RENDERING_EXPLAINED.md) — terminal UI implementation;
 - [`docs/architecture/ISOLATION.md`](docs/architecture/ISOLATION.md), [`docs/architecture/POLICY.md`](docs/architecture/POLICY.md) — isolation and policy;
-- [`docs/GITHUB_PUBLICATION_CHECKLIST.md`](docs/GITHUB_PUBLICATION_CHECKLIST.md) — public release readiness.
+- [`docs/development/RELEASE_CHECKLIST.md`](docs/development/RELEASE_CHECKLIST.md) — source and release readiness.
 
 ## Contributing and license
 

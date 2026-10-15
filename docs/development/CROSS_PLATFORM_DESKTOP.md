@@ -3,7 +3,8 @@
 One repository contains the shared Electron interface, Python agent runtime and
 operating-system implementations under `factory/core/platform_support/`.
 Linux x64 remains the primary development target. Windows x64 is a preview:
-native installation, first-task acceptance and signing remain release gates.
+hosted installation and first-task/restart checks pass; clean-machine manual
+acceptance and publisher signing remain stable-release gates.
 
 ## Platform contracts
 
@@ -86,5 +87,5 @@ Never skip a failing native protection check to label a package accepted.
 
 Candidates are unsigned until a publisher identity and signing pipeline exist.
 Stable release publication must collect accepted Linux/Windows artifacts from
-the same source revision, their checksums and signing/provenance records. A
-configured workflow is not evidence of a successful hosted run.
+the same source revision, their checksums and signing/provenance records. Current hosted results are recorded in [TestLOG.md](TestLOG.md); a configured
+workflow alone is not evidence of a successful run.

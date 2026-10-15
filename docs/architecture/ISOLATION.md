@@ -47,12 +47,12 @@ not loaded. Build queries disable fsmonitor and hooks.
 - Probe nonces prevent stale/replayed reports, but a guest that can read a nonce
   can also construct a report. Host observations must veto unsupported claims.
 - Guest-local egress rules are not an independent security boundary against
-  privileged guest code. The current image recipe gives the runner access to
-  privileged network tools; its other descendants can bypass those rules.
+  privileged guest code. The controller retains privileges needed to
+  establish guest networking; owner-approved guest root can change those rules.
   Host-enforced egress or a separate privileged policy controller, followed by
   native adversarial acceptance, remains a release blocker. Bash capability
   dropping alone does not close that boundary.
-- Ordinary guest Bash and MCP descendants now inherit `no_new_privs`, blocking
+- Ordinary guest Bash, MCP and checkpoint Git descendants now inherit `no_new_privs`, blocking
   setuid/file-capability elevation even when they change their environment.
   The controller uses a root-owned isolated Python runtime and refuses same-UID
   ptrace/proc-memory access. Only the existing owner-approved `igorek-sudo`

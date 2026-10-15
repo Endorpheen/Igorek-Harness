@@ -59,7 +59,7 @@ to files from earlier revisions or to external content shown inside browser tabs
 
 The Linux/Windows candidate builders install locked runtime dependencies and
 retain their license files. The following inventory was checked against the
-0.1.888 payload; later builds must preserve the same notices or review changes.
+0.2.0 payload; later builds must preserve the same notices or review changes.
 Versions are evidence for that payload, rather than an update recommendation.
 
 | Distribution | Version | Included license |
@@ -67,11 +67,11 @@ Versions are evidence for that payload, rather than an update recommendation.
 | agent-client-protocol | 0.9.0 | Apache-2.0 |
 | annotated-types | 0.7.0 | MIT |
 | cffi | 2.0.0 | MIT |
-| cryptography | 47.0.0 | Apache-2.0 OR BSD-3-Clause |
+| cryptography | 50.0.2 | Apache-2.0 OR BSD-3-Clause |
 | markdown-it-py | 4.0.0 | MIT, with upstream markdown-it notice |
 | mdurl | 0.1.2 | MIT |
-| numpy | 2.5.3 | BSD-3-Clause, 0BSD, MIT, Zlib and CC0-1.0 component notices |
-| prompt_toolkit | 3.0.52 | BSD-3-Clause |
+| numpy | 2.5.4 | BSD-3-Clause, 0BSD, MIT, Zlib and CC0-1.0 component notices |
+| prompt_toolkit | 3.0.53 | BSD-3-Clause |
 | pycparser | 3.0 | BSD-3-Clause |
 | pydantic | 2.13.3 | MIT |
 | pydantic_core | 2.46.3 | MIT |
@@ -88,7 +88,7 @@ CPython 3.14.4 retains its `LICENSE.txt` and the notices in its distribution.
 The Linux payload additionally retains pip's vendored dependency licenses.
 Optional Ubuntu 26.04 libvirt-python bindings include `libvirt-python.COPYRIGHT`
 (LGPL-2.1-or-later) and require host libvirt; they are not a portable Linux default.
-Electron 44.5.1 ships its MIT license and the separate Chromium component notices.
+Electron 44.7.0 ships its MIT license and the separate Chromium component notices.
 
 Android runtime dependencies are declared in `android/gradle/libs.versions.toml`
 and the app build script: AndroidX/Compose, Kotlin serialization, OkHttp and
@@ -100,8 +100,8 @@ Apache-2.0 text, the terminal MIT license and OkHttp's public-suffix NOTICE.
 Review this inventory again when dependencies change. Permanent signing and
 physical acceptance are separate from this notice review.
 
-The optional guest image's distribution notices still need final release
-review. npm's desktop build dependencies are distinct
-from the packaged Electron runtime; their advisory and notice review remains a
-build-tool gate. This document is not a completed legal clearance of every
-platform or historical revision.
+VM images are not distributed with the current source or desktop releases.
+Review their complete distribution notices before introducing an image download.
+npm build dependencies are separate from the packaged Electron runtime; review
+both inventories when dependencies change. These notices cover the identified
+current artifacts and do not clear unrelated historical revisions.

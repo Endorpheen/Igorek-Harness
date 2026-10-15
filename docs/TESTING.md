@@ -39,17 +39,17 @@ corresponding emulator environment.
 ## Coverage scope
 
 Python coverage includes `factory`, the desktop Python backend/build helpers and
-the root API/prompt modules. Report executed lines and branches separately. An
+the separate inference API/prompt modules. Report executed lines and branches separately. An
 aggregate percentage is affected by optional inference paths, terminal ports,
 operations and VM code; it does not mean each interface has that coverage.
 
-The latest accepted full-run snapshot on 15 October 2026 measured 59.15% of
-77048 Python statements (45571 covered) and 46.04% of 27534 branches (12678
-covered), with no failures. It collected 4776 cases: 4746 passed and 30 skipped,
-plus 614 additional passing subtests. Desktop Node tests passed 316 cases.
-The inference entrypoint is now measured through its actual middleware, adding
-previously unmeasured code to the denominator. Earlier percentages are not a
-like-for-like quality comparison. See TestLOG for changes and platform limits.
+The latest full Python snapshot on 15 October 2026 measured **59.20%** of
+77180 statements (45690 covered) and **46.04%** of 27588 branches (12702 covered),
+with no failures. It collected **4787 cases: 4756 passed and 31 skipped**, plus
+**614 additional passing subtests**. Desktop Node tests passed **322 cases**;
+Android JVM tests passed **318 cases**. The counts describe separate suites.
+Coverage includes optional inference and desktop backend/build code; changes in
+the measured denominator are not a like-for-like quality comparison.
 JavaScript and Kotlin coverage need their own reports and denominators. Never
 add percentages across languages or infer a percentage from test count.
 
@@ -72,8 +72,9 @@ failures, skips and changes. Do not add overlapping targeted runs together.
 
 - Windows preview packaging is implemented. File/Vault contracts and installed
   payload acceptance run on the Windows job in `Desktop packages`; that workflow
-  still needs an actual hosted result. Wine and Linux checks do not establish
-  native Windows containment, cryptographic behavior or stable acceptance.
+  passed the maintained native install, first-task, restart, demo and reinstall/
+  uninstall scenario. Clean-machine manual checks, real accounts, browser/voice
+  and publisher signing remain open. Wine does not replace native acceptance.
 - Native Linux first-task, visible progress, saved history and backend/window
   restart have a maintained scenario. Longer sessions, browser/voice and
   platform-specific native interactions still need broader acceptance.

@@ -1,8 +1,8 @@
 # Skills
 
 Skills are instruction packages loaded by `factory/core/skills_manager.py`.
-The repository does not bundle the six example skills mentioned by an older
-catalog. Installed user skills and optional integrations are separate data.
+Installed user skills and optional integrations are separate from the source
+package.
 
 ## Package format
 

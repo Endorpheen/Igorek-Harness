@@ -8,7 +8,7 @@ ChatGPT/OpenCode workspaces and optional Linux KVM mode are identified explicitl
 Keep the diagram consistent with the implementation and directory map in the
 root READMEs.
 
-`desktop-chat.png` and `desktop-first-run.png` show Igorek desktop 0.1.884 with
+`desktop-chat.png` and `desktop-first-run.png` show Igorek desktop 0.1.889 with
 synthetic sessions and the Russian interface. The real renderer/HTML/CSS was
 used in a separate Electron profile. No personal conversations, account keys or
 owner settings were used.
