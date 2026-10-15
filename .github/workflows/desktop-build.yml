@@ -53,7 +53,7 @@ jobs:
           npm --prefix desktop ci
       - name: Run file and Vault contracts on the actual OS
         run: |
-          uv run --no-sync python -m pytest tests/test_platform_support.py tests/test_vault_lifecycle.py tests/test_checkpoint_process.py -v \
+          uv run --no-sync python -m pytest tests/test_platform_support.py tests/test_vault_lifecycle.py tests/test_checkpoint_process.py tests/test_release_install.py -v \
             --cov=factory.core.platform_support --cov=factory.core.vault.lifecycle --cov-branch \
             --cov-report=json:test-results/platform-${{ runner.os }}-coverage.json --cov-report=term
       - name: Build target Python payload
@@ -87,7 +87,7 @@ jobs:
         run: |
           $installer = @(Get-ChildItem "$env:RUNNER_TEMP/igorek-dist/igorek-*-win-x64.exe")
           if ($installer.Count -ne 1) { throw 'Expected exactly one Windows installer' }
-          $install = Join-Path $env:RUNNER_TEMP 'igorek-installed'
+          $install = Join-Path $env:RUNNER_TEMP 'igorek installed проверка'
           $process = Start-Process -FilePath $installer[0].FullName -ArgumentList @('/S', "/D=$install") -Wait -PassThru
           if ($process.ExitCode -ne 0) { throw 'Installer failed' }
           $env:IGOREK_TEST_RUNTIME = Join-Path $install 'resources/app/runtime'
@@ -98,6 +98,62 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Native report is incomplete' }
           $process = Start-Process -FilePath $installer[0].FullName -ArgumentList @('/S', "/D=$install") -Wait -PassThru
           if ($process.ExitCode -ne 0) { throw 'Reinstallation failed' }
+          $env:IGOREK_UPDATE_INSTALL = $install
+          $env:IGOREK_UPDATE_SOURCE = $installer[0].FullName
+          @'
+          import ctypes, hashlib, json, os, shutil, subprocess, sys, time
+          from pathlib import Path
+          target = Path(os.environ['IGOREK_UPDATE_INSTALL']).resolve()
+          root = Path(os.environ['RUNNER_TEMP']).resolve() / 'igorek-self-update/release-downloads/release-fixture'
+          root.mkdir(parents=True)
+          version = json.loads((target / 'resources/app/source-manifest.json').read_text())['version']
+          asset = root / f'igorek-{version}-win-x64.exe'
+          shutil.copyfile(os.environ['IGOREK_UPDATE_SOURCE'], asset)
+          runtime = target / 'resources/app/runtime'
+          python = runtime / json.loads((runtime / 'manifest.json').read_text())['python']
+          copied = root / 'helper-python'
+          shutil.copytree(python.parent, copied)
+          script = root / 'apply-update.py'
+          shutil.copyfile('desktop/release-install.py', script)
+          canary = root.parent.parent / 'user-data/connection.fixture'
+          canary.parent.mkdir(); canary.write_bytes(b'keep-synthetic-connection')
+          parent = subprocess.Popen([sys.executable, '-c', 'pass']); parent.wait(timeout=5)
+          request = root / 'install-request.json'
+          request.write_text(json.dumps({'schema':1,'kind':'windows','file':str(asset),'size':asset.stat().st_size,
+              'sha256':hashlib.file_digest(asset.open('rb'),'sha256').hexdigest(),'version':version,
+              'target':str(target),'parent_pid':parent.pid,'restart':False,'data_dir':str(canary.parent)}), encoding='utf-8')
+          result = subprocess.run([str(copied / python.name), '-I', '-B', str(script), str(request)], timeout=240)
+          assert result.returncode == 0
+          assert json.loads(request.with_suffix('.result.json').read_text())['state'] == 'installed'
+          assert canary.read_bytes() == b'keep-synthetic-connection'
+          launched = subprocess.Popen([str(target / 'igorek.exe'), '--data-dir', str(canary.parent)],
+              stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+          try:
+              certificate = canary.parent / 'web-ui/tls/localhost-cert.pem'
+              deadline = time.monotonic() + 40
+              while not certificate.is_file() and launched.poll() is None and time.monotonic() < deadline:
+                  time.sleep(0.1)
+              assert certificate.is_file() and launched.poll() is None, 'Packaged relaunch did not retain its data directory'
+              user = ctypes.WinDLL('user32')
+              user.GetWindowThreadProcessId.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_ulong)]
+              user.PostMessageW.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_size_t, ctypes.c_ssize_t]
+              callback_type = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_ssize_t)
+              def close_owned_window(handle, _):
+                  identity = ctypes.c_ulong()
+                  user.GetWindowThreadProcessId(handle, ctypes.byref(identity))
+                  if identity.value == launched.pid:
+                      user.PostMessageW(handle, 0x0010, 0, 0)
+                  return True
+              user.EnumWindows(callback_type(close_owned_window), 0)
+              assert launched.wait(timeout=20) == 0
+          finally:
+              if launched.poll() is None:
+                  subprocess.run(['taskkill', '/PID', str(launched.pid), '/T', '/F'], check=False,
+                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+          assert canary.read_bytes() == b'keep-synthetic-connection'
+          print('Verified updater installed the Windows candidate with spaces/Unicode and retained synthetic data')
+          '@ | & uv run --no-sync python -
+          if ($LASTEXITCODE -ne 0) { throw 'Automatic update acceptance failed' }
           $uninstaller = Get-ChildItem $install -Filter '*Uninstall*.exe'
           if (@($uninstaller).Count -ne 1) { throw 'Uninstaller is missing' }
           $process = Start-Process $uninstaller.FullName -ArgumentList '/S' -Wait -PassThru

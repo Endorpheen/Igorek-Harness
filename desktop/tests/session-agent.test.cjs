@@ -1,8 +1,8 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
-function harness(){
+function harness(installingUpdate=false){
  const source=fs.readFileSync(path.join(__dirname, '..','main.cjs'),'utf8'),a=source.indexOf("ipcMain.handle('igorek:session-agent'"),b=source.indexOf("ipcMain.handle('igorek:session-plugins'",a);let handler;
  const calls=[],requests=new Map();let reply={result:{agent:{running:false,profile:''},profiles:['fixture-model'],secret:'must-not-leak'}};
- vm.runInNewContext(source.slice(a,b),{sessionMcp:{trusted:e=>e.trusted===true},runtime:{requests,requestOwner:async(action,fields)=>{calls.push({action,fields});return typeof reply==='function'?reply():reply}},ipcMain:{handle:(name,fn)=>{if(name==='igorek:session-agent')handler=fn}}});
+ vm.runInNewContext(source.slice(a,b),{installingUpdate,sessionMcp:{trusted:e=>e.trusted===true},runtime:{requests,requestOwner:async(action,fields)=>{calls.push({action,fields});return typeof reply==='function'?reply():reply}},ipcMain:{handle:(name,fn)=>{if(name==='igorek:session-agent')handler=fn}}});
  return {calls,requests,reply:r=>reply=r,call:(fields,event={trusted:true})=>handler(event,fields)};
 }
 test('Chat starts only a named verified profile through the existing owner runtime',async()=>{
@@ -16,4 +16,8 @@ test('Chat profile startup refuses busy runtime and replies to navigated frames'
  const h=harness();h.requests.set('busy',{});assert.equal((await h.call({operation:'start',profile:'fixture'})).error,'operation_busy');h.requests.clear();
  let finish;h.reply(()=>new Promise(resolve=>finish=resolve));const event={trusted:true};const pending=h.call({operation:'start',profile:'fixture'},event);await Promise.resolve();event.trusted=false;finish({result:{agent:{running:true,profile:'fixture'}}});
  assert.equal((await pending).error,'vault_locked');
+});
+
+test('update preparation cannot restart the executor while its helper waits for app exit',async()=>{
+ const h=harness(true);await assert.rejects(h.call({operation:'start',profile:'fixture'}));assert.equal(h.calls.length,0);
 });

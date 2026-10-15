@@ -1,5 +1,18 @@
 # Test results
 
+## Automatic desktop installation — verification in progress
+
+The 0.2.0 candidate adds native confirmation, a separate verified installer helper,
+closed-app replacement and relaunch with the same data directory. Active executor
+work refuses installation; a postponed download can be reused. Windows copies
+its bundled Python helper outside the application before replacement. Linux
+snapshot installation uses the existing verified installer and AppImage preserves
+previous bytes for rollback. Preview builds can discover newer preliminary releases.
+
+Targeted installer/runtime/packaging checks passed 76 cases. The last complete
+desktop run before the update-preparation guard passed 329 cases. The integrated run and actual
+Windows updater acceptance remain pending; no release has been published yet.
+
 ## Current snapshot — 15 October 2026
 
 Python/desktop **0.2.0**; Android **0.1.105 / versionCode 106**.
