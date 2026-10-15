@@ -6,6 +6,7 @@ from factory.core.runtime import (
     _clean_local_model_id,
     profile_display_model_name,
     resolve_local_model_display_name,
+    resolve_local_model_id,
 )
 
 
@@ -45,6 +46,16 @@ class CleanLocalModelIdTest(unittest.TestCase):
 
 
 class ResolveLocalModelDisplayNameTest(unittest.TestCase):
+    def test_request_id_keeps_full_path_and_normalizes_v1_once(self):
+        raw = "/models/Nemotron-Bolt.gguf"
+        for base in ("http://127.0.0.1:8081", "http://127.0.0.1:8081/v1/"):
+            with self.subTest(base=base), mock.patch(
+                "factory.core.runtime.urllib.request.urlopen",
+                return_value=_FakeResponse(_fake_payload(raw)),
+            ) as urlopen:
+                self.assertEqual(resolve_local_model_id(base, "old-model"), raw)
+                self.assertEqual(urlopen.call_args.args[0], "http://127.0.0.1:8081/v1/models")
+
     def test_reads_served_model_from_models_endpoint(self):
         with mock.patch(
             "factory.core.runtime.urllib.request.urlopen",

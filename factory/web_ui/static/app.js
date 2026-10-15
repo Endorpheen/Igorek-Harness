@@ -2469,32 +2469,51 @@ function renderContext(session) {
   );
   renderComposerModel(session);
 }
-// Session model and profile alongside composer (like in Codex). Source is:
-// session metadata from /api/sessions/{id}: profile/model/provider. If the model
-// is not recorded (for old sessions), the actual model is fetched from the profile
-// config via /api/model-info; until the response arrives, only the profile is shown.
-// Values are not fabricated—what exists remains when unavailable.
+// Resolve local server models through /api/model-info; session metadata remains
+// the fallback. Refresh at task boundaries and expire idle cache entries.
 function modelInfoKey(profile, model) {
   return String(profile || "").trim() + "|" + String(model || "").trim();
 }
 function cachedModelInfo(profile, model) {
   return state.modelInfo.get(modelInfoKey(profile, model)) || null;
 }
-async function loadModelInfo(profile, model) {
+function modelInfoExpired(info) {
+  return info?.status === "ready" && Date.now() - (info.loadedAt || 0) >= 30000;
+}
+async function loadModelInfo(profile, model, force = false) {
   const key = modelInfoKey(profile, model);
   const existing = state.modelInfo.get(key);
-  if (existing && existing.status !== "error") return existing;
+  if (existing?.pending) return existing.pending;
+  if (existing?.status === "ready" && !force && !modelInfoExpired(existing)) return existing;
   const info = existing || { profile, model: model || "", context_window: null, status: "loading" };
   info.status = "loading";
   state.modelInfo.set(key, info);
-  const suffix = model ? "&model=" + encode(model) : "";
-  const payload = await api("/api/model-info?profile=" + encode(profile || "") + suffix);
-  info.profile = String(payload.profile || profile || "");
-  info.model = String(payload.model || model || "");
-  const window = Number(payload.context_window);
-  info.context_window = Number.isFinite(window) && window > 0 ? window : null;
-  info.status = "ready";
-  return info;
+  info.pending = (async () => {
+    try {
+      const suffix = model ? "&model=" + encode(model) : "";
+      const payload = await api("/api/model-info?profile=" + encode(profile || "") + suffix);
+      info.profile = String(payload.profile || profile || "");
+      info.model = String(payload.model || model || "");
+      const window = Number(payload.context_window);
+      info.context_window = Number.isFinite(window) && window > 0 ? window : null;
+      info.status = "ready";
+      info.loadedAt = Date.now();
+      return info;
+    } catch (error) {
+      info.status = "error";
+      throw error;
+    } finally {
+      info.pending = null;
+    }
+  })();
+  return info.pending;
+}
+function refreshComposerModel() {
+  const meta = state.session?.meta;
+  if (!meta?.profile) return;
+  loadModelInfo(meta.profile, meta.model, true)
+    .then(() => { renderComposerModel(state.session); renderPlanSection(); })
+    .catch(() => {});
 }
 function renderComposerModel(session) {
   const meta = (session && session.meta) || {};
@@ -2520,7 +2539,7 @@ function renderComposerModel(session) {
   chip.title = title;
   chip.setAttribute("aria-label", title);
   ui.composerMeta.hidden = false;
-  if (!cached || cached.status === "error") {
+  if (!cached || cached.status === "error" || modelInfoExpired(cached)) {
     loadModelInfo(profile, metaModel)
       .then(() => { renderComposerModel(state.session); renderPlanSection(); })
       .catch(() => {});
@@ -3479,6 +3498,7 @@ function pauseTask(taskId) {
   setRuntime(true, "status.needs_attention");
 }
 function finishTask(taskId, ok, noteKey, noteParams, runtimeKey, finishedAt) {
+  refreshComposerModel();
   state.panel.filesGeneration = (state.panel.filesGeneration || 0) + 1;
   state.panel.files.status = "idle";
   const level = ok ? "ok" : "warn";
@@ -3581,6 +3601,7 @@ function handleEvent(event) {
       break;
     }
     case "task.start": {
+      refreshComposerModel();
       resetTextStream(taskId);
       startTask(taskId, "status.working", "task.started", null, "ok");
       setIndicator("indicator.working");

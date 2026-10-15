@@ -1,5 +1,42 @@
 # Test results
 
+## Local-model discovery and overflow recovery — 0.2.1 candidate
+
+Local request model IDs and display names now share endpoint normalization:
+`/v1` is appended once, exact IDs remain intact in requests, and the composer
+uses the running local server's readable model name. Model cache entries expire
+and refresh at task boundaries; failed lookups can retry. Cloud model selection
+and explicit overrides retain their previous behavior.
+
+The llama-server `exceed_context_size_error` now enters existing reactive
+compaction even when the approximate estimate is below the normal threshold.
+Provider-rejected summary inputs split into smaller bounded chunks. Regression
+tests cover the reported 35,512/32,768 and 101,461/98,048-token responses, cloud error compatibility,
+successful continuation, full history archival, summary splitting and failures
+that must not trigger compaction. Pressure thresholds and approval guards are
+unchanged; token estimates remain approximate.
+
+Locked Python dependency synchronization and desktop `npm ci` passed. The full
+Python run covered **4,801 cases across both roots and 300 files**, with
+**626 passing subtests** and **31 existing skips**. It initially reported one
+failure in the isolated JavaScript file-refresh fixture because the new callback
+was absent. The fixture now supplies and checks that callback while preserving
+all file-refresh assertions; its targeted rerun passed. The other 299 files
+passed in the full run: **4,770 passing cases in total after the correction**.
+Coverage measured **45,769/77,331 statements (59.19%)** and
+**12,723/27,636 branches (46.04%)**. Desktop passed **334/334** after locked
+installation; the complete web UI file passed **152 cases**, and the final
+model-API-only check passed **six cases**. Fatal Ruff checks and whitespace
+validation passed. An initial restricted test invocation could not bind its
+fixture sockets; the real localhost tests were rerun with that restriction lifted.
+
+These are source-level fixes and synthetic acceptance results. The running
+desktop, model server, user profiles, credentials and sessions were not changed.
+No updated package was installed during this check. Version 0.2.1 is the release
+candidate for these fixes; the final 98k regression and publication contracts
+passed another 30 targeted cases with 12 subtests. Package acceptance is recorded
+separately from these source-level results.
+
 ## Automatic desktop installation — 0.2.0 candidate
 
 The 0.2.0 candidate adds native confirmation, a separate verified installer helper,

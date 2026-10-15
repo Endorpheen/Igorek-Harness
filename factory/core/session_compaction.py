@@ -666,7 +666,7 @@ def summarize_history(messages: list[dict[str, Any]], *, request, input_budget_t
             try:
                 candidate = request(prompt)
             except ValueError as exc:
-                if str(exc) != "summary_output_truncated":
+                if str(exc) not in {"summary_output_truncated", "summary_input_budget_exceeded"}:
                     raise
                 repair_reason = str(exc)
                 break

@@ -232,8 +232,8 @@ def _clean_local_model_id(model_id: str) -> str:
     return _GGUF_SHARD_SUFFIX_RE.sub("", name).strip()
 
 
-def resolve_local_model_display_name(base_url: str, fallback: str) -> str:
-    """Return the model id currently served by a local OpenAI endpoint.
+def resolve_local_model_id(base_url: str, fallback: str) -> str:
+    """Return the exact model id currently served by a local OpenAI endpoint.
 
     Best-effort only: any error (server down, timeout, bad payload) yields
     ``fallback`` so the caller keeps the profile-configured name.
@@ -252,10 +252,15 @@ def resolve_local_model_display_name(base_url: str, fallback: str) -> str:
         for item in data:
             if not isinstance(item, dict):
                 continue
-            cleaned = _clean_local_model_id(str(item.get("id") or ""))
-            if cleaned:
-                return cleaned
+            model_id = str(item.get("id") or "").strip()
+            if model_id:
+                return model_id
     return fallback
+
+
+def resolve_local_model_display_name(base_url: str, fallback: str) -> str:
+    """Use a readable server model name without changing the request model id."""
+    return _clean_local_model_id(resolve_local_model_id(base_url, "")) or fallback
 
 
 def profile_stable_prompt_prefix(profile_config: dict) -> bool:
