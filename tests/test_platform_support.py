@@ -77,6 +77,28 @@ class PlatformFiles(unittest.TestCase):
         atomic_write_file(path, 'new')
         self.assertEqual(read_dacl(path), before)
 
+    @unittest.skipUnless(os.name == 'nt', 'Windows Git and checkpoint process contract')
+    def test_checkpointed_write_uses_windows_environment_without_current_directory_execution(self):
+        code = '''from pathlib import Path
+from factory.core.checkpoint_manager import CheckpointManager, _git_executable
+from factory.core.cc_backend_tools import _tool_write
+from factory.core.readonly_git import git_environment
+import os, sys
+root=Path(sys.argv[1]); work=root/'project';work.mkdir()
+(work/'git.exe').write_bytes(b'not a trusted executable')
+os.chdir(work)
+git=_git_executable(); assert git and Path(git).parent != work
+env=git_environment();assert env['SystemRoot'] and env['NoDefaultCurrentDirectoryInExePath']=='1'
+assert 'OPENAI_API_KEY' not in env
+manager=CheckpointManager(data_root=str(root/'private'))
+result=_tool_write({'file_path':'note.txt','content':'fixture'},str(work),'workspace',manager)
+assert (work/'note.txt').read_text()=='fixture'
+assert manager.list_checkpoints(str(work))
+'''
+        process = subprocess.run([sys.executable, '-c', code, str(self.root)],
+                                 capture_output=True, timeout=20)
+        self.assertEqual(process.returncode, 0, process.stderr.decode(errors='replace'))
+
     def test_windows_command_guard_cannot_be_disabled(self):
         from unittest.mock import patch
         with patch.dict(os.environ, {'FACTORY_DATA_DIR': str(self.root), 'IGOREK_FACTORY_HOME': str(self.root)}):

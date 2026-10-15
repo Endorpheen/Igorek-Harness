@@ -362,10 +362,11 @@ rm -f /tmp/igorek-runtime-requirements.txt
 rm -rf -- /opt/igorek/native
 printf '%s\n' '{"python":"runtime/bin/python"}' > /opt/igorek/manifest.json
 /opt/igorek/runtime/bin/python -I "${IGOREK_GUEST_REPO_DIR}/desktop/packaging/bundle-socket.py" --runtime /opt/igorek
+chmod 0644 /opt/igorek/manifest.json
 SOCKET_SITE="$(/opt/igorek/runtime/bin/python -I -c 'import sysconfig; print(sysconfig.get_path("purelib"))')"
 install -m 0644 "${IGOREK_GUEST_REPO_DIR}/desktop/socket_bootstrap.py" "${SOCKET_SITE}/igorek_guest_socket.py"
 printf '%s\n' 'import igorek_guest_socket; igorek_guest_socket.activate("/opt/igorek")' > "${SOCKET_SITE}/00_igorek_guest_socket.pth"
-/opt/igorek/runtime/bin/python -I -c 'import socket; assert hasattr(socket,"AF_VSOCK")'
+runuser -u "${IGOREK_GUEST_USER}" -- /opt/igorek/runtime/bin/python -I -c 'import socket; assert hasattr(socket,"AF_VSOCK")'
 cat > /usr/local/bin/igorek-factory <<'IMMUTABLE_RUNTIME'
 #!/bin/sh
 exec /opt/igorek/runtime/bin/python -I -m factory.cli "$@"

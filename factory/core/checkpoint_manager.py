@@ -28,16 +28,19 @@ def _checkpoint_text(spec: str, *, root: Path, env: dict) -> tuple[bool, str | N
     options = dict(capture_output=True, text=True, encoding='utf-8', errors='replace',
                    timeout=GIT_TIMEOUT_S, cwd=str(root), env=env)
     try:
-        resolved = subprocess.run(['git', 'rev-parse', '--verify', spec], **options)
+        git = _git_executable()
+        if git is None:
+            return False, None
+        resolved = subprocess.run([git, 'rev-parse', '--verify', spec], **options)
         if resolved.returncode:
             return True, None
         oid = resolved.stdout.strip()
         if not _FULL_REVISION_RE.fullmatch(oid):
             return False, None
-        measured = subprocess.run(['git', 'cat-file', '-s', oid], **options)
+        measured = subprocess.run([git, 'cat-file', '-s', oid], **options)
         if measured.returncode or not 0 <= int(measured.stdout.strip()) <= MAX_CHECKPOINT_PREVIEW_BYTES:
             return False, None
-        shown = subprocess.run(['git', 'cat-file', 'blob', oid], **options)
+        shown = subprocess.run([git, 'cat-file', 'blob', oid], **options)
         if shown.returncode or len(shown.stdout.encode('utf-8')) > MAX_CHECKPOINT_PREVIEW_BYTES:
             return False, None
         return True, shown.stdout
@@ -83,6 +86,18 @@ def _git_env(shadow_repo: Path, working_dir: str) -> dict[str, str]:
     return env
 
 
+def _git_executable() -> str | None:
+    if os.name != 'nt':
+        return 'git' if shutil.which('git') else None
+    # Resolve only explicit owner PATH entries, never the writable working folder.
+    for directory in os.environ.get('PATH', '').split(os.pathsep):
+        if directory and Path(directory).is_absolute():
+            candidate = Path(directory) / 'git.exe'
+            if candidate.is_file() and not candidate.is_symlink():
+                return str(candidate.resolve())
+    return None
+
+
 def _run_git(
     args: list[str],
     *,
@@ -90,7 +105,10 @@ def _run_git(
     working_dir: str,
     allowed_returncodes: set[int] | None = None,
 ) -> tuple[bool, str, str, int]:
-    cmd = ["git", "-c", "core.fsmonitor=false", "-c", "core.hooksPath=/dev/null", *args]
+    git = _git_executable()
+    if git is None:
+        return False, '', 'git not found', -1
+    cmd = [git, "-c", "core.fsmonitor=false", "-c", "core.hooksPath=" + os.devnull, *args]
     try:
         result = subprocess.run(
             cmd,
@@ -227,7 +245,7 @@ class CheckpointManager:
             return False
 
         if self._git_available is None:
-            self._git_available = shutil.which("git") is not None
+            self._git_available = _git_executable() is not None
             if not self._git_available:
                 logger.debug("Checkpoints disabled: git not found")
         if not self._git_available:

@@ -1,5 +1,20 @@
 # Test results
 
+## 2026-10-15 — Live startup diagnostics and checkpoint compatibility
+
+- Native Windows now passes managed startup, file tools, first task, lock/unlock,
+  complete backend/window restart, retained pairing/profile/history and continued
+  session. The remaining tour failure occurs during its first checkpointed Write.
+  Checkpoint Git now receives required Windows OS fields while still excluding
+  credentials and Git configuration authority, and resolves an explicit PATH
+  executable rather than a writable current-directory program. A native Windows
+  checkpointed-write regression enforces a bounded child-process completion.
+- Guest diagnostics pinpointed a root-only socket manifest created by mkstemp.
+  The image recipe makes that non-secret hash manifest readable and tests VSOCK
+  as the actual agent user. Controller code and binaries remain root-owned and
+  not agent-writable. Diagnostic copies are temporary evidence, not accepted
+  release images; the unchanged production recipe must pass a fresh live check.
+
 ## 2026-10-15 — Windows native canonical path follow-up
 
 - Managed startup now uses native Windows realpath resolution, matching Python's

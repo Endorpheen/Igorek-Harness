@@ -28,10 +28,23 @@ _LIMIT_EXEC = (
 
 
 def git_environment() -> dict[str, str]:
-    return {'PATH': os.defpath, 'LC_ALL': 'C.UTF-8', 'HOME': '/tmp',
+    env = {'PATH': os.defpath, 'LC_ALL': 'C.UTF-8', 'HOME': '/tmp',
             'GIT_CONFIG_NOSYSTEM': '1', 'GIT_CONFIG_GLOBAL': os.devnull,
             'GIT_TERMINAL_PROMPT': '0', 'GIT_OPTIONAL_LOCKS': '0',
             'GIT_NO_LAZY_FETCH': '1'}
+    if os.name == 'nt':
+        import ntpath
+        root = os.environ.get('SystemRoot') or os.environ.get('SYSTEMROOT')
+        if not root or not ntpath.isabs(root):
+            raise ValueError('Windows Git requires an absolute system directory')
+        env.update(SystemRoot=root, WINDIR=root, COMSPEC=ntpath.join(root, 'System32', 'cmd.exe'),
+                   PATH=os.environ.get('PATH', ntpath.join(root, 'System32')),
+                   HOME=str(Path.home()), USERPROFILE=str(Path.home()),
+                   NoDefaultCurrentDirectoryInExePath='1')
+        for name in ('TEMP', 'TMP'):
+            if os.environ.get(name):
+                env[name] = os.environ[name]
+    return env
 
 
 def _read(path: Path) -> bytes:
