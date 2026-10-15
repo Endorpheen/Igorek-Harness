@@ -69,6 +69,7 @@ class OwnedRuntime extends EventEmitter {
     if (this.child) throw new Error('Backend уже запущен.');
     const { python, entry } = loadBundle(this.bundle);
     mkdirSync(this.dataDir, { recursive: true, mode: 0o700 });
+    this.dataDir = realpathSync(this.dataDir);
     mkdirSync(join(this.dataDir, 'home'), { recursive: true, mode: 0o700 });
     mkdirSync(join(this.dataDir, 'cache'), { recursive: true, mode: 0o700 });
     this.child = spawn(python, ['-I', entry, this.dataDir], {

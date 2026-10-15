@@ -3,12 +3,23 @@ title = "Igorek secret detection"
 [extend]
 useDefault = true
 
-[allowlist]
-description = "Reviewed synthetic fixture and non-secret source expressions"
+[[allowlists]]
+description = "Historical synthetic Tavily smoke fixture; never a provider credential"
+condition = "AND"
+paths = ['(^|/)factory/core/smoke_vault\.py$']
+regexTarget = "secret"
+regexes = ['^tvly-secret-[0-9]{20}$']
+
+[[allowlists]]
+description = "Boolean UI state assignment mistaken for a generic credential"
+condition = "AND"
+paths = ['(^|/)desktop/owner-ui\.js$']
 regexTarget = "match"
-regexes = [
-    '''TAVILY_API_KEY": "tvly-secret-12345678901234567890"''',
-    '''password clear: owner-policy39 ''',
-    '''mobileAccessEnabled=reply\.result\.enabled===true;''',
-    '''t\.FourKeyMap=t\.TwoKeyMap=void ''',
-]
+regexes = ['mobileAccessEnabled=reply\.result\.enabled===true;']
+
+[[allowlists]]
+description = "Bundled xterm export assignment; upstream code contains no credential"
+condition = "AND"
+paths = ['(^|/)(factory/web_ui/static/vendor|android/app/src/main/assets/terminal)/xterm\.js$']
+regexTarget = "match"
+regexes = ['t\.FourKeyMap=t\.TwoKeyMap=void ']

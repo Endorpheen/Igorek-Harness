@@ -146,7 +146,7 @@ Desktop имеет собственный управляемый backend и ка
 | [`factory/core/isolation/`](factory/core/isolation) | KVM, каналы guest/host, сеть, broker и терминалы |
 | [`factory/mcp_servers/`](factory/mcp_servers) | Штатные MCP-серверы и интеграции |
 | [`factory/api_server_core/`](factory/api_server_core) | Совместимый API/workflow-слой для inference-сервера |
-| [`transformers_api_server.py`](transformers_api_server.py) | Отдельный совместимый inference/API server; не основной desktop-процесс |
+| [`factory/api_server_core/server.py`](factory/api_server_core/server.py) | Отдельный совместимый inference/API server; не основной desktop-процесс |
 | [`factory/cli.py`](factory/cli.py) | Команды `igorek-factory` |
 | [`tests/`](tests) и [`factory/tests/`](factory/tests) | Python-проверки; рядом с desktop и Android находятся их собственные тесты |
 

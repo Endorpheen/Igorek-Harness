@@ -1,7 +1,7 @@
 """
 Centralized prompt templates for the Anthropic-compatible API server.
 
-All prompt strings used in transformers_api_server.py are extracted here
+All prompt strings used in factory/api_server_core/server.py are extracted here
 so they can be found, reviewed, and edited in one place.
 """
 

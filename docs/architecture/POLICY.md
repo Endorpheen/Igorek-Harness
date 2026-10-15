@@ -1,6 +1,6 @@
 # Execution policy
 
-Executable inference API policy is configured in [policy.yaml](../../policy.yaml).
+Executable inference API policy is configured in [policy.yaml](../../factory/config/inference-policy.yaml).
 This document describes the controls; changing prose does not change enforcement.
 The shared agent runtime has additional guards and permission layers.
 

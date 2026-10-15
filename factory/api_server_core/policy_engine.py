@@ -6,7 +6,7 @@ from typing import Any
 import yaml
 
 
-POLICY_CONFIG_PATH = Path(__file__).resolve().parents[2] / "policy.yaml"
+POLICY_CONFIG_PATH = Path(__file__).resolve().parents[1] / "config" / "inference-policy.yaml"
 
 _POLICY_CACHE: dict[str, Any] | None = None
 _POLICY_MTIME: float | None = None

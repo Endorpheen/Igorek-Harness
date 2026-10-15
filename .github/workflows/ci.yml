@@ -68,7 +68,7 @@ jobs:
       - name: Install locked development environment
         run: uv sync --locked --dev --python '${{ matrix.python }}'
       - name: Check executable Python errors
-        run: uv run --no-sync ruff check --select E9,F63,F7,F82 factory desktop tests tools prompt_assembly.py transformers_api_server.py
+        run: uv run --no-sync ruff check --select E9,F63,F7,F82 factory desktop tests tools
       - name: Run all Python test files with isolated data
         run: xvfb-run -a uv run --no-sync python -u tools/run_tests.py --jobs 4 --coverage --output test-results/python
       - name: Keep test and coverage reports

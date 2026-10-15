@@ -43,7 +43,7 @@ def smoke_encrypt_and_duplicate_guard(root: Path) -> None:
 
 def smoke_broker_policy(root: Path) -> None:
     vault = Vault(root / "broker.db", root / "broker-salt.bin", "test-passphrase")
-    vault.add_credential("tavily", "tvly-secret-12345678901234567890", "api_key")
+    vault.add_credential("tavily", "fixture-tavily-key", "api_key")
     policy = PolicyEngine(
         PolicyConfig(
             agents={
@@ -62,7 +62,7 @@ def smoke_broker_policy(root: Path) -> None:
     env = broker.get_ephemeral_env("tavily", "cc-backend", ttl=900)
     _assert(env.allowed is True, "ephemeral env was denied")
     _assert(env.ttl_seconds == 60, "ttl was not capped")
-    _assert(env.env["TAVILY_API_KEY"] == "tvly-secret-12345678901234567890", "env map mismatch")
+    _assert(env.env["TAVILY_API_KEY"] == "fixture-tavily-key", "env map mismatch")
 
 
 def smoke_verifier_categories() -> None:
@@ -104,7 +104,7 @@ def smoke_worker_cc_backend_materialization(root: Path) -> None:
     from factory.core.worker import Worker, _temporary_env
 
     services = build_services(prompt=False)
-    services.vault.add_credential("tavily", "tvly-secret-12345678901234567890", "api_key")
+    services.vault.add_credential("tavily", "fixture-tavily-key", "api_key")
 
     class FakeStore:
         def __init__(self) -> None:
@@ -125,7 +125,7 @@ def smoke_worker_cc_backend_materialization(root: Path) -> None:
     worker.security_runtime = FakeSecurityRuntime()
 
     env = worker._materialize_vault_env(task_id="task-vault-smoke", task_metadata={})
-    _assert(env == {"TAVILY_API_KEY": "tvly-secret-12345678901234567890"}, "worker vault env mismatch")
+    _assert(env == {"TAVILY_API_KEY": "fixture-tavily-key"}, "worker vault env mismatch")
 
     os.environ.pop("TAVILY_API_KEY", None)
     with _temporary_env(env):
@@ -133,7 +133,7 @@ def smoke_worker_cc_backend_materialization(root: Path) -> None:
     _assert("TAVILY_API_KEY" not in os.environ, "temporary env leaked after context")
 
     rendered_events = repr(worker.security_runtime.store.events)
-    _assert("tvly-secret-12345678901234567890" not in rendered_events, "raw secret leaked into security events")
+    _assert("fixture-tavily-key" not in rendered_events, "raw secret leaked into security events")
     _assert("TAVILY_API_KEY" in rendered_events, "env name missing from security events")
 
 

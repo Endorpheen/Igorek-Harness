@@ -35,8 +35,9 @@ layout separates runtime code, interfaces, tests, assets, packaging and docs.
 retired web monitor. Android connects to that same session service.
 
 The task API in `factory/factory_api.py` and inference server in
-`transformers_api_server.py` have different contracts. Similarly, the root
-`prompt_assembly.py` and `factory/core/prompt_assembly.py` serve distinct callers;
+`factory/api_server_core/server.py` have different contracts. The inference prompt assembler in
+`factory/api_server_core/prompt_assembly.py` and `factory/core/prompt_assembly.py`
+serve distinct callers;
 matching basenames do not establish duplication or dead code.
 
 The single CLI frontend is Rich/prompt_toolkit. Its shared history and prompt

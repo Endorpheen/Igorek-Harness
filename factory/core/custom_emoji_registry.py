@@ -28,15 +28,9 @@ logger = logging.getLogger(__name__)
 
 
 def _default_registry_path() -> Path:
-    """Resolve registry path: prefer data root, fallback to project root."""
-    try:
-        from .runtime import get_data_root
-        data_root = Path(get_data_root())
-        if data_root.exists() or data_root.parent.exists():
-            return data_root / "custom_emoji_registry.json"
-    except Exception:
-        pass
-    return Path(__file__).resolve().parent.parent.parent / "custom_emoji_registry.json"
+    """Keep mutable Telegram emoji mappings in the user's runtime data directory."""
+    from .runtime import get_data_root
+    return Path(get_data_root()) / "custom_emoji_registry.json"
 
 
 REGISTRY_PATH = _default_registry_path()

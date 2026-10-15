@@ -73,7 +73,9 @@ async function run() {
       chat?.destroy(); settings?.destroy();
       await runtime?.stop();
       if (server) await new Promise(resolve => { server.close(resolve); server.closeAllConnections(); });
-      fs.rmSync(root, { recursive: true, force: true });
+      // Windows keeps Chromium profile handles until Electron has exited.
+      // The ephemeral runner removes that fixture after this process finishes.
+      if (process.platform !== 'win32') fs.rmSync(root, { recursive: true, force: true });
     })();
     return closing;
   }

@@ -57,8 +57,8 @@ def run_file(path: Path, index: int, output: Path, timeout: int, coverage: bool)
     command = [sys.executable, "-u", "-m", "pytest", str(path), "-v", "--tb=short",
                "--timeout=60", "-o", "faulthandler_timeout=45", f"--junitxml={xml}"]
     if coverage:
-        command += ["--cov=factory", "--cov=desktop", "--cov=prompt_assembly",
-                    "--cov=transformers_api_server", "--cov-branch", "--cov-report="]
+        command += ["--cov=factory", "--cov=desktop",
+                    "--cov-branch", "--cov-report="]
     started = time.monotonic()
     with (root / "output.log").open("w") as log:
         process = subprocess.Popen(command, cwd=REPO, env=env, stdout=log,

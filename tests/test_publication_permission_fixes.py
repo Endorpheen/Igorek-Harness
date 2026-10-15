@@ -2,6 +2,7 @@
 import ast
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -11,7 +12,7 @@ def resolve_permission(*, approved, remember):
     tree = ast.parse(path.read_text())
     method = next(node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)
                   and node.name == 'resolve_server_request')
-    scope = {}
+    scope = {'Any': Any}
     exec(compile(ast.Module(body=[method], type_ignores=[]), str(path), 'exec'), scope)
     sent = []
     scope['resolve_server_request'](SimpleNamespace(_send=sent.append), request_id='fixture-id',

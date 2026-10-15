@@ -140,7 +140,7 @@ require an open graphical window.
 | [`factory/core/isolation/`](factory/core/isolation) | KVM, host/guest channels, network, broker, terminals |
 | [`factory/mcp_servers/`](factory/mcp_servers) | Built-in MCP servers and integrations |
 | [`factory/api_server_core/`](factory/api_server_core) | Separate inference API/workflow implementation |
-| [`transformers_api_server.py`](transformers_api_server.py) | Compatible inference server entrypoint |
+| [`factory/api_server_core/server.py`](factory/api_server_core/server.py) | Compatible inference server entrypoint |
 | [`tests/`](tests) and [`factory/tests/`](factory/tests) | Python checks; desktop and Android also have their own suites |
 
 Large tool results use `tool_result_store.py`; context compaction is implemented

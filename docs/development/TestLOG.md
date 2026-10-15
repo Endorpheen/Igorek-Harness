@@ -1,5 +1,38 @@
 # Test results
 
+## 2026-10-15 — Repository layout and hosted platform follow-up
+
+- Moved the optional inference entrypoint to `factory/api_server_core/server.py`
+  (`python -m factory.api_server_core.server`) and its live prompt assembler into
+  the same package. Removed unused duplicate worker/context helpers from that
+  API assembler; the live `factory/core/prompt_assembly.py` remains unchanged.
+  Moved its policy to packaged `factory/config/inference-policy.yaml`, preserving
+  the protected-policy boundary and updating callers, coverage, CI and links.
+- Removed a mutable Telegram emoji registry from the source inventory. Registry
+  persistence now always uses the runtime data directory, including before that
+  directory exists. CI configuration, Python metadata, pytest discovery and agent
+  discovery files remain in their standard locations.
+- Replaced the synthetic Tavily smoke value with an explicit fixture string.
+  Gitleaks exclusions now require both an exact reviewed expression and its
+  corresponding source path; the historical fake value remains narrowly matched
+  for history checks. Source-only check: **zero findings**, redacted output.
+- Local desktop: **316 passed, zero failures/skips**. Layout/inference/permission/
+  demo follow-up: **47 passed plus six subtests**. Initial full layout snapshot:
+  **4777 collected, 4746 passed, one failed, 30 skipped, 614 subtests**. The failure
+  was the Unix HTTP fixture's early-rejection upload race; its client now still
+  reads and asserts HTTP 403. Three layout cases were added after that snapshot;
+  the new full run is pending. No failed test was removed or skipped.
+- Hosted prior snapshot: source/secret checks, Android, Linux desktop contracts,
+  native Linux first task/restart, Linux packages and Python 3.14 passed. Python
+  3.13 exposed a missing annotation binding in an AST test fixture, now corrected.
+  Windows file/Vault checks and package creation passed; native startup exposed
+  short-path/canonical-path mismatch, now corrected before certificate validation.
+  Windows desktop ACL assertions now use the Windows DACL directly, independent
+  of PowerShell module search paths. Hosted reruns remain required.
+- Desktop VM check has reached real manager/domain startup with a rebuilt 0.2.0
+  image. Task completion remains under investigation; this is not a passing VM
+  acceptance result. The original host image and user services remain untouched.
+
 ## 2026-10-15 — Igorek Harness 0.2.0 publication preparation
 
 - Hosted CI exposed missing qemu-utils and restricted bubblewrap namespaces in

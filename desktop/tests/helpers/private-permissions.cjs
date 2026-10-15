@@ -8,7 +8,11 @@ function assertPrivatePermissions(file, mode = 0o600) {
     assert.equal(statSync(file).mode & 0o777, mode);
     return;
   }
-  const script = `$rules = (Get-Acl -LiteralPath $env:IGOREK_TEST_ACL_PATH).Access;
+  const script = `$ErrorActionPreference = 'Stop';
+    $file = $env:IGOREK_TEST_ACL_PATH;
+    $rules = if ([System.IO.Directory]::Exists($file)) {
+      [System.IO.Directory]::GetAccessControl($file).Access
+    } else { [System.IO.File]::GetAccessControl($file).Access };
     foreach ($rule in $rules) {
       $sid = $rule.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value;
       if ($rule.AccessControlType -eq 'Allow' -and $sid -in @('S-1-1-0','S-1-5-11','S-1-5-32-545')) {

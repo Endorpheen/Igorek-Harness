@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from prompt_assembly import (
+from .prompt_assembly import (
     build_system_prompt as assemble_system_prompt,
     build_tools_prompt as assemble_tools_prompt,
 )

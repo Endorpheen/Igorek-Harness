@@ -3,11 +3,11 @@ from pathlib import Path
 import shlex
 from typing import Any, Callable
 
-from factory.api_server_core.policy_engine import policy_bool, policy_list
+from factory.api_server_core.policy_engine import POLICY_CONFIG_PATH, policy_bool, policy_list
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PROTECTED_POLICY_PATHS = {
-    (REPO_ROOT / "policy.yaml").resolve(),
+    POLICY_CONFIG_PATH.resolve(),
     (REPO_ROOT / "docs" / "architecture" / "POLICY.md").resolve(),
     (REPO_ROOT / "factory" / "api_server_core" / "policy_engine.py").resolve(),
     (REPO_ROOT / "factory" / "api_server_core" / "file_policy.py").resolve(),
@@ -534,7 +534,7 @@ def build_policy_denial_response(reason: str | None) -> str:
     if value == "bash_source_dump_not_allowed":
         return "Нельзя вываливать HTML/CSS/JS исходник через Bash. Для создания файла используй `Write`, для правок — `Edit`/`Update`/`MultiEdit`."
     if value == "bash_command_not_allowlisted":
-        return "Эта Bash-команда не входит в allowlist из `policy.yaml`. Либо используй разрешённую команду, либо обнови policy вручную через Администратор."
+        return "Эта Bash-команда не входит в allowlist из `factory/config/inference-policy.yaml`. Либо используй разрешённую команду, либо обнови policy вручную через Администратор."
     if value.startswith("path_outside_project_root:"):
         target = value.split(":", 1)[1]
         return f"Путь `{target}` находится вне рабочей директории проекта. Укажи файл внутри текущего проекта."

@@ -1,6 +1,6 @@
 # Inference server authentication
 
-The optional `transformers_api_server.py` service authenticates inference calls
+The optional `factory/api_server_core/server.py` service (`python -m factory.api_server_core.server`) authenticates inference calls
 before request generation or context compression. Set `IGOREK_INFERENCE_API_KEY`
 in the service's protected environment and configure the client with the same
 key, through `Authorization: Bearer ...` or `X-API-Key`. This ingress key is

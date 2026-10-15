@@ -53,7 +53,12 @@ def request(endpoint, method, params=None, token=None):
         message['params'] = params
     conn = UnixHTTPConnection(str(server.path))
     try:
-        conn.request('POST', '/mcp', json.dumps(message), {'Authorization': 'Bearer ' + (grant['token'] if token is None else token)})
+        try:
+            conn.request('POST', '/mcp', json.dumps(message), {'Authorization': 'Bearer ' + (grant['token'] if token is None else token)})
+        except BrokenPipeError:
+            # A header-level denial may finish before the client uploads its body.
+            # Read and assert the HTTP response rather than retrying the request.
+            pass
         response = conn.getresponse()
         raw = response.read()
         return response.status, json.loads(raw) if response.status == 200 else None

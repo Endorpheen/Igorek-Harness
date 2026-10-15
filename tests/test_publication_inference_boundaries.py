@@ -14,7 +14,7 @@ from factory.api_server_core.request_auth import authentication_error
 
 
 def middleware():
-    source = Path(__file__).parents[1] / 'transformers_api_server.py'
+    source = Path(__file__).parents[1] / 'factory/api_server_core/server.py'
     tree = ast.parse(source.read_text())
     names = {'_error_payload', '_with_request_id', 'request_lifecycle_middleware'}
     nodes = [n for n in tree.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name in names]
