@@ -102,6 +102,37 @@ jobs:
           if (@($uninstaller).Count -ne 1) { throw 'Uninstaller is missing' }
           $process = Start-Process $uninstaller.FullName -ArgumentList '/S' -Wait -PassThru
           if ($process.ExitCode -ne 0) { throw 'Uninstaller failed' }
+      - name: Diagnose a failed native Windows tour with synthetic thread stacks
+        if: failure() && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:IGOREK_DIAG_RUNTIME = Join-Path $env:RUNNER_TEMP 'igorek-diagnostic-runtime'
+          $env:IGOREK_TEST_OUTPUT = Join-Path $env:GITHUB_WORKSPACE 'test-results/native-windows-diagnostics'
+          @'
+          import json, os, shutil
+          from pathlib import Path
+          source = Path(os.environ['RUNNER_TEMP']) / 'igorek-installed/resources/app/runtime'
+          destination = Path(os.environ['IGOREK_DIAG_RUNTIME'])
+          if not source.is_dir():
+              raise SystemExit('No installed runtime is available for diagnosis')
+          shutil.copytree(source, destination)
+          output = Path(os.environ['IGOREK_TEST_OUTPUT'])
+          output.mkdir(parents=True, exist_ok=True)
+          stacks = json.dumps((output / 'thread-stacks.log').as_posix())
+          wrapper = ('import faulthandler, runpy\nfrom pathlib import Path\n'
+                     f'log=open({stacks}, "w", encoding="utf-8")\n'
+                     'faulthandler.dump_traceback_later(20, repeat=True, file=log)\n'
+                     'runpy.run_path(str(Path(__file__).with_name("backend.py")), run_name="__main__")\n')
+          (destination / 'diagnostic-entry.py').write_text(wrapper, encoding='utf-8')
+          manifest = destination / 'manifest.json'
+          value = json.loads(manifest.read_text())
+          value['entry'] = 'diagnostic-entry.py'
+          manifest.write_text(json.dumps(value), encoding='utf-8')
+          '@ | & uv run --no-sync python -
+          if ($LASTEXITCODE -ne 0) { throw 'Diagnostic fixture preparation failed' }
+          $env:IGOREK_TEST_RUNTIME = $env:IGOREK_DIAG_RUNTIME
+          & ./desktop/node_modules/.bin/electron.cmd desktop/tests/native/first-run.cjs
+          Write-Output 'Diagnostic clone result is separate from native package acceptance.'
       - name: Keep candidate packages and reports
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -112,6 +143,8 @@ jobs:
             ${{ runner.temp }}/igorek-dist/*.deb
             ${{ runner.temp }}/igorek-dist/*.AppImage
             test-results/native-windows/summary.json
+            test-results/native-windows-diagnostics/summary.json
+            test-results/native-windows-diagnostics/thread-stacks.log
             test-results/platform-*-coverage.json
           if-no-files-found: warn
           retention-days: 7

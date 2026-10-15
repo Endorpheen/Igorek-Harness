@@ -83,20 +83,27 @@ class PlatformFiles(unittest.TestCase):
 from factory.core.checkpoint_manager import CheckpointManager, _git_executable
 from factory.core.cc_backend_tools import _tool_write
 from factory.core.readonly_git import git_environment
+from factory.core.session_changes import TaskChangeTracker
 import os, sys
-root=Path(sys.argv[1]); work=root/'project';work.mkdir()
+import faulthandler
+faulthandler.dump_traceback_later(8, repeat=True)
+root=Path(sys.argv[1]); work=root/'private'/'demos'/'project';work.mkdir(parents=True)
 (work/'git.exe').write_bytes(b'not a trusted executable')
 os.chdir(work)
 git=_git_executable(); assert git and Path(git).parent != work
 env=git_environment();assert env['SystemRoot'] and env['NoDefaultCurrentDirectoryInExePath']=='1'
 assert 'OPENAI_API_KEY' not in env
 manager=CheckpointManager(data_root=str(root/'private'))
-result=_tool_write({'file_path':'note.txt','content':'fixture'},str(work),'workspace',manager)
+tracker=TaskChangeTracker(task_id='fixture-write',workdir=str(work),checkpoint_manager=manager,data_root=str(root/'private'))
+result=_tool_write({'file_path':'note.txt','content':'fixture'},str(work),'workspace',manager,tracker)
 assert (work/'note.txt').read_text()=='fixture'
 assert manager.list_checkpoints(str(work))
 '''
-        process = subprocess.run([sys.executable, '-c', code, str(self.root)],
-                                 capture_output=True, timeout=20)
+        try:
+            process = subprocess.run([sys.executable, '-c', code, str(self.root)],
+                                     capture_output=True, timeout=20)
+        except subprocess.TimeoutExpired as error:
+            self.fail('Checkpointed Write stalled:\n' + (error.stderr or b'').decode(errors='replace'))
         self.assertEqual(process.returncode, 0, process.stderr.decode(errors='replace'))
 
     def test_windows_command_guard_cannot_be_disabled(self):

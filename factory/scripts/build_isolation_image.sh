@@ -272,7 +272,7 @@ source /opt/igorek/guest-env.sh
 
 apt-get -o Acquire::Retries=5 update
 apt-get -o Acquire::Retries=5 install -y --no-install-recommends \
-  ca-certificates curl git python3 python3-venv python3-pip gcc libc6-dev linux-libc-dev \
+  ca-certificates curl git ripgrep python3 python3-venv python3-pip gcc libc6-dev linux-libc-dev \
   bubblewrap passwd sudo apparmor apparmor-utils procps iproute2 \
   nftables util-linux libcap2-bin \
   "${IGOREK_GUEST_KERNEL}"

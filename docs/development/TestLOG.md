@@ -1,5 +1,20 @@
 # Test results
 
+## 2026-10-15 — Native tour diagnostics
+
+- The complete follow-up Python snapshot is **4783 collected / 4752 passed /
+  31 skipped / zero failures/errors**, **614 subtests**. The extra prerequisite
+  skip is the new native Windows checkpointed-write case, not a removed failure.
+  Hosted Windows passed that case with a checkpoint manager; its coverage now
+  also includes change tracking and the private demo directory layout.
+- Windows startup/restart remains successful, but the full tour still needs
+  investigation. Failed native package runs now retain a separate synthetic
+  diagnostic clone's thread stacks. Its result cannot replace actual package
+  acceptance. No user installation or auth state is involved.
+- Guest inventory inspection found no ripgrep binary. The recipe now installs
+  that required Grep runtime dependency explicitly, so the introductory tour
+  can exercise the same file tools in a clean guest image.
+
 ## 2026-10-15 — Live startup diagnostics and checkpoint compatibility
 
 - Native Windows now passes managed startup, file tools, first task, lock/unlock,
