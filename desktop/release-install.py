@@ -56,6 +56,25 @@ def read_request(path: Path) -> dict:
     return value
 
 
+def close_inherited_installation_lock(value: dict):
+    if sys.platform != 'linux' or value['kind'] != 'snapshot':
+        return
+    lock = Path(value['target']) / 'run.lock'
+    info = lock.stat()
+    # Electron can pass the launcher's flock descriptor to a detached helper.
+    # Close our copy only; unlocking it would also release the live launcher's lock.
+    for entry in Path('/proc/self/fd').iterdir():
+        descriptor = int(entry.name)
+        if descriptor < 3:
+            continue
+        try:
+            inherited = os.fstat(descriptor)
+        except OSError:
+            continue
+        if (inherited.st_dev, inherited.st_ino) == (info.st_dev, info.st_ino):
+            os.close(descriptor)
+
+
 def wait_for_exit(pid: int, timeout: float = 60):
     if sys.platform == 'win32':
         kernel = ctypes.WinDLL('kernel32', use_last_error=True)
@@ -173,6 +192,7 @@ def main(request: Path) -> int:
     exited = False
     try:
         value = read_request(request)
+        close_inherited_installation_lock(value)
         request.with_suffix('.ready').write_text('ready', encoding='ascii')
         wait_for_exit(value['parent_pid'])
         exited = True

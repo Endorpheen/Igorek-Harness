@@ -67,3 +67,16 @@ def test_clean_source_inventory_ignores_stale_build_modules(tmp_path):
     paths = module.source_files(tmp_path)
     assert Path("factory/current.py") in paths
     assert not any(path.parts[0] == "build" for path in paths)
+
+
+@pytest.mark.parametrize('suffix,prefix,suffix_text,first_line', [
+    ('.js', 'const value = 1;\n', '', 2),
+    ('.html', '<html>\n<script>\n', '</script>\n</html>', 3),
+])
+def test_comment_locations_survive_large_trees_and_nested_scripts(monkeypatch, suffix, prefix, suffix_text, first_line):
+    monkeypatch.syspath_prepend(str(ROOT / 'tools'))
+    import check_publication
+    source = prefix + ''.join(f'// marker {index}\n' for index in range(128)) + suffix_text
+    expected = [(first_line + index, f'// marker {index}') for index in range(128)]
+    for _ in range(32):
+        assert list(check_publication.comments(Path('fixture' + suffix), source)) == expected

@@ -76,3 +76,38 @@ def test_windows_installer_directory_with_spaces_uses_nsis_tail(tmp_path, monkey
                           'version': '0.2.1', 'restart': False})
     assert result['state'] == 'installed'
     assert calls[0][0].endswith(' /S /D=' + str(target)) and calls[0][1]['shell'] is False
+
+
+@pytest.mark.skipif(sys.platform != 'linux', reason='Linux launcher flock inheritance')
+def test_helper_closes_inherited_lock_without_unlocking_running_parent(tmp_path):
+    import fcntl
+    lock = tmp_path / 'run.lock'
+    descriptor = os.open(lock, os.O_RDWR | os.O_CREAT, 0o600)
+    fcntl.flock(descriptor, fcntl.LOCK_SH)
+    code = """
+import fcntl, importlib.util, json, sys
+from pathlib import Path
+spec = importlib.util.spec_from_file_location('helper', sys.argv[1])
+helper = importlib.util.module_from_spec(spec); spec.loader.exec_module(helper)
+helper.close_inherited_installation_lock({'kind': 'snapshot', 'target': sys.argv[2]})
+print('closed', flush=True)
+sys.stdin.readline()
+with (Path(sys.argv[2]) / 'run.lock').open('r+b') as stream:
+    fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    print('exclusive', flush=True)
+"""
+    child = subprocess.Popen([sys.executable, '-I', '-B', '-c', code, str(Path(update.__file__)), str(tmp_path)],
+                             pass_fds=(descriptor,), stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+    try:
+        assert child.stdout.readline().strip() == 'closed'
+        with lock.open('r+b') as separate:
+            with pytest.raises(BlockingIOError):
+                fcntl.flock(separate, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        os.close(descriptor); descriptor = None
+        stdout, _ = child.communicate('continue\n', timeout=5)
+        assert child.returncode == 0 and stdout.strip() == 'exclusive'
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+        if child.poll() is None:
+            child.kill(); child.wait()

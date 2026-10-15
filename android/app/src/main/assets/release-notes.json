@@ -1,15 +1,15 @@
 {
-  "versionName": "0.1.105",
-  "versionCode": 106,
+  "versionName": "0.1.106",
+  "versionCode": 107,
   "changes": [
     {
       "ru": {
-        "title": "Подготовка релизных сборок",
-        "text": "Добавлена отдельная настройка постоянной подписи APK. Тестовые сборки сохраняют прежний ключ."
+        "title": "Совместимые обновления зависимостей",
+        "text": "Обновлены Kotlin, Compose, сетевые библиотеки и инструменты сборки. Время кадра браузера учитывает изменение языка системы."
       },
       "en": {
-        "title": "Release build preparation",
-        "text": "Added explicit release-signing configuration. Debug builds retain their existing signing identity."
+        "title": "Compatible dependency updates",
+        "text": "Updated Kotlin, Compose, networking libraries and build tools. Browser frame timestamps observe system locale changes."
       }
     }
   ]

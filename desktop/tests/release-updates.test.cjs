@@ -40,7 +40,7 @@ test('native install requires a second owner confirmation and keeps verified met
   const parent={isDestroyed:()=>false,setProgressBar:()=>{}};
   const choices=[0,2,0,0];
   const show=updateDialog({app:{getPath:()=>f.root},dialog:{showMessageBox:async()=>({response:choices.shift()})},
-    shell:{showItemInFolder:()=>assert.fail('Install was selected')},session:{fetch:f.fetch},current:()=> '0.2.0',portable:false,
+    shell:{showItemInFolder:()=>assert.fail('Install was selected')},fetch:f.fetch,current:()=> '0.2.0',portable:false,
     install:async file=>{launched++;assert.equal(file.sha256,createHash('sha256').update(payload).digest('hex'));
       assert.equal(file.version,'0.2.1');assert.deepEqual(await fs.readFile(file.path),payload);return {state:'installing'};}});
   assert.equal((await show(parent)).state,'downloaded');assert.equal(launched,0);
@@ -109,7 +109,7 @@ test('preview channel discovers newer preliminary builds while drafts and foreig
 test('a postponed verified download is reused after a busy task instead of being fetched again',async t=>{
   const f=await fixture(t,release(process.platform));let downloads=0,attempts=0;
   const show=updateDialog({app:{getPath:()=>f.root},dialog:{showMessageBox:async()=>({response:0})},shell:{},
-    session:{fetch:async(url,options)=>{if(!url.includes('/releases/latest'))downloads++;return f.fetch(url,options);}},
+    fetch:async(url,options)=>{if(!url.includes('/releases/latest'))downloads++;return f.fetch(url,options);},
     current:()=> '0.2.0',portable:false,install:async()=>{if(!attempts++)throw Error('update_tasks_active');return {state:'installing'};}});
   const parent={isDestroyed:()=>false,setProgressBar:()=>{}};
   assert.equal((await show(parent)).state,'failed');assert.equal((await show(parent)).state,'installing');assert.equal(downloads,1);
@@ -120,11 +120,40 @@ test('native cancel never downloads; confirmed download only reveals verified in
   const decisions=[{response:2},{response:0},{response:0}];
   const show=updateDialog({app:{getPath:()=>f.root},dialog:{showMessageBox:async()=>decisions[index++]},
     shell:{openExternal:()=>assert.fail('No release link was requested'),showItemInFolder:file=>shown.push(file)},
-    session:{fetch:f.fetch},current:()=> '0.2.0',portable:false});
+    fetch:f.fetch,current:()=> '0.2.0',portable:false});
   assert.equal((await show(parent)).state,'cancelled');assert.equal(f.requests.length,1);assert.deepEqual(shown,[]);
   // Match the synthetic release to the host without executing its payload.
   f.fetch=async(url)=>url.includes('/releases/latest')?Response.json(release(process.platform)):new Response(payload);
   const showConfirmed=updateDialog({app:{getPath:()=>f.root},dialog:{showMessageBox:async()=>({response:0})},
-    shell:{showItemInFolder:file=>shown.push(file)},session:{fetch:f.fetch},current:()=> '0.2.0',portable:false});
+    shell:{showItemInFolder:file=>shown.push(file)},fetch:f.fetch,current:()=> '0.2.0',portable:false});
   assert.equal((await showConfirmed(parent)).state,'downloaded');assert.equal(shown.length,1);assert.deepEqual(await fs.readFile(shown[0]),payload);
+});
+
+test('dialog uses Node fetch rather than Chromium manual-redirect cancellation',async t=>{
+  const f=await fixture(t,release(process.platform));let redirects=0;
+  const show=updateDialog({app:{getPath:()=>f.root},current:()=> '0.2.0',portable:false,
+    session:{fetch:()=>assert.fail('Chromium fetch cannot expose manual redirects')},
+    fetch:async(url,options)=>{
+      if(url.includes('/releases/latest'))return Response.json(release(process.platform));
+      assert.equal(options.redirect,'manual');
+      if(new URL(url).hostname==='github.com'){
+        redirects++;return new Response(null,{status:302,headers:{location:'https://release-assets.githubusercontent.com/fixture'}});
+      }
+      return new Response(payload);
+    },dialog:{showMessageBox:async()=>({response:0})},shell:{showItemInFolder:()=>{}}});
+  assert.equal((await show({isDestroyed:()=>false,setProgressBar:()=>{}})).state,'downloaded');
+  assert.equal(redirects,1);
+});
+
+test('one update presentation stays alive through download, verification and confirmation',async t=>{
+  const f=await fixture(t,release(process.platform));const states=[];let created=0;
+  const presentation={showMessageBox:async(_parent,options)=>{states.push(options.message);return {response:options.message.includes('готов к установке')?1:0};},
+    progress:value=>states.push(value),close:()=>states.push('closed')};
+  const show=updateDialog({app:{getPath:()=>f.root},current:()=> '0.2.0',portable:false,fetch:f.fetch,
+    presentationFactory:()=>{created++;return presentation;},
+    dialog:{showMessageBox:()=>assert.fail('Native dialog must not replace the progress window')},shell:{showItemInFolder:()=>{}}});
+  assert.equal((await show({isDestroyed:()=>false,setProgressBar:()=>{}})).state,'downloaded');
+  assert.equal(created,1);assert.ok(states.includes(0));assert.ok(states.includes(1));
+  assert.ok(states.some(value=>typeof value==='string'&&value.includes('готов к установке')));
+  assert.equal(states.at(-1),'closed');
 });

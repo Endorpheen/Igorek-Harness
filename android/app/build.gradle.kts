@@ -3,13 +3,13 @@ import java.nio.file.Files
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.compose.compiler)
     alias(libs.plugins.kotlin.serialization)
 }
 
 val voiceMarkdownAssets = layout.buildDirectory.dir("generated/voice-markdown-assets")
 val tlsTestResources = layout.buildDirectory.dir("generated/tls-test-resources")
-val generateTestTlsKey by tasks.registering(Exec::class) {
+val generateTestTlsKey = tasks.register<Exec>("generateTestTlsKey") {
     val output = tlsTestResources.map { it.file("loopback-test.p12") }
     outputs.file(output)
     doFirst {
@@ -25,7 +25,7 @@ val generateTestTlsKey by tasks.registering(Exec::class) {
 tasks.withType<Test>().configureEach { dependsOn(generateTestTlsKey) }
 tasks.matching { it.name.startsWith("process") && it.name.endsWith("UnitTestJavaRes") }
     .configureEach { dependsOn(generateTestTlsKey) }
-val syncVoiceMarkdownRenderer by tasks.registering(Sync::class) {
+val syncVoiceMarkdownRenderer = tasks.register<Sync>("syncVoiceMarkdownRenderer") {
     from(rootProject.file("../factory/web_ui/static/render.js"))
     from(file("src/main/res/drawable-nodpi/ic_igorek_octopus.jpg")) {
         rename { "igorek-octopus.jpg" }
@@ -35,18 +35,18 @@ val syncVoiceMarkdownRenderer by tasks.registering(Sync::class) {
 tasks.named("preBuild") { dependsOn(syncVoiceMarkdownRenderer) }
 
 android {
-    sourceSets.getByName("main").assets.srcDir(voiceMarkdownAssets)
-    sourceSets.getByName("test").resources.srcDir(tlsTestResources)
+    sourceSets.getByName("main").assets.directories.add(voiceMarkdownAssets.get().asFile.path)
+    sourceSets.getByName("test").resources.directories.add(tlsTestResources.get().asFile.path)
     namespace = "ru.igorek.remote"
-    compileSdk = 34
+    compileSdk { version = release(37) { minorApiLevel = 0 } }
 
     defaultConfig {
         applicationId = "ru.igorek.remote"
         minSdk = 26
         targetSdk = 34
         testInstrumentationRunner = providers.gradleProperty("igorekTestRunner").orElse("ru.igorek.remote.VoiceCallInstrumentation").get()
-        versionCode = 106
-        versionName = "0.1.105"
+        versionCode = 107
+        versionName = "0.1.106"
     }
 
     buildTypes {
@@ -74,17 +74,9 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-
     buildFeatures {
         compose = true
         buildConfig = true
-    }
-
-    composeOptions {
-        kotlinCompilerExtensionVersion = libs.versions.composeCompiler.get()
     }
 
     packaging {
@@ -92,7 +84,7 @@ android {
     }
 }
 
-val verifyReleaseSigning by tasks.registering {
+val verifyReleaseSigning = tasks.register("verifyReleaseSigning") {
     doLast {
         listOf("IGOREK_ANDROID_KEYSTORE", "IGOREK_ANDROID_STORE_PASSWORD_FILE", "IGOREK_ANDROID_KEY_ALIAS").forEach {
             check(!providers.environmentVariable(it).orNull.isNullOrBlank()) { "Configure $it for a signed release." }
@@ -106,7 +98,7 @@ val verifyReleaseSigning by tasks.registering {
 }
 tasks.matching { it.name == "packageRelease" }.configureEach { dependsOn(verifyReleaseSigning) }
 
-val verifyReleaseNotes by tasks.registering {
+val verifyReleaseNotes = tasks.register("verifyReleaseNotes") {
     val notesFile = file("src/main/assets/release-notes.json")
     inputs.file(notesFile)
     inputs.property("versionName", provider { android.defaultConfig.versionName.orEmpty() })
