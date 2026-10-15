@@ -114,13 +114,17 @@ def test_process_output_budget_is_enforced_before_capture(repository, monkeypatc
 
 
 def test_release_checkout_keeps_source_bytes_with_windows_autocrlf(repository):
-    attributes = Path(__file__).resolve().parents[1] / '.gitattributes'
+    root = Path(__file__).resolve().parents[1]
+    attributes = root / '.gitattributes'
+    batch = subprocess.check_output(['git', '-C', str(root), 'show', ':android/gradlew.bat'])
+    assert b'\r\n' not in batch
     (repository / '.gitattributes').write_bytes(attributes.read_bytes())
     source = b'VALUE = "fixture"\n'
     binary = b'\x89PNG\0\r\nfixture\r\n'
     (repository / 'source.py').write_bytes(source)
     (repository / 'image.png').write_bytes(binary)
-    git(repository, 'add', '.gitattributes', 'source.py', 'image.png')
+    (repository / 'gradlew.bat').write_bytes(batch)
+    git(repository, 'add', '.gitattributes', 'source.py', 'image.png', 'gradlew.bat')
     git(repository, 'commit', '-m', 'Canonical fixture bytes')
     checkout = repository.parent / 'windows-checkout'
     git(repository, '-c', 'core.autocrlf=true', 'clone', '--no-hardlinks', str(repository), str(checkout))
@@ -128,4 +132,5 @@ def test_release_checkout_keeps_source_bytes_with_windows_autocrlf(repository):
     git(checkout, 'reset', '--hard', 'HEAD')
     assert (checkout / 'source.py').read_bytes() == source
     assert (checkout / 'image.png').read_bytes() == binary
+    assert (checkout / 'gradlew.bat').read_bytes() == batch.replace(b'\n', b'\r\n')
     assert git(checkout, 'status', '--porcelain') == ''

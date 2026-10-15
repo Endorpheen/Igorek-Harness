@@ -41,7 +41,7 @@
   }
   if(rail&&window.IgorekDesktop?.opencode&&!document.getElementById('igorek-open-opencode')){
     const button=document.createElement('button');button.type='button';button.id='igorek-open-opencode';button.className='rail-button opencode-rail-button';button.title='OpenCode';button.setAttribute('aria-label','OpenCode');button.setAttribute('aria-pressed','false');
-    button.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h18v16H3zM7 8v8m4-8h6v8h-6z"/></svg><span>OpenCode</span>';
+    button.innerHTML='<svg class="opencode-logo" viewBox="0 0 16 20" aria-hidden="true"><path d="M12 16H4V8H12V16Z" fill="currentColor" opacity=".45"/><path d="M12 4H4V16H12V4ZM16 20H0V0H16V20Z" fill="currentColor"/></svg><span>OpenCode</span>';
     button.addEventListener('click',()=>window.dispatchEvent(new Event('igorek:open-opencode-tab')));rail.append(button);
   }
   if (rail && window.IgorekDesktop?.browser && !document.getElementById('igorek-open-browser')) {

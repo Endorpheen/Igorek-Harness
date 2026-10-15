@@ -1,7 +1,8 @@
 """Reviewed application source allowlist shared by all desktop targets."""
 
 LEGAL_FILES = ('LICENSE', 'docs/THIRD_PARTY_NOTICES.md',
-               'docs/licenses/CODEX-LICENSE.txt', 'docs/licenses/CODEX-NOTICE.txt')
+               'docs/licenses/CODEX-LICENSE.txt', 'docs/licenses/CODEX-NOTICE.txt',
+               'docs/licenses/OPENCODE-ICON-LICENSE.txt')
 
 
 APP_FILES = (
