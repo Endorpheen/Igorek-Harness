@@ -1,5 +1,76 @@
 # Test results
 
+## Dependabot compatibility and desktop update acceptance — 0.2.3 candidate
+
+The pending Python updates are tested together: agent-client-protocol 0.12.1,
+markdown-it-py 4.2.0, pydantic 2.14.1, tree-sitter 0.26.0 and
+tree-sitter-language-pack 1.22.1. Their transitive versions remain locked.
+The new tree-sitter Point tuple API exposed intermittent native crashes while
+reading `.row` under Python 3.14. Comment locations now use the documented tuple
+index, retaining exact line numbers for nested scripts. The original combination
+failed three of five full publication runs; the adapted checker passed five of
+five. Two regression cases exercise repeated large trees and embedded scripts.
+The full isolated run across both roots collected **4,803 cases**: **4,772 passed,
+31 skipped, zero failures/errors**, plus **627 passing subtests**. Statement
+coverage is **45,772/77,347 (59.18%)**; branch coverage is
+**12,723/27,644 (46.02%)**. Existing environment skips remain documented below.
+
+Android updates require a coordinated migration to AGP 9.4.1, Gradle 9.6.0,
+Kotlin/Compose compiler 2.4.21 and compile SDK 37.0. Compose BOM 2026.09.00,
+Core KTX 1.19.1, OkHttp 5.5.0, serialization 1.11.0 and security-crypto 1.1.0
+compile together. Minimum and target SDKs remain 26/34. The new Gradle wrapper
+and distribution have verified official SHA-256 values. The generated resource
+sets use the current typed DSL with explicit task dependencies. New Compose
+lint detected a non-observable locale read; browser timestamps now observe the
+configuration locale. Android **318 unit tests**, lint and debug assembly passed.
+No lint checks were disabled. Earlier failed migration attempts remain recorded.
+The first hosted Android run stopped because sdkmanager was absent from PATH;
+the workflow now invokes the tool through the runner-provided ANDROID_HOME.
+
+The maintained native scenario now exercises real HTTP redirects and visible
+progress in the same Electron window on both desktop platforms. Its Linux path
+also verifies a detached child under the actual launcher flock. A separate full
+Electron-to-helper acceptance installed the public 0.2.2 package into a temporary
+installation and retained a data canary. The owner's repaired local 0.2.1
+successfully updated to 0.2.2 and restarted with preserved history/connections.
+The earlier direct-file overlay was rejected by integrity verification and was
+replaced with complete verified local snapshot generations. Final desktop contracts passed **338/338**, including shutdown-time owner IPC
+refusal and closed-window secret delivery compatibility. The fixture was updated
+to declare the existing shutdown state explicitly after the new guard exposed
+its missing variable; the failed run is retained. Release 0.2.3
+package acceptance and hosted Windows results are still pending at this point.
+
+
+## Native update installation and visible progress
+
+Electron can pass the launcher flock descriptor to a detached updater. The
+helper now closes only its inherited descriptor; it does not unlock the live
+launcher. A process regression verifies that the running parent remains
+protected. An actual Electron process under flock successfully launched the
+detached helper and updated a temporary 0.2.1 installation to the public 0.2.2
+DEB, with full integrity verification and a retained user-data canary.
+
+The update window now remains open through download percentage, checksum
+verification and installation confirmation. Native Electron verified window
+continuity and visible progress using synthetic bytes. Desktop contracts passed
+**336/336**; Python installer and package checks passed **56/56**, without skips.
+The repaired local launcher passed integrity verification for **7,510 entries**.
+Owner acceptance is pending; no new release version was created.
+
+## In-app release download transport
+
+The actual Electron 44.7.0 `session.fetch` rejects GitHub asset redirects with
+`Redirect was cancelled` when the updater requests manual redirect handling.
+The update dialog now uses Node fetch, which exposes the redirect response to
+the existing host allowlist. Size and SHA-256 verification remain mandatory.
+A regression covers the dialog transport and a permitted asset redirect.
+Desktop contracts passed **335/335**, with no skips. An isolated Electron
+process downloaded the public 0.2.2 DEB (**162,654,004 bytes**) through the
+corrected dialog and verified its published SHA-256. It did not install the
+package or change the running application. The repaired local installation also passed the actual launcher integrity
+check across all **7,505 entries**; the original generation remains available.
+Owner in-app installation acceptance remains pending. No release version was changed.
+
 ## Project link and canonical release checkout — 0.2.2 candidate
 
 The About button now says “GitHub проекта”; its existing destination remains

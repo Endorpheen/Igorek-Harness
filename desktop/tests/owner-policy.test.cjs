@@ -492,7 +492,7 @@ function ownerKeyIpcHarness(action = 'reveal_profile_key') {
   const url = 'file:///owner.html', mainFrame = { url };
   const contents = { mainFrame, isDestroyed: () => false };
   const calls = []; let handler, deliver;
-  const context = vm.createContext({ managed: true, installingUpdate: false, ownerUrl: url, ownerWindow: { webContents: contents }, isOwnerFrame,
+  const context = vm.createContext({ managed: true, quitting: false, installingUpdate: false, ownerUrl: url, ownerWindow: { webContents: contents }, isOwnerFrame,
     runtime: { requestOwner: (action, fields) => { calls.push({ action, fields }); return new Promise(resolve => { deliver = resolve; }); } },
     shouldRefreshProfiles: () => false, ipcMain: { handle: (_, callback) => { handler = callback; } } });
   vm.runInContext(source.slice(start, end), context);
@@ -1128,3 +1128,11 @@ test('quota connection confirms the existing account without browser login or po
   c.window.IgorekDesktop.quota=async()=>({error:'quota_cancelled'});
   await c.connectCodexQuota('fixture');assert.equal(refreshed,1);assert.equal(notices.at(-1)[1],'error');
 });
+
+for(const flag of ['quitting','installingUpdate']) {
+  test('owner IPC refuses backend work during '+flag,async()=>{
+    const h=ownerKeyIpcHarness('status');h.context[flag]=true;
+    const result=await h.call(h.event,{});
+    assert.equal(result.error,'desktop_updating');assert.equal(h.calls.length,0);
+  });
+}

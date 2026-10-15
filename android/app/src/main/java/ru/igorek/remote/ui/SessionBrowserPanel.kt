@@ -26,6 +26,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
@@ -45,7 +46,6 @@ import ru.igorek.remote.data.BridgeException
 import ru.igorek.remote.data.BrowserPreviewResponse
 import java.text.SimpleDateFormat
 import java.util.Date
-import java.util.Locale
 
 private fun decodeBrowserFrame(frame: BrowserPreviewResponse): Bitmap? {
     if (frame.imageBase64.length !in 1..426668 || frame.width !in 1..960 || frame.height !in 1..960) return null
@@ -70,6 +70,7 @@ private fun browserPreviewReason(reason: String): String = when (reason) {
 
 @Composable
 internal fun SessionBrowserPanel(onDismiss: () -> Unit, modifier: Modifier = Modifier) {
+    val locale = LocalConfiguration.current.locales[0]
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val server by Bridge.serverUrl.collectAsState()
     val device by Bridge.currentDeviceId.collectAsState()
@@ -163,7 +164,7 @@ internal fun SessionBrowserPanel(onDismiss: () -> Unit, modifier: Modifier = Mod
                 Text(if (error != null) uiText("Последний полученный кадр", "Last received frame") else if (frame?.loading == true) uiText("Страница загружается…", "Page is loading…") else uiText("Открытая вкладка десктопа", "Desktop browser tab"), style = MaterialTheme.typography.labelSmall)
                 Image(image.asImageBitmap(), contentDescription = uiText("Изображение браузера. Нажми, чтобы увеличить", "Browser preview. Tap to enlarge"), modifier = Modifier.fillMaxWidth().heightIn(min = 140.dp, max = 380.dp).clickable { large = true }, contentScale = ContentScale.Fit)
                 Text(uiText("Нажми на кадр для увеличения", "Tap the frame to enlarge"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                val time = frame?.capturedAt?.takeIf { it > 0 }?.let { SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(it)) }.orEmpty()
+                val time = frame?.capturedAt?.takeIf { it > 0 }?.let { SimpleDateFormat("HH:mm:ss", locale).format(Date(it)) }.orEmpty()
                 Text(uiText("Кадр $time · обновление каждые 2 с", "Frame $time · refreshes every 2 s"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else if (!busy && error == null) {
                 Text(browserPreviewReason(frame?.reason.orEmpty()), style = MaterialTheme.typography.bodySmall)

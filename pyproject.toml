@@ -24,7 +24,7 @@ factory = [
 
 [project]
 name = "igorek-agent-factory"
-version = "0.2.2"
+version = "0.2.3"
 description = "A personal AI agent workspace with desktop, mobile and terminal interfaces"
 readme = "README.md"
 license = "Apache-2.0"
@@ -55,6 +55,6 @@ dev = [
     "pytest-cov>=6,<8",
     "pytest-timeout>=2,<3",
     "ruff>=0.14,<1",
-    "tree-sitter==0.25.2",
-    "tree-sitter-language-pack==0.10.0",
+    "tree-sitter==0.26.0",
+    "tree-sitter-language-pack==1.22.1",
 ]

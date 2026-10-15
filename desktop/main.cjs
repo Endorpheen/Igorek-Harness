@@ -3,6 +3,7 @@ const { pathToFileURL } = require('node:url');
 const { isOwnerFrame, shouldRefreshProfiles, ownedDataLocations } = require('./owner-policy.cjs');
 const { installedImage } = require('./installed-image.cjs');
 const { updateDialog } = require('./release-updates-ui.cjs');
+const { createUpdatePresentation } = require('./release-progress.cjs');
 const { launchInstallation, showInstallationResult } = require('./release-install.cjs');
 let showReleaseUpdates;
 const { saveRecovery, verifyRecovery, restoreRecovery } = require('./recovery-files.cjs');
@@ -684,6 +685,7 @@ ipcMain.handle('igorek:owner-vault', async (event, action, fields) => {
   }
   // Raw backup payloads stay in the main process, never in the settings renderer.
   if (!['mobile_configure','mobile_start','mobile_status','mobile_stop','mobile_revoke','quota_begin','quota_status','quota_cancel','chatgpt_begin', 'chatgpt_status', 'chatgpt_cancel', 'chatgpt_models', 'chatgpt_disconnect', 'plugins_status', 'plugin_action', 'calendar_connect', 'calendar_disable', 'calendar_begin', 'calendar_disconnect', 'calendar_list', 'calendar_select', 'private_mcp_approve', 'gmail_status', 'gmail_import_host', 'gmail_begin', 'gmail_disconnect', 'private_mcp_start', 'private_mcp_status', 'private_mcp_clear', 'host_mcp_access', 'set_host_mcp_access', 'mcp_access', 'set_mcp_access', 'configure_interface_lock', 'set_interface_pin', 'remove_interface_pin', 'unlock_interface_pin', 'lock_interface', 'unlock_interface', 'status', 'readiness', 'image_status', 'execution_mode', 'select_execution_mode', 'change_password', 'create', 'unlock', 'lock', 'generate_phrase', 'model_catalog', 'delete_profile', 'rename_profile', 'list_profiles', 'commit_env_import', 'cancel_env_import', 'value_access', 'grant_value_access', 'revoke_value_access', 'list_values', 'save_value', 'delete_value', 'reveal_value', 'reveal_profile_key', 'save_profile', 'update_profile', 'check_profile', 'start_agent', 'stop_agent'].includes(action)) throw new Error('Доступ запрещён.');
+  if(quitting||installingUpdate)return {error:'desktop_updating'};
   const reply = await runtime.requestOwner(action, fields);
   if(action==='quota_begin'&&reply.result?.authorization_url){const auth=new URL(reply.result.authorization_url);if(auth.origin!=='https://auth.openai.com'||auth.pathname!=='/oauth/authorize')return {error:'invalid_request'};await shell.openExternal(auth.href);return {result:{state:'waiting',profile:fields.profile}};}
   if (['chatgpt_begin', 'chatgpt_status', 'chatgpt_models', 'reveal_profile_key', 'reveal_value', 'private_mcp_status', 'private_mcp_start', 'gmail_begin', 'calendar_begin', 'calendar_connect'].includes(action) && !isOwnerFrame(event, ownerWindow?.webContents, ownerUrl))
@@ -805,7 +807,7 @@ async function openWindow() {
 
 app.whenReady().then(async () => {
   try {
-    showReleaseUpdates = updateDialog({app,dialog,shell,session:electronSession.fromPartition('igorek-release-checks'),current:()=>desktopReleaseInfo().version,channel:()=>desktopReleaseInfo().channel,portable:app.isPackaged && process.platform==='linux' && Boolean(process.env.APPIMAGE),
+    showReleaseUpdates = updateDialog({app,dialog,shell,presentationFactory:parent=>createUpdatePresentation(parent,{BrowserWindow,ipcMain}),current:()=>desktopReleaseInfo().version,channel:()=>desktopReleaseInfo().channel,portable:app.isPackaged && process.platform==='linux' && Boolean(process.env.APPIMAGE),
       install:async file=>{
         if(!managed||!runtime)throw Error('unknown_update_installation');
         const {python}=loadBundle(runtime.bundle);

@@ -44,7 +44,7 @@ def comments(path: Path, text: str):
         while stack:
             node = stack.pop()
             if "comment" in node.type.lower():
-                yield node.start_point.row + 1, raw[node.start_byte:node.end_byte].decode()
+                yield node.start_point[0] + 1, raw[node.start_byte:node.end_byte].decode()
             elif path.suffix == ".html" and node.type == "raw_text" and node.parent.type in {"script_element", "style_element"}:
                 language = "javascript" if node.parent.type == "script_element" else "css"
                 nested_raw = raw[node.start_byte:node.end_byte]
@@ -54,7 +54,7 @@ def comments(path: Path, text: str):
                 while nested:
                     child = nested.pop()
                     if "comment" in child.type.lower():
-                        yield node.start_point.row + child.start_point.row + 1, nested_raw[child.start_byte:child.end_byte].decode()
+                        yield node.start_point[0] + child.start_point[0] + 1, nested_raw[child.start_byte:child.end_byte].decode()
                     else:
                         nested.extend(reversed(child.children))
             else:

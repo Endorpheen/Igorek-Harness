@@ -87,6 +87,7 @@ async function run() {
   timeout.unref();
   try {
     await app.whenReady();
+    await require('./update-flow.cjs').verifyUpdateFlow({appRoot,root,BrowserWindow,ipcMain,python:loadBundle(bundle).python});
     server = http.createServer((request, response) => {
       let raw = '';
       request.on('data', chunk => { raw += chunk; if (raw.length > 1_000_000) request.destroy(); });
