@@ -815,7 +815,7 @@ app.whenReady().then(async () => {
           if(status.error||status.result?.state!=='unlocked'||status.result?.interface_locked)throw Error('update_locked');
           const image=await runtime.requestOwner('image_status');
           if(image.error||image.result?.image?.running)throw Error('update_tasks_active');
-          if(['running','starting','stopping','installing'].includes(opencodeService?.status().state))throw Error('update_opencode_active');
+          if(['ready','running','starting','stopping','installing'].includes(opencodeService?.status().state))throw Error('update_opencode_active');
           const stopped=await runtime.requestOwner('stop_agent');
           if(stopped.error||stopped.result?.agent?.running)throw Error('update_tasks_active');
         }});}catch(error){installingUpdate=false;throw error;}
