@@ -1,5 +1,39 @@
 # Test results
 
+## Published 0.2.3 acceptance — 16 October 2026
+
+[Release 0.2.3](https://github.com/Endorpheen/Igorek-Harness/releases/tag/v0.2.3)
+was published from protected PR 24 after all eleven checks passed. Both hosted
+Python versions (3.13 and 3.14) collected **4,805 cases**: **4,773 passed,
+32 skipped, zero failures/errors**, plus **627 passing subtests** each. The
+hosted 3.14 statement coverage is **45,758/77,347 (59.16%)**; branch coverage is
+**12,720/27,644 (46.01%)**. The 32 skips cover ten terminal-environment cases,
+eighteen isolation/system prerequisites, one optional live-provider configuration
+and three platform-specific cases. Local and hosted prerequisite availability
+differ; the earlier local totals below are retained separately.
+
+Desktop contracts passed **338 cases** on Linux and Windows. Both native tours
+completed all nine maintained stages and the additional real-transport updater
+checks. On Windows, the actual NSIS installer was installed, updated through the
+verified updater helper, relaunched and closed gracefully; synthetic data survived.
+The signed Android 0.1.106 (107) release APK and debug APK passed signature and
+version checks, 318 unit tests and lint. The owner installed the debug APK and
+confirmed its version screen; full physical-device acceptance remains open.
+
+The release has six verified assets: three desktop installers, one signed Android
+APK, SHA256SUMS and BUILD_MANIFEST.json. The Windows executable remains unsigned.
+Clean-machine acceptance and full physical Android testing remain separate from
+these synthetic native checks. The old GitHub binary releases were replaced;
+source tags and history were preserved.
+
+After this frozen release, Dependabot proposed Gradle wrapper 9.8.1 for future
+Android builds. Its generated JAR must match the official checksum, and the
+Windows script must retain the repository's normalized index line endings.
+Local Gradle 9.8.1 unit tests, lint and debug assembly passed; eighteen source
+and publication contract cases passed. This follow-up does not replace the
+published 0.2.3 assets or their provenance.
+
+
 ## Dependabot compatibility and desktop update acceptance — 0.2.3 candidate
 
 The pending Python updates are tested together: agent-client-protocol 0.12.1,

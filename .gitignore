@@ -81,3 +81,5 @@ dist/
 
 # Mutable Telegram emoji mappings belong in runtime data, never source.
 custom_emoji_registry.json
+
+/android/.kotlin/

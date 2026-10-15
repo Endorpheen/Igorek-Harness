@@ -43,9 +43,9 @@ the separate inference API/prompt modules. Report executed lines and branches se
 aggregate percentage is affected by optional inference paths, terminal ports,
 operations and VM code; it does not mean each interface has that coverage.
 
-The latest full Python snapshot on 15 October 2026 measured **59.18%** of
-77347 statements (45772 covered) and **46.02%** of 27644 branches (12723 covered),
-with no failures. It collected **4803 cases: 4772 passed and 31 skipped**, plus
+The latest full Python snapshot on 16 October 2026 measured **59.16%** of
+77347 statements (45758 covered) and **46.01%** of 27644 branches (12720 covered),
+with no failures. It collected **4805 cases: 4773 passed and 32 skipped**, plus
 **627 additional passing subtests**. Desktop Node tests passed **338 cases**;
 Android JVM tests passed **318 cases**. The counts describe separate suites.
 Coverage includes optional inference and desktop backend/build code; changes in
