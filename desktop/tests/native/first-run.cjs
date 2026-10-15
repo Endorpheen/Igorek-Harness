@@ -64,7 +64,7 @@ async function run() {
     return chat.webContents.executeJavaScript(`(async()=>{
       const response=await fetch(${JSON.stringify(route)},${JSON.stringify(options)});
       const value=await response.json();
-      if(!response.ok) throw Error('Test API failed: '+response.status);
+      if(!response.ok) throw Error('Test API failed: '+response.status+' '+${JSON.stringify(route)}+' '+String(value?.code||value?.error?.code||value?.error?.type||'unknown'));
       return value;
     })()`);
   }

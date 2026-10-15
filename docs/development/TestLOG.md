@@ -17,6 +17,16 @@ The targeted checkout, source, model, compaction and update checks passed
 **48 cases and 14 subtests**; desktop contracts passed **334/334**. Locked
 dependency synchronization and publication contracts passed.
 
+The OpenCode integration now uses the upstream UI Mark geometry in the rail and
+workspace tab, with its MIT notice carried by desktop packages and Python
+wheels. Desktop contracts passed **334/334** after the icon change; packaging and
+publication checks passed **65 cases**. Android's first CI attempt stopped before
+compilation because the pinned Gradle archive download exceeded the wrapper's
+10-second default. The explicit network timeout is now 60 seconds; the Gradle
+version and distribution SHA-256 remain unchanged. A preliminary local native
+attempt stopped on HTTP 502; the synthetic fixture now reports the failing
+route and structured code, and final package acceptance must still pass.
+
 ## Local-model discovery and overflow recovery — 0.2.1 candidate
 
 Local request model IDs and display names now share endpoint normalization:

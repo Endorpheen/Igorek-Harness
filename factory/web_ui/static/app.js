@@ -8287,7 +8287,7 @@ function workspaceGlyph(name) {
     folder: [["path",{"d":"M3 7V5h6l2 2h10v13H3ZM3 10h18"}]],
     image: [["rect",{"x":"3","y":"3","width":"18","height":"18","rx":"3"}],["circle",{"cx":"8","cy":"8","r":"2"}],["path",{"d":"m3 17 5-5 5 5 3-3 5 5"}]],
     download: [["path",{"d":"M12 3v12m-5-5 5 5 5-5M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"}]],
-    opencode: [["path",{"d":"M3 4h18v16H3zM7 8v8m4-8h6v8h-6z"}]],
+    opencode: [["path",{"d":"M12 16H4V8H12V16Z","fill":"currentColor","stroke":"none","opacity":".45"}],["path",{"d":"M12 4H4V16H12V4ZM16 20H0V0H16V20Z","fill":"currentColor","stroke":"none"}]],
     back: [["path",{"d":"m14 5-7 7 7 7M7 12h14"}]],
     forward: [["path",{"d":"m10 5 7 7-7 7M3 12h14"}]],
     reload: [["path",{"d":"M20 7a9 9 0 1 0 1 8M20 2v6h-6"}]],
@@ -8297,7 +8297,7 @@ function workspaceGlyph(name) {
     file: [["path",{"d":"M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8ZM14 2v6h6M8 13h8M8 17h6"}]]
   };
   if (name === 'ChatGPT') { const logo = document.querySelector('#igorek-open-chatgpt svg'); if (logo) return logo.cloneNode(true); }
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg"); svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('aria-hidden', 'true'); for (const [tag, attributes] of shapes[name] || shapes.globe) { const child = document.createElementNS("http://www.w3.org/2000/svg", tag); for (const [key, value] of Object.entries(attributes)) child.setAttribute(key, value); svg.append(child); } return svg;
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg"); svg.setAttribute('viewBox', name === 'opencode' ? '0 0 16 20' : '0 0 24 24'); svg.setAttribute('aria-hidden', 'true'); for (const [tag, attributes] of shapes[name] || shapes.globe) { const child = document.createElementNS("http://www.w3.org/2000/svg", tag); for (const [key, value] of Object.entries(attributes)) child.setAttribute(key, value); svg.append(child); } return svg;
 }
 function workspaceTabGlyph(tab) { if(tab.kind==='downloads')return 'download';return tab.kind === 'tool' ? tab.key : tab.kind === 'start' || tab.kind === 'browser' ? window.IgorekWorkspaceTabs.isChatGPT(workspaceBrowserState.tabs.find(item => item.id === tab.id)?.url) ? 'ChatGPT' : 'globe' : tab.kind; }
 
