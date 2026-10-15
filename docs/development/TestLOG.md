@@ -24,6 +24,8 @@ sets use the current typed DSL with explicit task dependencies. New Compose
 lint detected a non-observable locale read; browser timestamps now observe the
 configuration locale. Android **318 unit tests**, lint and debug assembly passed.
 No lint checks were disabled. Earlier failed migration attempts remain recorded.
+The first hosted Android run stopped because sdkmanager was absent from PATH;
+the workflow now invokes the tool through the runner-provided ANDROID_HOME.
 
 The maintained native scenario now exercises real HTTP redirects and visible
 progress in the same Electron window on both desktop platforms. Its Linux path
