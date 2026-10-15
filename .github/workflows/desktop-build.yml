@@ -56,6 +56,17 @@ jobs:
           uv run --no-sync python -m pytest tests/test_platform_support.py tests/test_vault_lifecycle.py tests/test_checkpoint_process.py tests/test_release_install.py -v \
             --cov=factory.core.platform_support --cov=factory.core.vault.lifecycle --cov-branch \
             --cov-report=json:test-results/platform-${{ runner.os }}-coverage.json --cov-report=term
+      - name: Require canonical clean sources before packaging
+        run: |
+          uv run --no-sync python - <<'PY'
+          import sys
+          sys.path.insert(0, 'tools')
+          from build_wheel import git_output
+          status = git_output('status', '--porcelain')
+          if status:
+              print(status.decode('utf-8', errors='replace'), end='')
+              raise SystemExit('Release source checkout is modified')
+          PY
       - name: Build target Python payload
         run: |
           if [ '${{ matrix.target }}' = windows-x64 ]; then

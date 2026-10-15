@@ -1,5 +1,22 @@
 # Test results
 
+## Project link and canonical release checkout — 0.2.2 candidate
+
+The About button now says “GitHub проекта”; its existing destination remains
+the project's repository. Version 0.2.2 includes the local-model and compaction
+fixes below and provides a newer version for in-app acceptance from 0.2.1.
+
+The remaining modified-tree flag in the Windows candidate came from the Gradle
+batch wrapper: its committed blob still contained CRLF while the new text
+attributes normalize the index to LF. Only its line endings were normalized;
+Windows checkout still supplies CRLF. The real Git checkout regression now
+includes the actual indexed wrapper, checks binary bytes and verifies a clean
+tree with Windows-style autocrlf. No installer is accepted by ignoring the
+provenance flag. Native package and update results are recorded after building.
+The targeted checkout, source, model, compaction and update checks passed
+**48 cases and 14 subtests**; desktop contracts passed **334/334**. Locked
+dependency synchronization and publication contracts passed.
+
 ## Local-model discovery and overflow recovery — 0.2.1 candidate
 
 Local request model IDs and display names now share endpoint normalization:
