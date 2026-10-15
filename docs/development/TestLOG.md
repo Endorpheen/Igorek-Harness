@@ -37,6 +37,17 @@ candidate for these fixes; the final 98k regression and publication contracts
 passed another 30 targeted cases with 12 subtests. Package acceptance is recorded
 separately from these source-level results.
 
+The local Linux 0.2.1 candidate passed all nine native stages and an actual
+temporary 0.2.0→0.2.1 update retaining the previous generation and an encrypted
+synthetic connection. Its AppImage manifest and critical product bytes match the
+reviewed source. The first hosted Windows candidate passed native installation
+and self-update checks, but package inspection rejected it: Windows checkout had
+converted text to CRLF and its clean-source provenance correctly reported a
+modified tree. Repository attributes now preserve LF source bytes on every OS
+and retain CRLF for batch files. A real Git checkout with Windows-style
+`core.autocrlf=true` verifies source/binary bytes and a clean tree; all 16 owning
+publication cases passed. Changes to the attributes also trigger packaging.
+
 ## Automatic desktop installation — 0.2.0 candidate
 
 The 0.2.0 candidate adds native confirmation, a separate verified installer helper,
