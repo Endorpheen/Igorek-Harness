@@ -1,5 +1,24 @@
 # Test results
 
+## 2026-10-15 — Bounded checkpoint child processes
+
+- Synthetic Windows thread stacks identified an unbounded stdout/stderr drain
+  after a checkpoint Git timeout. Windows checkpoint commands now use temporary
+  output files with bounded reads, avoiding pipe-reader joins held by descendants.
+  All checkpoint commands receive closed stdin instead of inheriting owner IPC.
+- The native Windows prerequisite keeps its parent stdin open and uses a private
+  home/cache, matching managed backend execution. A real descendant fixture
+  verifies timeout completion; another verifies EOF and UTF-8 output. Guest Git
+  filters also inherit no_new_privs, verified through an actual clean filter.
+- Targeted checkpoint/file/process checks: **31 passed / 3 skipped** on Linux.
+  The skips require Windows. The initial sandboxed run could not bind five local
+  HTTP fixtures; the same cases passed with local test networking enabled.
+  Hosted Windows package/tour acceptance remains pending this revision.
+- Desktop/KVM testing now passes image preparation, explicit mode selection,
+  actual manager startup, first task, lock/unlock, full restart and retained
+  profile/pairing/history. The introductory tour pauses for approval and requires
+  further verification. Temporary diagnostic image copies are not release assets.
+
 ## 2026-10-15 — Native tour diagnostics
 
 - The complete follow-up Python snapshot is **4783 collected / 4752 passed /

@@ -6,11 +6,14 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Any
 
 from .durable_root_scope import durable_root_within_workdir
 from .runtime import get_data_root
+from .isolation.guest_bwrap import guest_mode_requested
+from .isolation.guest_process import unprivileged_argv
 
 
 logger = logging.getLogger(__name__)
@@ -20,27 +23,53 @@ DEFAULT_MAX_SNAPSHOTS = 50
 MAX_FILES = 50_000
 GIT_TIMEOUT_S = 30
 MAX_CHECKPOINT_PREVIEW_BYTES = 2_000_000
+MAX_GIT_OUTPUT_BYTES = 20_000_000
 _FULL_REVISION_RE = re.compile(r"[0-9a-f]{40}")
+
+
+def _git_to_files(argv: list[str], *, cwd: str, env: dict,
+                  timeout: float) -> subprocess.CompletedProcess[str]:
+    """Avoid Windows pipe-reader joins after a timed-out Git child is killed."""
+    with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
+        result = subprocess.run(argv, stdin=subprocess.DEVNULL, stdout=stdout,
+                                stderr=stderr, cwd=cwd, env=env, timeout=timeout)
+        output = []
+        for stream in (stdout, stderr):
+            stream.seek(0)
+            raw = stream.read(MAX_GIT_OUTPUT_BYTES + 1)
+            if len(raw) > MAX_GIT_OUTPUT_BYTES:
+                raise ValueError('Checkpoint Git output exceeds its read budget')
+            output.append(raw.decode('utf-8', errors='replace'))
+        return subprocess.CompletedProcess(argv, result.returncode, *output)
+
+
+def _git_command(argv: list[str], *, cwd: str, env: dict,
+                 timeout: float = GIT_TIMEOUT_S) -> subprocess.CompletedProcess[str]:
+    argv = _checkpoint_argv(argv)
+    if os.name == 'nt':
+        return _git_to_files(argv, cwd=cwd, env=env, timeout=timeout)
+    return subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True,
+                          text=True, encoding='utf-8', errors='replace',
+                          cwd=cwd, env=env, timeout=timeout)
 
 
 def _checkpoint_text(spec: str, *, root: Path, env: dict) -> tuple[bool, str | None]:
     """Pin a private shadow blob and check its size before requesting its text."""
-    options = dict(capture_output=True, text=True, encoding='utf-8', errors='replace',
-                   timeout=GIT_TIMEOUT_S, cwd=str(root), env=env)
+    options = dict(timeout=GIT_TIMEOUT_S, cwd=str(root), env=env)
     try:
         git = _git_executable()
         if git is None:
             return False, None
-        resolved = subprocess.run([git, 'rev-parse', '--verify', spec], **options)
+        resolved = _git_command([git, 'rev-parse', '--verify', spec], **options)
         if resolved.returncode:
             return True, None
         oid = resolved.stdout.strip()
         if not _FULL_REVISION_RE.fullmatch(oid):
             return False, None
-        measured = subprocess.run([git, 'cat-file', '-s', oid], **options)
+        measured = _git_command([git, 'cat-file', '-s', oid], **options)
         if measured.returncode or not 0 <= int(measured.stdout.strip()) <= MAX_CHECKPOINT_PREVIEW_BYTES:
             return False, None
-        shown = subprocess.run([git, 'cat-file', 'blob', oid], **options)
+        shown = _git_command([git, 'cat-file', 'blob', oid], **options)
         if shown.returncode or len(shown.stdout.encode('utf-8')) > MAX_CHECKPOINT_PREVIEW_BYTES:
             return False, None
         return True, shown.stdout
@@ -86,6 +115,10 @@ def _git_env(shadow_repo: Path, working_dir: str) -> dict[str, str]:
     return env
 
 
+def _checkpoint_argv(argv: list[str]) -> list[str]:
+    return unprivileged_argv(argv) if guest_mode_requested(os.environ) else argv
+
+
 def _git_executable() -> str | None:
     if os.name != 'nt':
         return 'git' if shutil.which('git') else None
@@ -110,10 +143,8 @@ def _run_git(
         return False, '', 'git not found', -1
     cmd = [git, "-c", "core.fsmonitor=false", "-c", "core.hooksPath=" + os.devnull, *args]
     try:
-        result = subprocess.run(
+        result = _git_command(
             cmd,
-            capture_output=True,
-            text=True,
             timeout=GIT_TIMEOUT_S,
             cwd=str(Path(working_dir).resolve()),
             env=_git_env(shadow_repo, working_dir),

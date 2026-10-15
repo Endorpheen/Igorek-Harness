@@ -45,3 +45,27 @@ def test_image_controller_and_launcher_are_not_agent_writable():
     assert 'Environment=IGOREK_ISOLATION_GUEST=1' in recipe
     assert recipe.index('rm -rf -- "${IGOREK_GUEST_REPO_DIR}"') < recipe.index('tar -xf /opt/igorek/repo.tar')
     assert unprivileged_argv(['python3', 'fixture.py'])[-2:] == ['python3', 'fixture.py']
+
+
+@pytest.mark.skipif(sys.platform != 'linux', reason='Linux guest Git descendant contract')
+def test_checkpoint_git_filter_cannot_spawn_a_privileged_guest_descendant(tmp_path, monkeypatch):
+    import shlex
+    from factory.core.checkpoint_manager import _run_git
+    work = tmp_path / 'project'; work.mkdir()
+    marker = tmp_path / 'filter-nnp.txt'
+    script = tmp_path / 'filter.py'
+    script.write_text('import pathlib,sys\n'
+        'value=next(x for x in pathlib.Path("/proc/self/status").read_text().splitlines() if x.startswith("NoNewPrivs:"))\n'
+        'pathlib.Path(sys.argv[1]).write_text(value)\n'
+        'sys.stdout.buffer.write(sys.stdin.buffer.read())\n')
+    env = dict(os.environ, GIT_CONFIG_NOSYSTEM='1', GIT_CONFIG_GLOBAL=os.devnull)
+    subprocess.run(['git', 'init', str(work)], env=env, check=True, capture_output=True)
+    command = shlex.join([sys.executable, str(script), str(marker)])
+    subprocess.run(['git', '-C', str(work), 'config', 'filter.fixture.clean', command],
+                   env=env, check=True, capture_output=True)
+    (work / '.gitattributes').write_text('*.txt filter=fixture\n')
+    (work / 'note.txt').write_text('fixture\n')
+    monkeypatch.setenv('IGOREK_ISOLATION_GUEST', '1')
+    ok, _, error, _ = _run_git(['add', '-A'], shadow_repo=work / '.git', working_dir=str(work))
+    assert ok, error
+    assert marker.read_text().strip() == 'NoNewPrivs:\t1'

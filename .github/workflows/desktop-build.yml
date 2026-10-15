@@ -53,7 +53,7 @@ jobs:
           npm --prefix desktop ci
       - name: Run file and Vault contracts on the actual OS
         run: |
-          uv run --no-sync python -m pytest tests/test_platform_support.py tests/test_vault_lifecycle.py -v \
+          uv run --no-sync python -m pytest tests/test_platform_support.py tests/test_vault_lifecycle.py tests/test_checkpoint_process.py -v \
             --cov=factory.core.platform_support --cov=factory.core.vault.lifecycle --cov-branch \
             --cov-report=json:test-results/platform-${{ runner.os }}-coverage.json --cov-report=term
       - name: Build target Python payload

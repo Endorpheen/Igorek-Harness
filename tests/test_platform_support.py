@@ -99,12 +99,20 @@ result=_tool_write({'file_path':'note.txt','content':'fixture'},str(work),'works
 assert (work/'note.txt').read_text()=='fixture'
 assert manager.list_checkpoints(str(work))
 '''
-        try:
-            process = subprocess.run([sys.executable, '-c', code, str(self.root)],
-                                     capture_output=True, timeout=20)
-        except subprocess.TimeoutExpired as error:
-            self.fail('Checkpointed Write stalled:\n' + (error.stderr or b'').decode(errors='replace'))
-        self.assertEqual(process.returncode, 0, process.stderr.decode(errors='replace'))
+        env = dict(os.environ)
+        home = self.root / 'home'; home.mkdir()
+        env.update(HOME=str(home), USERPROFILE=str(home), TEMP=str(self.root), TMP=str(self.root))
+        with tempfile.TemporaryFile() as output:
+            with subprocess.Popen([sys.executable, '-c', code, str(self.root)], env=env,
+                                  stdin=subprocess.PIPE, stdout=output, stderr=output) as process:
+                try:
+                    process.wait(timeout=20)
+                except subprocess.TimeoutExpired:
+                    process.kill(); process.wait(timeout=5)
+                    output.seek(0)
+                    self.fail('Checkpointed Write stalled:\n' + output.read().decode(errors='replace'))
+                output.seek(0)
+                self.assertEqual(process.returncode, 0, output.read().decode(errors='replace'))
 
     def test_windows_command_guard_cannot_be_disabled(self):
         from unittest.mock import patch
