@@ -102,6 +102,11 @@ See [Desktop](#desktop) for packaging and Electron sandbox requirements.
   window is inactive or minimized. The persistent toggle is under
   **Settings → Notifications**.
 
+- **Desktop updates.** Check stable GitHub releases from the update icon and
+  download the matching Linux or Windows installer with SHA-256 verification.
+  Installation remains an explicit user action; portable AppImages are replaced
+  manually after download.
+
 ## Interface
 
 The Electron desktop brings together Igorek chat, a separate OpenCode 2

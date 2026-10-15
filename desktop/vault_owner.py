@@ -346,6 +346,8 @@ class OwnerVault:
                 if self.image.status()["running"]:
                     raise ImageSetupError("image_busy")
                 reply["result"] = {"execution": self.execution.select(request["mode"])}
+                if self.agent is not None:
+                    self.agent.sync_workdir()
             elif action == "image_status":
                 reply["result"] = {"image": self.image.status()}
             elif action in {"prepare_image", "recover_image"}:

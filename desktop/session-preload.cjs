@@ -44,6 +44,7 @@ contextBridge.exposeInMainWorld('IgorekDesktop', Object.freeze({
   onOpenCodeState: callback => {ipcRenderer.on('igorek:opencode-state',(_,value)=>callback(value));},
   hostService: (operation,service='') => ipcRenderer.invoke('igorek:host-service',operation,service),
   releaseInfo: () => ipcRenderer.invoke('igorek:release-info'),
+  checkUpdates: () => invoke('igorek:release-updates'),
   completionSoundEnabled: () => completionSoundState.enabled,
   isBackground: () => completionSoundState.background,
   claimCompletionSound: taskId => ipcRenderer.invoke('igorek:completion-sound', 'claim', taskId),

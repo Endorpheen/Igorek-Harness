@@ -28,6 +28,8 @@ class DesktopAgentRuntime:
         self.service = service
         self.worker_factory = worker_factory
         self.execution = execution if execution is not None else DesktopExecution(self.root)
+        self._host_workdir = getattr(service, 'workdir', str(self.root / 'workspace'))
+        self.sync_workdir()
         self.isolation_manager = None
         self.thread = None
         self.stop_event = None
@@ -37,6 +39,17 @@ class DesktopAgentRuntime:
         self.service.available_profiles = self.available_profiles
         if hasattr(self.service, 'configure_live_isolation_status'):
             self.service.configure_live_isolation_status(self.isolation_status)
+
+    def sync_workdir(self):
+        """Keep VM-exportable project data separate from private runtime state."""
+        if self.execution.mode == 'kvm':
+            from factory.core.artifact_files import parent_handle
+            directory = self.root.with_name(self.root.name + '-workspaces')
+            with parent_handle(directory / '.entry', create=True):
+                pass
+            self.service.workdir = str(directory)
+        else:
+            self.service.workdir = self._host_workdir
 
     def isolation_status(self):
         if self.execution.mode == 'off':

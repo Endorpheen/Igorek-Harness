@@ -1,5 +1,41 @@
 # Test results
 
+## 2026-10-15 — Release updates, VM compatibility and dependency review
+
+- Final layout snapshot: **4780 collected / 4750 passed / 30 skipped / zero
+  failures/errors**, **614 subtests**, both Python roots. Three package/layout
+  regressions are included. The earlier HTTP fixture race is fixed; status 403
+  remains asserted. Source and GitHub source-history secret checks found zero
+  credentials with redacted output and path-scoped false-positive rules.
+- Added desktop GitHub release checks and explicit downloads of the correct
+  Windows/Linux asset. Only stable newer versions from the fixed project repo
+  are accepted, with bounded HTTPS redirects, size and SHA-256 verification.
+  Failed or canceled checks cannot authorize stale downloads. No installer is
+  executed automatically; the verified file is revealed for user installation.
+  Browser-only UI explains that checks require desktop. Packaging inventories
+  and the model's UI directory now include the update feature.
+- Updater follow-up: **322 desktop cases passed**, including after the dependency refresh;
+  six cases cover metadata, version ordering, redirects, corrupted/truncated/
+  oversized payloads, stale state, credentials omission and native confirmation.
+- Live desktop VM testing exposed missing AF_VSOCK in standalone CPython. The
+  guest recipe now reuses the checksum-pinned CPython socket build and a root-owned
+  early bootstrap, with an explicit build-time capability probe. The old image
+  failed the live handshake and is not accepted. VM projects and demos now use
+  a separate project directory outside private runtime/Vault state; host mode
+  retains its original path. Owning follow-up: **129 passed plus six subtests**.
+  Rebuilt-image live acceptance remains required.
+- Reviewed 18 initial Dependabot PRs. Applied the five pinned Actions upgrades,
+  Electron 44.7.0, electron-builder 26.15.3, prompt-toolkit 3.0.53, NumPy 2.5.4
+  and cryptography 50.0.2 for integrated verification. A synthetic Vault created
+  with cryptography 47.0.0 decrypts unchanged with 50.0.2; real accounts/Vaults
+  were not opened. Clean npm installation reports zero vulnerabilities.
+  Android toolchain/library migrations and the coordinated parser update remain
+  separate reviews. Routine minor/patch version requests are grouped; no security
+  update category is ignored and no unverified PR was merged.
+- Next gates: full locked suite after dependency refresh, hosted CI/Windows native,
+  new live guest acceptance and final rebuilt packages. These are pending results,
+  not stability claims.
+
 ## 2026-10-15 — Repository layout and hosted platform follow-up
 
 - Moved the optional inference entrypoint to `factory/api_server_core/server.py`

@@ -2,6 +2,8 @@ const { app, BrowserWindow, WebContentsView, session: electronSession, Notificat
 const { pathToFileURL } = require('node:url');
 const { isOwnerFrame, shouldRefreshProfiles, ownedDataLocations } = require('./owner-policy.cjs');
 const { installedImage } = require('./installed-image.cjs');
+const { updateDialog } = require('./release-updates-ui.cjs');
+let showReleaseUpdates;
 const { saveRecovery, verifyRecovery, restoreRecovery } = require('./recovery-files.cjs');
 const { access, stat } = require('node:fs/promises');
 const { constants, readFileSync } = require('node:fs');
@@ -315,6 +317,11 @@ ipcMain.handle('igorek:browser-control-settings', async (event,value) => {
   if(!isOwnerFrame(event,ownerWindow?.webContents,ownerUrl)||!workspaceBrowser)throw Error('Доступ запрещён.');
   if(value!==undefined){const reply=await runtime.requestOwner('status');if(!isOwnerFrame(event,ownerWindow?.webContents,ownerUrl)||reply.result?.state!=='unlocked'||reply.result?.interface_locked)throw Error('Разблокируй настройки Игорька.');}
   return workspaceBrowser.controlSettings(value);
+});
+ipcMain.handle('igorek:release-updates', async event => {
+  if (!sessionMcp.trusted(event) || !showReleaseUpdates) throw Error('Доступ запрещён.');
+  const parent = BrowserWindow.fromWebContents(event.sender);
+  return showReleaseUpdates(parent);
 });
 ipcMain.handle('igorek:release-info', event => {
   if(!isOwnerFrame(event,ownerWindow?.webContents,ownerUrl)&&!sessionMcp.trusted(event))throw new Error('Доступ запрещён.');
@@ -794,6 +801,7 @@ async function openWindow() {
 
 app.whenReady().then(async () => {
   try {
+    showReleaseUpdates = updateDialog({app,dialog,shell,session:electronSession.fromPartition('igorek-release-checks'),current:()=>desktopReleaseInfo().version,portable:process.platform==='linux' && Boolean(process.env.APPIMAGE)});
     if (managed) {
       if (!app.requestSingleInstanceLock()) { app.quit(); return; }
       const options = { bundle: join(__dirname, 'runtime'), dataDir: join(app.getPath('appData'), 'igorek-desktop-runtime') };

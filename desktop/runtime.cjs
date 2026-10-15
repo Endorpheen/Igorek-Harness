@@ -116,7 +116,9 @@ class OwnedRuntime extends EventEmitter {
               if (event.type === 'ready') {
                 if (!Number.isInteger(event.web_port) || event.web_port < 1 || event.web_port > 65535
                     || typeof event.pairing_code !== 'string' || event.pairing_code.length > 32
-                    || resolve(event.cert) !== join(this.dataDir, 'web-ui', 'tls', 'localhost-cert.pem')) {
+                    || typeof event.cert !== 'string'
+                    || realpathSync(event.cert) !== realpathSync(join(this.dataDir, 'web-ui', 'tls', 'localhost-cert.pem'))
+                    || relative(this.dataDir, realpathSync(event.cert)) !== join('web-ui', 'tls', 'localhost-cert.pem')) {
                   finish(new Error('Некорректные параметры backend.')); return;
                 }
                 const config = settings(['--url', `https://127.0.0.1:${event.web_port}`, '--cert', event.cert], {});

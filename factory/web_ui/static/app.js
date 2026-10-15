@@ -8679,9 +8679,14 @@ window.addEventListener('igorek:open-opencode-tab',()=>{showMainView();activateW
 ui.pairForm.addEventListener("submit", pairBrowser);
 ui.sessionForm.addEventListener("submit", createSession);
 byId("nav-updates").addEventListener("click", async () => {
+  if (typeof window.IgorekDesktop?.checkUpdates === "function") {
+    try { await window.IgorekDesktop.checkUpdates(); }
+    catch { toast(lang === "en" ? "Update check is unavailable. Try again later." : "Проверка обновлений недоступна. Повторите позже."); }
+    return;
+  }
   const dialog = element("dialog", "updates-dialog"), title = element("h2", "", lang === "en" ? "Igorek updates" : "Обновления Игорька");
   const version = element("p", "access-note", lang === "en" ? "Version: …" : "Версия: …");
-  const note = element("p", "", lang === "en" ? "Automatic release checks are not connected yet. Updates will appear here when GitHub Releases is configured." : "Автоматическая проверка релизов пока не подключена. Здесь появятся доступные обновления, когда настроим GitHub Releases.");
+  const note = element("p", "", lang === "en" ? "Open the Electron desktop to check and download official GitHub releases." : "Проверка и скачивание официальных GitHub-релизов доступны в desktop-приложении Игорька.");
   const close = element("button", "secondary-button", lang === "en" ? "Close" : "Закрыть"); close.type = "button";
   close.addEventListener("click", () => dialog.close()); dialog.addEventListener("close", () => dialog.remove());
   dialog.append(title, version, note, close); document.body.append(dialog); dialog.showModal();

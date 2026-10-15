@@ -225,7 +225,6 @@
     "id": "updates",
     "kind": "workspace",
     "target": "nav-updates",
-    "unavailable": true,
-    "description": "Updates: the current interface has a placeholder button; checking or installing updates is not implemented. Do not promise an updater."
+    "description": "Updates: check official Igorek GitHub releases in the desktop, download the correct system installer with checksum verification, and show the downloaded file. Installation and closing the app require the user."
   }
 ]

@@ -272,7 +272,7 @@ source /opt/igorek/guest-env.sh
 
 apt-get -o Acquire::Retries=5 update
 apt-get -o Acquire::Retries=5 install -y --no-install-recommends \
-  ca-certificates curl git python3 python3-venv python3-pip \
+  ca-certificates curl git python3 python3-venv python3-pip gcc libc6-dev linux-libc-dev \
   bubblewrap passwd sudo apparmor apparmor-utils procps iproute2 \
   nftables util-linux libcap2-bin \
   "${IGOREK_GUEST_KERNEL}"
@@ -357,6 +357,15 @@ uv export --frozen --no-dev --no-emit-project --format requirements.txt -o /tmp/
 uv pip install --python /opt/igorek/runtime/bin/python --require-hashes -r /tmp/igorek-runtime-requirements.txt
 uv pip install --python /opt/igorek/runtime/bin/python --no-deps .
 rm -f /tmp/igorek-runtime-requirements.txt
+# Standalone CPython omits AF_VSOCK. Reuse the pinned, verified desktop socket
+# build and activate it from a root-owned site file before networking imports.
+rm -rf -- /opt/igorek/native
+printf '%s\n' '{"python":"runtime/bin/python"}' > /opt/igorek/manifest.json
+/opt/igorek/runtime/bin/python -I "${IGOREK_GUEST_REPO_DIR}/desktop/packaging/bundle-socket.py" --runtime /opt/igorek
+SOCKET_SITE="$(/opt/igorek/runtime/bin/python -I -c 'import sysconfig; print(sysconfig.get_path("purelib"))')"
+install -m 0644 "${IGOREK_GUEST_REPO_DIR}/desktop/socket_bootstrap.py" "${SOCKET_SITE}/igorek_guest_socket.py"
+printf '%s\n' 'import igorek_guest_socket; igorek_guest_socket.activate("/opt/igorek")' > "${SOCKET_SITE}/00_igorek_guest_socket.pth"
+/opt/igorek/runtime/bin/python -I -c 'import socket; assert hasattr(socket,"AF_VSOCK")'
 cat > /usr/local/bin/igorek-factory <<'IMMUTABLE_RUNTIME'
 #!/bin/sh
 exec /opt/igorek/runtime/bin/python -I -m factory.cli "$@"

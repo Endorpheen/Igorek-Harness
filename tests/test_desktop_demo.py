@@ -63,6 +63,18 @@ class DemoTests(unittest.TestCase):
         self.assertEqual(self.start()['task_id'], task['task_id'])
         self.assertFalse((_read_session_meta(_session_path(self.source)) or {}).get('demo'))
 
+    def test_kvm_demo_uses_the_project_without_exporting_private_runtime_data(self):
+        project = tempfile.TemporaryDirectory()
+        self.addCleanup(project.cleanup)
+        self.service.workdir = project.name
+        self.service.configure_live_isolation_status(lambda: 'kvm')
+        result = self.start()
+        task = self.task(result['task_id'])
+        workdir = Path(task['metadata']['cwd'])
+        self.assertTrue(workdir.is_relative_to(Path(project.name) / 'demos'))
+        self.assertFalse(workdir.is_relative_to(Path(self.tmp.name)))
+        self.assertTrue(workdir.is_dir())
+
     def test_desktop_ui_hint_is_turn_metadata_and_not_an_implicit_permission(self):
         result = self.service.send_message(self.source, 'Where are notifications?', desktop_ui=True)
         metadata = self.task(result['task_id'])['metadata']

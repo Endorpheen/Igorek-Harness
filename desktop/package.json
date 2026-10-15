@@ -13,8 +13,8 @@
     "build:runtime:windows": "python packaging/build-windows-runtime.py"
   },
   "devDependencies": {
-    "electron": "44.5.1",
-    "electron-builder": "26.15.2"
+    "electron": "44.7.0",
+    "electron-builder": "26.15.3"
   },
   "version": "0.2.0",
   "engines": {

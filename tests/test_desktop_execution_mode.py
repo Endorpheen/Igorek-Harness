@@ -209,3 +209,21 @@ def test_invalid_or_zero_disk_size_refuses_before_config_and_side_effects(tmp_pa
     with pytest.raises(IsolationError, match='desktop_image_disk_size'):
         mode.create_manager(None, None, None)
     assert mode.mode == 'kvm'
+
+
+def test_vm_default_workspace_is_separate_and_host_mode_keeps_the_original(tmp_path):
+    from agent_runtime import DesktopAgentRuntime
+    root = tmp_path / 'private-runtime'
+    root.mkdir()
+    execution = DesktopExecution(root)
+    bridge = SimpleNamespace(workdir=str(root / 'workspace'))
+    runtime = DesktopAgentRuntime(root, None, bridge, execution=execution)
+    original = bridge.workdir
+    execution.select('kvm')
+    runtime.sync_workdir()
+    assert Path(bridge.workdir) == tmp_path / 'private-runtime-workspaces'
+    assert Path(bridge.workdir).is_dir()
+    assert not Path(bridge.workdir).is_relative_to(root)
+    execution.select('off')
+    runtime.sync_workdir()
+    assert bridge.workdir == original

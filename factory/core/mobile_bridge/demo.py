@@ -54,6 +54,8 @@ def start(service, source_session: str, *, key: str, language: str) -> dict:
         raise MobileInvalid("Для /demo выберите профиль встроенного агента в настройках.")
     language = "en" if language == "en" else "ru"
     parent = Path(service.data_dir).resolve() / "demos"
+    if service._isolation_status_value(profile) == 'kvm':
+        parent = Path(service.workdir).resolve() / 'demos'
     import os
     if os.name == 'nt':
         from ..platform_support.windows_files import pinned_parent
