@@ -1,0 +1,3 @@
+Я уже создал навык `igorek-smoke-skill`. Теперь нужно его проверить через `skill_scan`.
+
+<|tool_call>call: skill_scan{skill_name: "igorek-smoke-skill"}<tool_call|><eos><eos>

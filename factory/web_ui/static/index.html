@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#111315">
+    <title data-i18n="app.title">Игорёк — агентная рабочая среда</title>
+    <link rel="icon" href="/mark.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/app.css">
+    <link rel="stylesheet" href="/activity.css">
+    <!-- xterm.css is vendor-local (see static/vendor/README.txt) and is only needed
+         in the «Terminal» tab; it is loaded immediately but does not load JS. -->
+    <link rel="stylesheet" href="/vendor/xterm.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <nav class="app-rail" aria-label="Основные разделы">
+        <button id="nav-home" class="rail-button active" type="button" title="Главное" aria-label="Главное" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"/></svg></button>
+        <button id="nav-reviews" class="rail-button" type="button" title="Проверка кода" aria-label="Проверка кода" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="5" r="3"/><circle cx="6" cy="19" r="3"/><circle cx="18" cy="6" r="3"/><path d="M6 8v8m12-7v3a5 5 0 0 1-5 5h-4"/></svg></button>
+        <button id="nav-scheduled" class="rail-button" type="button" title="Запланировано" aria-label="Запланировано" aria-controls="scheduled-view" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l-3 3"/></svg></button>
+        <button id="nav-plugins" class="rail-button" type="button" title="Плагины" aria-label="Плагины" aria-controls="plugins-view" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3v5m8-5v5M6 8h12v4a6 6 0 0 1-6 6v4m-6-14v4a6 6 0 0 0 6 6"/></svg></button>
+        <button id="nav-updates" class="rail-button rail-updates" type="button" title="Обновления · проверка пока не подключена" aria-label="Обновления Игорька"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 16v4h16v-4"/></svg></button>
+      </nav>
+      <aside class="sidebar" id="sidebar">
+        <div class="brand-row">
+          <button class="brand-button" id="open-dashboard" type="button" data-i18n-aria-label="sidebar.open_dashboard" data-i18n-title="sidebar.dashboard_title" aria-label="Открыть панель управления" title="Панель управления">
+            <img class="brand-mark" src="/mark.svg" alt="">
+          </button>
+          <div class="brand-copy"><span class="brand-name" data-i18n="brand.name">Игорёк</span><span class="brand-caption" data-i18n="brand.caption">АГЕНТНАЯ СРЕДА</span></div>
+          <button class="icon-button mobile-close" id="close-sidebar" data-i18n-aria-label="sidebar.close_menu" aria-label="Закрыть меню">×</button>
+        </div>
+        <button class="new-session-button" id="new-session" type="button">
+          <span class="plus-mark">+</span><span data-i18n="sidebar.new_session">Новая сессия</span><kbd>⌘ K</kbd>
+        </button>
+        <div class="sidebar-section-label"><span>ЧАТЫ И ПРОЕКТЫ</span><span class="session-count" id="session-count">0</span></div>
+        <nav class="session-list" id="session-list" data-i18n-aria-label="sidebar.sessions_aria" aria-label="Сессии"></nav>
+        <div class="sidebar-bottom">
+          <div class="local-card"><span class="local-orb"></span><div><strong data-i18n="sidebar.local_runtime">Локальный runtime</strong><span id="device-name">Браузер не подключён</span></div></div>
+          <button class="sidebar-link logs-link" id="open-logs" type="button" hidden><span class="logs-icon">▤</span><span data-i18n="sidebar.logs">Логи</span></button>
+          <button class="sidebar-link agents-link" id="open-agents" type="button" hidden><span class="agents-icon">⧉</span><span data-i18n="sidebar.agents">История агентов</span></button>
+          <button class="sidebar-link" id="logout" type="button" hidden><span class="logout-icon">↗</span><span data-i18n="sidebar.logout">Завершить подключение</span></button>
+          <div class="sidebar-foot"><span class="foot-pulse"></span> <span data-i18n="sidebar.footer">Работает на этом компьютере</span></div>
+        </div>
+      </aside>
+      <div class="sidebar-scrim" id="sidebar-scrim"></div>
+
+      <main class="main-panel">
+        <header class="topbar">
+          <div class="topbar-left">
+            <button class="icon-button menu-button" id="open-sidebar" data-i18n-aria-label="topbar.open_menu" aria-label="Открыть меню">☰</button>
+            <div class="crumb"><span data-i18n="topbar.workspace">Рабочее пространство</span><span class="crumb-divider">/</span><strong id="active-title">Выберите сессию</strong></div>
+          </div>
+          <div class="topbar-right">
+            <span class="secure-badge"><span></span> HTTPS · LOCAL</span>
+            <span class="runtime-badge" id="runtime-badge"><i></i><b id="runtime-label">ожидание</b></span>
+
+            <button class="icon-button topbar-icon" id="toggle-panel" type="button" data-i18n-aria-label="topbar.panel_aria" data-i18n-title="topbar.panel_title" aria-label="Панель проверки" title="Изменения, файлы, чекпоинты" aria-expanded="false" aria-controls="side-panel" hidden>▤</button>
+            <button class="icon-button topbar-icon" id="open-settings" type="button" data-i18n-aria-label="topbar.settings_aria" data-i18n-title="topbar.settings_title" aria-label="Настройки" title="Настройки" hidden>⚙</button>
+          </div>
+        </header>
+
+        <section id="scheduled-view" class="schedules-view" hidden>
+          <div class="schedules-heading"><div><div class="eyebrow">РАБОТА ПО РАСПИСАНИЮ</div><h1>Запланировано</h1><p>Задания выполняются, пока приложение открыто и выбранный исполнитель запущен.</p></div><div class="schedules-heading-actions"><button id="schedules-refresh" type="button" class="secondary-button">Обновить</button><button id="schedule-new" type="button" class="primary-button">+ Новое задание</button></div></div>
+          <p id="schedules-status" class="schedules-status" role="status"></p>
+          <p id="schedules-error" class="form-error" role="alert"></p>
+          <div id="schedules-list" class="schedules-list"></div>
+        </section>
+
+        <section id="plugins-view" class="plugins-view" hidden>
+          <div class="plugins-heading"><div><span class="dialog-kicker">ПОДКЛЮЧЕНИЯ ИГОРЬКА</span><h1>Плагины</h1><p>Подключённые плагины расширяют возможности Игорька в обычном чате. Доступ определяют разрешения выбранной модели.</p></div><button id="plugins-refresh" class="secondary-button" type="button" aria-label="Обновить состояние подключений" title="Обновить состояние подключений"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7a9 9 0 1 0 1 8M20 2v6h-6"/></svg><span>Обновить</span></button></div>
+          <p id="plugins-status" role="status" aria-live="polite"></p>
+          <div id="plugins-cards" class="plugins-cards"></div>
+          <div id="plugins-host-services" class="plugins-host-services"></div>
+          <div id="plugins-extensions" class="plugins-extensions"></div>
+        </section>
+        <section class="connect-view" id="connect-view" hidden>
+          <div class="connect-glow"></div>
+          <div class="connect-content">
+            <div class="eyebrow"><span class="eyebrow-dot"></span> <span data-i18n="connect.eyebrow">ВАШ ЛОКАЛЬНЫЙ АГЕНТ</span></div>
+            <h1><span class="title-lead" data-i18n="connect.title_lead">Рабочее место</span><br><span data-i18n="connect.title_accent">Игорька</span></h1>
+            <p class="connect-lead" data-i18n="connect.lead">Подключите этот браузер к вашему runtime. Переписка и ключи остаются на вашем компьютере.</p>
+            <div class="connect-steps">
+              <div class="connect-step"><span class="step-number">01</span><div><strong data-i18n="connect.step1_title">Откройте терминал</strong><span data-i18n="connect.step1_hint">На компьютере, где работает Игорёк</span></div></div>
+              <div class="connect-step"><span class="step-number">02</span><div><strong data-i18n="connect.step2_title">Создайте код подключения</strong><code>igorek-factory mobile pair</code></div></div>
+            </div>
+            <form class="pair-form" id="pair-form">
+              <label for="pair-code" data-i18n="connect.code_label">Одноразовый код</label>
+              <div class="pair-input-row"><input id="pair-code" name="code" autocomplete="one-time-code" autocapitalize="characters" placeholder="XXXX-XXXX-XXXX" required><button class="primary-button" type="submit"><span data-i18n="connect.button">Подключить</span><span aria-hidden="true">→</span></button></div>
+              <p class="form-error" id="pair-error" aria-live="polite"></p>
+            </form>
+            <div class="connect-note"><span>⌑</span><span data-i18n="connect.note">Код действует ограниченное время и используется один раз. Доступ можно отозвать из самого интерфейса.</span></div>
+          </div>
+          <div class="connect-aside"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="orbit-core"><img src="/mark.svg" alt=""></div><div class="orbit-tag tag-top" data-i18n="connect.orbit_local">ЛОКАЛЬНО</div><div class="orbit-tag tag-bottom" data-i18n="connect.orbit_tags">АГЕНТ · ИНСТРУМЕНТЫ · СОБЫТИЯ</div></div>
+        </section>
+
+        <div class="workspace-row">
+          <section id="github-reviews" class="github-reviews" hidden aria-label="Проверка кода"></section>
+          <section class="workspace-view" id="workspace-view" hidden>
+            <div class="welcome-view" id="welcome-view">
+              <div class="welcome-mark"><img src="/mark.svg" alt=""></div>
+              <div class="eyebrow"><span class="eyebrow-dot"></span> <span data-i18n="welcome.eyebrow">СЕССИИ АГЕНТА</span></div>
+              <h1><span class="title-lead" data-i18n="welcome.title_lead">Продолжим</span><br><span data-i18n="welcome.title_accent">с этого места?</span></h1>
+              <p data-i18n="welcome.lead">Выберите сессию слева или начните новую. Вызовы инструментов, результаты и ход работы появятся здесь по мере выполнения.</p>
+              <button class="primary-button welcome-button" id="welcome-new-session" type="button"><span data-i18n="welcome.button">Создать сессию</span> <span>→</span></button>
+              <div class="welcome-meta"><span>01</span><i></i><span data-i18n="welcome.meta1">ОДИН ИНТЕРФЕЙС</span><i></i><span data-i18n="welcome.meta2">ВАШ ЛОКАЛЬНЫЙ RUNTIME</span></div>
+            </div>
+            <div class="conversation-view" id="conversation-view" hidden>
+              <div class="conversation-scroll" id="conversation-scroll">
+                <div class="conversation-inner">
+                  <div class="session-context" id="session-context"></div>
+                  <nav id="agent-navigation" class="agent-navigation" aria-label="Агентные сессии" hidden></nav>
+                  <div class="timeline" id="timeline" aria-live="polite"></div>
+                  <div class="streaming-indicator" id="streaming-indicator" hidden><span></span><span></span><span></span><em id="streaming-label">Игорёк работает</em></div>
+                </div>
+              </div>
+              <nav class="message-rail" id="message-rail" data-i18n-aria-label="composer.rail_aria" aria-label="Навигация по вашим сообщениям" hidden></nav>
+              <div class="composer-wrap">
+                <section id="composer-mcp-task" class="mcp-task-card" hidden aria-label="Отдельная задача MCP">
+                  <div class="mcp-task-head"><strong>Подключение MCP</strong><button id="composer-mcp-clear" type="button">Остановить и очистить</button></div>
+                  <p id="composer-mcp-status" role="status" aria-live="polite"></p><div id="composer-mcp-result" class="message-text mcp-result"></div>
+                </section>
+                <form class="composer" id="composer-form">
+                  <div id="composer-connect-menu" class="composer-connect-menu" hidden>
+                    <strong>Добавить к задаче</strong>
+                    <button id="composer-connect-file" type="button">Прикрепить файл</button>
+                    <div id="composer-connect-rows"></div>
+                    <p id="composer-connect-note" role="status"></p>
+                    <button id="composer-connect-settings" type="button">Настроить подключения и доступ →</button>
+                  </div>
+                  <div id="composer-mcp-chip" class="composer-mcp-chip" hidden><span id="composer-mcp-label"></span><button id="composer-mcp-remove" type="button" aria-label="Убрать подключение MCP">×</button></div>
+                  <div class="mention-menu" id="mention-menu" hidden>
+                    <div class="mention-head" id="mention-menu-head" hidden></div>
+                    <div class="mention-rows" id="mention-rows" role="listbox" data-i18n-aria-label="mention.aria" aria-label="Подсказки $ для скиллов и @ для файлов"></div>
+                    <p class="mention-note" id="mention-note" hidden aria-live="polite"></p>
+                  </div>
+                  <div class="composer-attachments" id="composer-attachments" hidden></div>
+                  <div class="composer-row">
+                    <textarea id="message-input" rows="1" data-i18n-placeholder="composer.placeholder" data-i18n-aria-label="composer.input_aria" placeholder="Напишите задачу Игорьку…" aria-label="Сообщение Игорьку"></textarea>
+                  </div>
+                  <input type="file" id="attach-input" class="attach-input" multiple hidden accept="image/*,.pdf,.txt,.md,.csv,.json,.xlsx,.xls,.docx,.doc,.pptx,.zip,.log,.py,.js,.ts,.sh,.yaml,.yml,.toml,.xml,.html,.css">
+                  <p class="composer-mode-note" id="composer-mode-note" data-i18n="composer.mode_plan_note" hidden>Режим планировки — агент только планирует, ничего не выполняет</p>
+                  <div class="composer-bottom">
+                    <div class="composer-left">
+                      <button class="attach-button" id="attach-button" type="button" data-i18n-aria-label="composer.attach_aria" data-i18n-title="composer.attach_aria" aria-label="Прикрепить файл" title="Прикрепить файл">+</button>
+                      <div class="mode-toggle" id="mode-toggle" role="group" data-i18n-aria-label="composer.mode_aria" aria-label="Режим работы"><button class="mode-button" id="mode-plan" type="button" aria-pressed="false" data-i18n="composer.mode_plan">План</button><button class="mode-button active" id="mode-execute" type="button" aria-pressed="true" data-i18n="composer.mode_execute">Выполнить</button></div>
+                    </div>
+                    <div class="composer-actions">
+                      <div class="composer-meta" id="composer-meta" hidden><span class="composer-model" id="composer-model"></span></div>
+                      <button class="mic-button" id="mic-button" type="button" hidden aria-pressed="false">
+                        <svg class="mic-icon" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false">
+                          <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"></path>
+                          <path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"></path>
+                        </svg>
+                      </button>
+                      <button class="mic-button voice-button" id="voice-button" type="button" data-i18n-aria-label="voice.button_aria" data-i18n-title="voice.button_title" aria-label="Голосовой звонок" title="Голосовой звонок" hidden>
+                        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92Z"></path></svg>
+                      </button>
+                      <button class="stop-button" id="stop-button" type="button" hidden><span data-i18n="composer.stop">Стоп</span><b>■</b></button>
+                      <button class="send-button" id="send-button" type="submit" data-i18n-aria-label="composer.send_aria" aria-label="Отправить сообщение"><span data-i18n="composer.send">Отправить</span><b>↑</b></button>
+                    </div>
+                  </div>
+                </form>
+                <div class="composer-caption"><button class="mode-button" id="demo-start" type="button" data-i18n="demo.start">Познакомиться с Игорьком · /demo</button></div>
+                <div class="composer-caption" data-i18n="composer.caption">Локальная сессия · сообщения обрабатываются выбранным профилем</div>
+              </div>
+            </div>
+          </section>
+          <aside class="side-panel" id="side-panel" data-i18n-aria-label="panel.aria" aria-label="Панель проверки" hidden>
+            <div class="side-panel-resize" id="panel-resize" role="separator" aria-orientation="vertical" data-i18n-aria-label="panel.width_aria" data-i18n-title="panel.width_title" aria-label="Ширина панели проверки" aria-valuemin="300" tabindex="0" title="Потяните, чтобы изменить ширину. Двойной клик — сбросить"></div>
+            <div class="side-panel-head">
+              <div class="side-panel-title" hidden>
+                <span class="side-panel-kicker" data-i18n="panel.kicker">ПРОВЕРКА</span>
+                <strong id="side-panel-caption">Данные сессии</strong>
+              </div>
+              <div class="workspace-tabs" id="workspace-tabs" role="tablist" aria-label="Вкладки рабочей панели"></div>
+              <button class="icon-button" id="workspace-tab-new" type="button" aria-label="Новая вкладка" title="Новая вкладка">+</button>
+              <div class="side-panel-head-actions">
+                <button class="icon-button side-panel-fullscreen" id="panel-fullscreen" type="button" data-i18n-aria-label="panel.fullscreen_aria" data-i18n-title="panel.expand" aria-label="Развернуть панель на весь экран" aria-pressed="false" title="Развернуть на весь экран" hidden>⛶</button>
+                <button class="icon-button side-panel-close" id="close-panel" type="button" data-i18n-aria-label="panel.close_aria" data-i18n-title="panel.close_title" aria-label="Закрыть панель" title="Закрыть панель">×</button>
+              </div>
+            </div>
+            <div class="side-tabs" hidden role="tablist" data-i18n-aria-label="panel.tabs_aria" aria-label="Разделы панели проверки">
+              <button class="side-tab" id="side-tab-plan" type="button" role="tab" aria-selected="false" aria-controls="side-view-plan" data-i18n="panel.tab.plan">План</button>
+              <button class="side-tab active" id="side-tab-changes" type="button" role="tab" aria-selected="true" aria-controls="side-view-changes" data-i18n="panel.tab.changes">Изменения</button>
+              <button class="side-tab" id="side-tab-files" type="button" role="tab" aria-selected="false" aria-controls="side-view-files" data-i18n="panel.tab.files">Файлы</button>
+              <button class="side-tab" id="side-tab-checkpoints" type="button" role="tab" aria-selected="false" aria-controls="side-view-checkpoints" data-i18n="panel.tab.checkpoints">Чекпоинты</button>
+              <button class="side-tab" id="side-tab-subagents" type="button" role="tab" aria-selected="false" aria-controls="side-view-subagents" data-i18n="panel.tab.subagents">Агенты</button>
+              <button class="side-tab" id="side-tab-terminal" type="button" role="tab" aria-selected="false" aria-controls="side-view-terminal" data-i18n="panel.tab.terminal">Терминал</button>
+            </div>
+            <div class="side-views">
+              <section class="side-view workspace-special" id="workspace-special" hidden></section>
+              <section class="side-view" id="side-view-plan" role="tabpanel" aria-labelledby="side-tab-plan" hidden></section>
+              <section class="side-view" id="side-view-changes" role="tabpanel" aria-labelledby="side-tab-changes" hidden></section>
+              <section class="side-view" id="side-view-files" role="tabpanel" aria-labelledby="side-tab-files" hidden></section>
+              <section class="side-view" id="side-view-checkpoints" role="tabpanel" aria-labelledby="side-tab-checkpoints" hidden></section>
+              <section class="side-view" id="side-view-subagents" role="tabpanel" aria-labelledby="side-tab-subagents" hidden></section>
+              <section class="side-view side-view-terminal" id="side-view-terminal" role="tabpanel" aria-labelledby="side-tab-terminal" hidden></section>
+            </div>
+          </aside>
+        </div>
+      </main>
+    </div>
+
+    <aside class="voice-panel" id="voice-panel" hidden data-i18n-aria-label="voice.panel_aria" aria-label="Панель голосового звонка">
+      <div class="voice-resize" id="voice-resize" role="separator" aria-orientation="horizontal" data-i18n-aria-label="voice.resize_aria" aria-label="Изменить размер панели" title="Потяните, чтобы изменить размер"></div>
+      <header class="voice-head">
+        <div class="voice-head-copy">
+          <span class="voice-dot" id="voice-dot" aria-hidden="true"></span>
+          <strong class="voice-title" data-i18n="voice.title">Голосовой звонок</strong>
+          <span class="voice-status" id="voice-status" role="status" aria-live="polite" data-i18n="voice.status.idle">Готов к звонку</span>
+        </div>
+        <div class="voice-head-actions">
+          <button class="icon-button voice-icon-button" id="voice-minimize" type="button" data-i18n-aria-label="voice.minimize_aria" aria-label="Свернуть панель звонка" aria-expanded="true">
+            <svg class="voice-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"></path></svg>
+          </button>
+          <button class="icon-button voice-icon-button voice-hangup" id="voice-hangup" type="button" data-i18n-aria-label="voice.hangup_aria" aria-label="Завершить звонок">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"></path><path d="M22 2 2 22"></path></svg>
+          </button>
+        </div>
+      </header>
+      <div class="voice-body" id="voice-body">
+        <div class="voice-transcript" id="voice-transcript" aria-live="polite"></div>
+        <div class="voice-task" id="voice-task" hidden></div>
+        <div class="voice-controls">
+          <button class="voice-control" id="voice-mic" type="button" aria-pressed="false" data-i18n-aria-label="voice.mic_aria" aria-label="Микрофон">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z"></path><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"></path></svg>
+            <span data-i18n="voice.mic_label">Микрофон</span>
+          </button>
+          <button class="voice-control" id="voice-speaker" type="button" aria-pressed="false" data-i18n-aria-label="voice.speaker_aria" aria-label="Звук">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11 5 6 9H3v6h3l5 4V5Z"></path><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"></path></svg>
+            <span data-i18n="voice.speaker_label">Звук</span>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <dialog class="session-dialog schedule-dialog" id="schedule-dialog">
+      <form id="schedule-form">
+        <div class="dialog-head"><div><span class="dialog-kicker">ЗАДАНИЕ ПО РАСПИСАНИЮ</span><h2 id="schedule-dialog-title">Новое задание</h2></div><button id="schedule-close" type="button" class="icon-button" aria-label="Закрыть">×</button></div>
+        <label>Название<input id="schedule-name" type="text" maxlength="160" required placeholder="Например, проверить проект"></label>
+        <label>Задание<textarea id="schedule-payload" rows="4" maxlength="16000" required placeholder="Что нужно сделать"></textarea></label>
+        <div class="schedule-fields-row"><label>Профиль<select id="schedule-profile" required></select></label><label>Повтор<select id="schedule-type"><option value="daily">Каждый день</option><option value="hourly">Каждые N часов</option><option value="once">Один раз сегодня</option></select></label></div>
+        <label id="schedule-interval-field" hidden>Интервал в часах<input id="schedule-interval-hours" type="number" min="1" max="8760" step="1" value="1" disabled></label>
+        <label>Рабочая папка<input id="schedule-cwd" type="text" maxlength="4096" list="schedule-workdirs" required><datalist id="schedule-workdirs"></datalist></label>
+        <div class="schedule-fields-row"><label><span id="schedule-time-label">Время</span><input id="schedule-time" type="time" required></label><label>Часовой пояс<input id="schedule-timezone" type="text" maxlength="80" value="Europe/Moscow" required></label></div>
+        <p id="schedule-interval-note" class="schedule-note" hidden></p>
+        <p class="schedule-note">Каждый запуск создаёт отдельный чат в выбранном проекте. Если исполнитель остановлен, задание ждёт его запуска.</p>
+        <p id="schedule-error" class="form-error" role="alert"></p>
+        <div class="dialog-actions"><button id="schedule-cancel" type="button" class="secondary-button">Отмена</button><button id="schedule-save" type="submit" class="primary-button">Сохранить</button></div>
+      </form>
+    </dialog>
+    <dialog class="session-dialog" id="session-dialog">
+      <form id="session-form" method="dialog">
+        <div class="dialog-head"><div><span class="dialog-kicker" data-i18n="dialog.new_session_kicker">НОВАЯ СЕССИЯ</span><h2 data-i18n="dialog.new_session_title">Настроим рабочее место</h2></div><button class="icon-button dialog-close" id="close-dialog" type="button" data-i18n-aria-label="dialog.close" aria-label="Закрыть">×</button></div>
+        <p class="dialog-description" data-i18n="dialog.description">Выберите профиль агента и папку, с которой он будет работать.</p>
+        <label for="profile-select" data-i18n="dialog.profile_label">Профиль агента</label><select id="profile-select" required></select>
+        <label for="cwd-input" data-i18n="dialog.cwd_label">Рабочая папка</label>
+        <div class="cwd-combo" id="cwd-combo">
+          <input id="cwd-input" autocomplete="off" data-i18n-placeholder="dialog.cwd_placeholder" placeholder="/путь/к/проекту" required role="combobox" aria-expanded="false" aria-controls="cwd-options" aria-autocomplete="list">
+          <button class="cwd-toggle" id="cwd-toggle" type="button" tabindex="-1" data-i18n-aria-label="dialog.cwd_toggle_aria" aria-label="Показать список рабочих папок" aria-expanded="false">⌄</button>
+          <div class="cwd-options" id="cwd-options" role="listbox" data-i18n-aria-label="dialog.cwd_options_aria" aria-label="Рабочие папки" hidden></div>
+        </div>
+        <button id="desktop-choose-workspace" class="secondary-button" type="button" hidden>Выбрать папку…</button>
+        <input type="hidden" id="cwd-value" name="cwd" value="">
+        <p class="form-error" id="session-error" aria-live="polite"></p>
+        <div class="dialog-actions"><button class="secondary-button" id="cancel-dialog" type="button" data-i18n="dialog.cancel">Отмена</button><button class="primary-button" id="create-session-button" type="submit"><span data-i18n="dialog.create">Создать</span> <span>→</span></button></div>
+      </form>
+    </dialog>
+    <dialog class="panel-dialog settings-dialog" id="settings-dialog">
+      <div class="panel-head">
+        <div><span class="dialog-kicker" data-i18n="settings.kicker">НАСТРОЙКИ</span><h2 data-i18n="settings.heading">Управление runtime</h2></div>
+        <button class="icon-button dialog-close" id="close-settings" type="button" data-i18n-aria-label="dialog.close" aria-label="Закрыть">×</button>
+      </div>
+      <div class="panel-scroll" id="settings-body"></div>
+    </dialog>
+    <dialog class="panel-dialog dashboard-dialog" id="dashboard-dialog">
+      <div class="panel-head">
+        <div><span class="dialog-kicker" data-i18n="dashboard.kicker">ПАНЕЛЬ УПРАВЛЕНИЯ</span><h2 data-i18n="dashboard.heading">Состояние интерфейса</h2></div>
+        <button class="icon-button dialog-close" id="close-dashboard" type="button" data-i18n-aria-label="dialog.close" aria-label="Закрыть">×</button>
+      </div>
+      <div class="panel-scroll" id="dashboard-body"></div>
+    </dialog>
+    <dialog class="panel-dialog logs-dialog" id="logs-dialog">
+      <div class="panel-head">
+        <div><span class="dialog-kicker" data-i18n="logs.kicker">ЛОГИ</span><h2 data-i18n="logs.heading">Журналы сервисов</h2></div>
+        <button class="icon-button dialog-close" id="close-logs" type="button" data-i18n-aria-label="dialog.close" aria-label="Закрыть">×</button>
+      </div>
+      <div class="logs-tabs" id="logs-tabs" role="tablist" data-i18n-aria-label="logs.tabs_aria" aria-label="Сервисы"></div>
+      <div class="logs-toolbar">
+        <span class="logs-caption" id="logs-caption">Загрузка…</span>
+        <div class="logs-actions">
+          <span class="logs-auto-label" data-i18n="logs.auto_label">автообновление</span>
+          <span class="logs-auto-slot" id="logs-auto-slot"></span>
+          <button class="mini-button" id="logs-refresh" type="button" data-i18n="logs.refresh">Обновить</button>
+        </div>
+      </div>
+      <p class="logs-error" id="logs-error" aria-live="polite" hidden></p>
+      <div class="logs-stage">
+        <pre class="logs-output" id="logs-output" tabindex="0" data-i18n-aria-label="logs.output_aria" aria-label="Журнал выбранного сервиса"></pre>
+      </div>
+    </dialog>
+    <dialog class="panel-dialog agents-dialog" id="agents-dialog">
+      <div class="panel-head">
+        <div><span class="dialog-kicker" data-i18n="agents.kicker">ИСТОРИЯ АГЕНТОВ</span><h2 id="agents-title" data-i18n="agents.heading">Внешние сессии</h2></div>
+        <button class="icon-button dialog-close" id="close-agents" type="button" data-i18n-aria-label="dialog.close" aria-label="Закрыть">×</button>
+      </div>
+      <div class="agents-toolbar" id="agents-toolbar">
+        <div class="logs-tabs agents-sources" id="agents-sources" role="tablist" data-i18n-aria-label="agents.sources_aria" aria-label="Источник истории"></div>
+        <div class="agents-tools">
+          <input class="agents-search" id="agents-search" type="search" data-i18n-placeholder="agents.search_placeholder" data-i18n-aria-label="agents.search_placeholder" placeholder="Поиск по истории" aria-label="Поиск по истории" autocomplete="off" spellcheck="false">
+          <button class="mini-button" id="agents-refresh" type="button" data-i18n="agents.refresh">Сканировать заново</button>
+        </div>
+      </div>
+      <p class="agents-error" id="agents-error" hidden aria-live="polite"></p>
+      <div class="agents-body">
+        <div class="agents-list-view" id="agents-list-view">
+          <p class="agents-caption" id="agents-caption">Загрузка…</p>
+          <div class="agents-list" id="agents-list"></div>
+          <button class="secondary-button agents-more" id="agents-more" type="button" hidden data-i18n="agents.more">Показать больше</button>
+        </div>
+        <div class="agents-preview" id="agents-preview" hidden>
+          <div class="agents-preview-bar">
+            <button class="mini-button" id="agents-back" type="button" data-i18n="agents.back">← К списку</button>
+            <div class="agents-preview-copy"><strong id="agents-preview-title"></strong><span class="agents-preview-meta" id="agents-preview-meta"></span></div>
+            <button class="mini-button" id="agents-preview-refresh" type="button" data-i18n="logs.refresh">Обновить</button>
+          </div>
+          <div class="agents-preview-scroll" id="agents-preview-scroll">
+            <div class="timeline agents-timeline" id="agents-timeline"></div>
+            <button class="secondary-button agents-more" id="agents-load-more" type="button" hidden data-i18n="agents.more">Показать больше</button>
+          </div>
+          <div class="agents-import">
+            <p class="agents-import-note" data-i18n="agents.import_note">Будет создан новый чат Игорька. Исходная сессия останется без изменений.</p>
+            <div class="agents-import-row">
+              <label for="agents-profile"><span data-i18n="agents.profile_label">Профиль</span><select id="agents-profile"></select></label>
+              <div class="agents-import-field">
+                <label for="agents-cwd" data-i18n="agents.cwd_label">Рабочая папка</label>
+                <div class="cwd-combo" id="agents-cwd-combo">
+                  <input id="agents-cwd" autocomplete="off" spellcheck="false" data-i18n-placeholder="dialog.cwd_placeholder" placeholder="/путь/к/проекту" role="combobox" aria-expanded="false" aria-controls="agents-cwd-options" aria-autocomplete="list">
+                  <button class="cwd-toggle" id="agents-cwd-toggle" type="button" tabindex="-1" data-i18n-aria-label="dialog.cwd_toggle_aria" aria-label="Показать список рабочих папок" aria-expanded="false">⌄</button>
+                  <div class="cwd-options" id="agents-cwd-options" role="listbox" data-i18n-aria-label="dialog.cwd_options_aria" aria-label="Рабочие папки" hidden></div>
+                </div>
+                <input type="hidden" id="agents-cwd-value" value="">
+              </div>
+            </div>
+            <p class="agents-cwd-hint" id="agents-cwd-hint" hidden aria-live="polite"></p>
+            <p class="agents-cwd-note" id="agents-cwd-note" data-i18n="agents.cwd_note">Рабочая папка не должна быть домашней папкой или корнем файловой системы — KVM-изоляция их не пробрасывает.</p>
+            <p class="agents-error" id="agents-import-error" hidden aria-live="polite"></p>
+            <div class="agents-import-actions"><button class="primary-button" id="agents-import" type="button"><span data-i18n="agents.import">Импортировать</span><span aria-hidden="true">→</span></button></div>
+          </div>
+        </div>
+      </div>
+    </dialog>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="/render.js" defer></script>
+    <script src="/file-viewer.js" defer></script>
+    <script src="/changes.js" defer></script>
+    <script src="/terminal.js" defer></script>
+    <script src="/completion-sound.js" defer></script>
+    <script src="/voice.js" defer></script>
+    <script src="/mcp-task.js" defer></script>
+    <script src="/plugins.js" defer></script>
+    <script src="/session-agent.js" defer></script>
+    <script src="/downloads.js" defer></script>
+    <script src="/workspace-tabs.js" defer></script>
+    <script src="/opencode-panel.js" defer></script>
+    <script src="/github-reviews.js" defer></script>
+    <script src="/tool-groups.js" defer></script>
+    <script src="/session-summary.js" defer></script>
+    <script src="/app.js" defer></script>
+  </body>
+</html>

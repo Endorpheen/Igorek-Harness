@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Браузер Игорька</title><link rel="stylesheet" href="browser.css"></head>
+<body>
+<header class="browser-chrome">
+  <div class="tab-strip"><div id="browser-tabs" class="browser-tabs" role="tablist" aria-label="Вкладки браузера"></div><button id="tab-new" class="icon-button" title="Новая вкладка" aria-label="Новая вкладка">+</button><button id="hide" class="icon-button close-panel" title="Скрыть браузер" aria-label="Скрыть браузер"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg></button></div>
+  <div class="navigation-bar">
+    <button id="back" class="icon-button" title="Назад" aria-label="Назад" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 5-7 7 7 7M5 12h14"/></svg></button>
+    <button id="forward" class="icon-button" title="Вперёд" aria-label="Вперёд" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 5 7 7-7 7M19 12H5"/></svg></button>
+    <button id="reload" class="icon-button" title="Обновить страницу" aria-label="Обновить страницу"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 8a8 8 0 1 0 1 7M19 3v6h-6"/></svg></button>
+    <form id="address-form" class="address-bar"><svg class="site-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8h14M5 16h14"/><circle cx="9" cy="8" r="3"/><circle cx="15" cy="16" r="3"/></svg><input id="address" aria-label="Адрес сайта" placeholder="Введите адрес сайта" autocomplete="off" spellcheck="false"></form>
+    <button id="menu-toggle" class="icon-button" title="Настройки браузера" aria-label="Настройки браузера" aria-haspopup="menu" aria-expanded="false" aria-controls="browser-menu"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg></button>
+  </div>
+</header>
+<section id="browser-menu" class="browser-menu" aria-label="Настройки браузера" hidden>
+  <div class="menu-heading">Браузер Игорька<span id="mode-label">Управляешь ты</span></div>
+  <div role="group" aria-label="Управление браузером">
+    <button id="pause" class="menu-item" role="menuitemradio" aria-checked="true"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="3" width="12" height="18" rx="6"/><path d="M12 3v7"/></svg><span>Управлять самому</span><span class="checkmark" aria-hidden="true">✓</span></button>
+    <button id="resume" class="menu-item" role="menuitemradio" aria-checked="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z"/></svg><span>Передать агенту</span><span class="checkmark" aria-hidden="true">✓</span></button>
+  </div>
+  <div class="menu-divider"></div>
+  <details id="limits"><summary class="menu-item"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></svg><span>Лимиты прохода</span><span class="chevron" aria-hidden="true">›</span></summary>
+    <form id="limits-form" class="limits-form"><div class="limit-fields"><label>Секунд<input id="seconds" type="number" min="10" max="3600" required></label><label>Постов<input id="posts" type="number" min="1" max="1000" required></label></div><p>Только для автоматического прохода ленты. Ручной просмотр не ограничивают.</p><button id="limits-save" type="submit">Сохранить</button></form>
+  </details>
+  <div class="menu-divider"></div>
+  <div class="information"><button id="info" class="menu-item" aria-describedby="login-help"><span class="info-icon" aria-hidden="true">i</span><span>Информация о входе</span></button><div id="login-help" class="login-help" role="tooltip">Введи логин, пароль и код 2FA прямо на странице сайта. После входа выбери «Передать агенту». Профиль и вход сохраняются после закрытия Игорька.</div></div>
+  <p id="status" class="menu-status" role="status" aria-live="polite"></p>
+</section>
+<script src="browser-ui.js"></script></body></html>

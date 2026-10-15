@@ -1,0 +1,9 @@
+Сначала создам его.
+
+/home/example/.igorek-agent-factory/workspace/temp_execution_ed9d52ca/skill_manage(action="create", name="igorek-smoke-skill", content="""---
+name: igorek-smoke-skill
+description: Тестовый навык для проверки полного цикла управления скиллами.
+---
+# Инструкции
+Этот навык предназначен исключительно для тестирования функционала skill_manage.
+""")

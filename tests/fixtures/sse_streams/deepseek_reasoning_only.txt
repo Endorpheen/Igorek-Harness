@@ -1,0 +1,11 @@
+data: {"id":"chatcmpl-test2","object":"chat.completion.chunk","model":"deepseek-v4-flash","choices":[{"index":0,"delta":{"role":"assistant","reasoning_content":"Анализирую "},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-test2","object":"chat.completion.chunk","model":"deepseek-v4-flash","choices":[{"index":0,"delta":{"reasoning_content":"запрос."},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-test2","object":"chat.completion.chunk","model":"deepseek-v4-flash","choices":[{"index":0,"delta":{"content":"Вот ответ."},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-test2","object":"chat.completion.chunk","model":"deepseek-v4-flash","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+
+data: {"usage":{"prompt_tokens":50,"completion_tokens":20,"total_tokens":70}}
+
+data: [DONE]

@@ -1,0 +1,20 @@
+[Unit]
+Description=AgentFactory API Service
+After=network-online.target
+Wants=network-online.target
+PartOf=agentfactory.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/agentfactory/factory
+EnvironmentFile=/opt/agentfactory/.env.lan
+ExecStart=/bin/bash -lc 'exec python3 factory_api.py --port "${FACTORY_API_PORT:-8180}"'
+Restart=always
+RestartSec=3
+TimeoutStopSec=15
+KillSignal=SIGINT
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=agentfactory.target

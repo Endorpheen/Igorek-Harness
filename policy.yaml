@@ -1,0 +1,51 @@
+version: 1
+active_profile: default
+
+defaults:
+  file_tools:
+    managed_tools:
+      - Read
+      - Edit
+      - Update
+      - MultiEdit
+      - Write
+    enforce_project_root: true
+    allow_absolute_path_override: true
+    allow_write_new_files: true
+    additional_allowed_roots: []
+
+  bash:
+    allow_empty_command: false
+    allow_compound_commands: true
+    allow_file_mutation: true
+    allowed_commands: []
+    mutation_commands:
+      - rm
+      - mv
+      - cp
+      - touch
+      - mkdir
+      - rmdir
+      - install
+      - ln
+      - chmod
+      - chown
+      - truncate
+      - tee
+    nested_shell_commands:
+      - bash
+      - sh
+      - zsh
+    disallow_inline_edit_flags: true
+
+profiles:
+  default: {}
+  balanced:
+    bash:
+      allow_compound_commands: true
+  trusted:
+    file_tools:
+      enforce_project_root: false
+    bash:
+      allow_compound_commands: true
+      allow_file_mutation: true

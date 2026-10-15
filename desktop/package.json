@@ -1,0 +1,28 @@
+{
+  "name": "igorek-desktop-prototype",
+  "private": true,
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test tests/*.test.cjs",
+    "postinstall": "install-electron",
+    "build:runtime": "python3 packaging/build-runtime.py",
+    "test:native:linux": "electron tests/native/first-run.cjs",
+    "test:native": "electron tests/native/first-run.cjs",
+    "package": "electron-builder --config electron-builder.cjs --publish never",
+    "build:runtime:windows": "python packaging/build-windows-runtime.py"
+  },
+  "devDependencies": {
+    "electron": "44.5.1",
+    "electron-builder": "26.15.2"
+  },
+  "version": "0.2.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "overrides": {
+    "app-builder-lib": {
+      "@electron/get": "5.1.0"
+    }
+  }
+}

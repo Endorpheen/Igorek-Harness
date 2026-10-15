@@ -1,0 +1,21 @@
+data: {"id":"chatcmpl-test1","object":"chat.completion.chunk","model":"deepseek-v4-flash","choices":[{"index":0,"delta":{"role":"assistant","reasoning_content":"Давай "},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-test1","object":"chat.completion.chunk","model":"deepseek-v4-flash","choices":[{"index":0,"delta":{"reasoning_content":"подумаю "},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-test1","object":"chat.completion.chunk","model":"deepseek-v4-flash","choices":[{"index":0,"delta":{"reasoning_content":"об этом."},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-test1","object":"chat.completion.chunk","model":"deepseek-v4-flash","choices":[{"index":0,"delta":{"content":"Выполняю"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-test1","object":"chat.completion.chunk","model":"deepseek-v4-flash","choices":[{"index":0,"delta":{"content":" команду."},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-test1","object":"chat.completion.chunk","model":"deepseek-v4-flash","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_001","type":"function","function":{"name":"Bash","arguments":""}}]},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-test1","object":"chat.completion.chunk","model":"deepseek-v4-flash","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"comman"}}]},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-test1","object":"chat.completion.chunk","model":"deepseek-v4-flash","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"d\":\"ls\"}"}}]},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-test1","object":"chat.completion.chunk","model":"deepseek-v4-flash","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}
+
+data: {"usage":{"prompt_tokens":100,"completion_tokens":50,"total_tokens":150}}
+
+data: [DONE]

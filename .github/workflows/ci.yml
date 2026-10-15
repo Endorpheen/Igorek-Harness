@@ -1,0 +1,195 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  secrets:
+    name: Secrets / current tree and history
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install verified secret detector
+        run: |
+          curl --fail --silent --show-error --location --retry 3 \
+            https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz \
+            --output "$RUNNER_TEMP/gitleaks.tar.gz"
+          echo '551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  gitleaks.tar.gz' > "$RUNNER_TEMP/checksum"
+          (cd "$RUNNER_TEMP" && sha256sum --check checksum)
+          tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP" gitleaks
+      - name: Check files and all fetched history without exposing values
+        run: |
+          "$RUNNER_TEMP/gitleaks" dir --redact --no-banner --config .gitleaks.toml .
+          "$RUNNER_TEMP/gitleaks" git --redact --no-banner --config .gitleaks.toml --log-opts=--all .
+  python:
+    name: Python ${{ matrix.python }} / Linux
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.13', '3.14']
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          version: '0.13.1'
+          enable-cache: true
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24.14.0'
+      - name: Install system test prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bubblewrap ripgrep openssl xvfb python3-gi gir1.2-gtk-4.0
+      - name: Install locked development environment
+        run: uv sync --locked --dev --python '${{ matrix.python }}'
+      - name: Check executable Python errors
+        run: uv run --no-sync ruff check --select E9,F63,F7,F82 factory desktop tests tools prompt_assembly.py transformers_api_server.py
+      - name: Run all Python test files with isolated data
+        run: xvfb-run -a uv run --no-sync python -u tools/run_tests.py --jobs 4 --coverage --output test-results/python
+      - name: Keep test and coverage reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: python-${{ matrix.python }}-reports
+          path: |
+            test-results/python/summary.json
+            test-results/python/coverage.xml
+            test-results/python/coverage.json
+            test-results/python/*/results.xml
+          if-no-files-found: warn
+          retention-days: 7
+
+  desktop:
+    name: Desktop contracts / ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24.14.0'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm --prefix desktop ci
+      - run: npm --prefix desktop test
+
+  native-linux:
+    name: Native Linux / first task and restart
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          version: '0.13.1'
+          enable-cache: true
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24.14.0'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - name: Install native prerequisites and locked dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y apparmor bubblewrap ripgrep openssl xvfb libgtk-3-0t64 libnss3 libasound2t64 libgbm1
+          uv sync --locked --dev
+          npm --prefix desktop ci
+      - name: Build and verify the actual offline snapshot
+        run: |
+          uv run --no-sync python desktop/packaging/build-runtime.py --output "$RUNNER_TEMP/igorek-native-runtime"
+          uv run --no-sync python desktop/packaging/package-linux.py \
+            --runtime "$RUNNER_TEMP/igorek-native-runtime" --output "$RUNNER_TEMP/igorek-native-snapshot"
+      - name: Allow the packaged Electron to create its sandbox namespaces
+        run: |
+          if [ -r /proc/sys/kernel/apparmor_restrict_unprivileged_userns ] && \
+             [ "$(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns)" = 1 ]; then
+            sudo bash desktop/packaging/install-sandbox-policy.sh --policy-name igorek-desktop-portable \
+              --electron-binary "$RUNNER_TEMP/igorek-native-snapshot/igorek-desktop/electron/electron"
+          fi
+      - name: Exercise native UI, real backend and a synthetic provider
+        run: |
+          mkdir -p test-results/native-linux
+          IGOREK_TEST_RUNTIME="$RUNNER_TEMP/igorek-native-snapshot/igorek-desktop/app/runtime" \
+          IGOREK_TEST_OUTPUT="$PWD/test-results/native-linux" \
+            xvfb-run -a "$RUNNER_TEMP/igorek-native-snapshot/igorek-desktop/electron/electron" \
+              desktop/tests/native/first-run.cjs
+      - name: Keep the sanitized acceptance report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: native-linux-acceptance
+          path: test-results/native-linux/summary.json
+          if-no-files-found: warn
+          retention-days: 7
+
+  android:
+    name: Android unit, lint and debug build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify Gradle wrapper against its checksum
+        working-directory: android
+        run: |
+          echo '2db75c40782f5e8ba1fc278a5574bab070adccb2d21ca5a6e5ed840888448046  gradle/wrapper/gradle-wrapper.jar' | sha256sum --check
+          ./gradlew --no-daemon --version
+      - name: Test and build without release signing credentials
+        working-directory: android
+        run: ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug
+      - name: Keep test reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: android-reports
+          path: |
+            android/app/build/test-results/**/*.xml
+            android/app/build/reports/lint-results-debug.xml
+          if-no-files-found: warn
+          retention-days: 7
+
+  source:
+    name: Source and publication contracts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          version: '0.13.1'
+      - run: uv sync --locked --dev
+      - run: uv run --no-sync python tools/check_publication.py
+      - run: uv run --no-sync python tools/build_wheel.py --output dist

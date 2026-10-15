@@ -1,0 +1,44 @@
+# Working files and program outputs
+*.txt
+*.csv
+*.json
+!web_ui/static/navigation.json
+*.html
+*.md
+.env
+.env.*
+!.env.local.example
+!README.md
+!README_*.md
+!OPERATIONS_RUNBOOK.md
+!.gitignore
+
+# Result directories
+workspace/
+results/
+temp/
+__pycache__/
+venv/
+
+# Database files and configurations
+*.db
+*.sqlite
+claude_configs/
+profiles/
+database/
+
+# Log files
+*.log
+
+# Local environment configuration files
+.env
+.env.local
+
+# Bundled package profiles (e.g., cc-wally for RunAnywhere/Wally) **must**
+# Include in the repository: `get_profile_path` searches for them in `PACKAGE_ROOT/config/profiles`.
+!config/profiles/
+!config/profiles/*.json
+
+# Redistribution notices are part of the shipped browser assets.
+!web_ui/static/vendor/*LICENSE.txt
+!web_ui/static/vendor/README.txt

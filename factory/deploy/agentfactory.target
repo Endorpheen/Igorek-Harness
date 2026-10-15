@@ -1,0 +1,5 @@
+[Unit]
+Description=AgentFactory Stack Target
+After=network-online.target
+Wants=network-online.target
+Wants=agentfactory-api.service

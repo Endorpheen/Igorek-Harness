@@ -1,0 +1,3 @@
+Удалю тестовый skill.
+
+skill_manage(action="delete", name="igorek-smoke-skill")

@@ -1,0 +1,25 @@
+[Unit]
+# Dedicated worker for one profile (template unit).
+# Profile is set in the instance name, for example:
+#   systemctl --user enable --now igorek-worker@cc-wally
+# The worker retrieves tasks only for its own profile, so multiple instances
+# Handles multiple queues in parallel. The active runtime profile is already set.
+# Managed by a worker within the igorek-gateway.service; separate configuration is required.
+# No instance needs to be started (this would create a duplicate, which does not break the database but consumes resources).
+Description=Igorek worker for profile %i
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+# Use the installed tool and per-user configuration; no checkout is required.
+WorkingDirectory=%h
+EnvironmentFile=-%h/.igorek-agent-factory/runtime-profile.env
+ExecStart=%h/.local/bin/igorek-factory worker --profile %i --poll-interval 2
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target

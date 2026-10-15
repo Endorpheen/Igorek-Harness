@@ -1,0 +1,14 @@
+title = "Igorek secret detection"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Reviewed synthetic fixture and non-secret source expressions"
+regexTarget = "match"
+regexes = [
+    '''TAVILY_API_KEY": "tvly-secret-12345678901234567890"''',
+    '''password clear: owner-policy39 ''',
+    '''mobileAccessEnabled=reply\.result\.enabled===true;''',
+    '''t\.FourKeyMap=t\.TwoKeyMap=void ''',
+]

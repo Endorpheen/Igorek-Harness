@@ -1,0 +1,57 @@
+body.igorek-window-framed { box-sizing: border-box; padding-top: 36px; }
+body.igorek-window-framed .app-shell { width: calc(100% - var(--igorek-browser-width, 0px)); }
+body.igorek-window-framed .side-panel.panel-fullscreen { top: 0; }
+#igorek-window-bar { position: fixed; inset: 0 0 auto 0; height: 36px; z-index: 10000; display: flex; align-items: stretch; background: #171b19; color: #abb6b0; border-bottom: 1px solid #29302c; box-sizing: border-box; font: 14px system-ui, sans-serif; user-select: none; -webkit-app-region: drag; }
+#igorek-window-bar button { -webkit-app-region: no-drag; background: transparent; color: inherit; border: 0; border-radius: 0; margin: 0; padding: 0 12px; font: inherit; cursor: pointer; min-height: 0; }
+#igorek-window-bar button:hover { background: #29302c; color: #ecede7; }
+#igorek-window-bar button:focus-visible { outline: 1px solid #c2ef78; outline-offset: -2px; }
+#igorek-window-bar .igorek-window-drag { flex: 1; min-width: 32px; }
+#igorek-window-bar .igorek-window-control { width: 46px; font-size: 20px; padding: 0; }
+#igorek-window-bar .igorek-window-control:last-child:hover { background: #963f46; color: white; }
+body.igorek-sidebar-hidden .app-shell { grid-template-columns: 52px minmax(0,1fr); }
+body.igorek-sidebar-hidden #sidebar { display: none; }
+#igorek-toggle-sidebar svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.5; vertical-align:middle; }
+#igorek-toggle-sidebar[aria-expanded="false"] { color:#c2ef78; }
+@media(max-width:900px) { body.igorek-sidebar-hidden .app-shell { grid-template-columns:48px minmax(0,1fr); } }
+@media(max-width:680px) { body.igorek-sidebar-hidden .app-shell { grid-template-columns:44px minmax(0,1fr); } }
+#desktop-choose-workspace { margin-top: 12px; }
+.rail-button.chatgpt-rail-button,.rail-button.opencode-rail-button { height:46px; padding:4px 0; gap:2px; }
+.chatgpt-rail-button span,.opencode-rail-button span { font:9px/11px system-ui; }
+#igorek-chatgpt-controls { display:flex; align-items:center; gap:2px; margin-left:10px; }
+#igorek-chatgpt-controls[hidden] { display:none; }
+#igorek-chatgpt-controls > span { font-size:12px; color:#c2ef78; padding:0 7px; }
+#igorek-chatgpt-controls button { width:30px; padding:0; }
+#igorek-chatgpt-controls button:disabled { opacity:.35; cursor:default; }
+#igorek-chatgpt-controls svg { width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:1.5; vertical-align:middle; stroke-linecap:round; stroke-linejoin:round; }
+
+#igorek-browser-resizer { display:none;position:fixed;right:calc(var(--igorek-browser-width,0px) - 6px);top:36px;bottom:0;width:6px;z-index:9999;cursor:col-resize;background:#29372c;touch-action:none;outline:none }
+body.igorek-browser-attached #igorek-browser-resizer { display:block }
+#igorek-browser-resizer:hover,#igorek-browser-resizer:focus-visible,body.igorek-browser-resizing #igorek-browser-resizer { background:#9bbf5b }
+body.igorek-browser-resizing { cursor:col-resize;user-select:none }
+
+#igorek-notifications-button { position:relative }
+.igorek-notification-badge { position:absolute;right:0;top:0;min-width:15px;padding:1px 3px;border-radius:8px;background:#c2ef78;color:#172015;font:10px system-ui }
+.igorek-notification-badge[hidden],#igorek-notifications-panel[hidden] { display:none }
+#igorek-notifications-panel { position:fixed;top:82px;left:72px;width:min(450px,calc(100vw - 92px));max-height:calc(100vh - 106px);z-index:9998;display:flex;flex-direction:column;background:#1c211e;color:#e3e8df;border:1px solid #394235;border-radius:16px;box-shadow:0 16px 48px #0008;font:13px system-ui;overflow:hidden }
+#igorek-notifications-panel header { display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #30382f }
+#igorek-notifications-panel h2 { font:600 16px system-ui;margin:0 }
+#igorek-notifications-panel button { background:transparent;border:0;color:#b5c1ad;padding:6px 9px;border-radius:7px;cursor:pointer;font:inherit }
+#igorek-notifications-panel button:hover { background:#30392d;color:#c2ef78 }
+#igorek-notifications-panel button:focus-visible { outline:1px solid #c2ef78 }
+#igorek-notifications-panel button:disabled { opacity:.4;cursor:default }
+.igorek-notification-actions { display:flex;justify-content:flex-end;padding:4px 7px }
+.igorek-notification-list { overflow:auto;padding:0 8px 8px;min-height:0 }
+.igorek-notification-row { border:1px solid #30382f;border-radius:10px;margin:5px 0;background:#202621 }
+.igorek-notification-row.unread { border-color:#48563b }
+.igorek-notification-row summary { display:flex;align-items:center;gap:9px;cursor:pointer;list-style:none;padding:11px 10px }
+.igorek-notification-row summary:focus-visible { outline:1px solid #c2ef78;border-radius:9px }
+.igorek-notification-dot { width:6px;height:6px;border-radius:50%;background:#9db867;flex-shrink:0 }
+.igorek-notification-dot.error { background:#db9c85 }
+.igorek-notification-heading { min-width:0;flex:1;display:grid;gap:3px }
+.igorek-notification-heading strong { font-weight:600;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap }
+.igorek-notification-preview { color:#9ba897;overflow:hidden;text-overflow:ellipsis;white-space:nowrap }
+.igorek-notification-row time,.igorek-notification-count { color:#8d9b88;font-size:10px;flex-shrink:0 }
+.igorek-notification-detail { white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.6 system-ui;margin:0;padding:10px 12px;border-top:1px solid #30382f;max-height:300px;overflow:auto }
+.igorek-notification-empty { color:#9ba897;margin:16px 10px;line-height:1.6 }
+
+.rail-button svg.openai-logo { fill:currentColor; stroke:none; }

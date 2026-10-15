@@ -1,0 +1,12 @@
+cc_backend:
+  # null disables the hard stop. Cloud models are expected to rely on context,
+  # timeout and explicit user approval rather than a small fixed tool-round cap.
+  max_tool_rounds: null
+
+  # null disables forced synthesis/stuck detection based only on repeated shape.
+  repeated_tool_batch_limit: null
+  non_productive_after_useful_limit: null
+
+  # null disables injecting a synthetic LOOP DETECTED tool error before a tool
+  # executes. This is intentionally permissive for cloud-model smoke testing.
+  same_tool_batch_block_limit: null

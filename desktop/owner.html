@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="ru">
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; form-action 'none'; base-uri 'none'; frame-src 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Хранилище Игорька</title>
+<link rel="stylesheet" href="owner.css">
+<main>
+  <aside class="side">
+    <small>НАСТРОЙКА ИГОРЬКА</small>
+    <h1>Игорёк</h1>
+    <details id="desktop-release" class="owner-release" hidden><summary id="desktop-release-version"></summary><strong>Что нового</strong><ul id="desktop-release-changes"></ul></details>
+    <p class="side-note">Ваши подключения, рабочая среда и защита данных — по порядку.</p>
+    <nav id="settings-nav" aria-label="Разделы настройки"></nav>
+  </aside>
+  <div class="content">
+    <div class="panel-area">
+    <header class="section-header"><small id="section-group">ПЕРВЫЙ ЗАПУСК</small><h2 id="section-title">Откройте хранилище</h2><p id="section-description"></p></header>
+
+    <section id="browser-control-settings" class="card panel" aria-label="Браузер">
+      <h2>Управление браузером</h2><p>Агент по умолчанию работает с открытыми вкладками встроенного браузера.</p>
+      <label class="browser-handoff-option"><input id="browser-handoff" type="checkbox"><span>Ручная передача управления</span></label>
+      <p class="note">При включении в браузере появится компактная кнопка «Агент / Вы». Вход и 2FA выполняет владелец.</p><p id="browser-handoff-status" class="note" role="status"></p>
+    </section>
+    <section id="secrets-hub" class="card panel" hidden aria-label="Ключи и переменные">
+      <h2>Ключи и переменные</h2><p>Здесь собраны подключения, которым нужны секреты. Сохранённые значения не показываются в списке.</p>
+      <div class="connection-tiles">
+        <button type="button" class="connection-tile" data-open-panel="provider"><strong>Основная модель</strong><span>Подписка ChatGPT, API или локальный сервер</span><span class="tile-action">Настроить подключение →</span></button>
+        <button type="button" class="connection-tile" data-open-panel="voice"><strong>Голосовая модель</strong><span>Отдельный ключ OpenAI для разговоров</span><span class="tile-action">Настроить голос →</span></button>
+      </div>
+      <h3>Сохранённые подключения</h3><div id="secret-connections" class="settings-card-grid"></div>
+      <p class="note">Действия подключения — в меню ⋮. После изменения ключей обновите копию восстановления.</p>
+      <h3>Другие секреты и переменные</h3>
+      <p>Храните здесь значения вне профилей моделей. Все значения зашифрованы. Кнопка «Доступ» позволяет передавать запись выбранному сервису в отдельной задаче MCP через «+ → MCP» в чате.</p>
+      <p class="note">Агент тоже может явно сохранить новую запись в Vault. Такие записи отмечены источником и задачей; список обновляется во время работы. Временные переменные команд автоматически не сохраняются.</p>
+      <div class="actions"><button id="value-add" type="button">Добавить запись</button><button id="env-import-choose" type="button" class="secondary">Перенести из .env</button><button id="value-refresh" type="button" class="secondary">Обновить</button></div>
+      <p id="env-import-result" role="status"></p>
+      <div class="vault-toolbar">
+        <label class="vault-search">Поиск<input id="values-search" type="search" maxlength="128" placeholder="Имя ключа или переменной" autocomplete="off"></label>
+        <label>Тип<select id="values-kind"><option value="all">Все типы</option><option value="secret">Секреты</option><option value="variable">Переменные</option></select></label>
+        <label>Источник<select id="values-origin"><option value="all">Все источники</option><option value="owner">Добавлено тобой</option><option value="agent">Агент</option><option value="import">Импорт</option></select></label>
+      </div>
+      <p id="values-status" role="status"></p>
+      <div class="vault-table-wrap"><table class="vault-table" aria-label="Секреты и переменные">
+        <colgroup><col class="vault-name-col"><col class="vault-type-col"><col><col class="vault-actions-col"></colgroup>
+        <thead><tr><th scope="col">Имя</th><th scope="col">Тип</th><th scope="col">Источник</th><th scope="col" class="vault-actions-heading">Действия</th></tr></thead><tbody id="vault-values"></tbody>
+      </table><p id="values-empty" class="vault-empty" hidden></p></div>
+      <div class="vault-pagination"><span id="values-page-status" role="status"></span><div><button id="values-prev" type="button" class="secondary">← Назад</button><button id="values-next" type="button" class="secondary">Далее →</button></div></div>
+    </section>
+    <section id="interface-lock-panel" class="card panel" hidden>
+      <h2>Окно настройки заблокировано</h2>
+      <p>Чат и текущая задача продолжают работать. Просмотр ключей и изменение настроек закрыты на стороне приложения.</p>
+      <p id="interface-consumers" class="note"></p>
+      <form id="interface-pin-form" hidden><label>PIN текущего запуска<input id="interface-pin" type="password" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" autocomplete="off" required></label><button type="submit">Открыть по PIN</button></form><p class="note">После пяти неверных попыток потребуется полный пароль.</p>
+      <form id="interface-unlock-form"><label>Пароль хранилища<input id="interface-password" type="password" maxlength="1024" autocomplete="off" required></label><button type="submit">Открыть настройки</button></form>
+      <p id="interface-error" role="alert"></p>
+      <button id="interface-chat" type="button" class="secondary">Вернуться в чат</button>
+      <p class="note">Это блокировка доступа к настройкам. Хранилище остаётся открытым для уже работающих подключений. Чтобы закрыть хранилище, сначала завершите задачу.</p>
+    </section>
+    <section id="vault-panel" class="card panel active" aria-label="Хранилище">
+      <div class="storage-summary"><span class="profile-logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="18" height="18" rx="3"/><rect x="6" y="6" width="12" height="12" rx="1"/><circle cx="12" cy="12" r="3"/><path d="M12 8v8M8 12h8M18 8v3"/></svg></span><div class="profile-identity"><strong class="profile-name">Хранилище</strong><span id="state" class="profile-model" role="status">Проверяю состояние…</span></div><button type="button" class="profile-menu-toggle" popovertarget="vault-actions" aria-label="Действия хранилища" aria-haspopup="menu">⋮</button></div>
+      <form id="form" hidden>
+        <label>Пароль хранилища<input id="password" type="password" maxlength="1024" autocomplete="off" required></label>
+        <label id="confirmation">Повторите пароль<input id="repeat" type="password" maxlength="1024" autocomplete="off"></label>
+        <button id="submit" type="submit">Создать хранилище</button>
+      </form>
+      <div id="vault-actions" class="profile-actions storage-actions" popover="auto" role="menu">
+        <button id="lock-interface" class="secondary" hidden>Заблокировать окно настройки</button>
+        <button id="lock" hidden>Заблокировать хранилище</button>
+        <button id="refresh" class="secondary">Проверить состояние</button>
+        <button id="return-to-chat" class="secondary" type="button">Вернуться в чат</button>
+      </div>
+      <p id="error" role="alert"></p>
+    </section>
+
+    <section id="onboarding" class="card panel" aria-label="Порядок первого запуска">
+      <h2 id="onboarding-title">Начнём по порядку</h2>
+      <ol id="onboarding-steps"></ol>
+      <label id="onboarding-selection" hidden>Подключение для запуска<select id="onboarding-profile"></select></label>
+      <p id="onboarding-status" role="status">Читаю состояние приложения…</p>
+      <button id="onboarding-recovery" type="button" class="secondary" hidden>Подготовить копию ключей</button>
+      <button id="onboarding-next" type="button" disabled data-unavailable="true">Подождите…</button>
+      <p class="note">После сохранения ключа обновите отдельную копию восстановления в разделе «Копии и восстановление». Проверка подключения может расходовать квоту: один короткий запрос.</p>
+    </section>
+
+    <section id="completion-sound-settings" class="card panel" hidden>
+      <h2>Звук завершения задачи</h2>
+      <label class="lock-option"><input id="completion-sound-enabled" type="checkbox" disabled> Проигрывать звук, когда окно неактивно или свёрнуто</label>
+      <p id="completion-sound-status" class="note" role="status">Читаю настройку звука…</p>
+      <p class="note">Один сигнал после успешного завершения задачи. При ожидании разрешения, отмене или ошибке звук не проигрывается.</p>
+    </section>
+
+    <section id="provider-setup" class="card panel" hidden>
+      <div class="section-toolbar"><h2>Сохранённые подключения</h2><button id="provider-add" type="button">Добавить подключение</button></div>
+      <div id="profile-list" class="settings-card-grid"></div>
+      <p id="profile-status" role="status"></p>
+      <p class="note">Действия подключения — в меню ⋮. Проверка использует квоту сервиса: один короткий запрос.</p>
+      <div id="provider-editor" class="settings-editor" hidden>
+        <div class="section-toolbar"><h3 id="provider-editor-title">Новое подключение</h3><button id="provider-editor-close" type="button" class="secondary">Закрыть</button></div>
+        <div id="provider-choice" class="setup-choices">
+          <button id="provider-kind-chatgpt" type="button" class="connection-choice"><span id="provider-choice-openai" class="profile-logo" aria-hidden="true"></span><span><strong>ChatGPT / Codex</strong><small>Войти через аккаунт и использовать подписку</small></span><span class="choice-arrow" aria-hidden="true">›</span></button>
+          <button id="provider-kind-api" type="button" class="connection-choice"><span id="provider-choice-api" class="profile-logo" aria-hidden="true"></span><span><strong>API-ключ или локальная модель</strong><small>Подключить сервис или сервер на компьютере</small></span><span class="choice-arrow" aria-hidden="true">›</span></button>
+        </div>
+        <div id="chatgpt-editor" hidden>
+      <div class="profile-card">
+        <h3>Подписка ChatGPT</h3>
+        <p>Игорёк работает через ваш Plus или Pro со своими инструментами. Запросы используют общие лимиты подписки. Голосовая модель подключается отдельно.</p>
+        <form id="chatgpt-form">
+          <label>Имя подключения<input id="chatgpt-name" value="chatgpt" pattern="[A-Za-z][A-Za-z0-9\-]{0,39}" maxlength="40" aria-describedby="chatgpt-name-note" required></label>
+          <p id="chatgpt-name-note" class="note" aria-live="polite">Латинские буквы, цифры и дефис. Заглавные буквы разрешены.</p>
+          <button id="chatgpt-login" type="submit">Continue with ChatGPT</button>
+          <button id="chatgpt-cancel" type="button" class="secondary" hidden>Отменить вход</button>
+        </form>
+        <p id="chatgpt-status" role="status"></p>
+        <p class="note">Войдите в открывшемся браузере и разрешите использование подписки. Затем выберите модель, проверьте подключение и запустите исполнитель. Для другого аккаунта создайте подключение с другим именем.</p>
+      </div>
+        </div>
+        <div id="api-editor" hidden>
+      <p id="profile-edit-note" class="note" hidden>Редактирование профиля. Имя сохраняется для прежних сессий. Пустое поле ключа оставляет прежний ключ; сам ключ здесь не показывается. После изменения подключения проверьте его заново и обновите копию восстановления.</p>
+      <form id="profile-form">
+        <div class="field"><label>Сервис<select id="profile-preset">
+          <option value="custom">Свои параметры</option>
+          <option value="chatgpt" disabled>Подписка ChatGPT</option>
+          <option value="local">Локальная модель</option>
+          <option value="opencode-go">OpenCode Go</option>
+          <option value="opencode-zen">OpenCode Zen</option>
+          <option value="zai-coding-plan">Z.AI Coding Plan</option>
+          <option value="openrouter">OpenRouter</option>
+        </select></label>
+        <p id="profile-preset-note" class="note"></p></div>
+        <div class="field"><label>Имя профиля<input id="profile-name" type="text" pattern="[a-z][a-z0-9\-]{0,39}" maxlength="40" placeholder="my-model" required></label>
+        <p class="note">Латинские строчные буквы, цифры и дефис; первый символ — буква.</p></div>
+        <div id="profile-url-field" class="field field-wide"><label>Адрес API<input id="profile-url" type="url" maxlength="1024" placeholder="https://ваш-сервис/v1" required></label>
+        <p class="note">HTTPS для удалённого сервиса. HTTP разрешён только для сервиса на этом компьютере.</p></div>
+        <label id="profile-format-label">Формат API<select id="profile-format"><option value="openai">OpenAI-совместимый</option><option value="anthropic">Anthropic-совместимый</option><option value="openai-responses" disabled>Подписка ChatGPT · Responses</option></select></label>
+        <div id="profile-catalog" hidden>
+          <button id="load-models" class="secondary" type="button">Загрузить модели</button>
+          <label id="free-models-label" class="check" hidden><input id="free-models" type="checkbox" checked> Только бесплатные модели</label>
+          <label>Модели сервиса<select id="profile-model-list"><option value="">Выберите модель</option></select></label>
+          <p id="model-catalog-status" class="note" role="status"></p>
+        </div>
+        <label>Идентификатор модели<input id="profile-model" type="text" maxlength="256" placeholder="Имя модели из настроек сервиса" required></label>
+        <label id="profile-key-label">API-ключ<input id="profile-key" type="password" maxlength="1024" autocomplete="off" required></label>
+        <button id="profile-submit" type="submit">Сохранить профиль и ключ</button>
+        <button id="profile-cancel" class="secondary" type="button" hidden>Отменить редактирование</button>
+      </form>
+        </div>
+      </div>
+      <details id="legacy-profile-details" class="settings-details"><summary>Перенести старый профиль</summary>
+      <h3>Перенести старый профиль</h3>
+      <p>Выберите JSON-профиль cc-backend. Перенесём только имя, модель, адрес и формат API в форму выше. Ключ введите отдельно; команды, MCP, переменные окружения и внешние учётные записи не переносятся. Исходный файл останется на месте.</p>
+      <button id="legacy-profile-choose" type="button" class="secondary">Выбрать старый профиль</button>
+      <p id="legacy-profile-status" role="status"></p>
+      </details>
+    </section>
+
+    <section id="mcp-settings" class="card panel" hidden>
+      <h2>Доступ MCP по профилям</h2>
+      <label>Среда работы<select id="mcp-target"><option value="desktop">Этот desktop</option><option value="host">Mobile / Web этого ПК</option></select></label>
+      <p class="note">У сред разные подключения и права. На карточках показано, каким моделям разрешён доступ; настройка — в меню ⋮.</p>
+      <div class="section-toolbar"><h3>Подключения MCP</h3><button id="mcp-load" type="button" class="secondary">Обновить подключения</button></div>
+      <div id="mcp-connections" class="settings-card-grid"><p class="note">Загрузите подключения выбранной среды.</p></div>
+      <p id="mcp-status" role="status"></p>
+      <details id="gmail-setup" class="settings-details"><summary>Настройка Gmail</summary>
+      <h3>Gmail — только чтение</h3>
+      <p>Нужен Google OAuth client типа Desktop app с включённым Gmail API. Пароль Google вводится только в системном браузере. Разрешение Gmail readonly охватывает ящик целиком; отправка, удаление, изменение писем и скачивание вложений не поддерживаются. Для нового аккаунта сначала отключите прежний.</p>
+      <label>Пароль Vault этого desktop для настройки Gmail<input id="gmail-password" type="password" maxlength="1024" autocomplete="off"></label>
+      <div class="actions"><button id="gmail-import-host" type="button" class="secondary">Перенести Gmail из Igorek Vault этого ПК</button><button id="gmail-configure" type="button" class="secondary">Выбрать файл OAuth-клиента</button><button id="gmail-connect" type="button">Войти в Google</button><button id="gmail-disconnect" type="button" class="secondary">Отозвать доступ Google</button><button id="gmail-refresh" type="button" class="secondary">Проверить состояние</button></div>
+      <p id="gmail-status" role="status">Для переноса Gmail сначала введите пароль Vault этого desktop. Проверить состояние можно без повторного ввода пароля.</p>
+      </details>
+      <details id="mcp-access-details" class="settings-details"><summary>Права доступа моделей</summary>
+      <h3>Кому разрешены подключения</h3>
+      <p>Каждому подключению можно разрешить доступ отдельным профилям. По умолчанию доступ запрещён. Изменение адреса или параметров профиля требует нового разрешения.</p>
+      <form id="mcp-access-form" hidden>
+        <label>Подключение MCP<select id="mcp-server" required></select></label>
+        <label>Профиль модели<select id="mcp-profile" required></select></label>
+        <label>Доступ<select id="mcp-mode"><option value="deny">Запрещён</option><option value="local_only">Только локальная обработка</option><option value="allow">Разрешён этому профилю</option></select></label>
+        <p class="note">Режим «Только локальная обработка» работает в отдельной MCP-задаче через «+» в чате или в форме ниже. Обычный агент не получает этот доступ. Обычное разрешение может передать результаты выбранной модели, включая облачную. Права MCP не ограничивают произвольные команды того же пользователя ОС.</p>
+        <label>Подтвердите паролем Vault<input id="mcp-password" type="password" maxlength="1024" autocomplete="off" required></label>
+        <button type="submit">Сохранить доступ</button>
+      </form>
+      </details>
+      <details id="private-mcp-details" class="settings-details"><summary>Отдельная задача MCP</summary>
+      <h3>Отдельная обработка MCP</h3>
+      <p>Использует выбранные выше MCP и проверенный профиль с форматом OpenAI. При доступе «Только локальная обработка» разрешён только локальный адрес модели; обычное разрешение допускает отправку выбранной облачной модели. Контекст не сохраняется в общую историю и не передаётся в обычный чат. Доступны только инструменты выбранного MCP, без файловых и командных инструментов Игорька. Каждый запрос начинает новую сессию. Доверяйте только известным MCP и серверу модели.</p>
+      <form id="private-mcp-form"><label>Задание<input id="private-mcp-message" type="text" maxlength="1024" required autocomplete="off"></label><button type="submit">Выполнить с выбранным доступом</button></form>
+      <button id="private-mcp-clear" type="button" class="secondary">Остановить и очистить</button>
+      <p id="private-mcp-status" role="status"></p><pre id="private-mcp-result"></pre>
+      </details>
+    </section>
+    <section id="plugin-settings" class="card panel" hidden>
+      <h2>Google Календарь</h2>
+      <div id="calendar-summary" class="settings-card-grid"></div>
+      <p class="note">Чтение — по разрешению модели. Создание и перенос событий требуют подтверждения в чате.</p>
+      <div class="actions"><button id="calendar-connect" type="button">Подключить Google Календарь</button></div>
+      <p id="calendar-profile-note"></p>
+      <p id="calendar-status" role="status"></p>
+      <details id="calendar-details" class="settings-details"><summary>Дополнительные настройки</summary>
+      <p>Авторизация вашего Google-аккаунта. Токены хранятся в Vault. Чтение доступно выбранной модели по разрешению MCP; создание и перенос события требуют отдельного подтверждения в чате.</p>
+      <p>Нажмите «Подключить Google Календарь» и подтвердите доступ в браузере. Сохранённые настройки Google приложение использует автоматически. После входа календарь проверится и включится сам.</p>
+<ol>
+        <li>В Google Cloud Console выберите свой проект и включите Google Calendar API.</li>
+        <li>В Google Auth Platform заполните Branding. Для личного аккаунта выберите Audience → External; в режиме Testing добавьте свой адрес в Test users.</li>
+        <li>В Data Access добавьте calendar.events.owned, calendar.calendarlist.readonly и calendar.events.freebusy (полные адреса начинаются с https://www.googleapis.com/auth/).</li>
+        <li>В Clients создайте OAuth client типа Desktop app и скачайте его JSON. Адрес перенаправления вручную добавлять не нужно.</li>
+        <li>Если сохранённого подключения Google ещё нет, введите пароль Vault и выберите JSON кнопкой ниже. Затем нажмите «Подключить Google Календарь» и подтвердите доступ в браузере.</li>
+        <li>После входа приложение само проверит календарь и выдаст доступ выбранной модели. Ниже можно выбрать другой собственный календарь или изменить разрешения.</li>
+      </ol>
+      <label>Пароль Vault этого desktop<input id="calendar-password" type="password" maxlength="1024" autocomplete="off"></label>
+      <div class="actions"><button id="calendar-configure" class="secondary" type="button">Выбрать OAuth JSON</button><button id="calendar-check" class="secondary" type="button">Проверить и включить</button><button id="calendar-disconnect" class="secondary" type="button">Отключить</button></div>
+      <div class="actions"><button id="calendar-load" class="secondary" type="button">Загрузить мои календари</button></div>
+      <label>Календарь<select id="calendar-selected"></select></label>
+      <div class="actions"><button id="calendar-select" class="secondary" type="button">Сохранить календарь</button><button id="calendar-permissions" class="secondary" type="button">Разрешения модели</button></div>
+      <p class="note">Доступ ограничен вашими собственными календарями. Для проверки записи выберите отдельный тестовый календарь. Подключение OpenAI Docs и состояния обоих плагинов находятся на странице «Плагины» в основном окне. Отключение Календаря в Игорьке сохраняет подключение Gmail.</p></details>
+    </section>
+    <section id="voice-setup" class="card panel" hidden aria-label="Голосовая модель">
+      <div class="section-toolbar"><h2>Голосовая модель</h2><button id="voice-add" type="button">Подключить голос</button></div>
+      <div id="voice-summary" class="settings-card-grid"></div>
+      <p id="voice-status" role="status"></p>
+      <p class="note">Голос использует отдельный API-ключ OpenAI. Основная модель задач сохраняется.</p>
+      <div id="voice-editor" class="settings-editor" hidden>
+        <div class="section-toolbar"><h3>Подключение OpenAI Realtime</h3><button id="voice-editor-close" type="button" class="secondary">Закрыть</button></div>
+        <p class="note">Ключ хранится в Vault. Для звонков используется gpt-realtime-2.1-mini; подключение проверится после сохранения.</p>
+      <form id="voice-form">
+        <label>API-ключ OpenAI<input id="voice-key" type="password" maxlength="1024" autocomplete="off" required></label>
+        <button id="voice-submit" type="submit">Сохранить ключ и проверить</button>
+      </form>
+      </div>
+    </section>
+
+    <section id="image-setup" class="card panel">
+      <h2>Режим выполнения</h2>
+      <label>Где выполняются задачи<select id="execution-mode"><option value="off">На этом компьютере — без KVM</option><option value="kvm">В виртуальной машине — KVM</option></select></label>
+      <button id="execution-save" class="secondary" type="button" disabled data-unavailable="true">Сохранить режим</button>
+      <p id="execution-status" role="status">Читаю выбранный режим…</p>
+      <p class="note">Режим меняется при открытом хранилище и остановленном исполнителе. Он применяется при следующем запуске. Если выбран KVM, ошибка образа или виртуализации остановит задачу: перехода к выполнению на этом компьютере не будет.</p>
+      <details id="execution-advanced" class="settings-details"><summary>Дополнительно: образ KVM</summary>
+      <h3>Образ для изолированного режима</h3>
+      <p>Установленный пакет образа найдётся автоматически. Если пакета нет, выберите готовый файл .qcow2 с файлом .manifest.json рядом. Проверим версию и целостность и сохраним отдельную копию для desktop. Исходный образ не меняется.</p>
+      <button id="image-choose" class="secondary" type="button" disabled data-unavailable="true">Подготовить образ</button>
+      <button id="image-recover" class="secondary" type="button" disabled data-unavailable="true">Восстановить образ</button>
+      <p id="image-status" role="status">Для подготовки откройте хранилище и остановите исполнитель.</p>
+      <p class="note">Подготовка может занять несколько минут. Можно вернуться в чат: операция продолжится, пока приложение открыто. Не закрывайте приложение до окончания. После подготовки выберите KVM и запустите проверенный профиль. Успешный запуск самого исполнителя ещё не подтверждает работу задачи в госте.</p>
+      </details>
+    </section>
+
+    <section id="computer-check" class="card panel">
+      <h2>Проверка компьютера</h2>
+      <p>Проверим систему, доступ к каталогу данных, память, диск и компоненты виртуализации. Проверка ничего не устанавливает, не меняет настройки, не читает ключи и не запускает модель или ВМ.</p>
+      <button id="readiness-check" type="button" class="secondary">Проверить компьютер</button>
+      <p id="readiness-status" role="status"></p>
+      <p id="readiness-summary" class="status-summary" role="status"></p>
+      <div id="readiness-results"></div>
+      <p class="note">Компоненты KVM нужны для выбранного изолированного режима. Без него задачи выполняются на этом компьютере. Минимальные требования по памяти и диску ещё измеряются; этот отчёт не подтверждает полную готовность приложения.</p>
+    </section>
+
+    <section id="workspace-setup" class="card panel" hidden>
+      <h2>Первое рабочее место</h2>
+      <p>Выберите отдельную папку для знакомства. Игорёк может менять файлы в выбранной папке. В режиме без KVM папка не является защитной границей доступа; в KVM она передаётся в виртуальную машину.</p>
+      <button id="workspace-choose" type="button" class="secondary">Выбрать папку</button>
+      <p id="workspace-path" class="note">Папка пока не выбрана.</p>
+      <button id="workspace-open" type="button" disabled data-unavailable="true">Создать первую сессию</button>
+      <p class="note">Сначала запустите профиль. В чате откроется форма новой сессии с выбранной папкой. После создания появится пример задания: создать небольшой Markdown-файл и прочитать его. Запрос начнётся только после нажатия «Отправить»; пример можно изменить или удалить. Если появится запрос записи файла, проверьте путь и нажмите «Разрешить», чтобы продолжить.</p>
+      <p id="workspace-status" role="status"></p>
+    </section>
+
+    <section id="mobile-settings" class="card panel" hidden>
+      <div class="storage-summary"><span class="profile-logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M10 18h4"/></svg></span><div class="profile-identity"><strong class="profile-name">Мобильные устройства</strong><span class="profile-model">Профиль и инструменты этого десктопного Игорька</span></div></div>
+      <p class="note">Запустите нужный профиль в разделе «Основная модель». На телефоне: настройки → Подключить по QR-коду. Повторный вход в ChatGPT не нужен.</p>
+      <details id="mobile-network" class="mobile-pairing-manual" open>
+        <summary>Адрес и порт подключения</summary>
+        <div class="mobile-network-fields"><label>Публичный адрес для телефона<input id="mobile-public-url" type="text" maxlength="1024" placeholder="https://ваш-публичный-IP:47823" autocomplete="off" spellcheck="false"></label><label>Порт на этом ПК<input id="mobile-port" type="number" min="1024" max="65535" step="1" value="47823"></label></div>
+        <p class="note">Для доступа с работы укажите статический IP или домен и внешний порт роутера. Этот адрес попадёт в QR. В роутере внешний TCP-порт должен вести на порт этого ПК, разрешённый в firewall. Пустой адрес — подключение по домашней сети.</p>
+      </details>
+      <div class="actions"><button id="mobile-start" type="button">Установить сопряжение</button><button id="mobile-stop" type="button" class="secondary">Отключить доступ</button></div>
+      <div id="mobile-result" hidden></div><div id="mobile-devices" class="settings-card-grid"></div><p id="mobile-status" role="status"></p>
+    </section>
+
+    <section id="data-dashboard" class="card panel">
+      <div class="storage-summary"><span class="profile-logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10H3z"/><path d="M3 10h18"/></svg></span><div class="profile-identity"><strong class="profile-name">Места хранения</strong><span class="profile-model">Настройки, ключи, история и рабочие файлы</span></div><button id="locations-show" type="button" class="secondary" aria-expanded="false">Показать пути</button></div>
+      <details class="storage-help"><summary>Что хранится на этом компьютере</summary><p>Это места хранения отдельного десктопного экземпляра на этом компьютере. Данные рабочей установки Игорька не перенесены сюда автоматически.</p>
+
+      <p class="note">Ключи API-подключений зашифрованы в Vault. История чатов, файлы, журналы и настройки профилей не входят в копию восстановления ключей. Файлы задачи находятся в папке выбранной сессии; папка по умолчанию указана отдельно.</p></details>
+      <div id="locations-list" hidden></div>
+      <p id="locations-status" role="status"></p>
+    </section>
+
+    <section id="password-settings" class="card panel" hidden>
+      <h2>Пароль и блокировка</h2>
+      <p>Необязательная блокировка закрывает настройки и оставляет задачу работать. По умолчанию выключена. Для защиты всего компьютера используйте блокировку Ubuntu.</p>
+      <form id="lock-option-form">
+        <label class="lock-option"><input id="lock-option-enabled" type="checkbox"> Разрешить блокировку настроек</label>
+        <label>Подтвердите паролем Vault<input id="lock-option-password" type="password" maxlength="1024" autocomplete="off" required></label>
+        <button type="submit">Сохранить выбор</button>
+      </form>
+      <div id="optional-lock-controls" hidden>
+      <button id="security-lock-interface" type="button" class="secondary">Заблокировать окно настройки</button>
+      <h3>Быстрый доступ по PIN</h3>
+      <p>Шесть цифр открывают только заблокированное окно настройки до полного закрытия приложения. При новом запуске, просмотре ключей и восстановлении нужен полный пароль Vault.</p>
+      <p id="pin-status" role="status"></p>
+      <form id="pin-settings-form">
+        <label>Пароль хранилища<input id="pin-password" type="password" maxlength="1024" autocomplete="off" required></label>
+        <label>Новый PIN — 6 цифр<input id="pin-new" type="password" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" autocomplete="off" required></label>
+        <label>Повторите PIN<input id="pin-repeat" type="password" inputmode="numeric" pattern="[0-9]{6}" minlength="6" maxlength="6" autocomplete="off" required></label>
+        <button type="submit">Задать PIN на текущий запуск</button>
+        <button id="pin-remove" type="button" class="secondary">Отключить PIN с паролем</button>
+      </form>
+      </div>
+      <h3>Сменить пароль хранилища</h3>
+      <p>Сначала остановите исполнитель. Старый пароль будет заменён новым; ключи и подключения сохранятся. Отдельная копия восстановления продолжит открываться своей фразой.</p>
+      <form id="password-form">
+        <label>Текущий пароль<input id="password-current" type="password" maxlength="1024" autocomplete="off" required></label>
+        <label>Новый пароль<input id="password-new" type="password" maxlength="1024" autocomplete="off" required></label>
+        <label>Повторите новый пароль<input id="password-new-repeat" type="password" maxlength="1024" autocomplete="off" required></label>
+        <button type="submit">Сменить пароль</button>
+      </form>
+      <p id="password-status" role="status"></p>
+    </section>
+
+    <section id="restoration" class="card panel" hidden>
+      <h2>Уже есть копия?</h2>
+      <p>Восстановите ключи из файла вместо создания пустого хранилища. Нужны фраза от копии и новый пароль. Старый пароль не требуется.</p>
+      <p>Восстановление доступно только до создания хранилища. Чаты и остальные настройки приложения в копию ключей не входят.</p>
+      <form id="restore-form">
+        <label>Фраза восстановления<input id="restore-phrase" type="password" maxlength="1024" autocomplete="off" required></label>
+        <label>Новый пароль хранилища<input id="restore-password" type="password" maxlength="1024" autocomplete="off" required></label>
+        <label>Повторите новый пароль<input id="restore-repeat" type="password" maxlength="1024" autocomplete="off" required></label>
+        <button type="submit">Выбрать копию и восстановить</button>
+      </form>
+    </section>
+
+    <section id="recovery" class="card panel" hidden>
+      <h2>Копия восстановления</h2>
+      <p>Копия содержит ключи, их описания и сохранённые подключения моделей. История чатов и остальные настройки приложения в неё не входят. Обновляйте копию после изменения ключей или подключения.</p>
+      <p>Сохраните файл и отдельную фразу в разных местах. Вместе они позволяют восстановить ключи без старого пароля.</p>
+      <p id="recovery-step" role="status">Шаг 1 из 2. Подготовьте фразу и сохраните её отдельно.</p>
+      <form id="recovery-form">
+        <label>Фраза восстановления<input id="recovery-phrase" type="text" maxlength="1024" autocomplete="off" spellcheck="false" required></label>
+        <div id="recovery-prepare">
+          <p class="note">Создайте случайную фразу или введите свою. Сохраните её в менеджере паролей либо другом отдельном месте: приложение не сможет напомнить эту фразу.</p>
+          <button id="generate" class="secondary" type="button">Создать случайную фразу</button>
+          <button id="recovery-next" type="button">Фраза сохранена, продолжить</button>
+        </div>
+        <fieldset id="recovery-confirmation" hidden disabled>
+          <legend>Шаг 2. Подтвердите фразу и сохраните файл</legend>
+          <p class="note">Повторите фразу из места, куда вы её сохранили. Затем введите пароль хранилища и выберите место для файла. Приложение сразу проверит восстановление из сохранённого файла.</p>
+          <label>Повторите сохранённую фразу<input id="recovery-repeat" type="password" maxlength="1024" autocomplete="off" required></label>
+          <label class="check"><input id="phrase-saved" type="checkbox" required> Я сохранил фразу отдельно от файла копии</label>
+          <label>Текущий пароль хранилища<input id="recovery-password" type="password" maxlength="1024" autocomplete="off" required></label>
+          <button type="submit">Выбрать файл, сохранить и проверить</button>
+          <button id="recovery-back" type="button" class="secondary">Назад к фразе</button>
+        </fieldset>
+      </form>
+    </section>
+
+    <section id="verification" class="card panel" hidden>
+      <h2>Проверить имеющуюся копию</h2>
+      <p>Выберите файл и введите его фразу. Проверка пробует восстановить ключи во временное хранилище. Текущий Vault не меняется.</p>
+      <form id="verify-form">
+        <label>Фраза от этой копии<input id="verify-phrase" type="password" maxlength="1024" autocomplete="off" required></label>
+        <button type="submit" class="secondary">Выбрать файл и проверить</button>
+      </form>
+    </section>
+
+    <p id="recovery-status" role="status"></p>
+    <p class="note footer">При каждом открытии разблокируйте хранилище и запустите нужный профиль. Режим выполнения выбирается в разделе «Среда выполнения». Во время задачи сначала дождитесь её завершения или отмените её в чате.</p>
+    </div>
+    <aside class="section-guide" aria-label="Подсказка к разделу">
+      <div id="mascot-stage" class="mascot-stage" data-pose="vault"><img id="settings-mascot" src="assets/evil-octopus.png" alt="Осьминог Игорёк" width="240" height="240"></div>
+      <small>ИГОРЁК РЯДОМ</small><h3 id="guide-title">Начнём с защиты ключей</h3><p id="guide-text"></p>
+      <ol id="guide-steps"></ol><p class="guide-security">Ключи зашифрованы на этом компьютере. Пароль хранилища не сохраняется.</p>
+    </aside>
+  </div>
+</main>
+<dialog id="secret-dialog" aria-labelledby="secret-title" aria-describedby="secret-description">
+  <form id="secret-form">
+    <small>ТОЛЬКО ДЛЯ ВЛАДЕЛЬЦА</small>
+    <h2 id="secret-title">Посмотреть сохранённое значение</h2>
+    <p id="secret-description">Для каждого просмотра введите текущий пароль хранилища. Значение скроется через 15 секунд или при переключении окна.</p>
+    <p id="secret-profile"></p>
+    <label id="secret-auth">Пароль хранилища<input id="secret-password" type="password" maxlength="1024" autocomplete="off" required></label>
+    <output id="secret-value" hidden aria-label="Сохранённый ключ"></output>
+    <p id="secret-status" role="status"></p>
+    <div class="actions"><button id="secret-show" type="submit">Показать на 15 секунд</button><button id="secret-close" type="button" class="secondary">Закрыть</button></div>
+  </form>
+</dialog>
+<dialog id="env-import-dialog" aria-labelledby="env-import-title">
+  <form id="env-import-form">
+    <small>ПЕРЕНОС В ХРАНИЛИЩЕ</small><h2 id="env-import-title">Перенести секреты и переменные</h2>
+    <p id="env-import-source"></p>
+    <p>Выбери записи и их тип. Значения скрыты и будут зашифрованы в Vault. Существующие записи не заменяются; исходный файл останется на месте.</p>
+    <label class="check"><input id="env-import-all" type="checkbox" checked> Выбрать все доступные</label>
+    <div class="vault-table-wrap env-preview-wrap"><table class="vault-table env-preview-table" aria-label="Записи для переноса">
+      <thead><tr><th scope="col">Выбор</th><th scope="col">Имя</th><th scope="col">Тип</th><th scope="col">Состояние</th></tr></thead><tbody id="env-import-rows"></tbody>
+    </table></div>
+    <p id="env-import-count" role="status"></p>
+    <label>Пароль Vault<input id="env-import-password" type="password" maxlength="1024" autocomplete="off" required></label>
+    <p id="env-import-status" role="alert"></p>
+    <p class="note">Поддерживаются однострочные записи KEY=value, кавычки и export. Ссылки на переменные и команды сохраняются как текст. Список действует 5 минут. Доступ сервисам задаётся отдельно кнопкой «Доступ».</p>
+    <div class="actions"><button id="env-import-submit" type="submit">Перенести выбранное</button><button id="env-import-close" type="button" class="secondary">Отмена</button></div>
+  </form>
+</dialog>
+<dialog id="value-access-dialog" aria-labelledby="value-access-title">
+  <form id="value-access-form">
+    <h2 id="value-access-title">Доступ к записи</h2><p id="value-access-name"></p>
+    <p>Разрешение действует только для выбранного сервиса и профиля. Само подключение должно быть разрешено в разделе «Доступ MCP». Обычные команды агента и другие сервисы эту запись автоматически не получают.</p>
+    <p id="value-access-list-status" role="status"></p><div id="value-access-grants"></div>
+    <button id="value-access-new" type="button" class="secondary">Новое разрешение</button>
+    <fieldset id="value-access-fields">
+      <label>Сервис MCP<select id="value-access-server" required></select></label>
+      <label>Профиль модели<select id="value-access-profile" required></select></label>
+      <label>Имя переменной для сервиса<input id="value-access-env" type="text" maxlength="128" pattern="[A-Za-z_][A-Za-z0-9_]{0,127}" placeholder="Например, TAVILY_API_KEY" autocomplete="off" required></label>
+    </fieldset>
+    <p id="value-access-operation"></p>
+    <label>Текущий пароль Vault<input id="value-access-password" type="password" maxlength="1024" autocomplete="off" required></label>
+    <p id="value-access-status" role="alert"></p>
+    <p class="note">После изменения записи, профиля или команды сервиса подтвердите доступ заново. Отзыв блокирует следующие вызовы и выдачу ещё не полученного результата. Уже переданное процессу значение и полученные ответы нельзя забрать обратно.</p>
+    <button id="value-access-submit" type="submit">Разрешить доступ</button><button id="value-access-close" type="button" class="secondary">Закрыть</button>
+  </form>
+</dialog>
+<dialog id="value-dialog" aria-labelledby="value-title">
+  <form id="value-form">
+    <h2 id="value-title">Запись Vault</h2><p id="value-note"></p>
+    <fieldset id="value-fields">
+      <label>Имя<input id="value-name" type="text" maxlength="128" autocomplete="off" required></label>
+      <label>Тип<select id="value-kind"><option value="secret">Секрет</option><option value="variable">Переменная</option></select></label>
+      <p class="note">Для переменной используйте латинские буквы, цифры и подчёркивание; первый символ — буква или подчёркивание. Значение переменной может быть пустым.</p>
+      <label>Новое значение<input id="value-input" type="password" maxlength="1024" autocomplete="off" spellcheck="false"></label>
+    </fieldset>
+    <label>Текущий пароль Vault<input id="value-password" type="password" maxlength="1024" autocomplete="off" required></label>
+    <p id="value-status" role="alert"></p>
+    <button id="value-submit" type="submit">Сохранить</button><button id="value-cancel" type="button" class="secondary">Отмена</button>
+  </form>
+</dialog>
+<dialog id="profile-manage-dialog" aria-labelledby="profile-manage-title">
+  <form id="profile-manage-form">
+    <h2 id="profile-manage-title"></h2><p id="profile-manage-note"></p>
+    <label id="profile-rename-label">Новое имя<input id="profile-rename" type="text" maxlength="40" pattern="[a-z][a-z0-9\-]{0,39}"></label>
+    <label>Пароль Vault<input id="profile-manage-password" type="password" maxlength="1024" autocomplete="off" required></label>
+    <p id="profile-manage-status" role="alert"></p>
+    <button type="submit">Подтвердить</button><button id="profile-manage-cancel" type="button" class="secondary">Отмена</button>
+  </form>
+</dialog>
+<script src="onboarding-state.cjs"></script>
+<script src="profile-cards.cjs"></script>
+<script src="completion-sound-settings.js"></script>
+<script src="owner-ui.js"></script>
+</html>

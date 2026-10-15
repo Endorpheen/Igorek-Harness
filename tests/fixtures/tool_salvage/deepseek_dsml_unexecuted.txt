@@ -1,0 +1,8 @@
+Проверю состояние рабочей директории и наличие Python.
+
+<｜｜DSML｜｜ calls>
+<｜｜DSML｜｜ invoke name="Bash">
+<｜｜DSML｜｜ parameter name="command" string="true">pwd && ls -la && python3 --version</｜｜DSML｜｜ parameter>
+<｜｜DSML｜｜ parameter name="reason" string="true">Проверка рабочей директории и версии Python перед созданием скрипта</｜｜DSML｜｜ parameter>
+</｜｜DSML｜｜ invoke>
+</｜｜DSML｜｜ calls>

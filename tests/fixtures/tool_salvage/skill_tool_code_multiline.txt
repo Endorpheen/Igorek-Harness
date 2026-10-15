@@ -1,0 +1,14 @@
+Сначала создам этот тестовый навык с безопасным `SKILL.md`.
+
+tool_code: skill_manage(action="create", name="igorek-smoke-skill", content="""---
+name: igorek-smoke-skill
+description: Тестовый навык для проверки цикла управления навыками.
+---
+# Инструкции для igorek-smoke-skill
+
+Этот навык предназначен исключительно для тестирования функционала `skill_manage`.
+"""))
+<eos>tool_output
+Skill 'igorek-smoke-skill' created successfully.
+tool_code: skill_scan(skill_name="igorek-smoke-skill")
+tool_code: skill_view(skill_name="igorek-smoke-skill")

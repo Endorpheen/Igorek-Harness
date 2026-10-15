@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ru">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Сочетания клавиш — Игорёк</title>
+<link rel="stylesheet" href="shortcuts.css">
+<main>
+  <header class="heading"><h1>Сочетания клавиш</h1><button id="reset" class="secondary" type="button">Восстановить стандартные</button></header>
+  <div class="search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="10" r="7"/><path d="m15 15 6 6"/></svg><input id="search" type="search" placeholder="Поиск сочетаний клавиш" aria-label="Поиск сочетаний клавиш" autocomplete="off"></div>
+  <p class="note">Сочетания действуют в Игорьке. Переключение чатов и фокус на вводе работают, когда активна рабочая область чата.</p>
+  <p id="error" role="alert"></p>
+  <section id="list" aria-label="Действия и сочетания клавиш"></section>
+  <p id="empty" hidden>Ничего не найдено</p>
+</main>
+<dialog id="capture">
+  <h2 id="capture-title">Назначить сочетание</h2>
+  <p>Нажми нужное сочетание на клавиатуре. Esc — отмена.</p>
+  <div id="captured" aria-live="polite">Ожидание клавиш…</div>
+  <p id="capture-error" role="alert"></p>
+  <footer><button id="cancel" class="secondary" type="button">Отмена</button><button id="save" type="button" disabled>Сохранить</button></footer>
+</dialog>
+<dialog id="reset-confirm"><h2>Восстановить стандартные сочетания?</h2><p>Твои назначения будут заменены исходными.</p><footer><button id="reset-cancel" class="secondary" type="button">Отмена</button><button id="reset-save" type="button">Восстановить</button></footer></dialog>
+<script src="shortcuts-ui.js"></script>
+</html>

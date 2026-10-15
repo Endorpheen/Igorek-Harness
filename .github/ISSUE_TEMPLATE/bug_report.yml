@@ -1,0 +1,32 @@
+name: Bug report
+description: Report a reproducible problem without personal data or credentials.
+body:
+  - type: markdown
+    attributes:
+      value: "For vulnerabilities, use Security → Advisories → Report a vulnerability. Do not include credentials or private conversations."
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Operating system and interface
+      description: Include the OS version, architecture and desktop, Android, Web UI or CLI.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Minimal steps using synthetic files and accounts.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true

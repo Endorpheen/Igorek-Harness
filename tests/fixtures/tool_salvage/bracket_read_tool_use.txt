@@ -1,0 +1,3 @@
+Прочту файл Ledger.md.
+
+[tool_use id=toolu_394817f470124815b7d0f091 name=Read input={"file_path": "/home/example/AI/paroquant-test/Ledger.md", "offset": 1, "limit": 80}]

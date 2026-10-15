@@ -1,0 +1,14 @@
+Я начну с получения различий (diff) для указанных файлов в контексте коммита.
+
+Bash для выполнения команд внутри репозитория:
+```bash
+git -C /home/example/AI/paroquant-test diff 261a702 -- factory/core/tool_call_salvage.py
+git -C /home/example/AI/paroquant-test diff 261a702 -- tests/test_tool_call_salvage.py
+```
+
+Я выполню эти команды последовательно.
+
+Bash:
+```bash
+git -C /home/example/AI/paroquant-test diff 261a702 -- factory/core/tool_call_salvage.py
+```

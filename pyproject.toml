@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools==80.9.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.uv]
+link-mode = "copy"
+
+[tool.setuptools.packages.find]
+include = ["factory*"]
+exclude = ["factory.tests*"]
+
+# Include bundled profiles, runtime configuration and nested browser assets.
+[tool.setuptools.package-data]
+factory = [
+    "config/*.yaml",
+    "config/*.env",
+    "config/profiles/*.json",
+    "mcp_servers/*.mjs",
+    "web_ui/static/*",
+    "web_ui/static/audio/*",
+    "web_ui/static/vendor/*",
+    "web_ui/static/workers/*",
+]
+
+[project]
+name = "igorek-agent-factory"
+version = "0.2.0"
+description = "A personal AI agent workspace with desktop, mobile and terminal interfaces"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE", "docs/licenses/*.txt"]
+requires-python = ">=3.13"
+
+dependencies = [
+    "markdown-it-py",
+    "rich",
+    "prompt-toolkit",
+    "pyyaml",
+    "cryptography>=42.0.0",
+    "pydantic>=2.7.0",
+    "agent-client-protocol>=0.9.0,<1.0",
+    "numpy",
+    "qrcode==8.2",
+    "pywinpty==3.0.5 ; sys_platform == 'win32'",
+]
+
+[project.scripts]
+igorek-factory = "factory.cli:main"
+factory-acp = "factory.core.acp_bridge.entry:main"
+igorek-sudo = "factory.core.sudo_broker:main"
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-cov>=6,<8",
+    "pytest-timeout>=2,<3",
+    "ruff>=0.14,<1",
+    "tree-sitter==0.25.2",
+    "tree-sitter-language-pack==0.10.0",
+]

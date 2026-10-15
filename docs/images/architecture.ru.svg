@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="990" viewBox="0 0 1280 990" role="img" aria-labelledby="diagram-title diagram-description" xml:lang="ru">
+<title id="diagram-title">Архитектура Игорька</title>
+<desc id="diagram-description">Desktop, Web UI и Android связаны с общими сессиями и очередью задач. CLI и Telegram выбирают маршрут по профилю; ACP вызывает исполнитель агента напрямую. Исполнители профилей обращаются к моделям, инструментам, скиллам и MCP. Vault предоставляет разрешённый доступ; задачи выполняются на хосте или в опциональном Linux KVM. Панели ChatGPT и рабочие области OpenCode имеют отдельные сессии.</desc>
+<defs>
+ <marker id="arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto" markerUnits="userSpaceOnUse"><path d="M0 0 7 3.5 0 7Z" fill="#65897d"/></marker>
+</defs>
+<style>
+ text { font-family: 'DejaVu Sans', Arial, sans-serif; fill:#183a32; }
+ .title { font-size:32px; font-weight:700; letter-spacing:-.6px; }
+ .subtitle { font-size:16px; fill:#5d716a; }
+ .eyebrow { font-size:12px; font-weight:700; letter-spacing:2px; fill:#34755f; }
+ .node-title { font-size:21px; font-weight:700; letter-spacing:-.3px; }
+ .client-title { font-size:17px; font-weight:700; }
+ .side-title { font-size:18px; font-weight:700; }
+ .side-body { font-size:15px; fill:#536c61; }
+ .body { font-size:16px; fill:#536c61; }
+ .client-body { font-size:14px; fill:#536c61; }
+ .small { font-size:12px; fill:#60786e; }
+ .badge { font-size:12px; font-weight:700; fill:#34755f; }
+ .connection { fill:none; stroke:#85a096; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+ .policy { fill:none; stroke:#85a096; stroke-width:1.6; stroke-dasharray:4 5; stroke-linecap:round; }
+ .icon { fill:none; stroke:#34755f; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+</style>
+<rect width="1280" height="990" rx="24" fill="#f8faf9"/>
+
+<text x="48" y="43" class="eyebrow">IGOREK / ОБЗОР СИСТЕМЫ</text>
+<text x="48" y="84" class="title">Архитектура Игорька</text>
+<text x="48" y="114" class="subtitle">Общая схема интерфейсов, выполнения задач и подключаемых возможностей.</text>
+<rect x="48" y="152" width="224" height="108" rx="14" fill="#ffffff" stroke="#d9e4de"/>
+<rect x="64" y="168" width="30" height="30" rx="8" fill="#eaf3ed" stroke="#eaf3ed"/>
+<g class="icon" transform="translate(66 170) scale(.86)"><rect x="3" y="4" width="22" height="15" rx="2"/><path d="M9 24h10M14 19v5"/></g>
+<text x="104" y="190" class="client-title">Desktop</text>
+<text x="64" y="218" class="client-body">Electron · чат и файлы</text>
+<text x="64" y="240" class="client-body">ChatGPT / OpenCode*</text>
+<path d="M160 260V288" class="connection"/>
+<rect x="288" y="152" width="224" height="108" rx="14" fill="#ffffff" stroke="#d9e4de"/>
+<rect x="304" y="168" width="30" height="30" rx="8" fill="#eaf3ed" stroke="#eaf3ed"/>
+<g class="icon" transform="translate(306 170) scale(.86)"><circle cx="14" cy="14" r="11"/><path d="M3 14h22M14 3c7 6 7 16 0 22M14 3c-7 6-7 16 0 22"/></g>
+<text x="344" y="190" class="client-title">Web UI</text>
+<text x="304" y="218" class="client-body">Локальный HTTPS</text>
+<text x="304" y="240" class="client-body">Общий интерфейс чата</text>
+<path d="M400 260V288" class="connection"/>
+<rect x="528" y="152" width="224" height="108" rx="14" fill="#ffffff" stroke="#d9e4de"/>
+<rect x="544" y="168" width="30" height="30" rx="8" fill="#eaf3ed" stroke="#eaf3ed"/>
+<g class="icon" transform="translate(546 170) scale(.86)"><rect x="7" y="2" width="14" height="24" rx="3"/><path d="M12 22h4"/></g>
+<text x="584" y="190" class="client-title">Android</text>
+<text x="544" y="218" class="client-body">Удалённое управление</text>
+<text x="544" y="240" class="client-body">Защищённое сопряжение</text>
+<path d="M640 260V288" class="connection"/>
+<rect x="768" y="152" width="224" height="108" rx="14" fill="#ffffff" stroke="#d9e4de"/>
+<rect x="784" y="168" width="30" height="30" rx="8" fill="#eaf3ed" stroke="#eaf3ed"/>
+<g class="icon" transform="translate(786 170) scale(.86)"><rect x="2" y="4" width="24" height="20" rx="3"/><path d="m7 10 4 4-4 4M15 18h6"/></g>
+<text x="824" y="190" class="client-title">CLI + Telegram</text>
+<text x="784" y="218" class="client-body">Терминал и чат с ботом</text>
+<text x="784" y="240" class="client-body">Маршрут по профилю</text>
+<path d="M880 260V288" class="connection"/>
+<rect x="1008" y="152" width="224" height="108" rx="14" fill="#ffffff" stroke="#d9e4de"/>
+<rect x="1024" y="168" width="30" height="30" rx="8" fill="#eaf3ed" stroke="#eaf3ed"/>
+<g class="icon" transform="translate(1026 170) scale(.86)"><path d="M3 4h22v16H12l-6 5v-5H3ZM8 10h12M8 14h8"/></g>
+<text x="1064" y="190" class="client-title">ACP</text>
+<text x="1024" y="218" class="client-body">Протокол редакторов</text>
+<text x="1024" y="240" class="client-body">Прямой вызов агента</text>
+<path d="M1120 260V310H976V548H943" class="connection" marker-end="url(#arrow)"/>
+<path d="M160 288H880" class="connection"/>
+<path d="M880 274H976V310" class="connection"/>
+<text x="986" y="290" class="small">Нативный маршрут</text>
+<text x="986" y="359" class="small">Прямые адаптеры</text>
+<path d="M640 288V322" class="connection" marker-end="url(#arrow)"/>
+<text x="654" y="313" class="small">Путь задачи</text>
+<rect x="320" y="330" width="640" height="320" rx="20" fill="#edf4ef" stroke="#c9ddd0"/>
+<text x="344" y="360" class="eyebrow">ОБЩЕЕ ЯДРО АГЕНТА</text>
+<rect x="344" y="384" width="592" height="88" rx="14" fill="#ffffff" stroke="#d9e4de"/>
+<text x="368" y="418" class="node-title">Сессии и очередь задач</text>
+<text x="368" y="446" class="body">История · память · расписания · события</text>
+<path d="M640 472V510" class="connection" marker-end="url(#arrow)"/>
+<text x="655" y="501" class="small">Из очереди</text>
+<rect x="344" y="518" width="592" height="108" rx="14" fill="#ffffff" stroke="#a9c5b6"/>
+<rect x="344" y="534" width="4" height="76" rx="2" fill="#34755f"/>
+<text x="368" y="552" class="node-title">Исполнители и цикл агента</text>
+<text x="368" y="580" class="body">Профильные исполнители · адаптеры</text>
+<text x="368" y="604" class="body">Вызовы модели · контекст · результаты</text>
+<rect x="48" y="384" width="240" height="242" rx="14" fill="#ffffff" stroke="#d9e4de"/>
+<text x="68" y="420" class="side-title">Vault и доступ</text>
+<text x="68" y="454" class="side-body">Шифрование ключей</text>
+<text x="68" y="481" class="side-body">Профили моделей</text>
+<text x="68" y="508" class="side-body">Права на сервисы</text>
+<text x="68" y="535" class="side-body">Подтверждения действий</text>
+<text x="68" y="594" class="badge">Только разрешённый доступ</text>
+<path d="M288 570H337" class="policy" marker-end="url(#arrow)"/>
+<rect x="992" y="384" width="240" height="242" rx="14" fill="#ffffff" stroke="#d9e4de"/>
+<text x="1012" y="420" class="side-title">Среда исполнения</text>
+<text x="1012" y="454" class="side-body">Рабочая папка хоста</text>
+<text x="1012" y="484" class="side-body">Опциональный Linux KVM</text>
+<text x="1012" y="514" class="side-body">Проверки действий</text>
+<text x="1012" y="594" class="badge">Зависит от платформы</text>
+<path d="M936 570H985" class="connection" marker-end="url(#arrow)"/>
+<path d="M640 626V678" class="connection"/>
+<path d="M232 678H1048" class="connection"/>
+<path d="M232 678V708" class="connection" marker-end="url(#arrow)"/>
+<rect x="48" y="716" width="368" height="136" rx="14" fill="#ffffff" stroke="#d9e4de"/>
+<rect x="68" y="736" width="25" height="3" rx="1.5" fill="#34755f"/>
+<text x="68" y="771" class="node-title">Модели</text>
+<text x="68" y="802" class="body">Облачные и локальные модели</text>
+<text x="68" y="826" class="body">API-профили и backend-адаптеры</text>
+<path d="M640 678V708" class="connection" marker-end="url(#arrow)"/>
+<rect x="456" y="716" width="368" height="136" rx="14" fill="#ffffff" stroke="#d9e4de"/>
+<rect x="476" y="736" width="25" height="3" rx="1.5" fill="#34755f"/>
+<text x="476" y="771" class="node-title">Инструменты агента</text>
+<text x="476" y="802" class="body">Файлы · поиск · веб</text>
+<text x="476" y="826" class="body">Команды — где поддерживаются</text>
+<path d="M1048 678V708" class="connection" marker-end="url(#arrow)"/>
+<rect x="864" y="716" width="368" height="136" rx="14" fill="#ffffff" stroke="#d9e4de"/>
+<rect x="884" y="736" width="25" height="3" rx="1.5" fill="#34755f"/>
+<text x="884" y="771" class="node-title">Скиллы и MCP</text>
+<text x="884" y="802" class="body">Переиспользуемые инструкции</text>
+<text x="884" y="826" class="body">Доступ в рамках профиля</text>
+<rect x="48" y="884" width="1184" height="54" rx="10" fill="#edf3ef" stroke="#edf3ef"/>
+<text x="68" y="916" class="client-body">* Панели ChatGPT и рабочие области OpenCode 2 — соседние интеграции со своими сессиями.</text>
+<path d="M48 964H80" class="connection" marker-end="url(#arrow)"/>
+<text x="90" y="968" class="small">Связь компонентов</text>
+<path d="M360 964H392" class="policy" marker-end="url(#arrow)"/>
+<text x="402" y="968" class="small">Ключи и политика доступа</text>
+</svg>

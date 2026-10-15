@@ -1,0 +1,7 @@
+{"type":"thread.started","thread_id":"019de899-ee3d-7df1-a61e-6bf5bbf9d11a"}
+{"type":"turn.started"}
+{"timestamp":"2026-05-02T12:11:52.336Z","type":"response_item","payload":{"type":"function_call","name":"exec_command","arguments":"{\"cmd\": \"cat /home/example/AI/paroquant-test/handoff.md 2>/dev/null || echo \\\"HANDOFF_NOT_FOUND\\\"\"}","call_id":"call_00_mrQgb77Md6G3VPaQNEeZ1580"}}
+{"timestamp":"2026-05-02T12:11:52.397Z","type":"response_item","payload":{"type":"function_call_output","call_id":"call_00_mrQgb77Md6G3VPaQNEeZ1580","output":"Chunk ID: df1300\nWall time: 0.0004 seconds\nProcess exited with code 0\nOriginal token count: 54010\nOutput:\n# Handoff\n\n## Актуальный handoff на 2026-05-01: OpenRouter session cost в Rich status line v0.1.372"}}
+{"timestamp":"2026-05-02T12:11:52.361Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":23752,"cached_input_tokens":4480,"output_tokens":430,"reasoning_output_tokens":234,"total_tokens":24182},"last_token_usage":{"input_tokens":23752,"cached_input_tokens":4480,"output_tokens":430,"reasoning_output_tokens":234,"total_tokens":24182},"model_context_window":258400},"rate_limits":{"limit_id":"codex"}}}
+{"type":"agent_message","message":"Привет, Игорь!"}
+{"type":"turn.completed","usage":{"input_tokens":52464,"cached_input_tokens":4480,"output_tokens":1031,"reasoning_output_tokens":234,"total_tokens":53495,"model_context_window":258400}}

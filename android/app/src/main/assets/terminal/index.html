@@ -1,0 +1,12 @@
+<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="xterm.css"><style>html,body,#term{margin:0;width:100%;height:100%;background:#111315;overflow:hidden}</style></head><body><div id="term"></div><script src="xterm.js"></script><script src="addon-fit.js"></script><script>
+const term=new Terminal({fontSize:13,scrollback:2000,theme:{background:'#111315',foreground:'#e8e6e1'}});
+const fit=new FitAddon.FitAddon();term.loadAddon(fit);term.open(document.getElementById('term'));
+function send(kind,payload){Native.send(JSON.stringify({kind:kind,payload:payload}));}
+term.onData(data=>{const bytes=new TextEncoder().encode(data);let s='';for(const b of bytes)s+=String.fromCharCode(b);send('input',{data:btoa(s)});});
+function fitScreen(){const height=window.innerHeight;if(height<=0||window.innerWidth<=0)return false;for(const element of [document.documentElement,document.body,document.getElementById('term')])element.style.height=height+'px';fit.fit();return true;}
+function resize(){if(fitScreen())send('resize',{rows:term.rows,cols:term.cols});}
+function receive(raw){const m=JSON.parse(raw),p=m.payload||{};if(m.kind==='output'){const bytes=Uint8Array.from(atob(p.data),c=>c.charCodeAt(0));term.write(bytes,()=>send('ack',{seq:m.seq}));}else if(m.kind==='opened'){resize();}else if(m.kind==='exit'){term.writeln('\r\n[exit '+p.code+']');Native.status('exit',String(p.code));}else if(m.kind==='error'){Native.status('error',p.reason||'unknown');}}
+function key(data){term.focus();term.input(data,true);}
+function ready(){if(!fitScreen()){setTimeout(ready,50);return;}Native.ready(term.rows,term.cols);}
+window.addEventListener('resize',resize);setTimeout(ready,50);
+</script></body></html>

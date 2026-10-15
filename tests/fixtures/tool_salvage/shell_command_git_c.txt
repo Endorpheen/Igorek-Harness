@@ -1,0 +1,3 @@
+Я начну с получения полного diff для этих файлов относительно коммита `261a702`.
+
+shell_command: git -C /home/example/AI/paroquant-test diff 261a702 -- factory/core/tool_call_salvage.py tests/test_tool_call_salvage.py

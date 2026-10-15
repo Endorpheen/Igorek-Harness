@@ -1,0 +1,117 @@
+name: Desktop packages
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ['factory/**', 'desktop/**', 'tests/test_platform_support.py', 'tests/test_vault_lifecycle.py', 'pyproject.toml', 'uv.lock', '.python-version', '.github/workflows/desktop-build.yml']
+  push:
+    branches: [main]
+    paths: ['factory/**', 'desktop/**', 'pyproject.toml', 'uv.lock', '.python-version', '.github/workflows/desktop-build.yml']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-packages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    name: Package / ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: linux-x64
+            flag: --linux
+          - os: windows-2025
+            target: windows-x64
+            flag: --win
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          version: '0.13.1'
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24.14.0'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - name: Install locked dependencies
+        run: |
+          uv sync --locked --dev
+          npm --prefix desktop ci
+      - name: Run file and Vault contracts on the actual OS
+        run: |
+          uv run --no-sync python -m pytest tests/test_platform_support.py tests/test_vault_lifecycle.py -v \
+            --cov=factory.core.platform_support --cov=factory.core.vault.lifecycle --cov-branch \
+            --cov-report=json:test-results/platform-${{ runner.os }}-coverage.json --cov-report=term
+      - name: Build target Python payload
+        run: |
+          if [ '${{ matrix.target }}' = windows-x64 ]; then
+            uv run --no-sync python desktop/packaging/build-windows-runtime.py --output "$RUNNER_TEMP/igorek-runtime"
+          else
+            uv run --no-sync python desktop/packaging/build-runtime.py --output "$RUNNER_TEMP/igorek-runtime"
+          fi
+      - name: Stage reviewed application files
+        run: |
+          uv run --no-sync python desktop/packaging/stage-app.py --runtime "$RUNNER_TEMP/igorek-runtime" \
+            --output "$RUNNER_TEMP/igorek-app" --target '${{ matrix.target }}'
+      - name: Package without publishing
+        working-directory: desktop
+        env:
+          IGOREK_DESKTOP_APP_DIR: ${{ runner.temp }}/igorek-app
+          IGOREK_DESKTOP_DIST_DIR: ${{ runner.temp }}/igorek-dist
+        run: npx --no-install electron-builder --config electron-builder.cjs ${{ matrix.flag }} --x64 --publish never
+      - name: Preserve the Linux snapshot installer in the DEB candidate
+        if: runner.os == 'Linux'
+        run: |
+          uv run --no-sync python desktop/packaging/package-linux.py --runtime "$RUNNER_TEMP/igorek-runtime" \
+            --output "$RUNNER_TEMP/igorek-snapshot"
+          version=$(uv run --no-sync python -c 'from importlib.metadata import version; print(version("igorek-agent-factory"))')
+          uv run --no-sync python desktop/packaging/package-deb.py --snapshot "$RUNNER_TEMP/igorek-snapshot/igorek-desktop" \
+            --output "$RUNNER_TEMP/igorek-dist/igorek-$version-linux-amd64.deb"
+      - name: Windows installer and native first-task acceptance
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $installer = @(Get-ChildItem "$env:RUNNER_TEMP/igorek-dist/igorek-*-win-x64.exe")
+          if ($installer.Count -ne 1) { throw 'Expected exactly one Windows installer' }
+          $install = Join-Path $env:RUNNER_TEMP 'igorek-installed'
+          $process = Start-Process -FilePath $installer[0].FullName -ArgumentList @('/S', "/D=$install") -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw 'Installer failed' }
+          $env:IGOREK_TEST_RUNTIME = Join-Path $install 'resources/app/runtime'
+          $env:IGOREK_TEST_OUTPUT = Join-Path $env:GITHUB_WORKSPACE 'test-results/native-windows'
+          & ./desktop/node_modules/.bin/electron.cmd desktop/tests/native/first-run.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'Native Windows acceptance failed' }
+          & uv run --no-sync python desktop/packaging/check-native-report.py $env:IGOREK_TEST_OUTPUT
+          if ($LASTEXITCODE -ne 0) { throw 'Native report is incomplete' }
+          $process = Start-Process -FilePath $installer[0].FullName -ArgumentList @('/S', "/D=$install") -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw 'Reinstallation failed' }
+          $uninstaller = Get-ChildItem $install -Filter '*Uninstall*.exe'
+          if (@($uninstaller).Count -ne 1) { throw 'Uninstaller is missing' }
+          $process = Start-Process $uninstaller.FullName -ArgumentList '/S' -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw 'Uninstaller failed' }
+      - name: Keep candidate packages and reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: igorek-${{ matrix.target }}-candidate
+          path: |
+            ${{ runner.temp }}/igorek-dist/*.exe
+            ${{ runner.temp }}/igorek-dist/*.deb
+            ${{ runner.temp }}/igorek-dist/*.AppImage
+            test-results/native-windows/summary.json
+            test-results/platform-*-coverage.json
+          if-no-files-found: warn
+          retention-days: 7

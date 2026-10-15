@@ -1,0 +1,231 @@
+[
+  {
+    "id": "plugins",
+    "kind": "workspace",
+    "target": "nav-plugins",
+    "description": "Plugins: connected services, reusable skills and MCP capabilities."
+  },
+  {
+    "id": "models",
+    "kind": "settings",
+    "target": "provider",
+    "description": "Primary model: select, configure, check and start a model profile."
+  },
+  {
+    "id": "voice",
+    "kind": "settings",
+    "target": "voice",
+    "description": "Voice model: configure the separate realtime voice connection."
+  },
+  {
+    "id": "notifications",
+    "kind": "settings",
+    "target": "notifications",
+    "description": "Notifications: configure background task completion sound."
+  },
+  {
+    "id": "browser",
+    "kind": "settings",
+    "target": "browser",
+    "description": "Browser settings: configure how control of browser tabs is granted."
+  },
+  {
+    "id": "browser-window",
+    "kind": "browser",
+    "target": "browser",
+    "description": "Open the built-in browser window. This does not sign in or change permissions."
+  },
+  {
+    "id": "settings",
+    "kind": "settings",
+    "target": "start",
+    "description": "Settings overview: guided initial setup, workspace and first result."
+  },
+  {
+    "id": "vault",
+    "kind": "settings",
+    "target": "vault",
+    "description": "Vault: create or unlock encrypted storage and access recovery options."
+  },
+  {
+    "id": "secrets",
+    "kind": "settings",
+    "target": "secrets",
+    "description": "Keys and variables: manage credentials for explicitly configured services."
+  },
+  {
+    "id": "mcp",
+    "kind": "settings",
+    "target": "mcp",
+    "description": "MCP access: select available connected tools and their model permissions."
+  },
+  {
+    "id": "mobile",
+    "kind": "settings",
+    "target": "mobile",
+    "description": "Mobile devices: HTTPS pairing and managing connected phones."
+  },
+  {
+    "id": "execution",
+    "kind": "settings",
+    "target": "execution",
+    "description": "Execution environment: inspect and select supported runtime modes. Windows preview does not support Linux KVM or agent shell commands."
+  },
+  {
+    "id": "workspace",
+    "kind": "settings",
+    "target": "workspace",
+    "description": "Workspace: select the folder used for tasks."
+  },
+  {
+    "id": "security",
+    "kind": "settings",
+    "target": "security",
+    "description": "Password and locking: configure Vault and interface locking."
+  },
+  {
+    "id": "backup",
+    "kind": "settings",
+    "target": "backup",
+    "description": "Backups and recovery: inspect available encrypted backup actions."
+  },
+  {
+    "id": "data",
+    "kind": "settings",
+    "target": "data",
+    "description": "Storage locations: inspect application data directories."
+  },
+  {
+    "id": "check",
+    "kind": "settings",
+    "target": "check",
+    "description": "Computer check: inspect local capabilities and runtime readiness."
+  },
+  {
+    "id": "home",
+    "kind": "workspace",
+    "target": "nav-home",
+    "description": "Home: return to chats and projects."
+  },
+  {
+    "id": "new-session",
+    "kind": "workspace",
+    "target": "new-session",
+    "description": "New session: open the new-chat form; no task is submitted automatically."
+  },
+  {
+    "id": "scheduled",
+    "kind": "workspace",
+    "target": "nav-scheduled",
+    "description": "Scheduled tasks: inspect and configure recurring tasks."
+  },
+  {
+    "id": "reviews",
+    "kind": "workspace",
+    "target": "nav-reviews",
+    "description": "Code reviews: GitHub review workspace when connected."
+  },
+  {
+    "id": "chatgpt",
+    "kind": "workspace",
+    "target": "igorek-open-chatgpt",
+    "description": "ChatGPT workspace: open the ChatGPT interface; separate account sign-in may be needed."
+  },
+  {
+    "id": "opencode",
+    "kind": "workspace",
+    "target": "igorek-open-opencode",
+    "description": "OpenCode workspace: inspect the integrated OpenCode interface when supported and configured."
+  },
+  {
+    "id": "notification-center",
+    "kind": "workspace",
+    "target": "igorek-notifications-button",
+    "description": "Notification center: view application event notifications; this differs from notification preferences."
+  },
+  {
+    "id": "logs",
+    "kind": "workspace",
+    "target": "open-logs",
+    "description": "Runtime logs: view diagnostics in the application."
+  },
+  {
+    "id": "agent-history",
+    "kind": "workspace",
+    "target": "open-agents",
+    "description": "Agent history: inspect historical sessions and activity."
+  },
+  {
+    "id": "plan",
+    "kind": "panel",
+    "target": "plan",
+    "description": "Task plan: view the current session plan and context information."
+  },
+  {
+    "id": "changes",
+    "kind": "panel",
+    "target": "changes",
+    "description": "Changes: inspect file modifications in the current session."
+  },
+  {
+    "id": "files",
+    "kind": "panel",
+    "target": "files",
+    "description": "Files: inspect files and artifacts in the current session."
+  },
+  {
+    "id": "checkpoints",
+    "kind": "panel",
+    "target": "checkpoints",
+    "description": "Checkpoints: inspect saved workspace states; opening does not restore or roll back anything."
+  },
+  {
+    "id": "subagents",
+    "kind": "panel",
+    "target": "subagents",
+    "description": "Agents: inspect current session agents; opening does not launch agents."
+  },
+  {
+    "id": "terminal",
+    "kind": "panel",
+    "target": "terminal",
+    "description": "Owner terminal: open the session terminal where supported and authorized. This does not grant shell access to the model."
+  },
+  {
+    "id": "downloads",
+    "kind": "panel",
+    "target": "downloads",
+    "description": "Downloads: inspect browser download history."
+  },
+  {
+    "id": "access",
+    "kind": "settings",
+    "target": "access",
+    "description": "Settings access: inspect interface locking controls."
+  },
+  {
+    "id": "plugin-settings",
+    "kind": "settings",
+    "target": "plugins",
+    "description": "Plugin settings: configure connected services in the settings window."
+  },
+  {
+    "id": "shortcuts",
+    "kind": "window",
+    "target": "shortcuts",
+    "description": "Keyboard shortcuts: view application shortcuts."
+  },
+  {
+    "id": "about",
+    "kind": "window",
+    "target": "about",
+    "description": "About: view the installed application version and release information."
+  },
+  {
+    "id": "updates",
+    "kind": "workspace",
+    "target": "nav-updates",
+    "unavailable": true,
+    "description": "Updates: the current interface has a placeholder button; checking or installing updates is not implemented. Do not promise an updater."
+  }
+]

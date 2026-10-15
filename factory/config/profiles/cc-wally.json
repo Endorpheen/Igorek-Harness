@@ -1,0 +1,34 @@
+{
+  "backend": "cc-backend",
+  "provider": "wally",
+  "model": "glm-5.3-flash",
+  "base_url": "https://inference.runanywhere.ai/v1",
+  "api_format": "openai",
+  "vault_services": [
+    "glm",
+    "tavily",
+    "github",
+    "telegram",
+    "factory_api",
+    "openrouter",
+    "opencode-go",
+    "opencode",
+    "minimax",
+    "fal",
+    "xsearch",
+    "obsidian",
+    "coingecko",
+    "fish_audio"
+  ],
+  "filesystem_mode": "workspace",
+  "checkpoints_enabled": true,
+  "env": {},
+  "checkpoints": {
+    "enabled": true,
+    "max_snapshots": 50
+  },
+  "mcp_servers": [
+    "context7",
+    "grep_app"
+  ]
+}

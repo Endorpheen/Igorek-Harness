@@ -1,0 +1,3 @@
+Я найду эту заметку в вашем хранилище Obsidian.
+
+Bash: cat "/home/example/notes/Исследование моделей.md"

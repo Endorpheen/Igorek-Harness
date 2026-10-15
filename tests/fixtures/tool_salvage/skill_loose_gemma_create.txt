@@ -1,0 +1,10 @@
+Привет, Игорь! Запрос на "тестовый" цикл для `skill_manage`.
+
+<|tool_call>call: skill_manage{action: "create", name: "igorek-smoke-skill", content: "---
+name: igorek-smoke-skill
+description: Тестовый навык для проверки цикла управления навыками.
+---
+# Инструкции для igorek-smoke-skill
+
+Этот навык предназначен исключительно для тестирования.
+"}<tool_call|>
