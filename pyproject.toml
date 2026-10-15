@@ -56,5 +56,5 @@ dev = [
     "pytest-timeout>=2,<3",
     "ruff>=0.14,<1",
     "tree-sitter==0.25.2",
-    "tree-sitter-language-pack==0.10.0",
+    "tree-sitter-language-pack==1.22.1",
 ]
