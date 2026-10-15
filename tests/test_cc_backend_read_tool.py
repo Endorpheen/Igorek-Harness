@@ -1,11 +1,34 @@
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
-from factory.core.cc_backend_tools import _tool_read
+from factory.core.cc_backend_tools import _tool_edit, _tool_read, _tool_write
 
 
 class CcBackendReadToolTest(unittest.TestCase):
+    def test_relative_file_tools_use_workdir_instead_of_controller_cwd(self):
+        import os
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); work = root / 'workspace'; work.mkdir()
+            unrelated = root / 'controller'; unrelated.mkdir()
+            with patch('os.getcwd', return_value=str(unrelated)):
+                _tool_write({'file_path': 'note.txt', 'content': 'before'}, str(work), 'workspace', None)
+                self.assertEqual(_tool_read({'file_path': 'note.txt'}, str(work), 'workspace'), 'before')
+                _tool_edit({'file_path': 'note.txt', 'old_string': 'before', 'new_string': 'after'},
+                           str(work), 'workspace', None)
+                self.assertEqual((work / 'note.txt').read_text(), 'after')
+                for target in ('../outside.txt', str(unrelated / 'outside.txt')):
+                    with self.assertRaises(ValueError):
+                        _tool_write({'file_path': target, 'content': 'blocked'}, str(work), 'workspace', None)
+                    with self.assertRaises(ValueError):
+                        _tool_read({'file_path': target}, str(work), 'workspace')
+                if os.name != 'nt':
+                    (work / 'link').symlink_to(unrelated, target_is_directory=True)
+                    with self.assertRaises(ValueError):
+                        _tool_write({'file_path': 'link/outside.txt', 'content': 'blocked'}, str(work), 'workspace', None)
+            self.assertFalse((unrelated / 'note.txt').exists())
+
     def test_read_honors_offset_and_limit_lines(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "sample.txt"

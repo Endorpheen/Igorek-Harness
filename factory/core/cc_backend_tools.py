@@ -201,7 +201,7 @@ def _validate_system_block(path: str) -> None:
 
 def _validate_write_path(file_path: str, workdir: str, filesystem_mode: str) -> str:
     """Validate write/edit operations based on filesystem mode."""
-    resolved = os.path.realpath(file_path)
+    resolved = os.path.realpath(os.path.join(workdir, file_path))
     from .host_services import deny_control_path
     deny_control_path(resolved)
     wd = os.path.realpath(workdir)
@@ -222,7 +222,7 @@ def _validate_write_path(file_path: str, workdir: str, filesystem_mode: str) -> 
 
 def _validate_read_path(file_path: str, workdir: str, filesystem_mode: str) -> str:
     """Validate read operations based on filesystem mode."""
-    resolved = os.path.realpath(file_path)
+    resolved = os.path.realpath(os.path.join(workdir, file_path))
     from .host_services import deny_control_path
     deny_control_path(resolved)
     wd = os.path.realpath(workdir)
@@ -970,8 +970,11 @@ def _tool_grep(data: dict[str, Any], workdir: str, filesystem_mode: str) -> str:
                 exclusions += ['--glob', '!' + relative + ('/**' if private.is_dir() else '')]
         result = subprocess.run(
             ["rg", "--no-heading", "-n", *exclusions, "-e", pattern, "--", search_path],
+            stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
+            encoding='utf-8',
+            errors='replace',
             timeout=30,
         )
         if result.returncode == 2:

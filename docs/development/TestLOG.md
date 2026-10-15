@@ -1,5 +1,23 @@
 # Test results
 
+## 2026-10-15 — Native file-tool follow-up
+
+- The bounded Git revision passed the complete Python snapshot: **4786
+  collected / 4755 passed / 31 skipped / zero failures/errors**, with **614
+  additional passing subtests** across 299 files. Statements: 45689/77180
+  (59.20%); branches: 12702/27588 (46.04%). Desktop remains 322 passing cases.
+- Hosted Windows passed checkpointed Write and advanced through Read, Edit and
+  Glob. Its tour then stopped at the Cyrillic Grep result. Ripgrep emits UTF-8;
+  output decoding is now explicit rather than dependent on the Windows locale;
+  the new native result must confirm the remaining cause.
+  The native packaged-file prerequisite now checks Cyrillic search directly.
+- Real desktop/KVM Write exposed a distinct bug: relative file arguments were
+  resolved against the controller cwd rather than the task workdir. Read, Write
+  and Edit now resolve against workdir before the existing boundary checks.
+  Traversal, absolute outside paths and symlink escapes remain refused.
+- Targeted file/search/process regressions: **27 passed** before the encoding
+  follow-up. The new native tour and integrated snapshot remain pending.
+
 ## 2026-10-15 — Bounded checkpoint child processes
 
 - Synthetic Windows thread stacks identified an unbounded stdout/stderr drain

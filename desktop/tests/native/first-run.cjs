@@ -154,6 +154,7 @@ _tool_write({'file_path':str(path),'content':'Привет, Игорь!\\n--pre=
 assert 'Привет' in _tool_read({'file_path':str(path)},str(root),'workspace')
 assert 'fixture.txt' in _tool_glob({'pattern':'*.txt'},str(root),'workspace')
 assert '--pre=fixture' in _tool_grep({'pattern':'--pre=fixture','path':'fixture.txt'},str(root),'workspace')
+assert 'Привет' in _tool_grep({'pattern':'Привет','path':'fixture.txt'},str(root),'workspace')
 try:
  _tool_read({'file_path':str(root.parent/'outside.txt')},str(root),'workspace')
  raise AssertionError('Workspace escape was accepted')
@@ -310,6 +311,24 @@ print(json.dumps({'files':True}))`;
         timeline: document.getElementById('timeline')?.textContent,
         alerts: Array.from(document.querySelectorAll('.toast')).map(item=>item.textContent)
       })`).catch(() => ({ error: 'renderer_unavailable' }));
+      if (process.platform === 'win32' && report.ui.selected) {
+        try {
+          const session = await api('/api/sessions/' + report.ui.selected);
+          if (session.meta?.demo) {
+            const file = path.join(session.meta.cwd, 'demo-note.txt');
+            const bytes = fs.readFileSync(file);
+            const options = { env: runtimeEnvironment(runtime.dataDir, process.env, process.platform, bundle),
+              encoding: 'utf8', timeout: 5000, maxBuffer: 8192 };
+            report.demo_file_probe = { bytes: bytes.length, utf8ContainsPattern: bytes.toString('utf8').includes('файлами') };
+            try {
+              report.demo_file_probe.rg = execFileSync(path.join(bundle, 'tools/rg.exe'),
+                ['--no-heading', '-n', '-e', 'файлами', '--', file], options);
+            } catch (probe) {
+              report.demo_file_probe.rg = { status: probe.status, stdout: String(probe.stdout || ''), stderr: String(probe.stderr || '') };
+            }
+          }
+        } catch (probe) { report.demo_file_probe = { unavailable: true }; }
+      }
     }
     console.error(error.stack);
   } finally {
