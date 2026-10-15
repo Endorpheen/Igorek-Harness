@@ -10,7 +10,7 @@ import time
 from pathlib import Path
 
 from ..runtime import get_chat_sessions_dir
-from .channel import read_frame, write_frame
+from .channel import ChannelError, read_frame, write_frame
 from .terminal_manager import TerminalError
 from .terminal_manager import PtyTerminalBackend
 def owner_request(profile, request):
@@ -86,7 +86,11 @@ class VsockTerminalBackend:
         message = decode_message(frame, stage=TerminalStage.INTERNAL)
         if message.kind == TerminalKind.OUTPUT:
             data = base64.b64decode(message.payload["data"], validate=True)
-            self._send("ack", {"seq": message.seq})
+            try:
+                self._send("ack", {"seq": message.seq})
+            except ChannelError:
+                # A queued EXIT remains readable after the guest closes its side.
+                pass
             return data
         if message.kind == TerminalKind.EXIT:
             self.exit_code = message.payload["code"]

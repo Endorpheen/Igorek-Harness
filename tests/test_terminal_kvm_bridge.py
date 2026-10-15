@@ -1,4 +1,5 @@
 import json
+import base64
 import socket
 import tempfile
 import threading
@@ -15,6 +16,21 @@ from factory.core.isolation.terminal_vsock import RoutedTerminalBackend, VsockTe
 
 
 class TerminalKvmBridgeTest(unittest.TestCase):
+    def test_final_output_and_exit_survive_a_peer_closed_before_ack(self):
+        host, guest = socket.socketpair()
+        backend = VsockTerminalBackend()
+        backend.sock = host
+        with guest:
+            write_frame(guest, {"kind": "output", "seq": 1,
+                                "payload": {"data": base64.b64encode(b"last output").decode()}})
+            write_frame(guest, {"kind": "exit", "seq": 2, "payload": {"code": 0}})
+        try:
+            self.assertEqual(backend.read(1), b"last output")
+            self.assertIsNone(backend.read(1))
+            self.assertEqual(backend.poll_exit(), 0)
+        finally:
+            backend.close()
+
     def test_unknown_mode_never_starts_host_shell(self):
         with self.assertRaises(TerminalError):
             RoutedTerminalBackend({}).open(TerminalSpec("session", 24, 80, "/tmp"))

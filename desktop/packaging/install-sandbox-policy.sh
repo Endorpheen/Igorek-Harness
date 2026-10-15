@@ -36,13 +36,17 @@ else
 fi
 POLICY_TEMP="$(mktemp)"
 trap 'rm -f -- "$POLICY_TEMP"' EXIT
+POLICY_ABI='4.0'
+if [[ -r /etc/apparmor.d/abi/5.0 ]]; then
+  POLICY_ABI='5.0'
+fi
 cat > "$POLICY_TEMP" <<POLICY
-abi <abi/5.0>,
+abi <abi/$POLICY_ABI>,
 include <tunables/global>
 
 profile $POLICY_NAME "$ELECTRON_BINARY" flags=(unconfined) {
   userns,
-  @{exec_path} mr,
+  "$ELECTRON_BINARY" mr,
 }
 POLICY
 /usr/sbin/apparmor_parser -Q -T "$POLICY_TEMP"

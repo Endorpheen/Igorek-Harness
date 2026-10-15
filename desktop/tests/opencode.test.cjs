@@ -35,9 +35,9 @@ test('egress proxy refuses arbitrary ports and local HTTP requests',async t=>{
   }
 });
 test('gateway requires its private capability and exact Host/Origin, forwards streams with separate server authentication',async t=>{
-  const dir=root(t),service=new OpenCodeService(path.join(dir,'service'));service.bridge=dir;let received;
+  const dir=root(t),service=new OpenCodeService(path.join(dir,'service'));service.bridge=process.platform==='win32'?'\\\\.\\pipe\\igorek-test-'+require('node:crypto').randomUUID():dir;let received;
   const upstream=http.createServer((req,res)=>{received=req.headers.authorization;res.writeHead(200,{'content-type':'text/event-stream'});res.write('data: first\n\n');setTimeout(()=>res.end('data: second\n\n'),10)});
-  await new Promise(resolve=>upstream.listen(path.join(dir,'api.sock'),resolve));t.after(()=>upstream.close());await service.gateway();t.after(()=>service.stop());
+  await new Promise(resolve=>upstream.listen(path.join(service.bridge,'api.sock'),resolve));t.after(()=>upstream.close());await service.gateway();t.after(()=>service.stop());
   assert.equal((await fetch(service.origin+'/api/info')).status,403);
   assert.equal((await fetch(service.origin+'/api/info',{headers:{Authorization:'Bearer '+service.token,Origin:'https://evil.example'}})).status,403);
   const reply=await fetch(service.origin+'/api/event',{headers:{Authorization:'Bearer '+service.token}});assert.equal(reply.status,200);assert.match(await reply.text(),/first[\s\S]*second/);

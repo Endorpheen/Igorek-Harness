@@ -1,12 +1,23 @@
-const { open } = require('node:fs/promises');
+const { open, lstat } = require('node:fs/promises');
+const { resolve, dirname } = require('node:path');
 const { constants } = require('node:fs');
 const MAX_BYTES = 16 * 1024 * 1024;
 
 async function readRecovery(path) {
+  const expected = await lstat(path);
+  if (!expected.isFile() || expected.isSymbolicLink()) throw new Error('invalid_file');
+  if (process.platform === 'win32') {
+    for (let parent = dirname(resolve(path)); ; parent = dirname(parent)) {
+      const info = await lstat(parent);
+      if (!info.isDirectory() || info.isSymbolicLink()) throw new Error('invalid_file');
+      if (dirname(parent) === parent) break;
+    }
+  }
   const file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
   try {
     const stat = await file.stat();
-    if (!stat.isFile() || stat.size > MAX_BYTES) throw new Error('invalid_file');
+    if (!stat.isFile() || stat.size > MAX_BYTES || stat.dev !== expected.dev || stat.ino !== expected.ino)
+      throw new Error('invalid_file');
     const buffer = Buffer.alloc(MAX_BYTES + 1);
     let length = 0;
     while (length < buffer.length) {

@@ -49,6 +49,9 @@ def _path(value):
 
 
 def _open(path, *, access=0x80, share=3, disposition=3, directory=False):
+    if directory:
+        # Attribute-only handles do not participate in Windows delete sharing.
+        access |= 0x1  # FILE_LIST_DIRECTORY pins the directory against rename.
     handle = _create(str(path), access, share, None, disposition, _OPEN_FLAGS, None)
     if handle == _INVALID:
         raise ctypes.WinError(ctypes.get_last_error())

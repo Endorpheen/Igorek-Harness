@@ -76,7 +76,12 @@ def request(endpoint, path=None, body=None, token=None, extra=None):
     conn = UnixHTTPConnection(str(server.path))
     headers = {'Authorization': 'Bearer ' + (grant['token'] if token is None else token), **(extra or {})}
     try:
-        conn.request('POST', path or '/profiles/fixture-id/v1/chat/completions', json.dumps(body or {'model': config['model'], 'messages': []}), headers)
+        try:
+            conn.request('POST', path or '/profiles/fixture-id/v1/chat/completions', json.dumps(body or {'model': config['model'], 'messages': []}), headers)
+        except BrokenPipeError:
+            # Early header rejection can close the upload before its body is sent.
+            # The response must still contain the expected HTTP denial.
+            pass
         response = conn.getresponse()
         return response.status, response.read()
     finally:

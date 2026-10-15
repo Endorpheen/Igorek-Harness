@@ -1,3 +1,4 @@
+const { assertPrivatePermissions } = require('./helpers/private-permissions.cjs');
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { EventEmitter } = require('node:events');
@@ -61,7 +62,7 @@ test('Dedicated persistent Chromium is sandboxed, has no remote preload and reus
     assert.equal(f.browser.view.webContents.popup().action,'deny');
     assert.ok(/^[\x20-\x7E]+$/.test(f.browser.view.webContents.ua));assert.ok(!f.browser.view.webContents.ua.includes('Electron'));
     const ses=[...f.sessions.values()][0];assert.equal(ses.path,join(f.root,'profile'));
-    assert.equal(statSync(f.root).mode&0o777,0o700);
+    assertPrivatePermissions(f.root, 0o700);
     let blocked=false;await ses.webRequest.filter({url:'https://127.0.0.1:5177'},value=>blocked=value.cancel);assert.ok(blocked);
     ses.resolveHost=async()=>({endpoints:[{address:'127.0.0.1'}]});
     await ses.webRequest.filter({url:'https://rebind.example.com'},value=>blocked=value.cancel);assert.ok(blocked);
@@ -109,7 +110,7 @@ test('Pinned and unordered posts deduplicate by ID, preserve processing status a
     const reopened=new DesktopBrowser(f.options);assert.equal(reopened.config.feed_url,'https://x.com/i/lists/123');
     assert.equal(reopened.records['2'].status,'discovered');assert.equal(reopened.manual,false);assert.equal(reopened.last.count,3);
     const saved=JSON.parse(readFileSync(join(f.root,'observed.json')));assert.equal(saved.posts['1'].text,undefined);
-    assert.equal(statSync(join(f.root,'observed.json')).mode&0o777,0o600);
+    assertPrivatePermissions(join(f.root,'observed.json'), 0o600);
   }finally{f.cleanup();}
 });
 test('Browser supports ordinary public sites; local/private network addresses stay blocked',async()=>{
@@ -242,7 +243,7 @@ test('Native browser diagnostics exclude URL secrets and stay owner-only',()=>{
   f.browser.diagnose('navigation_failed',{requested_origin:'https://accounts.google.com/callback?code=private-query',current_origin:'https://user:private-password@example.com/path#private-fragment',error_code:'Bearer private-token',headers:{authorization:'private-header'}});
   const file=join(f.root,'browser-events.jsonl'),value=readFileSync(file,'utf8');
   for(const secret of ['private-query','private-password','private-fragment','private-token','private-header'])assert.ok(!value.includes(secret));
-  assert.equal(statSync(file).mode&0o777,0o600);assert.equal(JSON.parse(value).current_origin,'https://example.com');
+  assertPrivatePermissions(file, 0o600);assert.equal(JSON.parse(value).current_origin,'https://example.com');
  }finally{f.cleanup();}
 });
 test('Chrome navigation reports actual URL/history and preserves the configured pass limits',async()=>{

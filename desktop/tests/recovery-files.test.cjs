@@ -1,3 +1,4 @@
+const { assertPrivatePermissions } = require('./helpers/private-permissions.cjs');
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
@@ -20,7 +21,7 @@ test('save reads the actual file for verification, sets private permissions and 
     const result = await saveRecovery(runtime, path, { password: 'password', recovery_phrase: 'phrase' });
     assert.equal(result.result.verified, true);
     assert.deepEqual(calls, ['export_recovery', 'verify_recovery']);
-    assert.equal((await fs.stat(path)).mode & 0o777, 0o600);
+    assertPrivatePermissions(path, 0o600);
     await assert.rejects(saveRecovery(runtime, path, { password: 'password', recovery_phrase: 'phrase' }), { code: 'EEXIST' });
     assert.deepEqual(await fs.readFile(path), bytes);
     assert.equal((await verifyRecovery(runtime, path, 'phrase')).result.credential_count, 2);

@@ -319,10 +319,11 @@ test('readiness UI distinguishes incomplete checks and renders facts as text', a
 
 test('desktop data locations derive only from the owned runtime root and UI directory', () => {
   const { ownedDataLocations } = require('../owner-policy.cjs');
+  const { join } = require('node:path');
   const locations = ownedDataLocations('/tmp/owned-instance', '/tmp/owned-ui');
-  assert.equal(locations.vault, '/tmp/owned-instance/vault/credentials');
-  assert.equal(locations.history, '/tmp/owned-instance/database/factory.db');
-  assert.equal(locations.workspace, '/tmp/owned-instance/workspace');
+  assert.equal(locations.vault, join('/tmp/owned-instance', 'vault', 'credentials'));
+  assert.equal(locations.history, join('/tmp/owned-instance', 'database', 'factory.db'));
+  assert.equal(locations.workspace, join('/tmp/owned-instance', 'workspace'));
   assert.equal(locations.ui, '/tmp/owned-ui');
   assert.equal(Object.keys(locations).length, 6);
 });

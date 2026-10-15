@@ -57,7 +57,14 @@ jobs:
       - name: Install system test prerequisites
         run: |
           sudo apt-get update
-          sudo apt-get install -y bubblewrap ripgrep openssl xvfb python3-gi gir1.2-gtk-4.0
+          sudo apt-get install -y apparmor bubblewrap qemu-utils ripgrep openssl xvfb python3-gi gir1.2-gtk-4.0
+          if [ -r /proc/sys/kernel/apparmor_restrict_unprivileged_userns ] && \
+             [ "$(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns)" = 1 ]; then
+            printf '%s\n' 'abi <abi/4.0>,' 'include <tunables/global>' \
+              'profile igorek-ci-bwrap /usr/bin/bwrap flags=(unconfined) { userns, }' \
+              | sudo tee /etc/apparmor.d/igorek-ci-bwrap > /dev/null
+            sudo apparmor_parser -r /etc/apparmor.d/igorek-ci-bwrap
+          fi
       - name: Install locked development environment
         run: uv sync --locked --dev --python '${{ matrix.python }}'
       - name: Check executable Python errors

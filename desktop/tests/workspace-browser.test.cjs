@@ -1,3 +1,4 @@
+const { assertPrivatePermissions } = require('./helpers/private-permissions.cjs');
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path'),{EventEmitter}=require('node:events');
 const {WorkspaceBrowser}=require('../workspace-browser.cjs');
 function fixture(t){
@@ -20,7 +21,7 @@ test('resetting microphone permission revokes the saved grant and replaces the a
 test('download history survives restart with private permissions and public timestamps',async t=>{
  const {manager:m,parent:p,ses,options}=fixture(t);m.unlock();await m.action(p,'open',{id:'one',url:'https://example.com'});
  const file=path.join(options.root,'saved-image.webp');fs.writeFileSync(file,'fixture');const item=Object.assign(new EventEmitter(),{getFilename:()=> 'saved-image.webp',getTotalBytes:()=>7,getReceivedBytes:()=>7,getSavePath:()=>file});ses.emit('will-download',{preventDefault(){throw Error('unexpected')}},item,m.tabs.get('one').view.webContents);item.emit('done',{},'completed');
- const history=path.join(options.root,'downloads.json');assert.equal(fs.statSync(history).mode&0o777,0o600);const next=new WorkspaceBrowser(options);assert.deepEqual(next.status().downloads,[]);next.unlock();await next.action(p,'select',{id:null});const row=next.status().downloads[0];assert.equal(row.name,'saved-image.webp');assert.ok(row.at>0);assert.equal(row.can_reveal,true);assert.equal(row.path,undefined);await next.action(p,'openDownload',{id:row.id});assert.equal(options.revealed,file);
+ const history=path.join(options.root,'downloads.json');assertPrivatePermissions(history, 0o600);const next=new WorkspaceBrowser(options);assert.deepEqual(next.status().downloads,[]);next.unlock();await next.action(p,'select',{id:null});const row=next.status().downloads[0];assert.equal(row.name,'saved-image.webp');assert.ok(row.at>0);assert.equal(row.can_reveal,true);assert.equal(row.path,undefined);await next.action(p,'openDownload',{id:row.id});assert.equal(options.revealed,file);
 });
 test('removing and clearing download records preserves files, site data and microphone grant',async t=>{
  const {manager:m,parent:p,ses,options}=fixture(t);m.unlock();await m.action(p,'select',{id:null});m.permissions.setMicrophone(true);const file=path.join(options.root,'report.txt');fs.writeFileSync(file,'keep');m.downloadHistory.add({id:'record-one',name:'report.txt',state:'completed',received:4,total:4,at:Date.now(),path:file});m.downloads=m.downloadHistory.rows;

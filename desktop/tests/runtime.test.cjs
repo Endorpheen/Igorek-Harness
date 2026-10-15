@@ -46,12 +46,37 @@ function fixture(mode = 'ready', timeoutMs = 2000) {
   writeFileSync(join(bundle, 'fake.cjs'), fake);
   writeFileSync(join(bundle, 'python'), `#!/bin/sh\nexec '${process.execPath}' '${join(bundle, 'fake.cjs')}' "$@"\n`, { mode: 0o755 });
   writeFileSync(join(bundle, 'backend.py'), 'fixture');
-  writeFileSync(join(bundle, 'manifest.json'), JSON.stringify({ schema_version: 1, python: 'python', entry: 'backend.py' }));
+  let python = 'python';
+  if (process.platform === 'win32') {
+    execFileSync('python', ['-m', 'venv', '--without-pip', join(bundle, 'py')]);
+    python = 'py/Scripts/python.exe';
+    writeFileSync(join(bundle, 'backend.py'), `
+import json, pathlib, shutil, sys, time
+root = pathlib.Path(sys.argv[-1])
+cert = root / 'web-ui' / 'tls' / 'localhost-cert.pem'
+cert.parent.mkdir(parents=True, exist_ok=True)
+shutil.copyfile(pathlib.Path(__file__).with_name('cert.pem'), cert)
+mode = ${JSON.stringify(mode)}
+if mode == 'error':
+    print(json.dumps({'type': 'error'}), flush=True)
+    sys.exit(1)
+if mode != 'timeout':
+    print(json.dumps({'type': 'ready', 'web_port': 99999 if mode == 'invalid' else 54321,
+                     'cert': str(cert), 'pairing_code': 'ABCD-1234-ABCD'}), flush=True)
+if mode == 'hang':
+    while True: time.sleep(1)
+for line in sys.stdin:
+    if mode != 'owner' or line.strip() == 'stop': break
+    request = json.loads(line)
+    print(json.dumps({'type': 'owner_reply', 'id': request['id'], 'result': {'state': 'locked'}}), flush=True)
+`);
+  }
+  writeFileSync(join(bundle, 'manifest.json'), JSON.stringify({ schema_version: 1, python, entry: 'backend.py' }));
   return { root, bundle, dataDir, runtime: new OwnedRuntime({ bundle, dataDir, timeoutMs, stopTimeoutMs: 100 }), cleanup: () => rmSync(root, { recursive: true, force: true }) };
 }
 
 test('runtime receives only isolated environment, without inherited secrets', () => {
-  const env = runtimeEnvironment('/tmp/owned', { FACTORY_API_KEY: 'secret', HOME: '/production', LD_PRELOAD: 'evil', LANG: 'ru_RU.UTF-8' });
+  const env = runtimeEnvironment('/tmp/owned', { FACTORY_API_KEY: 'secret', HOME: '/production', LD_PRELOAD: 'evil', LANG: 'ru_RU.UTF-8' }, 'linux');
   assert.equal(env.HOME, '/tmp/owned/home'); assert.equal(env.FACTORY_DATA_DIR, '/tmp/owned');
   assert.equal(env.FACTORY_API_KEY, undefined); assert.equal(env.LD_PRELOAD, undefined);
   assert.equal(env.IGOREK_ISOLATION_MODE, 'off');
@@ -115,7 +140,9 @@ test('bundle paths cannot escape through traversal or symlinks', () => {
 
 test('failed OS spawn does not hang shutdown', async () => {
   const f = fixture();
-  chmodSync(join(f.bundle, 'python'), 0o644);
+  if (process.platform === 'win32') {
+    writeFileSync(join(f.bundle, 'manifest.json'), JSON.stringify({ schema_version: 1, python: 'python', entry: 'backend.py' }));
+  } else chmodSync(join(f.bundle, 'python'), 0o644);
   try { await assert.rejects(f.runtime.start(), /Python/); }
   finally { await f.runtime.stop(); f.cleanup(); }
 });
@@ -211,18 +238,18 @@ test('catalog owner protocol accepts public lookup and rejects extra fields', as
 });
 
 test('external history roots point to host catalogs while runtime home and secrets stay isolated', () => {
-  const env = runtimeEnvironment('/tmp/owned', { HOME: '/host-user', CODEX_HOME: '/host-codex', CLAUDE_CONFIG_DIR: '/host-claude', XDG_DATA_HOME: '/host-data', OPENAI_API_KEY: 'secret' });
+  const env = runtimeEnvironment('/tmp/owned', { HOME: '/host-user', CODEX_HOME: '/host-codex', CLAUDE_CONFIG_DIR: '/host-claude', XDG_DATA_HOME: '/host-data', OPENAI_API_KEY: 'secret' }, 'linux');
   assert.equal(env.FACTORY_EXTERNAL_CODEX_HOME, '/host-codex');
   assert.equal(env.FACTORY_EXTERNAL_CLAUDE_HOME, '/host-claude');
   assert.equal(env.FACTORY_EXTERNAL_OPENCODE_DB, '/host-data/opencode/opencode.db');
   assert.equal(env.HOME, '/tmp/owned/home');
   assert.equal(env.OPENAI_API_KEY, undefined);
   assert.equal(env.CODEX_HOME, undefined);
-  const fallback = runtimeEnvironment('/tmp/owned', { HOME: '/host-user' });
+  const fallback = runtimeEnvironment('/tmp/owned', { HOME: '/host-user' }, 'linux');
   assert.equal(fallback.FACTORY_EXTERNAL_CODEX_HOME, '/host-user/.codex');
   assert.equal(fallback.FACTORY_EXTERNAL_CLAUDE_HOME, '/host-user/.claude');
   assert.equal(fallback.FACTORY_EXTERNAL_OPENCODE_DB, '/host-user/.local/share/opencode/opencode.db');
-  assert.equal(runtimeEnvironment('/tmp/owned', { HOME: 'relative' }).FACTORY_EXTERNAL_CODEX_HOME, undefined);
+  assert.equal(runtimeEnvironment('/tmp/owned', { HOME: 'relative' }, 'linux').FACTORY_EXTERNAL_CODEX_HOME, undefined);
 });
 
 test('profile key viewing accepts only the exact owner reauthentication fields', async () => {

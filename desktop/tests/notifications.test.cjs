@@ -1,3 +1,4 @@
+const { assertPrivatePermissions } = require('./helpers/private-permissions.cjs');
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { mkdtempSync, rmSync, statSync, readFileSync } = require('node:fs');
@@ -14,7 +15,7 @@ test('notification history persists, deduplicates, marks read and clears', () =>
     store.add({ source: 'Квота', level: 'error', detail: 'HTTP 401' });
     assert.equal(store.snapshot().length, 1);
     assert.equal(store.snapshot()[0].count, 2);
-    assert.equal(statSync(path).mode & 0o777, 0o600);
+    assertPrivatePermissions(path, 0o600);
     assert.equal(new NotificationStore(path).snapshot()[0].detail, 'HTTP 401');
     store.read(); assert.equal(new NotificationStore(path).snapshot()[0].read, true);
     store.add({ source: 'Квота', level: 'error', detail: 'HTTP 401' });

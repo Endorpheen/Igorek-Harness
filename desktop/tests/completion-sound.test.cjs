@@ -1,3 +1,4 @@
+const { assertPrivatePermissions } = require('./helpers/private-permissions.cjs');
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -27,7 +28,7 @@ test('sound preference persists as an owner-only boolean', t => {
   assert.equal(sound.enabled, true);
   sound.set(false);
   assert.equal(new CompletionSound(file).enabled, false);
-  assert.equal(fs.statSync(file).mode & 0o777, 0o600);
+  assertPrivatePermissions(file, 0o600);
   assert.throws(() => sound.set('false'));
   sound.set(true); assert.equal(new CompletionSound(file).enabled, true);
 });

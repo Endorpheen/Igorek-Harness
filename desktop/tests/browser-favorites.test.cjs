@@ -1,3 +1,4 @@
+const { assertPrivatePermissions } = require('./helpers/private-permissions.cjs');
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const {BrowserFavorites,favorite,LIMIT}=require('../browser-favorites.cjs');
 function directory(t){const root=fs.mkdtempSync(path.join(os.tmpdir(),'igorek-favorites-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));return root;}
@@ -9,7 +10,7 @@ test('favorites normalize domains, retain anchors, and reject unsupported or pri
 test('favorites persist, update duplicate URLs, and remove without affecting browser data',t=>{
  const root=directory(t),store=new BrowserFavorites(root);fs.writeFileSync(path.join(root,'other-data.json'),'preserved');store.add({url:'example.org',title:'Docs'});const id=store.rows[0].id;
  store.add({url:'https://example.org/',title:'Reference'});assert.equal(store.rows.length,1);assert.equal(store.rows[0].id,id);assert.equal(new BrowserFavorites(root).rows[0].title,'Reference');
- store.remove({id});assert.deepEqual(new BrowserFavorites(root).rows,[]);assert.equal(fs.readFileSync(path.join(root,'other-data.json'),'utf8'),'preserved');assert.equal(fs.statSync(store.file).mode&0o777,0o600);
+ store.remove({id});assert.deepEqual(new BrowserFavorites(root).rows,[]);assert.equal(fs.readFileSync(path.join(root,'other-data.json'),'utf8'),'preserved');assertPrivatePermissions(store.file, 0o600);
 });
 test('unreadable or symlinked favorites are preserved instead of overwritten',t=>{
  const root=directory(t),file=path.join(root,'favorites.json');fs.writeFileSync(file,'broken');const store=new BrowserFavorites(root);assert.equal(store.error,true);assert.throws(()=>store.add({url:'example.org',title:'Docs'}));assert.equal(fs.readFileSync(file,'utf8'),'broken');

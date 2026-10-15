@@ -2,10 +2,21 @@
 
 ## 2026-10-15 — Igorek Harness 0.2.0 publication preparation
 
-- The first GitHub milestone uses `Endorpheen/Igorek-Harness` and desktop/Python
-  **0.2.0**. The new repository is private; its history
-  will be created from the reviewed source inventory rather than copied from
-  the existing private backend. Native Windows and clean-OS Linux acceptance
+- Hosted CI exposed missing qemu-utils and restricted bubblewrap namespaces in
+  the Linux runner, an AppArmor ABI mismatch on Ubuntu 24.04, and Windows file
+  and test portability failures. These initial hosted runs are failed evidence,
+  not acceptance. Scoped AppArmor profiles keep namespaces restricted to the
+  expected binaries; no sandbox bypass is enabled.
+- Windows parent handles now request directory-list access so delete sharing
+  actually prevents rename. Recovery reads reject links and compare the opened
+  file identity before reading. Terminal output acknowledgements no longer lose
+  already-buffered output/exit frames when the guest closes first; a deterministic
+  regression was added. Desktop fixtures check Windows ACLs rather than POSIX
+  mode bits and use a real Windows Python child instead of a Unix shell shim.
+  Local follow-up: **316 desktop tests passed**; **57 Python cases passed,
+  two Windows-only cases skipped on Linux**. Hosted reruns are pending.
+- The first desktop/Python publication milestone uses **0.2.0**.
+  Native Windows and clean-OS Linux acceptance
   are explicitly deferred by the owner for source publication, not counted as passes.
 - Removed the build-only advisory chain through a scoped `@electron/get` 5.1.0
   override. Clean locked npm installation reports **zero vulnerabilities**.
