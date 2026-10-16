@@ -110,6 +110,11 @@ technical effects in plain language.
 - Write concise Russian and English descriptions with matching meaning: actual
   user-visible changes, supported download/install/update paths and relevant
   limits. Identify tested OS versions, signing status and preview status honestly.
+- When a release changes architecture, embed a clear before/after diagram in
+  the release description alongside a short explanation. Show actual component,
+  ownership or data-flow changes and unaffected routes without overstating them.
+  Keep editable SVG sources and use a public PNG preview that renders on desktop
+  and mobile; verify the published image, not a machine-local file link.
 - Publish only when authorized, from the reviewed protected-branch commit after
   required checks. Match tags, versions, assets, checksums and build provenance;
   exclude private data and VM images. Do not replace published binaries silently.

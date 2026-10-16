@@ -256,7 +256,14 @@ class ChatSession:
         interval_s: float = 0.5,
         timeout_s: float = 1200,
         show_debug: bool = False,
+        on_profile_change=None, before_turn=None, exit_on_interrupt: bool = False, submit_task=None,
+        start_fullscreen=None, classic_style="legacy",
     ):
+        self.on_profile_change = on_profile_change
+        self.before_turn = before_turn
+        self.exit_on_interrupt = exit_on_interrupt
+        self.submit_task = submit_task
+        self.classic_style = classic_style
         self.console = console
         self.profile = profile
         self.session_name = session_name
@@ -295,6 +302,8 @@ class ChatSession:
         self._tui_fullscreen = os.environ.get(
             "IGOREK_TUI_FULLSCREEN", "1"
         ).strip().lower() not in {"0", "off", "false", "no"}
+        if start_fullscreen is not None:
+            self._tui_fullscreen = bool(start_fullscreen)
         self._fs_scroll = {"offset": 0, "follow": True}
         self._startup_lines: list[str] = []
         self._fs_history_cells: list = []
@@ -309,7 +318,8 @@ class ChatSession:
         try:
             self._startup()
             while self._active:
-                if self._tui_fullscreen:
+                if (self._tui_fullscreen or getattr(self, "classic_style", "legacy") == "modern"
+                        or getattr(self, "exit_on_interrupt", False)):
                     self.run_fullscreen()
                     continue
                 self._render_widget()
@@ -337,6 +347,12 @@ class ChatSession:
         except KeyboardInterrupt:
             pass
         finally:
+            if getattr(self, "exit_on_interrupt", False):
+                task_id = getattr(self, "_current_task_id", None)
+                if task_id:
+                    task = get_task(task_id)
+                    if task and task["status"] not in {"ok", "fail", "dead_letter", "cancelled"}:
+                        cancel_task(task_id)
             try:
                 self._mouse_controller.disable()
                 self._mouse_controller.release_output()
@@ -363,13 +379,18 @@ class ChatSession:
             cwd=self.cwd, git_branch=self.branch,
         )
         from .cli_chat_idle import _logo as _print_logo, _help as _print_help_cmd
-        _print_logo(
-            self.console, self.profile, self.model, self.branch,
-            backend=self.pc.get("backend", ""),
-            version=_factory_version(),
-            update_info=self._get_update_status(),
-        )
-        _print_help_cmd(self.console)
+        if getattr(self, "classic_style", "legacy") == "modern":
+            from .cli_classic import header
+            header(self.console, profile=self.profile, model=self.model,
+                   version=_factory_version(), cwd=self.cwd)
+        else:
+            _print_logo(
+                self.console, self.profile, self.model, self.branch,
+                backend=self.pc.get("backend", ""),
+                version=_factory_version(),
+                update_info=self._get_update_status(),
+            )
+            _print_help_cmd(self.console)
 
         # Capture the same banner/help so fullscreen mode can render the
         # startup header inside its own viewport.
@@ -380,12 +401,17 @@ class ChatSession:
             _cap = _RichConsole(
                 file=_buf, force_terminal=True, width=self.console.width
             )
-            _print_logo(
-                _cap, self.profile, self.model, self.branch,
-                backend=self.pc.get("backend", ""),
-                version=_factory_version(),
-            )
-            _print_help_cmd(_cap)
+            if getattr(self, "classic_style", "legacy") == "modern":
+                from .cli_classic import header
+                header(_cap, profile=self.profile, model=self.model,
+                       version=_factory_version(), cwd=self.cwd)
+            else:
+                _print_logo(
+                    _cap, self.profile, self.model, self.branch,
+                    backend=self.pc.get("backend", ""),
+                    version=_factory_version(),
+                )
+                _print_help_cmd(_cap)
             self._startup_lines = _buf.getvalue().rstrip("\n").splitlines()
         except Exception:
             self._startup_lines = []
@@ -436,7 +462,14 @@ class ChatSession:
 
     def _goodbye(self):
         self.console.print()
-        _print_resume_hint(self.session_name, profile=self.profile, data_dir=self.data_dir)
+        if getattr(self, "exit_on_interrupt", False):
+            import shlex
+            command = ["igorek", "--profile", self.profile, "--resume", self.session_name]
+            if self.data_dir:
+                command.extend(["--data-dir", self.data_dir])
+            self.console.print("Resume: " + shlex.join(command), markup=False)
+        else:
+            _print_resume_hint(self.session_name, profile=self.profile, data_dir=self.data_dir)
 
     # ── input ──────────────────────────────────────────────────
 
@@ -537,11 +570,13 @@ class ChatSession:
 
         from .cli_chat_active import _create_chat_application
 
-        self._used_fullscreen = True
-        self._seed_fullscreen_history_from_session()
+        fullscreen = getattr(self, "_tui_fullscreen", True)
+        self._used_fullscreen = fullscreen
+        if fullscreen:
+            self._seed_fullscreen_history_from_session()
 
         self._mouse_controller.set_wheel_handler(self._fs_scroll_by)
-        self._mouse_controller.set_capture_allowed(True)
+        self._mouse_controller.set_capture_allowed(fullscreen)
         if not hasattr(self, "_fs_submitted") or self._fs_submitted is None:
             self._fs_submitted = []
         self._fs_in_turn = False
@@ -564,13 +599,15 @@ class ChatSession:
             "interrupt_pending": False,
             "task_finished": False,
             "current_task_id": None,
+            "exit_on_interrupt": getattr(self, "exit_on_interrupt", False),
         }
         self._fs_running_state = running_state
         app, _buffer, _lines = _create_chat_application(
             status_line=self.sl,
             running_state=running_state,
-            fullscreen=True,
-            transcript_provider=self._fullscreen_output_lines,
+            fullscreen=fullscreen,
+            transcript_provider=self._fullscreen_output_lines if fullscreen else None,
+            output_provider=self._live_widget_lines if not fullscreen else None,
             transcript_regions_provider=self._fullscreen_regions,
             transcript_full_provider=self._fullscreen_transcript_lines,
             transcript_window_start_provider=self._fullscreen_window_start,
@@ -616,6 +653,9 @@ class ChatSession:
             self._fs_loop = None
             self._fs_in_turn = False
             self._mouse_controller.clear_app()
+
+        if running_state.get("exit_requested"):
+            self._active = False
 
         if isinstance(result, str) and result.startswith("__tui__:"):
             self._cmd_tui(result[len("__tui__:"):])
@@ -749,6 +789,20 @@ class ChatSession:
                 except Exception:
                     pass
                 return
+            if text.split()[0].lower() == "/profile":
+                # Profile startup can block. Keep the composer attached and raw;
+                # run_in_terminal would cook an immediately typed Enter into LF.
+                def change_profile():
+                    with self.console.capture() as captured:
+                        self._handle_command(text)
+                    from rich.text import Text
+                    return Text.from_ansi(captured.get()).plain.strip()
+                output = await asyncio.to_thread(change_profile)
+                self._fs_command_lines = output.splitlines()
+                if self._tui_fullscreen and output:
+                    self.widget.committed_cells.append(TextCell(output))
+                app.invalidate()
+                return
             self._fs_external_app = app
             try:
                 from prompt_toolkit.application import run_in_terminal
@@ -765,6 +819,10 @@ class ChatSession:
             return
 
         self._fs_in_turn = True
+        self._fs_command_lines = []
+        if not self._tui_fullscreen:
+            from prompt_toolkit.application import run_in_terminal
+            await run_in_terminal(lambda: _user_msg(self.console, text))
         running_state["task_active"] = True
         running_state["t0"] = time.monotonic()
         running_state["interrupted"] = False
@@ -1183,7 +1241,27 @@ class ChatSession:
         a = text[len("/profile"):].strip()
         if not a:
             self.console.print(f"  [dim]Profile:[/dim] {self.profile}")
+            from .runtime import get_profiles_dir, list_profile_names
+            for name in list_profile_names(get_profiles_dir()):
+                self.console.print("  " + name, markup=False)
+            self.console.print("  /profile ИМЯ — переключить профиль", markup=False)
         else:
+            try:
+                config = get_profile_config(a)
+                if getattr(self, "on_profile_change", None) is not None:
+                    self.on_profile_change(a)
+            except (OSError, ValueError, RuntimeError) as error:
+                _error_msg(self.console, str(error))
+                return
+            self.profile, self.pc = a, config
+            self.model = profile_model_name(config)
+            self.model_override = None
+            self.approved_session_rules = []
+            self.sl.profile, self.sl.profile_config, self.sl.model = a, config, self.model
+            self.widget.model = self.model
+            from .cli_chat import update_session_meta
+            update_session_meta(self.session_path, {"profile": a, "model": self.model,
+                                                   "provider": str(config.get("provider", ""))})
             self.console.print(f"  [green]Profile → {a}[/green]")
 
     def _cmd_smarthelp(self, text: str = ""):
@@ -1240,12 +1318,19 @@ class ChatSession:
             # Fullscreen mode owns the viewport; nothing is printed to the
             # terminal scrollback. The app reads the transcript directly.
             return
-        lines = self._scrollback_widget_lines()
-        new = lines[self._emitted_line_count:]
-        if new:
-            for line in new:
-                self.console.print(f" {line}", markup=False)
-            self._emitted_line_count = len(lines)
+        def emit():
+            lines = self._scrollback_widget_lines()
+            new = lines[self._emitted_line_count:]
+            if new:
+                for line in new:
+                    self.console.print(f" {line}", markup=False)
+                self._emitted_line_count = len(lines)
+        if (getattr(self, "_fs_external_app", None) is not None
+                and getattr(self, "_fs_loop", None) is not None
+                and threading.current_thread() is not threading.main_thread()):
+            self._fs_run_on_terminal(emit)
+        else:
+            emit()
 
     def _has_unemitted_widget_lines(self) -> bool:
         return len(self._scrollback_widget_lines()) > self._emitted_line_count
@@ -1285,7 +1370,7 @@ class ChatSession:
 
         active = self.widget.active_cell
         if active is None or isinstance(active, ReasoningCell):
-            return []
+            return list(getattr(self, "_fs_command_lines", []))
         width = _terminal_width()
         history = self.widget._HistoryArea([], active)
         lines = history.display_lines(width)
@@ -1727,11 +1812,15 @@ class ChatSession:
     def _execute_one_turn(
         self, prompt: str, meta: dict, input_files: Optional[list] = None,
     ) -> Optional[dict]:
-        created = create_task(
+        if getattr(self, "before_turn", None) is not None:
+            self.before_turn(self.profile)
+        creator = getattr(self, "submit_task", None) or create_task
+        created = creator(
             text=prompt, profile=self.profile, metadata=meta,
             input_files=list(input_files or []),
         )
         task_id = str(created["task_id"])
+        self._current_task_id = task_id
         # Expose the live task id so Esc in the persistent fullscreen app can
         # cancel exactly this task.
         fs_state = getattr(self, "_fs_running_state", None)
@@ -1862,6 +1951,12 @@ class ChatSession:
             external_app = getattr(self, "_fs_external_app", None)
             try:
                 while not done_event.is_set():
+                    if isinstance(_fs_state, dict) and _fs_state.get("exit_requested"):
+                        interrupted_by_user = True
+                        self._active = False
+                        done_event.set()
+                        cancel_task(task_id)
+                        break
                     pending_user_input = self._pending_user_input_request(task_id)
                     if pending_user_input is not None:
                         if external_app is not None:
@@ -2048,6 +2143,8 @@ class ChatSession:
         # separator carrying the label in the middle, then flush it to scrollback.
         elapsed = time.monotonic() - turn_started
         if interrupted_by_user:
+            if getattr(self, "exit_on_interrupt", False):
+                self._active = False
             worked_label = f"Interrupted by user for {_elapsed_label(elapsed)}"
         else:
             worked_label = f"Worked for {_elapsed_label(elapsed)}"
