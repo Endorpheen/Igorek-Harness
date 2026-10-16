@@ -419,3 +419,72 @@ test('OpenCode profile grants use the bounded owner pipe and preserve the existi
     assert.equal(queued.length,2);
   }finally{await f.runtime.stop();f.cleanup();}
 });
+
+test('settings reads serialize behind an active request and keep their order', async () => {
+  const f = fixture('owner');
+  const actions = ['readiness', 'image_status', 'execution_mode', 'list_profiles', 'list_values',
+    'private_mcp_status', 'gmail_status', 'plugins_status'];
+  const sent = [];
+  try {
+    await f.runtime.start();
+    const write = f.runtime.child.stdin.write.bind(f.runtime.child.stdin);
+    f.runtime.child.stdin.write = (data, ...args) => {
+      if (data !== 'stop\n') sent.push(JSON.parse(data).action);
+      return write(data, ...args);
+    };
+    const first = f.runtime.requestOwner('status');
+    const waiting = actions.map(action => f.runtime.requestOwner(action));
+    const results = await Promise.allSettled([first, ...waiting]);
+    assert.ok(results.every(value => value.status === 'fulfilled'));
+    assert.deepEqual(sent, ['status', ...actions]);
+    assert.equal(f.runtime.requests.size, 0);
+    assert.equal(f.runtime.ownerQueue.length, 0);
+  } finally { await f.runtime.stop(); f.cleanup(); }
+});
+
+test('duplicate queued settings reads share one promise without bypassing validation', async () => {
+  const f = fixture('owner');
+  try {
+    await f.runtime.start();
+    const first = f.runtime.requestOwner('status');
+    const read = f.runtime.requestOwner('image_status');
+    const repeated = Array.from({ length: 30 }, () => f.runtime.requestOwner('image_status'));
+    const results = Promise.allSettled([first, read, ...repeated]);
+    assert.ok(repeated.every(value => value === read));
+    assert.equal(f.runtime.ownerQueue.length, 1);
+    await assert.rejects(f.runtime.requestOwner('image_status', { unexpected: 'field' }), /данные/);
+    assert.ok((await results).every(value => value.status === 'fulfilled'));
+  } finally { await f.runtime.stop(); f.cleanup(); }
+});
+
+test('busy mutations and a full settings queue have a structural busy code', async () => {
+  const f = fixture('owner');
+  try {
+    await f.runtime.start();
+    const first = f.runtime.requestOwner('status');
+    const actions = ['readiness', 'image_status', 'execution_mode', 'list_profiles', 'list_values',
+      'private_mcp_status', 'gmail_status', 'plugins_status'];
+    const waiting = actions.map(action => f.runtime.requestOwner(action));
+    const settled = Promise.allSettled([first, ...waiting]);
+    await assert.rejects(f.runtime.requestOwner('unlock', 'fixture-password'), error => error.code === 'operation_busy');
+    await assert.rejects(f.runtime.requestOwner('host_mcp_access'), error => error.code === 'operation_busy');
+    assert.ok((await settled).every(value => value.status === 'fulfilled'));
+  } finally { await f.runtime.stop(); f.cleanup(); }
+});
+
+test('a read started by a completed request cannot jump ahead of queued settings reads', async () => {
+  const f = fixture('owner'), sent = [];
+  try {
+    await f.runtime.start();
+    const write = f.runtime.child.stdin.write.bind(f.runtime.child.stdin);
+    f.runtime.child.stdin.write = (data, ...args) => {
+      if (data !== 'stop\n') sent.push(JSON.parse(data).action);
+      return write(data, ...args);
+    };
+    const first = f.runtime.requestOwner('status');
+    const waiting = f.runtime.requestOwner('readiness');
+    const next = first.then(() => f.runtime.requestOwner('image_status'));
+    await Promise.all([first, waiting, next]);
+    assert.deepEqual(sent, ['status', 'readiness', 'image_status']);
+  } finally { await f.runtime.stop(); f.cleanup(); }
+});

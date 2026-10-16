@@ -182,6 +182,7 @@ function renderNav() {
 }
 for (const button of document.querySelectorAll('[data-open-panel]')) button.addEventListener('click', () => openPanel(button.dataset.openPanel));
 const errors = {
+  operation_busy: 'Другая операция ещё выполняется. Повторите действие после её завершения.',
   local_requires_host_mode: 'Для сервера на этом компьютере выберите выполнение на этом компьютере в разделе «Среда выполнения». Режим KVM автоматически не меняется.',
   interface_lock_disabled: 'Блокировка настроек выключена.',
   pin_invalid: 'PIN не подошёл.',

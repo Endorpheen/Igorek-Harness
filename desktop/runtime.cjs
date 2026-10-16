@@ -4,6 +4,12 @@ const { join, resolve, relative, isAbsolute, sep } = require('node:path');
 const { EventEmitter } = require('node:events');
 const { randomUUID } = require('node:crypto');
 const { settings } = require('./policy.cjs');
+const OWNER_READ_ACTIONS = new Set(['status', 'readiness', 'image_status', 'execution_mode',
+  'list_profiles', 'list_values', 'value_access', 'private_mcp_status', 'host_mcp_access',
+  'mcp_access', 'gmail_status', 'plugins_status', 'calendar_list']);
+const OWNER_QUEUE_ACTIONS = new Set([...OWNER_READ_ACTIONS, 'host_service', 'opencode_services',
+  'opencode_profiles', 'mobile_configure', 'mobile_start', 'mobile_status', 'mobile_stop',
+  'mobile_revoke', 'quota_begin', 'quota_status', 'quota_cancel', 'quota_confirm']);
 const canonicalPath = value => process.platform === 'win32' ? realpathSync.native(value) : realpathSync(value);
 
 function runtimeEnvironment(root, source = process.env, platform = process.platform, bundle = null) {
@@ -136,7 +142,7 @@ class OwnedRuntime extends EventEmitter {
       });
     } catch (error) { await this.stop(); throw error; }
   }
-  requestOwner(action, fields) {
+  requestOwner(action, fields, fromQueue = false) {
     const expected = { status: [], gmail_status: [], gmail_import_host: ['password'], gmail_configure: ['source', 'password'], gmail_begin: ['password'], gmail_disconnect: ['password'], private_mcp_start: ['server', 'credential_id', 'message'], private_mcp_status: [], private_mcp_clear: [], host_mcp_access: [], set_host_mcp_access: ['server', 'credential_id', 'access', 'password'], mcp_access: [], set_mcp_access: ['server', 'credential_id', 'access', 'password'], read_legacy_profile: ['source'], configure_interface_lock: ['password', 'enabled'], lock_interface: [], unlock_interface: ['password'], set_interface_pin: ['password', 'pin'], remove_interface_pin: ['password'], unlock_interface_pin: ['pin'], readiness: [], image_status: [], execution_mode: [], select_execution_mode: ['mode'], prepare_image: ['source'], recover_image: ['source'], change_password: ['current', 'new_password'], create: ['password'], unlock: ['password'], lock: [],
       generate_phrase: [], export_recovery: ['password', 'recovery_phrase'], verify_recovery: ['backup', 'recovery_phrase'],
       restore_recovery: ['backup', 'recovery_phrase', 'new_password'], model_catalog: ['preset', 'api_key', 'credential_id'], delete_profile: ['credential_id', 'password'], rename_profile: ['credential_id', 'password', 'new_name'], list_profiles: [],
@@ -173,11 +179,20 @@ class OwnedRuntime extends EventEmitter {
         return Promise.reject(new Error('Некорректные данные.'));
       message[key] = value;
     }
-    if (this.requests.size) {
-      if (!['host_service','opencode_services','opencode_profiles','status','mobile_configure','mobile_start','mobile_status','mobile_stop','mobile_revoke','quota_begin','quota_status','quota_cancel','quota_confirm'].includes(action) || this.ownerQueue.length >= 8)
-        return Promise.reject(new Error('Дождитесь завершения операции.'));
+    if (this.requests.size || (!fromQueue && this.ownerQueue.length)) {
       const validated = Object.fromEntries(expected[action].map(key => [key, message[key]]));
-      return new Promise((resolve, reject) => this.ownerQueue.push({ action, fields: validated, resolve, reject }));
+      if (OWNER_READ_ACTIONS.has(action)) {
+        const pending = this.ownerQueue.find(item => item.action === action
+          && JSON.stringify(item.fields) === JSON.stringify(validated));
+        if (pending) return pending.promise;
+      }
+      if (!OWNER_QUEUE_ACTIONS.has(action) || this.ownerQueue.length >= 8)
+        return Promise.reject(Object.assign(new Error('Дождитесь завершения операции.'), { code: 'operation_busy' }));
+      let resolve, reject;
+      const promise = new Promise((accept, fail) => { resolve = accept; reject = fail; });
+      this.ownerQueue.push({ action, fields: validated, resolve, reject, promise });
+      queueMicrotask(() => this.drainOwnerQueue());
+      return promise;
     }
     return new Promise((resolveReply, reject) => {
       const finish = (callback, value) => { clearTimeout(timer); this.requests.delete(id); callback(value); queueMicrotask(() => this.drainOwnerQueue()); };
@@ -191,7 +206,7 @@ class OwnedRuntime extends EventEmitter {
   drainOwnerQueue() {
     if (this.requests.size || !this.ownerQueue.length) return;
     const request = this.ownerQueue.shift();
-    this.requestOwner(request.action, request.fields).then(request.resolve, request.reject).finally(() => this.drainOwnerQueue());
+    this.requestOwner(request.action, request.fields, true).then(request.resolve, request.reject).finally(() => this.drainOwnerQueue());
   }
   async stop() {
     this.stopping = true;

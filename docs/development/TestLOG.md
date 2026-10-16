@@ -1,5 +1,28 @@
 # Test results
 
+## 0.2.6 candidate — settings notifications
+
+Concurrent settings reads now wait in a bounded queue and repeated identical
+queued reads share one request. Requests started by completion callbacks retain
+FIFO order. An expected busy response is shown in settings without creating an
+error notification. Authentication, backend failures and owner-frame checks
+remain enforced and visible.
+
+Five new regression cases failed before the fix; a separate ordering regression
+exposed a callback overtaking queued work and passed after the FIFO correction.
+Locked desktop installation and all **345 Node contracts** passed, with no skips.
+The isolated Python run across both roots collected **4,835 cases: 4,804 passed,
+31 skips, zero failures/errors**, plus **630 passing subtests**.
+The skips include ten disabled terminal cases and existing isolation, platform
+and live-provider checks. They are not successful checks; reasons are unchanged.
+
+A separate real Electron/preload/owner-child check passed: 25 concurrent identical
+reads produced one backend dispatch and zero busy notifications. Both a backend
+error reply and a stopped backend produced genuine error notifications. Test
+windows, data and child processes were isolated; the user's installed desktop,
+Vault and saved notification history were not changed. This source fix requires
+an updated desktop build to take effect; no new release has been published.
+
 ## 0.2.5 candidate — one-command CLI and explicit shared runtime
 
 The real igorek entry point uses existing profile queues, with OS-held client
@@ -60,6 +83,36 @@ desktop AgentRuntime. Worker task environment overlays are process-global; a new
 regression holds one synthetic profile overlay while starting another worker,
 proves the values remain isolated, and checks idle stop with a shared mutex.
 This adds one launcher case (23 total); the final hosted full suites gate release.
+
+Protected PR 28 then passed all **eleven hosted checks** on final head
+f8db32ffb0062f0c80170cd97de856b8e0abe581 and merged normally as
+002f43fed32e250e01de91240859ae5366ae2e8a. Python 3.13 and 3.14 each collected
+**4,835 cases: 4,803 passed, 32 environment skips, zero failures/errors**, plus
+**630 passing subtests**. Hosted 3.14 statement coverage is **46,158/78,019**;
+branch coverage **12,835/27,866**. Desktop contracts passed **338 cases on each
+OS**; Android unit/lint/debug checks passed unchanged at 0.1.106 (107).
+
+The final shipping wheel passed all **23 launcher cases outside the source
+checkout**, including the delayed profile switch and process-environment
+isolation regression. The clean Linux snapshot contains **7,528 entries**, build
+25fe32be7a31. Native Linux and Windows each passed all nine maintained stages and
+redirect/progress checks. The temporary Linux **0.2.4-to-0.2.5** update retained an
+encrypted Vault canary and previous generation. Windows Server 2025 x64 accepted
+NSIS installation, verified helper update and packaged relaunch with spaces and
+Unicode paths while preserving synthetic data. Both package manifests declare
+unmodified sources; all reviewed product/backend/CLI bytes match. No private
+state is bundled; the Windows executable is unsigned.
+
+GitHub v0.2.5 was published as a preview from the protected merge commit, with
+three desktop installers, the architecture-independent CLI wheel, five SVG/PNG
+architecture assets, SHA256SUMS and BUILD_MANIFEST.json. All eleven server asset
+sizes and SHA256 digests match local files. Anonymous Windows download and all
+three PNG preview URLs return HTTP 200. The release description distinguishes
+ordinary foreground ownership from the explicit daemon and serves all users.
+Gitea mirrors these approved files with full downloaded checksum verification.
+Physical Windows 11, Termux/Ubuntu ARM64 and live model-account acceptance remain
+separate. User installation, model server, Vault and running services were not
+changed. The cancelled update automation remains paused.
 
 ## 0.2.4 candidate — OpenCode 2 managed-profile authorization
 
