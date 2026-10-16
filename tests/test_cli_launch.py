@@ -376,6 +376,45 @@ def test_daemon_stop_refuses_busy_worker_and_releases_acquired_locks(home):
         busy.release()
 
 
+def test_daemon_profile_workers_serialize_process_local_environment(home, monkeypatch):
+    import threading
+    from factory.core.cli_daemon import Daemon
+    from factory.core.worker import _temporary_env
+    ready, threads, values = set(), [], []
+    entered, release = threading.Event(), threading.Event()
+    daemon = Daemon()
+    class FixtureWorker:
+        def __init__(self, profile, **_):
+            self.profile = profile
+        def run(self, *, stop_event, execution_lock):
+            ready.add(self.profile)
+            threads.append(threading.current_thread())
+            with execution_lock:
+                with _temporary_env({"IGOREK_FIXTURE_PROFILE_ENV": self.profile}):
+                    if self.profile == "one":
+                        entered.set()
+                        release.wait(timeout=5)
+                    values.append(os.environ["IGOREK_FIXTURE_PROFILE_ENV"])
+    monkeypatch.setattr("factory.core.worker.Worker", FixtureWorker)
+    monkeypatch.setattr("factory.core.cli_daemon.consumers", lambda profile, _: profile in ready)
+    try:
+        daemon.ensure("one")
+        assert entered.wait(timeout=5)
+        daemon.ensure("two")
+        assert values == []
+        assert daemon.execution_locks["one"] is daemon.execution_locks["two"]
+    finally:
+        release.set()
+        for thread in threads:
+            thread.join(timeout=5)
+    assert values == ["one", "two"]
+    assert "IGOREK_FIXTURE_PROFILE_ENV" not in os.environ
+    from factory.core.schema import initialize_database
+    initialize_database(str(home / "database/factory.db"))
+    daemon.dispatch({"id": daemon.identity, "action": "stop"})
+    assert daemon.stop.is_set()
+
+
 @pytest.mark.skipif(os.name != "posix", reason="Owner-local POSIX scheduled-task acceptance")
 def test_daemon_executes_schedule_without_any_cli_client(home):
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer

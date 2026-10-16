@@ -54,6 +54,16 @@ plus **3 subtests**, including all nine PTY configurations. This replaces the
 first candidate's profile-command path; previous native builds are not reused for
 publication. The full Python rerun and hosted checks gate the final candidate.
 
+The raw-input fix passed a second complete local run: **4,834 collected,
+4,803 passed, 31 skipped, 630 passing subtests, zero failures/errors**. The
+updated installed wheel also passed all **22 launcher cases** outside source.
+
+The daemon now shares one execution mutex across its profile workers, matching
+desktop AgentRuntime. Worker task environment overlays are process-global; a new
+regression holds one synthetic profile overlay while starting another worker,
+proves the values remain isolated, and checks idle stop with a shared mutex.
+This adds one launcher case (23 total); the final hosted full suites gate release.
+
 ## 0.2.4 candidate — OpenCode 2 managed-profile authorization
 
 OpenCode 2.0.27 gives a saved connection credential precedence over a provider's

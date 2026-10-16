@@ -71,6 +71,7 @@ class Daemon:
         self.identity = uuid.uuid4().hex
         self.workers = {}
         self.execution_locks = {}
+        self.execution_lock = threading.Lock()
         self.served_profiles = set()
         self.lock = threading.RLock()
         self.stop = threading.Event()
@@ -92,7 +93,9 @@ class Daemon:
                 return
             from .worker import Worker
             worker = Worker(profile, poll_interval=0.25)
-            execution_lock = threading.Lock()
+            # Match desktop AgentRuntime: task-local environment changes are
+            # process-global, so workers in one daemon must not execute together.
+            execution_lock = self.execution_lock
             self.execution_locks[profile] = execution_lock
             thread = threading.Thread(target=worker.run,
                                       kwargs={"stop_event": self.stop, "execution_lock": execution_lock}, daemon=True)
@@ -142,7 +145,7 @@ class Daemon:
             if action == "stop":
                 acquired = []
                 try:
-                    for lock in self.execution_locks.values():
+                    for lock in dict.fromkeys(self.execution_locks.values()):
                         if not lock.acquire(blocking=False):
                             raise RuntimeError("Shared runtime is busy; finish or cancel active tasks before stopping it")
                         acquired.append(lock)
