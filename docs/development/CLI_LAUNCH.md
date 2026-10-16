@@ -62,7 +62,10 @@ accept `--data-dir PATH` for an explicit isolated home. `version` returns JSON
 including whether the daemon is running and owns the scheduler.
 
 The owner-local Unix socket is private, with bounded JSON frames and Linux peer
-UID checks. There is no new TCP API. The daemon owns queue workers, the existing
+UID checks. There is no new TCP API. The daemon serializes task execution across its in-process profile workers,
+matching desktop AgentRuntime, because task-local environment overlays are
+process-global. Foreground workers remain separate processes.
+The daemon owns queue workers, the existing
 TaskScheduler/Gateway callback and the existing task watchdog. A per-database OS
 lease prevents two updated schedulers from running the same schedule. The daemon
 can take over a profile after a reused foreground consumer exits. It does not
