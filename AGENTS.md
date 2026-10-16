@@ -98,3 +98,21 @@ final report states changes, verification, limits, artifact versions and restart
 requirements. Backend/tool changes require runtime/gateway then chat restart;
 CLI-only changes require chat restart. Say when no restart is needed and explain
 technical effects in plain language.
+
+### Public release descriptions and publication
+
+- Releases serve all users, including first-time installers. Never present the
+  maintainer's profile names, models, paths or setup as universal defaults. Use
+  placeholders; label concrete examples explicitly.
+- Separate upgrade instructions from first-time setup and optional features.
+  State who needs each action; do not require changing an already correct model
+  or configuration. Verify visible labels and prerequisites against the code.
+- Write concise Russian and English descriptions with matching meaning: actual
+  user-visible changes, supported download/install/update paths and relevant
+  limits. Identify tested OS versions, signing status and preview status honestly.
+- Publish only when authorized, from the reviewed protected-branch commit after
+  required checks. Match tags, versions, assets, checksums and build provenance;
+  exclude private data and VM images. Do not replace published binaries silently.
+- Read back the published description, links and asset inventory. Mirror the
+  same approved assets and description to Gitea when authorized. Text-only
+  corrections do not require a new application version or rebuilt installers.
