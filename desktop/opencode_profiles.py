@@ -159,7 +159,10 @@ class Handler(BaseHTTPRequestHandler):
             if len(parts) < 5 or parts[1] != 'profiles' or parts[3] != 'v1':
                 raise ValueError('opencode_profile_path_denied')
             identity, endpoint = parts[2], '/'.join(parts[4:])
-            token = self.headers.get('Authorization', '').removeprefix('Bearer ') or self.headers.get('x-api-key', '')
+            # OpenCode's saved credentials can replace Authorization, not the managed grant.
+            token = self.headers.get('X-Igorek-Profile-Grant')
+            if token is None:
+                token = self.headers.get('Authorization', '').removeprefix('Bearer ') or self.headers.get('x-api-key', '')
             config = self.server.binding(token, identity)
             expected = {'openai': 'chat/completions', 'anthropic': 'messages', 'openai-responses': 'responses'}[config['api_format']]
             if endpoint != expected or self.headers.get('Transfer-Encoding'):

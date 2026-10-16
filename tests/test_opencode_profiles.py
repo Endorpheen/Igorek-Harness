@@ -247,3 +247,37 @@ def test_invalid_optional_config_does_not_block_enrolled_profile_overlay(endpoin
     sandbox.profile_config_directory(endpoint[1],12345,original,runtime,{})
     assert 'igorek-local-test' in json.loads((runtime/'opencode.jsonc').read_text())['providers']
     assert (original/'opencode.jsonc').read_text()=='{broken'
+
+
+def test_managed_grant_survives_opencode_saved_key_override(endpoint):
+    config = endpoint[2]
+    config['model'] = '/models/NVIDIA-Nemotron-3.5-Bolt-74B-A9B-24GB.gguf'
+    grant = endpoint[0].configure('grant', {})
+    endpoint[1].update(grant)
+    provider = sandbox.profile_providers(grant, 12345)['igorek-local-test']
+    headers = {**provider['headers'], 'Authorization': 'Bearer local'}
+    status, body = request(endpoint, token='local', extra=headers)
+    assert status == 200 and b'[DONE]' in body
+    _, forwarded, payload = endpoint[-2][0]
+    assert payload['model'] == config['model']
+    assert forwarded['Authorization'] == 'Bearer fixture-provider-secret'
+    assert 'x-igorek-profile-grant' not in {key.lower() for key in forwarded}
+
+
+@pytest.mark.parametrize('dedicated', ['wrong', ''])
+def test_invalid_dedicated_grant_cannot_fall_back_to_bearer(endpoint, dedicated):
+    assert request(endpoint, extra={'X-Igorek-Profile-Grant': dedicated})[0] == 403
+    assert not endpoint[-2] and not endpoint[-1]
+
+
+def test_dedicated_grant_keeps_lock_revocation_and_binding_guards(endpoint):
+    headers = {'X-Igorek-Profile-Grant': endpoint[1]['token'], 'Authorization': 'Bearer local'}
+    endpoint[4]['unlocked'] = False
+    assert request(endpoint, extra=headers)[0] == 403
+    endpoint[4]['unlocked'] = True
+    endpoint[3][0]['config'] = {**endpoint[2], 'model': 'changed-model'}
+    assert request(endpoint, extra=headers)[0] == 403
+    endpoint[3][0]['config'] = endpoint[2]
+    endpoint[0].configure('revoke', {'token': endpoint[1]['token']})
+    assert request(endpoint, extra=headers)[0] == 403
+    assert not endpoint[-2] and not endpoint[-1]
