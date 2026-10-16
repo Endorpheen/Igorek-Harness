@@ -83,6 +83,8 @@ Fullscreen retains the current mouse interface. `--no-alt-screen` uses a
 persistent inline prompt with normal terminal scrollback and no mouse capture.
 Both use the same session frontend. Keeping the inline application alive avoids
 losing fast input between prompts, including immediately after profile switches.
+Profile commands run off the event loop with captured output while the composer
+retains raw input; Enter cannot be cooked into a newline during worker startup.
 The compact header shows version, profile, model and directory within terminal
 width. To restore the older header while retaining the new launcher:
 
