@@ -101,6 +101,12 @@ technical effects in plain language.
 
 ### Public release descriptions and publication
 
+- Keep private engineering discussions, reference comparisons, inspiration sources
+  and implementation-origin notes in ignored local records. Do not publish them
+  in releases, repositories, commits, pull requests, diagrams or other public text
+  without the user's explicit approval of that disclosure. Public release notes
+  describe user-visible behavior, usage, supported platforms and relevant limits.
+  Retain legally required third-party license and copyright notices.
 - Releases serve all users, including first-time installers. Never present the
   maintainer's profile names, models, paths or setup as universal defaults. Use
   placeholders; label concrete examples explicitly.
