@@ -8,7 +8,8 @@ const notificationSource = (channel, action) => ({mobile_configure:'Адрес �
 const invoke = async (channel, ...args) => {
   try {
     const reply = await ipcRenderer.invoke(channel, ...args);
-    if (reply?.error) ipcRenderer.invoke('igorek:notifications', 'add', { source: notificationSource(channel, args[0]), level: 'error', detail: String(reply.error) }).catch(() => {});
+    if (reply?.error && !(channel === 'igorek:owner-vault' && reply.error === 'operation_busy'))
+      ipcRenderer.invoke('igorek:notifications', 'add', { source: notificationSource(channel, args[0]), level: 'error', detail: String(reply.error) }).catch(() => {});
     return reply;
   } catch (error) {
     ipcRenderer.invoke('igorek:notifications', 'add', { source: notificationSource(channel, args[0]), level: 'error', detail: String(error.message || error) }).catch(() => {});

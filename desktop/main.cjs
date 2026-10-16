@@ -598,8 +598,8 @@ ipcMain.handle('igorek:owner-workspace', async (event, action) => {
 ipcMain.handle('igorek:owner-vault', async (event, action, fields) => {
   if (!managed || !isOwnerFrame(event, ownerWindow?.webContents, ownerUrl))
     throw new Error('Доступ запрещён.');
+  try {
   if(installingUpdate && !['status','image_status'].includes(action))throw Error('Идёт подготовка обновления.');
-  if (action === 'plugins_status' && runtime.requests.size) return {error:'operation_busy'};
   if (['gmail_configure_file','calendar_configure_file'].includes(action)) {
     if (!fields || Object.keys(fields).length !== 1 || typeof fields.password !== 'string') return {error:'invalid_request'};
     const status = await runtime.requestOwner('status');
@@ -704,6 +704,10 @@ ipcMain.handle('igorek:owner-vault', async (event, action, fields) => {
   }
   if (shouldRefreshProfiles(action, reply)) refreshChatProfiles();
   return reply;
+  } catch (error) {
+    if (error.code === 'operation_busy') return { error: 'operation_busy' };
+    throw error;
+  }
 });
 
 async function openWindow() {
