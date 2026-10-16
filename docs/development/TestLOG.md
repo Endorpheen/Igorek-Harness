@@ -43,6 +43,17 @@ physical Termux/ARM64/provider-account test. Native Windows CLI is not introduce
 Windows desktop compatibility and native package acceptance remain release gates.
 User desktop/gateway/model services, credentials and installation were untouched.
 
+Hosted Python 3.13 then exposed a genuine raw-input race in the 0.2.5
+candidate: a profile switch used prompt_toolkit run_in_terminal, which detaches
+input and enables cooked mode. Enter typed after profile state was saved could
+therefore arrive as LF instead of submission. The fixture now delays that exact
+boundary; the previous installed wheel fails deterministically (one failed case).
+Profile work now runs off the event loop with captured console output, while the
+composer stays attached and raw. The complete focused set passes **260 cases**,
+plus **3 subtests**, including all nine PTY configurations. This replaces the
+first candidate's profile-command path; previous native builds are not reused for
+publication. The full Python rerun and hosted checks gate the final candidate.
+
 ## 0.2.4 candidate — OpenCode 2 managed-profile authorization
 
 OpenCode 2.0.27 gives a saved connection credential precedence over a provider's

@@ -789,6 +789,20 @@ class ChatSession:
                 except Exception:
                     pass
                 return
+            if text.split()[0].lower() == "/profile":
+                # Profile startup can block. Keep the composer attached and raw;
+                # run_in_terminal would cook an immediately typed Enter into LF.
+                def change_profile():
+                    with self.console.capture() as captured:
+                        self._handle_command(text)
+                    from rich.text import Text
+                    return Text.from_ansi(captured.get()).plain.strip()
+                output = await asyncio.to_thread(change_profile)
+                self._fs_command_lines = output.splitlines()
+                if self._tui_fullscreen and output:
+                    self.widget.committed_cells.append(TextCell(output))
+                app.invalidate()
+                return
             self._fs_external_app = app
             try:
                 from prompt_toolkit.application import run_in_terminal
@@ -805,6 +819,7 @@ class ChatSession:
             return
 
         self._fs_in_turn = True
+        self._fs_command_lines = []
         if not self._tui_fullscreen:
             from prompt_toolkit.application import run_in_terminal
             await run_in_terminal(lambda: _user_msg(self.console, text))
@@ -1355,7 +1370,7 @@ class ChatSession:
 
         active = self.widget.active_cell
         if active is None or isinstance(active, ReasoningCell):
-            return []
+            return list(getattr(self, "_fs_command_lines", []))
         width = _terminal_width()
         history = self.widget._HistoryArea([], active)
         lines = history.display_lines(width)

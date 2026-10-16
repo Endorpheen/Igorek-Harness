@@ -240,7 +240,18 @@ def test_real_terminal_switch_reply_ctrl_c_and_other_client_survival(home, switc
         if shared:
             lifecycle("start")
         other.select("one")
-        command = [sys.executable, "-m", "factory.cli_launch", "--profile", "one"]
+        launch = """import time
+from factory.core import worker_presence
+original = worker_presence.write_private
+def slow_selection(path, value):
+    original(path, value)
+    if path.name == 'selection.json' and value.get('profile') == 'two':
+        time.sleep(0.4)
+worker_presence.write_private = slow_selection
+from factory.cli_launch import main
+raise SystemExit(main())
+"""
+        command = [sys.executable, "-c", launch, "--profile", "one"]
         if classic:
             command.append("--no-alt-screen")
         process = subprocess.Popen(command,
