@@ -69,8 +69,12 @@ class _FakeClipboard:
     def copy(self, text):
         self.texts.append(text)
         return types.SimpleNamespace(
-            success=True, message="", backend="xclip", error=None
+            success=True, confirmed=True, message="", backend="xclip", error=None
         )
+
+    def submit(self, text, completed):
+        completed(self.copy(text))
+        return True
 
 
 class ControllerAbsoluteSelectionTest(unittest.TestCase):

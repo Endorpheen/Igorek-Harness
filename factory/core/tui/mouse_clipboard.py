@@ -48,6 +48,7 @@ class CopyResult:
     message: str
     backend: Optional[str]
     error: Optional[str]
+    confirmed: bool = False
 
 
 class ClipboardService:
@@ -66,6 +67,22 @@ class ClipboardService:
         self.lease: Optional[ClipboardLease] = None
         self.last_backend: Optional[str] = None
         self.last_error: Optional[str] = None
+        self._busy = False
+
+    def submit(self, text: str, completed) -> bool:
+        """Codex ClipboardWorker contract: one pending copy, busy requests refused."""
+        with self._lock:
+            if self._busy:
+                return False
+            self._busy = True
+        def run():
+            try:
+                completed(self.copy(text))
+            finally:
+                with self._lock:
+                    self._busy = False
+        threading.Thread(target=run, name="igorek-clipboard", daemon=True).start()
+        return True
 
     def next_ticket(self) -> int:
         with self._lock:
@@ -89,7 +106,7 @@ class ClipboardService:
         if stale:
             return CopyResult(False, "", backend, error)
         success, message = format_copy_result(text, backend, error)
-        return CopyResult(success, message, backend, error)
+        return CopyResult(success, message, backend, error, success and backend in _LOCAL_BACKENDS)
 
 
 __all__ = [

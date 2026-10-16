@@ -1002,6 +1002,8 @@ def run_rich_chat(
     profile="zai", interval_s=0.5, timeout_s=1200, session="default",
     debug=False,
     data_dir=None,
+    on_profile_change=None, before_turn=None, exit_on_interrupt=False, submit_task=None,
+    start_fullscreen=None, classic_style="legacy",
 ):
     from .chat_session import ChatSession
     sn = _sanitize_session_name(session)
@@ -1024,5 +1026,9 @@ def run_rich_chat(
         interval_s=interval_s,
         timeout_s=timeout_s,
         show_debug=debug,
+        on_profile_change=on_profile_change, before_turn=before_turn,
+        exit_on_interrupt=exit_on_interrupt,
+        submit_task=submit_task,
+        start_fullscreen=start_fullscreen, classic_style=classic_style,
     )
     return cs.run()

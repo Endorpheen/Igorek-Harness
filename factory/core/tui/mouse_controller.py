@@ -417,7 +417,15 @@ class MouseController:
         parsed = parse_sgr_mouse_sequence(data)
         if parsed is None:
             return "delegate"
-        if parsed.button in (MouseButton.MIDDLE, MouseButton.RIGHT):
+        if parsed.button is MouseButton.RIGHT:
+            frame = self.current_frame()
+            if (frame is not None and self.selection is not None
+                    and parsed.kind is MouseEventKind.PRESS
+                    and self._in_history_area(parsed.y, frame)):
+                self._finish_selection(frame)
+                return "handled"
+            return "delegate"
+        if parsed.button is MouseButton.MIDDLE:
             return "delegate"
         if parsed.kind in (MouseEventKind.SCROLL_LEFT, MouseEventKind.SCROLL_RIGHT):
             return "delegate"
@@ -578,11 +586,8 @@ class MouseController:
 
     def _finish_selection(self, frame: ScreenFrame) -> None:
         selection = self.selection
-        self.selection = None
         abs_anchor = self._abs_anchor
         abs_focus = self._abs_focus
-        self._abs_anchor = None
-        self._abs_focus = None
         text: Optional[str] = None
         if frame.full_lines and abs_anchor is not None and abs_focus is not None:
             text = extract_selection_absolute(
@@ -600,9 +605,26 @@ class MouseController:
         )
         if not text or not text.strip():
             return
-        result = self.clipboard.copy(text)
-        if result.message and self._notify is not None:
-            self._notify(result.message)
+        self._deliver_copy(text, selection)
+
+    def _deliver_copy(self, text, selection=None):
+        def completed(result):
+            def apply():
+                if result.confirmed and self.selection is selection:
+                    self.selection = None
+                    self._abs_anchor = None
+                    self._abs_focus = None
+                if result.message and self._notify is not None:
+                    self._notify(result.message)
+                if self._app is not None:
+                    self._app.invalidate()
+            loop = getattr(self._app, "loop", None)
+            if loop is not None and loop.is_running():
+                loop.call_soon_threadsafe(apply)
+            else:
+                apply()
+        if not self.clipboard.submit(text, completed) and self._notify is not None:
+            self._notify("Буфер обмена занят; повторите копирование")
 
     def _copy_composer_selection(self) -> None:
         """Copy a mouse selection made in the input field to the clipboard.
@@ -627,9 +649,7 @@ class MouseController:
         text = str(getattr(data, "text", "") or "")
         if not text.strip():
             return
-        result = self.clipboard.copy(text)
-        if result.message and self._notify is not None:
-            self._notify(result.message)
+        self._deliver_copy(text)
         try:
             app.invalidate()
         except Exception:

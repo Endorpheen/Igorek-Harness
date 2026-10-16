@@ -67,7 +67,7 @@ See [Desktop](#desktop) for packaging and Electron sandbox requirements.
 | Interface | First step |
 | --- | --- |
 | Android | Install Igorek Remote and scan the QR code from desktop settings |
-| CLI/TUI | Install the host tool, run `igorek-factory init`, and configure a profile |
+| CLI/TUI | Install the host tool and run `igorek`; first launch offers profile setup |
 | Telegram | Configure a bot token, an explicit owner allowlist, and a working profile |
 | Local browser | Start the HTTPS interface with `igorek-factory web` |
 
@@ -222,12 +222,17 @@ igorek-factory init
 igorek-factory doctor --read-only
 ```
 
-After configuring a profile:
+Start the chat and its required queue worker in one terminal:
 
 ```bash
-igorek-factory run --profile <profile>
-igorek-factory chat --profile <profile>
+igorek
+igorek --profile <profile>
 ```
+
+The last selected profile is remembered. In the chat, `/profile` lists configured
+profiles and `/profile NAME` switches the session. Ctrl+C exits this client;
+other CLI clients and desktop remain running. See [CLI lifecycle](docs/development/CLI_LAUNCH.md).
+The existing `igorek-factory run`, `chat` and `gateway` commands remain available.
 
 `igorek-factory gateway --profile <profile>` starts the gateway stack.
 Additional queues use `FACTORY_WORKER_PROFILES` or separate worker processes.
