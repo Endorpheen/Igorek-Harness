@@ -14,6 +14,8 @@ import json
 import uuid
 import time
 import threading
+import os
+import hashlib
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Callable, Dict, Any, List
 from pathlib import Path
@@ -217,6 +219,7 @@ class TaskScheduler:
         self._task_callback: Optional[Callable[[Dict[str, Any]], None]] = None
         self._lock = threading.Lock()
         self._readiness_check = None
+        self._owner_fd = None
 
     def set_readiness_check(self, check):
         self._readiness_check = check
@@ -547,24 +550,34 @@ class TaskScheduler:
     def _run_loop(self):
         """Main scheduler loop."""
         print(f"Scheduler started, checking every {self.check_interval} seconds")
-        while self.running:
-            try:
-                self._check_and_run_schedules()
-            except Exception as e:
-                print(f"Scheduler error: {e}")
-
-            # Sleep in small intervals to allow for quick shutdown
-            for _ in range(self.check_interval):
-                if not self.running:
-                    break
-                time.sleep(1)
+        try:
+            while self.running:
+                try:
+                    self._check_and_run_schedules()
+                except Exception as e:
+                    print(f"Scheduler error: {e}")
+                for _ in range(self.check_interval):
+                    if not self.running:
+                        break
+                    time.sleep(1)
+        finally:
+            if self._owner_fd is not None:
+                os.close(self._owner_fd)
+                self._owner_fd = None
 
     def start(self):
         """Start the scheduler in a background thread."""
         with self._lock:
-            if self.running:
+            if self.running or (self._thread is not None and self._thread.is_alive()):
                 return
-
+            from .platform_support import LockBusyError, exclusive_lock
+            from .worker_presence import private_directory
+            identity = hashlib.sha256(str(Path(self.db_path).resolve()).encode()).hexdigest()[:24]
+            directory = private_directory(get_data_root() / "run" / "schedulers")
+            try:
+                self._owner_fd = exclusive_lock(directory / (identity + ".lock"))
+            except LockBusyError:
+                return
             self.running = True
             self._thread = threading.Thread(target=self._run_loop, daemon=True)
             self._thread.start()
@@ -576,7 +589,8 @@ class TaskScheduler:
             self.running = False
             if self._thread:
                 self._thread.join(timeout=5)
-                self._thread = None
+                if not self._thread.is_alive():
+                    self._thread = None
             print("Scheduler stopped")
 
 

@@ -825,6 +825,8 @@ def _create_chat_application(
 
     @kb.add("c-c")
     def _(event):
+        if running_state.get("exit_on_interrupt"):
+            running_state["exit_requested"] = True
         form = _get_active_form()
         if form is not None:
             form.cancel()

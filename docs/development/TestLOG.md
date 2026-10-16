@@ -1,5 +1,45 @@
 # Test results
 
+## 0.2.5 candidate — one-command CLI and explicit shared runtime
+
+The real igorek entry point uses existing profile queues, with OS-held client
+leases and scoped Ctrl+C cancellation. Profile switching changes routing/history
+and clears prior model overrides/approval rules. The optional POSIX daemon uses
+explicit lifecycle commands, existing scheduler/Gateway execution and watchdog;
+clients disconnect independently. One scheduler lease per database prevents duplicate
+schedule execution. Busy daemon stop refuses rather than truncating tasks.
+
+Persistent inline mode fixes fast input lost between prompt applications after a
+profile switch. Compact startup and --no-alt-screen retain the old-header fallback
+and original igorek-factory route. Mouse clipboard delivery is asynchronous with
+one pending request; failed/unconfirmed delivery retains selection for retry.
+
+Locked sync and the complete isolated run across both Python roots collected
+**4,834 cases: 4,803 passed, 31 skipped, zero failures/errors**, plus **630 passing
+subtests**. Statement coverage is **46,132/78,005**;
+branch coverage **12,823/27,862**. The existing
+system/terminal/live-provider/platform skips are not passes. Ruff executable-error
+checks and publication contracts passed; locked npm install and all **338 desktop
+contracts** passed. No dependencies were upgraded for this change.
+
+The 22 launcher tests include nine real POSIX PTY configurations: fullscreen and
+inline, foreground and explicit daemon, normal completion and active cancellation,
+profile switching, second-client survival, and the old header. Geometry and cursor
+queries are handled. A synthetic-provider schedule completed with no open frontend.
+Other cases cover data-home isolation, consumer reuse/config mismatch, scheduler
+ownership, idempotent daemon lifecycle and refusal to stop busy workers. Clipboard
+regressions cover nonblocking/busy behavior, confirmation and late-completion safety.
+
+The first full candidate run had two fixture failures: an old FakeClipboard did
+not implement submit. Its adapter was updated; original selection assertions were
+retained. The final complete rerun passed. An earlier classic PTY failure exposed
+lost typeahead and led to the persistent inline fix. Original evidence is retained
+locally. Sandbox socket denials required the normal host test permission; those
+failed environment runs are not counted as successful product checks.
+
+Physical Termux/ARM64 and real provider-account acceptance remain separate.
+Native Windows CLI is not introduced. User services and credentials were untouched.
+
 ## 0.2.4 candidate — OpenCode 2 managed-profile authorization
 
 OpenCode 2.0.27 gives a saved connection credential precedence over a provider's
@@ -30,6 +70,29 @@ were added for this change. Desktop locked installation and
 all **338 contracts** passed. These checks use synthetic model endpoints; owner
 acceptance of the actual llama-server connection remains separate. The installed
 0.2.3 application is unchanged while the 0.2.4 packages are prepared.
+
+Protected PR 26 then passed all eleven hosted checks and was merged without an
+administrative bypass. Python 3.13 and 3.14 each collected **4,809 cases**:
+**4,777 passed, 32 skipped, zero failures/errors**, plus **627 passing subtests**.
+The hosted environment has one additional existing system-prerequisite skip.
+Hosted 3.14 statement coverage is **45,763/77,349 (59.16%)**; branch coverage is
+**12,721/27,646 (46.01%)**. Desktop contracts passed on both operating systems;
+Android unit tests, lint and debug assembly passed without Android source changes.
+
+Both native desktop scenarios passed all nine maintained stages and actual HTTP
+redirect/progress checks. A temporary Linux 0.2.3-to-0.2.4 update retained an
+encrypted Vault canary and the previous generation. Windows Server 2025 x64
+accepted the NSIS install/update/relaunch scenario with spaces and Unicode in the
+installation path and retained synthetic data. Packaged application/backend
+sources match the reviewed files; manifests report unmodified sources. The
+published GitHub v0.2.4 contains three desktop installers, SHA256SUMS and build
+provenance with matching server digests. The installed 0.2.3 updater discovers
+0.2.4 for DEB, AppImage and Windows without downloading or installing it.
+
+These are synthetic-provider acceptance results. Real llama-server use and a
+physical Windows 11 machine remain owner/friend checks; Windows is unsigned.
+The owner's installation, running services, authorization and credentials were
+not modified. Android 0.1.106 (107) remains available in the previous release.
 
 
 ## Published 0.2.3 acceptance — 16 October 2026

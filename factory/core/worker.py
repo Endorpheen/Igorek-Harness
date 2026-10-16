@@ -3078,6 +3078,15 @@ class Worker:
             heartbeat.join(timeout=1.0)
 
     def run(self, *, stop_event=None, execution_lock=None):
+        from .worker_presence import WorkerPresence
+        with WorkerPresence(self.profile, getattr(self, "config", {}), ready=False) as presence:
+            self._presence = presence
+            try:
+                return self._run(stop_event=stop_event, execution_lock=execution_lock)
+            finally:
+                self._presence = None
+
+    def _run(self, *, stop_event=None, execution_lock=None):
         """Main worker loop"""
         print(f"[{self.profile}] Worker started (PID: {self.pid})", flush=True)
         if self.backend == "cc-backend" and (getattr(self, "isolation_manager", None) is not None or os.environ.get("IGOREK_ISOLATION_MODE") == "kvm"):
@@ -3092,6 +3101,8 @@ class Worker:
 
         stop_event = stop_event or threading.Event()
         execution_lock = execution_lock or threading.Lock()
+        if getattr(self, "_presence", None) is not None:
+            self._presence.mark_ready()
         while not stop_event.is_set():
             try:
                 with execution_lock:

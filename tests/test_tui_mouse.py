@@ -4,6 +4,7 @@ from __future__ import annotations
 import io
 import os
 import unittest
+import threading
 from types import SimpleNamespace
 from unittest import mock
 
@@ -306,13 +307,15 @@ class ControllerPolicyTest(unittest.TestCase):
             return None, None, "xclip"
 
         service = ClipboardService(copy_fn=fake_copy)
-        controller = MouseController(clipboard_service=service)
+        completed = threading.Event()
+        controller = MouseController(clipboard_service=service, notify=lambda _: completed.set())
         controller.configure_support(True)
         controller.enable()
         controller.set_frame_builder(lambda: self._frame())
         controller.dispatch(self._event("\x1b[<0;1;2M"))  # press row 1 col 0
         controller.dispatch(self._event("\x1b[<32;6;3M"))  # drag to row 2 col 5
         controller.dispatch(self._event("\x1b[<0;6;3m"))  # release
+        self.assertTrue(completed.wait(2))
         self.assertEqual(captured, ["hello\nworld"])
 
     def test_composer_release_sets_pending_copy(self):
@@ -332,7 +335,8 @@ class ControllerPolicyTest(unittest.TestCase):
             return None, None, "xclip"
 
         service = ClipboardService(copy_fn=fake_copy)
-        controller = MouseController(clipboard_service=service)
+        completed = threading.Event()
+        controller = MouseController(clipboard_service=service, notify=lambda _: completed.set())
 
         class _Doc:
             text = "selected composer text"
@@ -349,6 +353,7 @@ class ControllerPolicyTest(unittest.TestCase):
 
         controller._app = _App()
         controller._copy_composer_selection()
+        self.assertTrue(completed.wait(2))
         self.assertEqual(captured, ["selected composer text"])
 
     def test_normalize_no_button_motion_during_delegated_drag(self):
@@ -1237,3 +1242,52 @@ class FullscreenModeTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AsyncClipboardDeliveryTest(unittest.TestCase):
+    def test_pending_copy_does_not_block_and_busy_copy_is_refused(self):
+        entered, release, finished = threading.Event(), threading.Event(), threading.Event()
+        results = []
+        def copy(text):
+            entered.set()
+            self.assertTrue(release.wait(2))
+            return None, None, 'xclip'
+        service = ClipboardService(copy_fn=copy)
+        try:
+            self.assertTrue(service.submit('first', lambda result: (results.append(result), finished.set())))
+            self.assertTrue(entered.wait(1))
+            self.assertFalse(service.submit('second', lambda _: self.fail('Busy copy was queued')))
+        finally:
+            release.set()
+        self.assertTrue(finished.wait(2))
+        self.assertTrue(results[0].confirmed)
+
+    def test_selection_clears_only_after_confirmed_delivery(self):
+        from factory.core.tui.mouse_frame import Selection
+        for backend, error, retained in [('xclip', None, False), ('osc52', None, True), ('xclip', 'failed', True)]:
+            with self.subTest(backend=backend, error=error):
+                completed = threading.Event()
+                service = ClipboardService(copy_fn=lambda _: (None, error, backend))
+                controller = MouseController(clipboard_service=service, notify=lambda _: completed.set())
+                selection = Selection(0, 0, 0, 4, 0)
+                controller.selection = selection
+                controller._deliver_copy('text', selection)
+                self.assertTrue(completed.wait(2))
+                self.assertEqual(controller.selection is selection, retained)
+
+    def test_old_completion_does_not_clear_new_selection(self):
+        from factory.core.tui.mouse_frame import Selection
+        entered, release, finished = threading.Event(), threading.Event(), threading.Event()
+        def copy(_):
+            entered.set()
+            release.wait(2)
+            return None, None, 'xclip'
+        controller = MouseController(clipboard_service=ClipboardService(copy_fn=copy), notify=lambda _: finished.set())
+        old, new = Selection(0,0,0,3,0), Selection(1,0,1,3,1)
+        controller.selection = old
+        controller._deliver_copy('old', old)
+        self.assertTrue(entered.wait(1))
+        controller.selection = new
+        release.set()
+        self.assertTrue(finished.wait(2))
+        self.assertIs(controller.selection, new)

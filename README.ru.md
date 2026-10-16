@@ -68,7 +68,7 @@ desktop/run.sh --managed
 | Как работать | Первый шаг |
 | --- | --- |
 | Android | Установить Igorek Remote и отсканировать QR в настройках desktop |
-| CLI/TUI | Установить host tool, выполнить `igorek-factory init`, настроить профиль |
+| CLI/TUI | Установить host tool и запустить `igorek`; первый запуск предложит настройку профиля |
 | Telegram | Настроить bot token, owner allowlist и рабочий профиль |
 | Локальный браузер | Запустить HTTPS Web UI через `igorek-factory web` |
 
@@ -238,12 +238,17 @@ igorek-factory init
 igorek-factory doctor --read-only
 ```
 
-После настройки профиля:
+Чат и необходимый ему worker запускаются в одном терминале:
 
 ```bash
-igorek-factory run --profile <profile>
-igorek-factory chat --profile <profile>
+igorek
+igorek --profile <profile>
 ```
+
+Последний выбранный профиль запоминается. В чате `/profile` показывает профили,
+а `/profile ИМЯ` переключает текущий сеанс. Ctrl+C закрывает этот клиент;
+другие CLI-клиенты и десктоп продолжают работать. Подробнее: [жизненный цикл CLI](docs/development/CLI_LAUNCH.md).
+Прежние команды `igorek-factory run`, `chat` и `gateway` остаются доступны.
 
 `igorek-factory gateway --profile <profile>` запускает полный gateway-стек.
 Дополнительные очереди обслуживаются через `FACTORY_WORKER_PROFILES` либо
