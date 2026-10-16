@@ -105,7 +105,7 @@ def profile_providers(grant, port, legacy=False):
                      'settings': {'apiKey': grant['token'], 'baseURL': url,
                                   'provider': 'igorek-' + profile['name'],
                                   'timeout': 2400000, 'headerTimeout': 2400000, 'chunkTimeout': 600000},
-                     'headers': {'Authorization': 'Bearer ' + grant['token']},
+                     'headers': {'X-Igorek-Profile-Grant': grant['token']},
                      'models': {profile['model']: {'name': profile['model'],
                          'capabilities': {'tools': True, 'input': ['text'], 'output': ['text']}, 'limit': limit}}}
         result['igorek-' + profile['name']] = value

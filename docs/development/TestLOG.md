@@ -1,5 +1,37 @@
 # Test results
 
+## 0.2.4 candidate — OpenCode 2 managed-profile authorization
+
+OpenCode 2.0.27 gives a saved connection credential precedence over a provider's
+configured API key. Its runtime auth can also replace the Authorization header.
+An arbitrary saved key therefore replaced the managed proxy grant and caused
+HTTP 403 before the upstream model request. The generated V2 profile now sends
+the scoped grant in X-Igorek-Profile-Grant, independently of SDK credentials.
+The proxy validates that header first; a present but invalid grant fails closed.
+Legacy Bearer and x-api-key clients retain their previous behavior when the
+dedicated header is absent. The grant is never forwarded upstream.
+
+Four regressions cover a saved-key override with an exact model ID, invalid and
+empty dedicated grants, and lock/revocation/binding enforcement. Before the fix,
+three new regression cases failed as expected. After the fix, the profile suite
+passed **27 cases**; the combined related suites passed **89 cases**, including
+those 27. Desktop contracts passed **338 cases** and publication checks reported
+zero problems. No tests were skipped. These targeted results do not replace the
+published full-suite coverage baseline below. Real model generation and live
+OpenCode sessions were not started; installed applications and credentials were
+not changed. The fix is not included in the published 0.2.3 binaries.
+
+The complete isolated Python run across both test roots collected **4,809 cases**:
+**4,778 passed, 31 skipped, zero failures/errors**, plus **627 passing subtests**.
+Statement coverage is **45,773/77,349 (59.18%)**; branch coverage is
+**12,725/27,646 (46.03%)**. The 31 skips cover ten terminal cases, seventeen
+isolation/system prerequisites, one live provider and three platform cases; none
+were added for this change. Desktop locked installation and
+all **338 contracts** passed. These checks use synthetic model endpoints; owner
+acceptance of the actual llama-server connection remains separate. The installed
+0.2.3 application is unchanged while the 0.2.4 packages are prepared.
+
+
 ## Published 0.2.3 acceptance — 16 October 2026
 
 [Release 0.2.3](https://github.com/Endorpheen/Igorek-Harness/releases/tag/v0.2.3)
