@@ -1092,13 +1092,25 @@ def _handle_edit(args: dict[str, Any], **kwargs: Any) -> str:
 
 
 def _handle_bash(args: dict[str, Any], **kwargs: Any) -> str:
+    tracker = kwargs.get("change_tracker")
+    try:
+        before = tracker.workspace_snapshot() if tracker is not None else None
+    except OSError:
+        before = None
     with command_context(kwargs.get("current_session"), kwargs.get("task_id"), kwargs.get("tool_use_id")):
-        return _tool_bash(
-            args,
-            workdir=kwargs["workdir"],
-            filesystem_mode=str(kwargs.get("filesystem_mode") or "workspace"),
-            guard_mode=kwargs.get("guard_mode"),
-        )
+        try:
+            return _tool_bash(
+                args,
+                workdir=kwargs["workdir"],
+                filesystem_mode=str(kwargs.get("filesystem_mode") or "workspace"),
+                guard_mode=kwargs.get("guard_mode"),
+            )
+        finally:
+            if tracker is not None:
+                try:
+                    tracker.record_shell_changes(before)
+                except OSError:
+                    logger.warning("Shell change tracking could not be persisted")
 
 
 def _handle_glob(args: dict[str, Any], **kwargs: Any) -> str:

@@ -3,6 +3,14 @@
   const bar = document.createElement('header'); bar.id = 'igorek-window-bar';
   bar.setAttribute('aria-label', 'Меню приложения');
   if (document.getElementById('sidebar')) {
+    const historyButtons={};
+    for(const [direction,label,path] of [['back','Назад','M19 12H5m7-7-7 7 7 7'],['forward','Вперёд','M5 12h14m-7-7 7 7-7 7']]){
+      const button=document.createElement('button');button.id='igorek-history-'+direction;button.className='igorek-history-button';button.type='button';button.title=label;button.setAttribute('aria-label',label);button.disabled=true;
+      button.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="'+path+'"/></svg>';
+      button.addEventListener('click',()=>window.IgorekAppHistory?.[direction]());bar.append(button);historyButtons[direction]=button;
+    }
+    const updateHistory=()=>{const value=window.IgorekAppHistory?.state();historyButtons.back.disabled=!value?.canBack;historyButtons.forward.disabled=!value?.canForward;};
+    window.addEventListener('igorek:navigation-state',updateHistory);updateHistory();
     const toggle = document.createElement('button'); toggle.id = 'igorek-toggle-sidebar'; toggle.type = 'button';
     toggle.setAttribute('aria-controls', 'sidebar'); toggle.setAttribute('aria-label', 'Переключить боковую панель');
     toggle.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg>';

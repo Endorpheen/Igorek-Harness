@@ -41,7 +41,7 @@ function windowMenu(actions, tracing = false, bindings = id => SHORTCUTS.find(it
       { label: 'Статус системы', click: actions.status },
       { label: 'Диспетчер задач', click: actions.tasks },
       { label: tracing ? 'Остановить и сохранить трассировку…' : 'Начать трассировку производительности', click: actions.trace },
-      { type: 'separator' }, { label: 'О программе Игорёк', click: actions.about },
+      { type: 'separator' }, ...(actions.whatsNew?[{label:'Что нового',click:actions.whatsNew}]:[]), { label: 'О программе Игорёк', click: actions.about },
     ] },
   ];
 }

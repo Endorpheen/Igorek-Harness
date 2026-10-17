@@ -70,6 +70,7 @@ _STATIC_TYPES = {
     "app.js": "text/javascript; charset=utf-8",
     "github-reviews.js": "text/javascript; charset=utf-8",
     "session-summary.js": "text/javascript; charset=utf-8",
+    "app-history.js": "text/javascript; charset=utf-8",
     "downloads.js": "text/javascript; charset=utf-8",
     "workspace-tabs.js": "text/javascript; charset=utf-8",
     "opencode-panel.js": "text/javascript; charset=utf-8",
@@ -1080,6 +1081,9 @@ class _Handler(BaseHTTPRequestHandler):
                 return
             if len(parts) == 4 and parts[3] == "files" and method == "GET":
                 self._proxy(method, f"/sessions/{quoted}/files")
+                return
+            if len(parts) == 4 and parts[3] == "sources" and method == "GET":
+                self._proxy(method, f"/sessions/{quoted}/sources")
                 return
             if len(parts) == 5 and parts[3] == "uploads" and method == "GET":
                 if not re.fullmatch(r"[0-9a-f]{32}", parts[4]):

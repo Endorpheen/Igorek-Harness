@@ -40,7 +40,19 @@ class PlatformFiles(unittest.TestCase):
         process = subprocess.run([sys.executable, '-c', code, str(path)], capture_output=True)
         self.assertEqual(process.returncode, 0, process.stderr.decode(errors='replace'))
 
+    def test_bridge_output_read_preserves_portable_identity_checks(self):
+        from factory.core.mobile_bridge.files import describe_file, open_file_safely
+        path = self.root / 'Пример.md'
+        atomic_write_file(path, 'first output')
+        description = describe_file(path)
+        with open_file_safely(path, description) as stream:
+            self.assertEqual(stream.read(), b'first output')
+        atomic_write_file(path, 'changed output with a different identity')
+        with self.assertRaises(OSError):
+            open_file_safely(path, description)
+
     def test_directory_link_cannot_redirect_file_operations(self):
+        from factory.core.mobile_bridge.files import describe_file, open_file_safely
         outside = self.root / 'outside'
         outside.mkdir()
         (outside / 'secret').write_bytes(b'private')
@@ -53,6 +65,7 @@ class PlatformFiles(unittest.TestCase):
             link.symlink_to(outside, target_is_directory=True)
         for operation in (lambda: open_regular_file(link / 'secret'),
                           lambda: atomic_write_file(link / 'secret', 'overwritten'),
+                          lambda: open_file_safely(link / 'secret', describe_file(link / 'secret')),
                           lambda: open_workspace_artifact(work, 'redirect/secret')):
             with self.assertRaises((OSError, ValueError)):
                 operation()

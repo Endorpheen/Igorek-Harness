@@ -1859,6 +1859,7 @@ function toast(message, level = 'info') {
   state.toastTimer = window.setTimeout(() => ui.toast.classList.remove("visible"), 3300);
 }
 function showConnection() {
+  window.IgorekAppHistory?.reset();
   window.IgorekReviews?.hide({forget:true});
   pendingReviewSession=null;
   document.body.classList.remove("gh-review-mode");
@@ -2041,6 +2042,18 @@ async function loadSessions() {
   state.sessionTotal = Number.isFinite(total) && total >= 0 ? total : null;
   renderSessions();
 }
+let appNavigationTimer=null;
+function scheduleAppNavigation(){
+  clearTimeout(appNavigationTimer);
+  appNavigationTimer=setTimeout(()=>window.IgorekAppHistory?.record(appNavigationRoute()),0);
+}
+function appNavigationRoute(){
+  if(!state.paired)return null;
+  const view=['scheduled','reviews','plugins'].includes(state.workspaceView)?state.workspaceView:'main';
+  if(view==='main'&&!state.selected)return null;
+  if(state.selected&&state.session?.session_id!==state.selected)return null;
+  return {view,session:state.selected||'',panel:state.panel.open,tab:state.panel.open?state.panel.workspace.active?.id||'':'',pull:view==='reviews'?window.IgorekReviews?.location?.()||'':''};
+}
 function showMainView() {
   window.IgorekReviews?.hide();
   document.body.classList.remove("gh-review-mode");
@@ -2056,6 +2069,7 @@ function showMainView() {
   byId("nav-scheduled").classList.remove("active"); byId("nav-scheduled").removeAttribute("aria-current");
   if (state.mainTitle) ui.title.textContent = state.mainTitle;
   ui.panelButton.hidden = !state.paired;
+  window.IgorekAppHistory?.schedule();
 }
 async function showScheduledView() {
   if (!state.paired) return;
@@ -2064,6 +2078,7 @@ async function showScheduledView() {
   window.IgorekPlugins?.hide();
   if (state.workspaceView !== "scheduled") state.mainTitle = ui.title.textContent;
   state.workspaceView = "scheduled";
+  window.IgorekAppHistory?.schedule();
   byId("scheduled-view").hidden = false; document.querySelector(".workspace-row").hidden = true;
   byId("nav-home").classList.remove("active"); byId("nav-home").removeAttribute("aria-current");
   byId("nav-scheduled").classList.add("active"); byId("nav-scheduled").setAttribute("aria-current","page");
@@ -2454,6 +2469,7 @@ async function selectSession(sessionId) {
     loadSubagents(sessionId).catch(() => {});
     loadOpenCodeUsage().catch(() => {});
     await loadSessions();
+    window.IgorekAppHistory?.schedule();
   } catch (error) {
     setRuntime(false, "status.offline");
     toast(error.message, "error");
@@ -3739,7 +3755,7 @@ function handleEvent(event) {
         duration: Number(data.duration_ms || 0), status: data.status || "done", open: Boolean(previous?.open),
       };
       state.toolItems.set(id, item);
-      window.setTimeout(()=>window.IgorekSummary?.refresh(true),350);
+      refreshSessionArtifacts();
       const knownSub = knownSubagentFor(data.tool_use_id);
       if (knownSub) item.subagent = knownSub;
       upsert(item);
@@ -6967,6 +6983,19 @@ async function openChangesDiff(sessionId, path) {
   }
   renderPanel();
 }
+let sessionArtifactsTimer=null;
+function refreshSessionArtifacts(){
+  clearTimeout(sessionArtifactsTimer);
+  const sessionId=state.selected;
+  if(!sessionId)return;
+  sessionArtifactsTimer=setTimeout(()=>{
+    if(!state.paired||state.selected!==sessionId)return;
+    state.panel.filesGeneration=(state.panel.filesGeneration||0)+1;
+    state.panel.files.status='idle';
+    window.IgorekSummary?.refresh(true);
+    if(state.panel.open&&state.panel.tab==='files')loadFiles(sessionId);
+  },350);
+}
 async function loadFiles(sessionId) {
   const model = state.panel;
   const generation = (model.filesGeneration || 0) + 1;
@@ -7255,6 +7284,7 @@ function renderPanelSection(container, build) {
   container.scrollTop = scrollTop;
 }
 function renderPanel() {
+  window.IgorekAppHistory?.schedule();
   window.IgorekSummary?.sync();
   if(!state.panel.open||state.panel.workspace.active?.kind!=='opencode')window.IgorekDesktop?.opencode?.('hide').catch(()=>{});
   ui.sidePanel.hidden = !state.panel.open;
@@ -7737,7 +7767,9 @@ async function viewChangedFile(path) {
   try {
     const files = await ensureSessionFiles(sessionId);
     const name = String(path || "").split("/").pop();
-    const match = files.find((item) => item.name === name);
+    const exact=files.find((item)=>item.path===path);
+    const candidates=files.filter((item)=>!item.path&&item.name===name);
+    const match = exact||(candidates.length===1?candidates[0]:null);
     if (!match) {
       toast(t("viewer.not_in_attachments"));
       return;
@@ -8075,13 +8107,14 @@ function buildFilesView() {
     fragment.append(panelEmpty(t("panel.files_none"), t("panel.files_none_hint")));
     return fragment;
   }
+  if(model.files.data?.partial)fragment.append(element('p','side-error',lang==='en'?'Some file changes could not be indexed.':'Часть файловых изменений недоступна.'));
   for (const file of files) {
     const row = element("div", "file-row");
     const open = element("button", "file-open");
     open.type = "button";
     open.title = t("panel.file_open");
     const copy = element("span", "file-copy");
-    copy.append(element("span", "file-name", file.name || t("file.default_name")));
+    copy.append(element("span", "file-name", file.path || file.name || t("file.default_name")));
     copy.append(element("span", "file-meta", (file.mime_type || t("file.default_name")) + " · " + formatBytes(file.size)));
     open.append(copy);
     open.addEventListener("click", () => openFileViewer(file, "files"));
@@ -8718,11 +8751,29 @@ ui.composer.querySelector(".composer-left").append(createComposerAccessButton())
 window.addEventListener("resize", positionComposerAccess);
 window.addEventListener("focus", () => { if (state.accessReady) refreshComposerAccess(); });
 window.setInterval(() => { if (state.accessReady && !document.hidden) refreshComposerAccess(); }, 60000);
+async function openSummarySource(file,session){
+  if(!state.paired||state.selected!==session)return;
+  try{
+  if(file.kind==='file'){
+    const data=await api('/api/sessions/'+encode(session)+'/files');
+    if(state.selected!==session||!state.paired)return;
+    const files=Array.isArray(data.files)?data.files:[];
+    const named=files.filter(item=>item.name===file.name);
+    const current=file.path?files.find(item=>item.path===file.path):files.find(item=>item.id===file.id)||(named.length===1?named[0]:null);
+    if(!current){toast(t('viewer.not_in_attachments'));return;}
+    await openFileViewer(current,'files');openPanel();return;
+  }
+  if(['web','pull_request'].includes(file.kind)){await workspaceOpenSite(file.url);return;}
+  const previewUrl='/api/sessions/'+encode(session)+'/uploads/'+encode(file.upload_id);
+  if(['image/png','image/jpeg','image/webp','image/gif','image/bmp','image/avif'].includes(file.mime_type))showAttachmentPreview({name:file.name,previewUrl});
+  else{const link=element('a');link.href=previewUrl;link.download=file.name;document.body.append(link);link.click();link.remove();}
+  }catch(error){if(state.paired&&state.selected===session)toast(error.message,'error');}
+}
 window.IgorekSummary = window.IgorekSessionSummary.mount({
-  host:ui.conversation,getState:()=>state,api,
+  host:ui.conversation,getState:()=>state,getLanguage:()=>lang,api,
   openChanges:()=>{switchPanelTab('changes');openPanel();},
   attach:()=>ui.attachInput.click(),
-  openSource:(file,session)=>{const previewUrl='/api/sessions/'+encode(session)+'/uploads/'+encode(file.upload_id);if(['image/png','image/jpeg','image/webp','image/gif','image/bmp','image/avif'].includes(file.mime_type))showAttachmentPreview({name:file.name,previewUrl});else{const link=element('a');link.href=previewUrl;link.download=file.name;document.body.append(link);link.click();link.remove();}},
+  openSource:openSummarySource,
 });
 new ResizeObserver(()=>{ui.conversation.style.setProperty('--summary-composer-height',ui.composer.parentElement.getBoundingClientRect().height+'px');}).observe(ui.composer.parentElement);
 ui.composer.addEventListener("submit", sendMessage);
@@ -9035,10 +9086,27 @@ function openReviewChat(id,title,draft){
 window.IgorekReviews=window.IgorekGitHubReviews.mount({
  host:byId('github-reviews'),bridge:(op,args)=>window.IgorekDesktop.github(op,args),
  show:()=>{showMainView();state.workspaceView='reviews';ui.workspace.hidden=true;document.body.classList.add('gh-review-mode');byId('nav-home').classList.remove('active');byId('nav-home').removeAttribute('aria-current');byId('nav-reviews').classList.add('active');byId('nav-reviews').setAttribute('aria-current','page');ui.title.textContent='Проверка кода';state.panel.fullscreen=false;renderPanel();},
- chat:openReviewChat,sessions:()=>state.sessions,markdown:(text,host)=>window.IgorekMarkdown.renderMarkdown(text,host),
+ chat:openReviewChat,sessions:()=>state.sessions,markdown:(text,host)=>window.IgorekMarkdown.renderMarkdown(text,host),locationChanged:scheduleAppNavigation,
  openSite:url=>workspaceOpenSite(url),
  create:(pr,draft)=>{openNewSession();pendingReviewSession={pr,draft};}
 });
 byId('nav-reviews').addEventListener('click',()=>window.IgorekReviews.open());
 ui.dialog.addEventListener('close',()=>{pendingReviewSession=null;});
 window.IgorekDesktop?.onGitHubLocked?.(()=>{pendingReviewSession=null;window.IgorekReviews.hide({forget:true});if(state.workspaceView==='reviews')showMainView();});
+if(window.IgorekNavigationHistory){
+  const history=new window.IgorekNavigationHistory.History({
+    restore:async route=>{
+      if(!state.paired)throw Error('Подключение закрыто');
+      if(route.session&&route.session!==state.selected){await selectSession(route.session);if(state.selected!==route.session||state.session?.session_id!==route.session)throw Error('Чат недоступен');}
+      if(route.view==='scheduled')await showScheduledView();
+      else if(route.view==='plugins')await window.IgorekPlugins.show();
+      else if(route.view==='reviews'){await window.IgorekReviews.open();if(route.pull)await window.IgorekReviews.select(route.pull);}
+      else showMainView();
+      if(route.panel){const tab=state.panel.workspace.tabs.find(item=>item.id===route.tab);if(tab)activateWorkspaceTab(tab);openPanel();}else closePanel();
+      return appNavigationRoute();
+    },
+    changed:detail=>{window.dispatchEvent(new CustomEvent('igorek:navigation-state',{detail}));if(!detail.busy)scheduleAppNavigation();},
+  });
+  window.IgorekAppHistory=Object.freeze({schedule:scheduleAppNavigation,record:value=>history.record(value),back:()=>history.back().catch(error=>toast(error.message,'error')),forward:()=>history.forward().catch(error=>toast(error.message,'error')),state:()=>history.state(),reset:()=>history.reset()});
+  scheduleAppNavigation();
+}

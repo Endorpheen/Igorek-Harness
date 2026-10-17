@@ -1017,6 +1017,20 @@ class FileDownloadTest(ServerTestCase):
     def _files(self, token):
         return self._request("GET", f"{API_PREFIX}/sessions/{self.session_id}/files", token=token)
 
+    def test_sources_are_authenticated_and_keep_session_boundaries(self):
+        token = self._pair()
+        self.bridge.store.append_event(session_id=self.session_id, kind='tool.result', payload={
+            'status': 'done', 'tool_name': 'web_search', 'context_output': 'https://example.com/reference'})
+        route = f'{API_PREFIX}/sessions/{self.session_id}/sources'
+        self.assertEqual(self._request('GET', route)[0], 401)
+        status, payload = self._request('GET', route, token=token)
+        self.assertEqual(status, 200)
+        self.assertEqual({item['kind'] for item in payload['sources']}, {'file', 'web'})
+        other = self.bridge.service.create_session(cwd=str(self.export_dir))['session_id']
+        status, payload = self._request('GET', f'{API_PREFIX}/sessions/{other}/sources', token=token)
+        self.assertEqual(status, 200)
+        self.assertEqual(payload['sources'], [])
+
     def test_download_exact_bytes_with_filename_and_authentication(self):
         token = self._pair()
         status, payload = self._files(token)

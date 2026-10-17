@@ -381,6 +381,7 @@ class MobileStore:
         after_seq: int = 0,
         session_id: str | None = None,
         limit: int = 200,
+        kinds: tuple[str, ...] | None = None,
     ) -> list[dict[str, Any]]:
         """Returns events strictly after ``after_seq``, sorted by increasing ``seq``."""
         bounded = max(1, min(int(limit), _MAX_EVENT_LIMIT))
@@ -389,6 +390,9 @@ class MobileStore:
         if session_id:
             query += " AND session_id = ?"
             params.append(str(session_id))
+        if kinds:
+            query += " AND kind IN (" + ",".join("?" for _ in kinds) + ")"
+            params.extend(kinds)
         query += " ORDER BY seq ASC LIMIT ?"
         params.append(bounded)
         with open_db(self.db_path) as conn:

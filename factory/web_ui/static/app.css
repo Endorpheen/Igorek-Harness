@@ -5666,6 +5666,8 @@ body.gh-review-mode #sidebar { display:none; }
 .summary-section { border-top:1px solid #3a443c; padding-top:11px; margin-top:0; }
 .summary-section + .summary-section { margin-top:10px; }
 .summary-section h3 { margin:0 0 8px; color:#99a69c; font:11px/1.5 system-ui; }
+.summary-source-group { margin-top:10px; }
+.summary-source-group h3 { color:var(--quiet); font-size:10px; }
 .summary-empty { margin:0 0 8px; font-size:11px; color:var(--quiet); }
 .summary-process,.summary-source { display:flex; align-items:center; gap:8px; min-height:30px; width:100%; box-sizing:border-box; font:11px/1.4 system-ui; }
 .summary-process-mark { flex:none; font:11px var(--mono); color:#a0b1a4; }
