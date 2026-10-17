@@ -32,6 +32,9 @@ def server():
             body = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
             calls.append((self.path, body, dict(self.headers)))
             events = handlers[0](body, len(calls))
+            if events is None:
+                self.close_connection = True
+                return
             wire = events if isinstance(events, dict) else {'events': events}
             self.send_response(200)
             if wire.get('content_type', 'text/event-stream') is not None:
@@ -198,6 +201,75 @@ def test_existing_executor_runs_real_read_and_returns_result_in_next_round(serve
     assert [x[2]['Authorization'] for x in calls] == ['Bearer fixture-token-1', 'Bearer fixture-token-2']
     trace = (tmp_path / 'cc_backend_trace.jsonl').read_text()
     assert 'model.text_delta' in trace and 'tool.result' in trace
+
+
+@pytest.mark.parametrize('failures', [1, 3])
+def test_network_failure_after_tool_retries_same_round_without_reexecuting_tool(server, tmp_path, monkeypatch, failures):
+    from factory.core.cc_backend_tools import get_tool_schemas
+    base, calls, handlers = server
+    path = tmp_path / 'input.txt'
+    path.write_text('retry-evidence-7351')
+
+    def reply(payload, index):
+        if index == 1:
+            return [completed([function(args={'file_path': str(path)})])]
+        outputs = [item for item in payload['input'] if item.get('type') == 'function_call_output']
+        assert len(outputs) == 1 and 'retry-evidence-7351' in outputs[0]['output']
+        if index <= failures + 1:
+            return None
+        return [completed([message('retry-evidence-7351')])]
+
+    handlers.append(reply)
+    monkeypatch.setattr(executor, '_resolve_backend_context_window', lambda **_: (128000, 'fixture'))
+    monkeypatch.setattr(executor, 'is_interrupt_requested', lambda: False)
+    tool = next(item for item in get_tool_schemas() if item['name'] == 'Read')
+    result = executor.execute_cc_backend_task(base_url=base, model='fixture', system_prompt='Fixture',
+        user_message='Read input.txt', workdir=str(tmp_path), api_format='openai-responses',
+        enabled_tools=[tool], checkpoint_config={'enabled': False}, timeout_s=3)
+    events = [json.loads(line) for line in (tmp_path / 'cc_backend_trace.jsonl').read_text().splitlines()]
+    retries = [event for event in events if event['kind'] == 'network.retry']
+    assert len(retries) == min(failures, 2)
+    assert all(event['round'] == 2 for event in retries)
+    assert all(event['error_diagnostics'] == {'error_code': 'responses_network', 'transport_phase': 'connect'}
+               for event in retries)
+    assert len(calls) == 1 + min(failures + 1, 3)
+    assert all(call[1] == calls[1][1] for call in calls[2:])
+    assert result['tool_calls_count'] == 1
+    assert len([event for event in events if event['kind'] == 'tool.result']) == 1
+    assert result['status'] == ('ok' if failures == 1 else 'fail')
+    if failures == 1:
+        assert result['output_text'] == 'retry-evidence-7351'
+    else:
+        assert events[-1]['reason'] == 'http_error'
+        assert events[-1]['error_diagnostics']['error_code'] == 'responses_network'
+
+
+@pytest.mark.parametrize('code,retry', [
+    ('responses_network', True), ('responses_timeout', True),
+    ('responses_tls', False), ('authentication', False),
+    ('subscription_sharing_usage_limit_exceeded', False),
+    ('responses_invalid_response', False), ('responses_incomplete_stream', False),
+    ('responses_failed', False),
+])
+def test_executor_uses_structured_failure_code_before_error_text(tmp_path, monkeypatch, code, retry):
+    calls = []
+
+    def post(*args, **kwargs):
+        calls.append(1)
+        if len(calls) == 1:
+            return {'error': 'Connection timeout' if not retry else 'Проверьте соединение.',
+                    'error_code': code, 'transport_phase': 'connect'}, 1
+        return {'content': [{'type': 'text', 'text': 'Recovered.'}],
+                'usage': {'input_tokens': 1, 'output_tokens': 1}}, 1
+
+    monkeypatch.setattr(transport, 'post', post)
+    monkeypatch.setattr(executor, '_resolve_backend_context_window', lambda **_: (128000, 'fixture'))
+    monkeypatch.setattr(executor, 'is_interrupt_requested', lambda: False)
+    result = executor.execute_cc_backend_task(base_url='http://127.0.0.1:1/v1', model='fixture',
+        system_prompt='Fixture', user_message='Hello', workdir=str(tmp_path), api_format='openai-responses',
+        enabled_tools=[], checkpoint_config={'enabled': False}, timeout_s=3)
+    assert len(calls) == (2 if retry else 1)
+    assert result['status'] == ('ok' if retry else 'fail')
 
 
 @pytest.mark.parametrize('content_type', ['text/event-stream', 'application/json', None,

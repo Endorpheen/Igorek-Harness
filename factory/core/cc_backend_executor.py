@@ -114,8 +114,10 @@ TRANSIENT_NETWORK_RETRY_DELAYS_S = (0.25, 0.75)
 _RAW_TOOL_CALL_LINE = re.compile(r'^[A-Z][A-Za-z_]{2,}\s*\(')
 
 
-def _is_transient_network_error(error: str) -> bool:
+def _is_transient_network_error(error: str, *, error_code: str | None = None) -> bool:
     """Return True only for transport failures that are safe to retry."""
+    if error_code is not None:
+        return error_code in ("responses_network", "responses_timeout")
     normalized = str(error or "").strip().lower()
     if not normalized or normalized.startswith("http "):
         return False
@@ -2565,7 +2567,10 @@ def execute_cc_backend_task(
                         "but payload already carries it for every tool_calls message"
                     )
                 if (
-                    not _is_transient_network_error(network_error)
+                    not _is_transient_network_error(
+                        network_error,
+                        error_code=body.get("error_code") if isinstance(body, dict) else None,
+                    )
                     or network_retry_count >= MAX_TRANSIENT_NETWORK_RETRIES
                 ):
                     break
@@ -2587,6 +2592,7 @@ def execute_cc_backend_task(
                         "max_attempts": MAX_TRANSIENT_NETWORK_RETRIES,
                         "delay_ms": int(retry_delay_s * 1000),
                         "error": network_error,
+                        "error_diagnostics": model_failure_diagnostics(body),
                     },
                 )
                 time.sleep(retry_delay_s)
