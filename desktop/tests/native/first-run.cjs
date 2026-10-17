@@ -298,20 +298,28 @@ print(json.dumps({'files':True}))`;
       await until(async()=>{
         sourceState=await api(sourcesRoute);
         if(sourceState.tasks.some(task=>task.status==='waiting_approval')){
-          const target=await chat.webContents.executeJavaScript(`(()=>{
+          chat.focus();
+          const target=await chat.webContents.executeJavaScript(`(async()=>{
             for(const head of document.querySelectorAll('.activity-head[aria-expanded="false"],.tool-head[aria-expanded="false"]'))head.click();
             const item=state.items.find(item=>item.type==='approval'&&!item.resolved&&item.request_id);
             const button=document.querySelector('.approval-card:not(.resolved) .approval-button.allow_once:not(:disabled)');
-            if(!item||!button)return null;button.scrollIntoView({block:'center'});const box=button.getBoundingClientRect();
-            return box.width&&box.height?{id:item.request_id,x:Math.round(box.x+box.width/2),y:Math.round(box.y+box.height/2)}:null;
+            if(!item||!button)return null;
+            state.pinned=false;ui.scroll.style.scrollBehavior='auto';button.scrollIntoView({block:'center',behavior:'instant'});
+            await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+            const box=button.getBoundingClientRect(),x=Math.round(box.x+box.width/2),y=Math.round(box.y+box.height/2);
+            if(!box.width||!box.height||!button.contains(document.elementFromPoint(x,y)))return null;
+            if(button.dataset.nativeApproval!==item.request_id){button.dataset.nativeApproval=item.request_id;button.addEventListener('click',()=>{window.nativeSourceApprovalReceived=item.request_id;},{once:true});}
+            return {id:item.request_id,x,y};
           })()`);
           if(target&&!sourceApprovals.has(target.id)){
-            sourceApprovals.add(target.id);chat.focus();chat.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,x:target.x,y:target.y});chat.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,x:target.x,y:target.y});
+            chat.webContents.sendInputEvent({type:'mouseMove',x:target.x,y:target.y});chat.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,x:target.x,y:target.y});chat.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,x:target.x,y:target.y});
+            await pause(100);
+            if(await chat.webContents.executeJavaScript('window.nativeSourceApprovalReceived==='+JSON.stringify(target.id)))sourceApprovals.add(target.id);
           }
         }
         return !sourceState.running_task_id&&sourceState.messages.some(item=>item.role==='assistant'&&item.text?.includes('Sources fixture completed.'));
       },'Source fixture did not finish',60);
-    }catch(error){fs.writeFileSync(path.join(output,'source-task-state.json'),JSON.stringify(sourceState||{},null,2));console.error('Synthetic source fixture retained: '+root);throw error;}
+    }catch(error){report.source_fixture={tasks:sourceState?.tasks,received_native_clicks:sourceApprovals.size};fs.writeFileSync(path.join(output,'source-task-state.json'),JSON.stringify(sourceState||{},null,2));console.error('Synthetic source fixture retained: '+root);throw error;}
     await until(()=>chat.webContents.executeJavaScript("document.querySelectorAll('.summary-source-group[data-source-kind=file] .summary-source').length===2&&document.querySelectorAll('[data-source-kind=web] .summary-source').length===1&&document.querySelectorAll('[data-source-kind=pull_request] .summary-source').length===1"),'Native sources groups did not update');
     assert.equal((await api(sourcesRoute+'/files')).files.length,2);
     await chat.webContents.executeJavaScript("[...document.querySelectorAll('[data-source-kind=file] .summary-source')].find(node=>node.textContent.includes('source-note.md')).click()");

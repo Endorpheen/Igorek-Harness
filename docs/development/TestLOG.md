@@ -51,6 +51,39 @@ an earlier sandboxed invocation failed socket-dependent suites and is retained
 as an environment failure. The eight history/preferences cases also passed after
 including plugin navigation. Final hosted and packaged gates follow below.
 
+Final local candidate at source commit `45c8d42d` passed the full isolated Python
+runner: **4,860 collected, 4,828 passed, 32 skipped, zero failures/errors**, plus
+**630 passing subtests**. The extra skip uses the unchanged live grep.app test's
+existing upstream-unavailable condition (`fetch failed`); it is not a verified
+external search pass. Statement coverage is **46,346/78,221** and covered branches
+are **12,930/27,970**. Ruff and publication contracts passed.
+
+Clean Linux runtime, snapshot, DEB, AppImage, wheel and source export were built.
+Packaged native acceptance passed all nine maintained stages, plus real native
+back/forward clicks, session sources/file opening and release-note lifecycle
+checks. Three actual one-shot approvals were used for the source fixture.
+The release-note window displayed four installed-version changes, default-on
+checkbox and Close without overflow. Opt-out survived a reconstructed controller
+and a new installation identity; manual reopening permitted re-enabling, and an
+ordinary relaunch did not repeat the automatic window.
+
+An isolated 0.2.7 to 0.2.8 update retained the previous generation, encrypted Vault
+and release-note preference; installed application bytes matched the reviewed
+source. AppImage staging verified **6,399 files**, zero mismatches; only six
+build-only `.gitignore`/static-library/object files were omitted by the existing
+packager defaults. The clean canonical source and public candidate had identical
+trees, and both public-tree and history secret scans passed.
+
+The first Windows package run on PR 31 head `43f1bb4` failed its new source
+fixture: the UI remained in `waiting_approval` after an unacknowledged synthetic
+mouse click. A diagnostic repeat accepted one Write, completed Read, then waited
+on the next Write. Navigation had passed in both runs. The fixture now disables
+automatic scroll during approval, waits for layout, checks the button at the
+pointer position and records receipt of the real native click before marking
+that request handled. It retains all permission guards and completion assertions.
+Windows package/update acceptance and final hosted CI must pass before publication.
+The running owner installation was not replaced or restarted.
+
 ## 0.2.7 preview — structured model network retries
 
 The executor uses structured transport error codes before localized error text.
