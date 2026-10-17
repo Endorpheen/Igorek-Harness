@@ -1,6 +1,39 @@
 # Test results
 
-## 0.2.7 candidate — structured model network retries
+## 0.2.8 candidate — session sources and file visibility
+
+Session sources now use durable successful tool-result evidence for web and pull
+request references, and merge validated output paths and persisted file changes.
+User uploads retain their existing route. The Files API includes recorded edits
+and shell outputs even when the final answer names no files. Shell commands also
+record bounded before/after workspace metadata; incomplete scans are reported
+without inventing deleted files or overwriting existing edit counts. Existing
+workspace, key/private-file and download-ID checks remain enforced.
+
+The desktop groups pull requests, files, web references and uploads, refreshes
+sources and the open Files tab after tool results, preserves state across reload,
+and rejects late responses from another session. Relative paths distinguish
+identical basenames; file navigation refuses an ambiguous basename fallback.
+Opening a source revalidates its current download identity and session after
+an asynchronous refresh, so a final edit cannot leave a stale source link.
+Russian and English group labels are supported. The source/data-flow change is
+illustrated in the editable sources diagram included with the release.
+
+Targeted bridge/source/change tests: **232 passed**, five passing subtests;
+additional auth/scope regressions: **26 passed**. All **349 Node contracts** passed
+without skips. Ruff executable-error checks passed. The full isolated Python run
+collected **4,860 cases: 4,827 passed, 31 skipped, two failures, zero errors**, plus
+**630 passing subtests**. One failure was the existing external grep.app live
+check receiving Too Many Requests; the other was a test-only CLI shutdown being
+refused as busy. That exact CLI case passed on a separate unchanged recheck.
+Neither failing test nor its skip conditions were changed to hide these results.
+Statement coverage: **46,349/78,221**; branch coverage: **12,930/27,970**.
+
+Packaged native source-group/file-viewer acceptance, Linux/Windows installers,
+update preservation and hosted CI remain required release gates. Android sources
+are unchanged. The user's running application and workspace data are untouched.
+
+## 0.2.7 preview — structured model network retries
 
 The executor uses structured transport error codes before localized error text.
 `responses_network` and `responses_timeout` retain the existing two-retry limit;
@@ -16,7 +49,8 @@ the source fix. The initial socket fixture was denied by the execution sandbox;
 it passed when run with loopback access.
 
 Targeted Responses, output-contract and trace-taxonomy checks: **148 passed**.
-Locked dependency synchronization and desktop installation passed; all **345 Node
+Locked dependency synchronization and desktop dependency installation passed;
+all **345 Node
 contracts passed**, zero failures or skips. The initial desktop installation and
 full Python run hit the system temporary-directory user quota. Intermediate
 relocated runs also exposed the test harness's short-path and guest-path
@@ -32,11 +66,39 @@ live-provider prerequisites; no skip conditions changed.
 
 Statement coverage is **46,166/78,021 (59.17%)** and branch coverage is
 **12,842/27,868 (46.08%)**. Real loopback HTTP testing establishes the retry and
-single tool-execution behavior; native UI, packaged binaries and physical devices
-were not exercised for this change.
+single tool-execution behavior. These initial source checks preceded the
+packaged acceptance recorded below; physical devices were not exercised.
 
-This is source validation, not a real-provider or packaged desktop acceptance
-result. The installed desktop, its runtime and personal task data are unchanged.
+Protected PR 30 passed all **eleven hosted checks** on
+`dd490a7062eea8d8f6ba30e4dade4763d6303f79` and merged normally as
+`77bb69f30ef8f7ed332793be2a18571cda1a648c`. Python 3.13 and 3.14 each collected
+**4,845 cases: 4,813 passed, 32 existing skips, zero failures/errors**, plus
+**630 passing subtests**. All four grep.app checks passed in both CI runs,
+including the live search that was rate-limited locally. No test or skip rule
+was changed. Hosted Python 3.14 statement coverage is
+**46,141/78,021** and branch coverage **12,833/27,868**. Android unit/lint/debug
+passed without changing Android 0.1.106 (107). Desktop contracts passed all
+**345 cases on both Linux and Windows**.
+
+Both packaged Linux and Windows candidates passed all nine native first-task,
+restart and continuation stages with a synthetic provider. The actual Linux
+bundled interpreter/executor passed real HTTP disconnect recovery and retry
+exhaustion after Read with exactly one tool execution. A temporary 0.2.6-to-0.2.7
+update retained encrypted connections, the previous generation and the patched
+executor bytes. The same update passed using the artifact downloaded from the
+published release by the 0.2.6 updater, which also discovered the Linux AppImage
+and Windows installer. Windows Server 2025 passed NSIS installation, updater,
+relaunch and uninstall checks; the published Windows download returned HTTP 200
+without authentication.
+
+Clean source inventory, wheel/snapshot provenance, packaged source bytes and
+server asset digests were verified. Windows remains unsigned, physical Windows
+11 and real-provider acceptance remain separate limits. GitHub and Gitea preview
+releases contain the same six approved assets; all
+server digests/sizes and the published descriptions were read back. Every Gitea
+asset was downloaded and hashed after upload. This is a preview release. The
+user's running installation, services, Vault and tasks were not
+modified; installing the update requires an application/runtime and chat restart.
 
 ## 0.2.6 candidate — settings notifications
 

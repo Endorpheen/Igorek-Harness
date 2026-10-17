@@ -104,6 +104,17 @@ async function run() {
         let answer = text?.includes('fixture-second-ready') ? 'fixture-second-ready' : 'fixture-onboard-ready';
         if (text?.includes('fixture-navigation-help')) answer = 'Настройки основной модели здесь: [Открыть настройки модели](igorek://ui/models).';
         let toolCall;
+        if(text?.includes('fixture-source-index')){
+          const completedTools=(body.messages||[]).filter(item=>item.role==='tool').length;
+          const actions=[
+            ['Write',{file_path:'source-note.md',content:'fixture-source-index\nhttps://example.com/reference\nhttps://github.com/example/project/pull/42\n'}],
+            ['Read',{file_path:'source-note.md'}],
+            ['Write',{file_path:'source-table.csv',content:'date,value\n2026-10-17,123\n'}],
+            ['Edit',{file_path:'source-note.md',old_string:'fixture-source-index',new_string:'fixture-source-index-updated'}],
+          ];
+          if(completedTools<actions.length){const [name,args]=actions[completedTools];toolCall={id:'source-call-'+completedTools,type:'function',function:{name,arguments:JSON.stringify(args)}};}
+          else answer='Sources fixture completed.';
+        }
         const demoStep = text?.match(/This is step (\d+)\/8 of the built-in introductory demo/);
         if (demoStep) {
           answer = 'Здравствуйте! Я Игорёк. Покажу следующий шаг и объясню результат.';
@@ -258,6 +269,18 @@ print(json.dumps({'files':True}))`;
     }, 'Task after restart did not finish', 60);
     assert.ok(calls.length >= 3 && calls.every(Boolean));
     stage('continued_session_after_restart');
+    const sourcesSession=await api('/api/sessions',{profile:'qa-first-task',cwd:path.join(dataDir,'workspace'),idempotency_key:'qa-sources-session'});
+    const sourcesRoute='/api/sessions/'+sourcesSession.session_id;
+    await chat.webContents.executeJavaScript('selectSession('+JSON.stringify(sourcesSession.session_id)+')');
+    await api(sourcesRoute+'/messages',{text:'fixture-source-index',idempotency_key:'qa-source-message'});
+    await until(async()=>{const value=await api(sourcesRoute);return !value.running_task_id&&value.messages.some(item=>item.text==='Sources fixture completed.');},'Source fixture did not finish',60);
+    await until(()=>chat.webContents.executeJavaScript("document.querySelectorAll('.summary-source-group[data-source-kind=file] .summary-source').length===2&&document.querySelectorAll('[data-source-kind=web] .summary-source').length===1&&document.querySelectorAll('[data-source-kind=pull_request] .summary-source').length===1"),'Native sources groups did not update');
+    assert.equal((await api(sourcesRoute+'/files')).files.length,2);
+    await chat.webContents.executeJavaScript("[...document.querySelectorAll('[data-source-kind=file] .summary-source')].find(node=>node.textContent.includes('source-note.md')).click()");
+    await until(()=>chat.webContents.executeJavaScript("state.panel.fileView?.status==='ready'&&state.panel.fileView.text.includes('fixture-source-index-updated')"),'Indexed source file did not open in native viewer');
+    report.session_sources='passed';
+    await chat.webContents.executeJavaScript('closePanel()');
+    await chat.webContents.executeJavaScript('selectSession('+JSON.stringify(session.session_id)+')');
     await chat.webContents.executeJavaScript("document.getElementById('message-input').value='/demo'; document.getElementById('composer-form').requestSubmit()");
     let demoId;
     await until(async () => {

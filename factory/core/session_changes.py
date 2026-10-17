@@ -125,6 +125,7 @@ class TaskChangeTracker:
         self._files: dict[str, dict[str, Any]] = {}
         self._baselines: dict[str, tuple[bool, str | None]] = {}
         self._baseline_revision = ""
+        self._shell_partial = False
 
     # -- baseline lookup -------------------------------------------------
 
@@ -159,6 +160,55 @@ class TaskChangeTracker:
 
     def record_edit(self, path: str, old_string: str, new_string: str) -> None:
         self._record(path, tool_name="Edit", old_string=old_string or "", new_string=new_string or "", content="")
+
+    def workspace_snapshot(self) -> dict[str, tuple] | None:
+        """Capture bounded file metadata around a shell command, without file contents."""
+        root = Path(self.workdir).resolve()
+        result = {}
+        errors = []
+        directories = 0
+        for directory, folders, files in os.walk(root, followlinks=False, onerror=errors.append):
+            directories += 1
+            if directories > 10000:
+                return None
+            folders[:] = [name for name in folders if not name.startswith('.')
+                          and name not in {'node_modules', '__pycache__'}
+                          and not (Path(directory) / name).is_symlink()]
+            for name in files:
+                path = Path(directory) / name
+                if name.startswith('.') or path.is_symlink():
+                    continue
+                try:
+                    info = path.stat()
+                    if not path.is_file():
+                        continue
+                except OSError:
+                    continue
+                result[path.relative_to(root).as_posix()] = (info.st_mtime_ns, info.st_ctime_ns, info.st_size, info.st_ino)
+                if len(result) >= 10000:
+                    return None
+        return None if errors else result
+
+    def record_shell_changes(self, before: dict[str, tuple] | None) -> None:
+        """Persist observed workspace changes even when shell output names no files."""
+        after = self.workspace_snapshot()
+        if before is None or after is None:
+            self._shell_partial = True
+            self._persist()
+            return
+        for relative in before.keys() | after.keys():
+            if before.get(relative) == after.get(relative) or is_internal_path(relative, durable_root=self._durable_root):
+                continue
+            path = str(Path(self.workdir) / relative)
+            available, baseline = self._baseline(path)
+            if available:
+                self._record_from_checkpoint(relative, path, baseline)
+            else:
+                status = 'added' if relative not in before else 'deleted' if relative not in after else 'modified'
+                if relative in self._files and status == 'modified':
+                    continue
+                self._store(relative, 0, 0, status, force=True)
+        self._persist()
 
     def _record(
         self,
@@ -219,8 +269,8 @@ class TaskChangeTracker:
             status = "modified"
         self._store(relative, additions, deletions, status)
 
-    def _store(self, relative: str, additions: int, deletions: int, status: str) -> None:
-        if status == "modified" and additions == 0 and deletions == 0:
+    def _store(self, relative: str, additions: int, deletions: int, status: str, *, force: bool = False) -> None:
+        if not force and status == "modified" and additions == 0 and deletions == 0:
             self._files.pop(relative, None)
             return
         self._files[relative] = {
@@ -239,6 +289,7 @@ class TaskChangeTracker:
             "updated_at": int(time.time()),
             "baseline_revision": self._baseline_revision,
             "files": [self._files[key] for key in sorted(self._files)],
+            **({"tracking_partial": True} if self._shell_partial else {}),
         }
         write_task_changes(record, data_root=self.data_root)
 
@@ -312,6 +363,7 @@ def aggregate_changes(
     files = [merged[key] for key in sorted(merged)]
     return {
         "files": files,
+        **({"tracking_partial": True} if any(record.get("tracking_partial") for record in records if isinstance(record, dict)) else {}),
         "totals": {
             "files": len(files),
             "additions": sum(item["additions"] for item in files),

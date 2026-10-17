@@ -388,7 +388,11 @@ class MobileRequestHandler(BaseHTTPRequestHandler):
                 self._send_json(200, {"seq": self.bridge.store.max_seq(session_id=route[1])})
                 return
             if len(route) == 3 and route[0] == "sessions" and route[2] == "files" and method == "GET":
-                self._send_json(200, {"files": self.bridge.service.list_session_files(route[1])})
+                self._send_json(200, {"files": self.bridge.service.list_session_files(route[1]),
+                                      "partial": bool(self.bridge.service.session_changes(route[1]).get("tracking_partial"))})
+                return
+            if len(route) == 3 and route[0] == "sessions" and route[2] == "sources" and method == "GET":
+                self._send_json(200, self.bridge.service.session_sources(route[1]))
                 return
             if len(route) == 4 and route[0] == "sessions" and route[2] in {"files", "uploads"} and method == "GET":
                 opener = self.bridge.service.open_session_upload if route[2] == "uploads" else self.bridge.service.open_session_file

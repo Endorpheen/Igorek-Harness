@@ -295,6 +295,8 @@ class MobileService:
         available_profiles: Callable[[], list[str]] | None = None,
     ) -> None:
         self.store = store or MobileStore()
+        from .sources import SourceIndex
+        self._source_index = SourceIndex(self.store)
         self.profile = str(profile or os.environ.get("FACTORY_MOBILE_PROFILE", "")).strip()
         self.workdir = str(Path(workdir).expanduser()) if workdir else str(Path.cwd())
         self.data_dir = data_dir or str(get_data_root())
@@ -1622,6 +1624,13 @@ class MobileService:
         from ..running_commands import list_commands
         return list_commands(session_id)
 
+    def session_sources(self, session_id: str) -> dict:
+        self._session_workdir(session_id)
+        links, truncated = self._source_index.links(session_id)
+        files = [{**info, "kind": "file"} for info in self.list_session_files(session_id)]
+        return {"sources": files + links, "truncated": truncated,
+                "files_partial": bool(self.session_changes(session_id).get("tracking_partial"))}
+
     def stop_session_process(self, session_id: str, identity: str) -> dict:
         self._session_workdir(session_id)
         from ..running_commands import request_stop
@@ -1698,6 +1707,16 @@ class MobileService:
             else:
                 explicit = []
             for info, candidate in collect_files(workdir, task.get("output_text") or "", explicit, workspace_id):
+                found[str(candidate)] = (info, candidate)
+        for info, candidate in collect_files(base, "", self._source_index.file_paths(session_id), visible_base=True):
+            info["path"] = candidate.relative_to(base).as_posix()
+            found[str(candidate)] = (info, candidate)
+        for changed in self.session_changes(session_id)["files"]:
+            relative = str(changed.get("path") or "")
+            if not relative or Path(relative).is_absolute():
+                continue
+            for info, candidate in collect_files(base, "", [relative], visible_base=True):
+                info["path"] = candidate.relative_to(base).as_posix()
                 found[str(candidate)] = (info, candidate)
         return list(found.values())[-100:]
 

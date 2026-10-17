@@ -1081,6 +1081,9 @@ class _Handler(BaseHTTPRequestHandler):
             if len(parts) == 4 and parts[3] == "files" and method == "GET":
                 self._proxy(method, f"/sessions/{quoted}/files")
                 return
+            if len(parts) == 4 and parts[3] == "sources" and method == "GET":
+                self._proxy(method, f"/sessions/{quoted}/sources")
+                return
             if len(parts) == 5 and parts[3] == "uploads" and method == "GET":
                 if not re.fullmatch(r"[0-9a-f]{32}", parts[4]):
                     self._json(400, {"error": "Некорректное вложение"})
