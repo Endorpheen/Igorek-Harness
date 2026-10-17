@@ -84,6 +84,18 @@ that request handled. It retains all permission guards and completion assertions
 Windows package/update acceptance and final hosted CI must pass before publication.
 The running owner installation was not replaced or restarted.
 
+On head `579962b`, Windows completed all four source tools and all three real
+approvals, then failed opening the indexed file in both normal and diagnostic
+runs. The bridge download opener still used POSIX-only `O_DIRECTORY`/`dir_fd`.
+It now uses the existing shared regular-file opener, including Windows pinned
+parent handles and reparse-point rejection, while retaining the download identity
+check and normalized inaccessible-file error. A portable regression reads a
+Unicode-named output and rejects its stale identity; the directory-redirect
+contract now also covers bridge downloads. Native failure reports include the
+viewer status/error for direct diagnosis.
+The targeted platform, bridge HTTP and source suites passed **111 cases**, with
+three existing Windows-only skips on Linux. Ruff and publication contracts passed.
+
 ## 0.2.7 preview — structured model network retries
 
 The executor uses structured transport error codes before localized error text.

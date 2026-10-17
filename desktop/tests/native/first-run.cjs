@@ -398,6 +398,7 @@ print(json.dumps({'files':True}))`;
         selected: typeof state==='object' ? state.selected : null,
         itemTypes: typeof state==='object' ? state.items.map(item=>item.type) : [],
         timeline: document.getElementById('timeline')?.textContent,
+        fileView: state.panel.fileView ? {status:state.panel.fileView.status,error:state.panel.fileView.error,kind:state.panel.fileView.kind,text:state.panel.fileView.text?.slice(0,500)} : null,
         alerts: Array.from(document.querySelectorAll('.toast')).map(item=>item.textContent)
       })`).catch(() => ({ error: 'renderer_unavailable' }));
       if (process.platform === 'win32' && report.ui.selected) {

@@ -7,6 +7,7 @@ import stat
 from pathlib import Path
 from typing import BinaryIO
 
+from ..artifact_files import open_regular_file
 from ..telegram_bridge import _collect_output_file_paths, _output_file_roots
 
 MAX_DOWNLOAD_BYTES = 500 * 1024 * 1024
@@ -49,17 +50,10 @@ def collect_files(base_dir: Path, text: str, explicit: list[str], task_id: str =
 
 
 def open_file_safely(path: Path, expected: dict) -> BinaryIO:
-    # Walk directory descriptors without following symlinks, including ancestors.
-    directory = os.open("/", os.O_RDONLY | os.O_DIRECTORY)
     try:
-        for part in path.parts[1:-1]:
-            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory)
-            os.close(directory)
-            directory = child
-        descriptor = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
-    finally:
-        os.close(directory)
-    handle = os.fdopen(descriptor, "rb")
+        handle = open_regular_file(path)
+    except ValueError as exc:
+        raise OSError("Файл недоступен") from exc
     try:
         info = os.fstat(handle.fileno())
         identity = f"{path}:{info.st_size}:{info.st_mtime_ns}"
