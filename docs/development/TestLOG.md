@@ -1,5 +1,43 @@
 # Test results
 
+## 0.2.7 candidate — structured model network retries
+
+The executor uses structured transport error codes before localized error text.
+`responses_network` and `responses_timeout` retain the existing two-retry limit;
+explicit permanent errors do not fall back to text matching. Legacy OpenAI chat
+completion and Anthropic-compatible transport retries remain supported. Retry
+trace events include the existing allowlisted model failure diagnostics.
+
+Ten new regression cases cover a real local HTTP disconnect after a successful
+Read, recovery with the same tool result and no duplicate execution, exhausted
+retries, localized network/timeout messages, and permanent error codes whose text
+contains a misleading timeout marker. The eight code/text cases failed before
+the source fix. The initial socket fixture was denied by the execution sandbox;
+it passed when run with loopback access.
+
+Targeted Responses, output-contract and trace-taxonomy checks: **148 passed**.
+Locked dependency synchronization and desktop installation passed; all **345 Node
+contracts passed**, zero failures or skips. The initial desktop installation and
+full Python run hit the system temporary-directory user quota. Intermediate
+relocated runs also exposed the test harness's short-path and guest-path
+assumptions. These failures were retained; no test was changed or skipped to
+hide them. After owner-authorized removal of unused historical build caches,
+the normal isolated runner completed both Python roots: **4,845 collected,
+4,813 passed, 31 skipped, one failure, zero errors**, plus **630 passing
+subtests**. The one failure is the existing live grep.app search receiving
+`Too Many Requests` instead of JSON results; one separate recheck reproduced it.
+It remains a failed external integration check, not a pass or a newly added skip.
+The existing skips cover disabled terminal cases and isolation, platform and
+live-provider prerequisites; no skip conditions changed.
+
+Statement coverage is **46,166/78,021 (59.17%)** and branch coverage is
+**12,842/27,868 (46.08%)**. Real loopback HTTP testing establishes the retry and
+single tool-execution behavior; native UI, packaged binaries and physical devices
+were not exercised for this change.
+
+This is source validation, not a real-provider or packaged desktop acceptance
+result. The installed desktop, its runtime and personal task data are unchanged.
+
 ## 0.2.6 candidate — settings notifications
 
 Concurrent settings reads now wait in a bounded queue and repeated identical
@@ -22,6 +60,33 @@ error reply and a stopped backend produced genuine error notifications. Test
 windows, data and child processes were isolated; the user's installed desktop,
 Vault and saved notification history were not changed. This source fix requires
 an updated desktop build to take effect; no new release has been published.
+
+Protected PR 29 passed all **eleven hosted checks** on head
+38d9144ee59bcb8a37db40a1a6fc6a6da970cf68 and merged normally as
+cddedab295ce31a3e29733f8dfb977bb5f998f0a. Hosted Python 3.14 collected
+**4,835 cases: 4,803 passed, 32 skipped, zero failures/errors**, plus **630 passing
+subtests**. Statement coverage is **46,146/78,019**; branch coverage
+**12,834/27,866**. Python 3.13 and Android unit/lint/debug gates also passed;
+Android remains 0.1.106 (107). Desktop contracts passed **345 cases on each OS**.
+
+The packaged Linux payload passed the real Electron busy-notification scenario
+and all nine maintained native UI stages. Temporary **0.2.5-to-0.2.6** and
+**0.2.3-to-0.2.6** updates retained encrypted data, the previous generation and the
+exact corrected application files. The first legacy update check exhausted the
+quota of its temporary filesystem; moving the isolated fixture to the build
+filesystem passed without a product change. Windows Server 2025 x64 passed all
+nine native stages, NSIS installation, verified update and packaged relaunch with
+spaces/Unicode paths while retaining synthetic data. Package sources match the
+reviewed files and declare an unmodified source tree. Windows remains unsigned.
+
+GitHub v0.2.6 was published as a preview with three desktop installers, a CLI
+wheel, BUILD_MANIFEST.json and SHA256SUMS. All six uploaded server sizes and
+SHA256 digests match local files; the published user-facing description matches
+the reviewed Russian/English text. Source provenance is recorded in the manifest.
+The same approved files are mirrored to Gitea with downloaded checksum checks.
+No user installation, model service, credentials or notification history was
+modified. Existing notifications remain available; the fix takes effect after
+the desktop update and relaunch. Physical Windows 11 acceptance remains separate.
 
 ## 0.2.5 candidate — one-command CLI and explicit shared runtime
 
