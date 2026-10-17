@@ -1859,6 +1859,7 @@ function toast(message, level = 'info') {
   state.toastTimer = window.setTimeout(() => ui.toast.classList.remove("visible"), 3300);
 }
 function showConnection() {
+  window.IgorekAppHistory?.reset();
   window.IgorekReviews?.hide({forget:true});
   pendingReviewSession=null;
   document.body.classList.remove("gh-review-mode");
@@ -2041,6 +2042,18 @@ async function loadSessions() {
   state.sessionTotal = Number.isFinite(total) && total >= 0 ? total : null;
   renderSessions();
 }
+let appNavigationTimer=null;
+function scheduleAppNavigation(){
+  clearTimeout(appNavigationTimer);
+  appNavigationTimer=setTimeout(()=>window.IgorekAppHistory?.record(appNavigationRoute()),0);
+}
+function appNavigationRoute(){
+  if(!state.paired)return null;
+  const view=['scheduled','reviews','plugins'].includes(state.workspaceView)?state.workspaceView:'main';
+  if(view==='main'&&!state.selected)return null;
+  if(state.selected&&state.session?.session_id!==state.selected)return null;
+  return {view,session:state.selected||'',panel:state.panel.open,tab:state.panel.open?state.panel.workspace.active?.id||'':'',pull:view==='reviews'?window.IgorekReviews?.location?.()||'':''};
+}
 function showMainView() {
   window.IgorekReviews?.hide();
   document.body.classList.remove("gh-review-mode");
@@ -2056,6 +2069,7 @@ function showMainView() {
   byId("nav-scheduled").classList.remove("active"); byId("nav-scheduled").removeAttribute("aria-current");
   if (state.mainTitle) ui.title.textContent = state.mainTitle;
   ui.panelButton.hidden = !state.paired;
+  window.IgorekAppHistory?.schedule();
 }
 async function showScheduledView() {
   if (!state.paired) return;
@@ -2064,6 +2078,7 @@ async function showScheduledView() {
   window.IgorekPlugins?.hide();
   if (state.workspaceView !== "scheduled") state.mainTitle = ui.title.textContent;
   state.workspaceView = "scheduled";
+  window.IgorekAppHistory?.schedule();
   byId("scheduled-view").hidden = false; document.querySelector(".workspace-row").hidden = true;
   byId("nav-home").classList.remove("active"); byId("nav-home").removeAttribute("aria-current");
   byId("nav-scheduled").classList.add("active"); byId("nav-scheduled").setAttribute("aria-current","page");
@@ -2454,6 +2469,7 @@ async function selectSession(sessionId) {
     loadSubagents(sessionId).catch(() => {});
     loadOpenCodeUsage().catch(() => {});
     await loadSessions();
+    window.IgorekAppHistory?.schedule();
   } catch (error) {
     setRuntime(false, "status.offline");
     toast(error.message, "error");
@@ -7268,6 +7284,7 @@ function renderPanelSection(container, build) {
   container.scrollTop = scrollTop;
 }
 function renderPanel() {
+  window.IgorekAppHistory?.schedule();
   window.IgorekSummary?.sync();
   if(!state.panel.open||state.panel.workspace.active?.kind!=='opencode')window.IgorekDesktop?.opencode?.('hide').catch(()=>{});
   ui.sidePanel.hidden = !state.panel.open;
@@ -9069,10 +9086,27 @@ function openReviewChat(id,title,draft){
 window.IgorekReviews=window.IgorekGitHubReviews.mount({
  host:byId('github-reviews'),bridge:(op,args)=>window.IgorekDesktop.github(op,args),
  show:()=>{showMainView();state.workspaceView='reviews';ui.workspace.hidden=true;document.body.classList.add('gh-review-mode');byId('nav-home').classList.remove('active');byId('nav-home').removeAttribute('aria-current');byId('nav-reviews').classList.add('active');byId('nav-reviews').setAttribute('aria-current','page');ui.title.textContent='Проверка кода';state.panel.fullscreen=false;renderPanel();},
- chat:openReviewChat,sessions:()=>state.sessions,markdown:(text,host)=>window.IgorekMarkdown.renderMarkdown(text,host),
+ chat:openReviewChat,sessions:()=>state.sessions,markdown:(text,host)=>window.IgorekMarkdown.renderMarkdown(text,host),locationChanged:scheduleAppNavigation,
  openSite:url=>workspaceOpenSite(url),
  create:(pr,draft)=>{openNewSession();pendingReviewSession={pr,draft};}
 });
 byId('nav-reviews').addEventListener('click',()=>window.IgorekReviews.open());
 ui.dialog.addEventListener('close',()=>{pendingReviewSession=null;});
 window.IgorekDesktop?.onGitHubLocked?.(()=>{pendingReviewSession=null;window.IgorekReviews.hide({forget:true});if(state.workspaceView==='reviews')showMainView();});
+if(window.IgorekNavigationHistory){
+  const history=new window.IgorekNavigationHistory.History({
+    restore:async route=>{
+      if(!state.paired)throw Error('Подключение закрыто');
+      if(route.session&&route.session!==state.selected){await selectSession(route.session);if(state.selected!==route.session||state.session?.session_id!==route.session)throw Error('Чат недоступен');}
+      if(route.view==='scheduled')await showScheduledView();
+      else if(route.view==='plugins')await window.IgorekPlugins.show();
+      else if(route.view==='reviews'){await window.IgorekReviews.open();if(route.pull)await window.IgorekReviews.select(route.pull);}
+      else showMainView();
+      if(route.panel){const tab=state.panel.workspace.tabs.find(item=>item.id===route.tab);if(tab)activateWorkspaceTab(tab);openPanel();}else closePanel();
+      return appNavigationRoute();
+    },
+    changed:detail=>{window.dispatchEvent(new CustomEvent('igorek:navigation-state',{detail}));if(!detail.busy)scheduleAppNavigation();},
+  });
+  window.IgorekAppHistory=Object.freeze({schedule:scheduleAppNavigation,record:value=>history.record(value),back:()=>history.back().catch(error=>toast(error.message,'error')),forward:()=>history.forward().catch(error=>toast(error.message,'error')),state:()=>history.state(),reset:()=>history.reset()});
+  scheduleAppNavigation();
+}

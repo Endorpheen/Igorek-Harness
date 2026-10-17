@@ -20,7 +20,7 @@ Russian and English group labels are supported. The source/data-flow change is
 illustrated in the editable sources diagram included with the release.
 
 Targeted bridge/source/change tests: **232 passed**, five passing subtests;
-additional auth/scope regressions: **26 passed**. All **349 Node contracts** passed
+additional auth/scope regressions: **26 passed**. All **357 Node contracts** passed
 without skips. Ruff executable-error checks passed. The full isolated Python run
 collected **4,860 cases: 4,827 passed, 31 skipped, two failures, zero errors**, plus
 **630 passing subtests**. One failure was the existing external grep.app live
@@ -29,9 +29,27 @@ refused as busy. That exact CLI case passed on a separate unchanged recheck.
 Neither failing test nor its skip conditions were changed to hide these results.
 Statement coverage: **46,349/78,221**; branch coverage: **12,930/27,970**.
 
-Packaged native source-group/file-viewer acceptance, Linux/Windows installers,
+A Linux packaged source-group/file-viewer run passed all nine stages with three
+real one-shot approvals. The first new fixture correctly paused for permission;
+the final fixture clicks actual approval controls instead of bypassing guards.
+
+The same candidate now adds application back/forward history and opt-out
+post-install release notes. Eight additional Node cases cover history branching,
+bounded routes, failed/restored sessions, per-install identity, preference
+persistence and the dedicated dialog IPC boundary. Native navigation, release
+notes lifecycle, Linux/Windows installers,
 update preservation and hosted CI remain required release gates. Android sources
 are unchanged. The user's running application and workspace data are untouched.
+
+After adding history and release notes, the full isolated Python run again
+collected 4,860 cases: 4,827 passed, 31 skipped, two failures, zero errors and
+630 passing subtests. Both failures exposed a new history integration dependency
+in the isolated workspace/history fixtures. History hooks now use the optional
+controller API; both affected test files passed unchanged (three cases). The
+complete desktop suite passed all 357 contracts with local sockets available;
+an earlier sandboxed invocation failed socket-dependent suites and is retained
+as an environment failure. The eight history/preferences cases also passed after
+including plugin navigation. Final hosted and packaged gates follow below.
 
 ## 0.2.7 preview — structured model network retries
 

@@ -30,7 +30,7 @@ async function run() {
   const calls = [];
   const navigationHints = [];
   const navigationPreload = path.join(root, 'navigation-preload.cjs');
-  fs.writeFileSync(navigationPreload, "const {contextBridge,ipcRenderer}=require('electron'); contextBridge.exposeInMainWorld('IgorekDesktop',{navigation:(action,id)=>ipcRenderer.invoke('igorek:ui-navigation',action,id)});");
+  fs.writeFileSync(navigationPreload, "const {contextBridge,ipcRenderer}=require('electron'); contextBridge.exposeInMainWorld('IgorekDesktop',{navigation:(action,id)=>ipcRenderer.invoke('igorek:ui-navigation',action,id)});contextBridge.exposeInMainWorld('IgorekWindow',{menu:async()=>{},control:async()=>{}});");
 
   // OwnedRuntime reads these host paths explicitly; give every one a synthetic root.
   process.env.HOME = path.join(root, 'host');
@@ -68,6 +68,16 @@ async function run() {
       return value;
     })()`);
   }
+  async function loadNativeChat(){
+    await chat.loadURL(config.origin);
+    await chat.webContents.insertCSS(fs.readFileSync(path.join(appRoot,'window-chrome.css'),'utf8'));
+    await chat.webContents.executeJavaScript(fs.readFileSync(path.join(appRoot,'window-chrome.js'),'utf8'));
+  }
+  async function clickNative(target,selector){
+    const point=await target.webContents.executeJavaScript(`(()=>{const button=document.querySelector(${JSON.stringify(selector)});if(!button||button.disabled)return null;button.scrollIntoView({block:'center'});const box=button.getBoundingClientRect();return box.width&&box.height?{x:Math.round(box.x+box.width/2),y:Math.round(box.y+box.height/2)}:null;})()`);
+    assert.ok(point,'Native control is unavailable: '+selector);target.focus();
+    target.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,...point});target.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,...point});
+  }
   function cleanup() {
     if (!closing) closing = (async () => {
       chat?.destroy(); settings?.destroy();
@@ -75,7 +85,7 @@ async function run() {
       if (server) await new Promise(resolve => { server.close(resolve); server.closeAllConnections(); });
       // Windows keeps Chromium profile handles until Electron has exited.
       // The ephemeral runner removes that fixture after this process finishes.
-      if (process.platform !== 'win32') fs.rmSync(root, { recursive: true, force: true });
+      if (process.platform !== 'win32' && report.status === 'passed') fs.rmSync(root, { recursive: true, force: true });
     })();
     return closing;
   }
@@ -104,7 +114,7 @@ async function run() {
         let answer = text?.includes('fixture-second-ready') ? 'fixture-second-ready' : 'fixture-onboard-ready';
         if (text?.includes('fixture-navigation-help')) answer = 'Настройки основной модели здесь: [Открыть настройки модели](igorek://ui/models).';
         let toolCall;
-        if(text?.includes('fixture-source-index')){
+        if((body.messages||[]).some(item=>item.role==='user'&&JSON.stringify(item.content).includes('fixture-source-index'))){
           const completedTools=(body.messages||[]).filter(item=>item.role==='tool').length;
           const actions=[
             ['Write',{file_path:'source-note.md',content:'fixture-source-index\nhttps://example.com/reference\nhttps://github.com/example/project/pull/42\n'}],
@@ -221,9 +231,9 @@ print(json.dumps({'files':True}))`;
       try { valid = request.hostname === '127.0.0.1' && new X509Certificate(request.certificate.data).fingerprint256 === fingerprint; } catch {}
       callback(valid ? 0 : -3);
     });
-    await chat.loadURL(config.origin);
+    await loadNativeChat();
     await api('/api/pair', { code: config.pairingCode });
-    await chat.loadURL(config.origin);
+    await loadNativeChat();
     const session = await api('/api/sessions', { profile: 'qa-first-task', cwd: path.join(dataDir, 'workspace'), idempotency_key: 'qa-session' });
     const route = '/api/sessions/' + session.session_id;
     await api(route + '/messages', { text: 'Reply exactly fixture-onboard-ready. Do not call tools.', idempotency_key: 'qa-first-message' });
@@ -253,7 +263,7 @@ print(json.dumps({'files':True}))`;
     chat = new BrowserWindow({ show: true, width: 1360, height: 900,
       webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, preload: navigationPreload } });
     chat.show(); chat.focus();
-    await chat.loadURL(config.origin);
+    await loadNativeChat();
     assert.equal((await api('/api/status')).paired, true);
     assert.ok((await api(route)).messages.some(item => item.text?.includes('fixture-onboard-ready')));
     const selector = '[data-session-id="' + session.session_id + '"] .session-main';
@@ -269,18 +279,65 @@ print(json.dumps({'files':True}))`;
     }, 'Task after restart did not finish', 60);
     assert.ok(calls.length >= 3 && calls.every(Boolean));
     stage('continued_session_after_restart');
+    await clickNative(chat,'#nav-scheduled');
+    await until(()=>chat.webContents.executeJavaScript("state.workspaceView==='scheduled'&&!document.getElementById('igorek-history-back').disabled"),'Application navigation history was not recorded');
+    await clickNative(chat,'#igorek-history-back');
+    await until(()=>chat.webContents.executeJavaScript("state.workspaceView==='main'&&!document.getElementById('igorek-history-forward').disabled"),'Back did not restore the chat');
+    await clickNative(chat,'#igorek-history-forward');
+    await until(()=>chat.webContents.executeJavaScript("state.workspaceView==='scheduled'"),'Forward did not restore scheduled tasks');
+    await clickNative(chat,'#nav-home');
+    await until(()=>chat.webContents.executeJavaScript("state.workspaceView==='main'"),'Home navigation failed');
+    assert.equal(await chat.webContents.executeJavaScript("document.getElementById('igorek-window-bar').getBoundingClientRect().height"),36);
+    report.app_history='passed';
     const sourcesSession=await api('/api/sessions',{profile:'qa-first-task',cwd:path.join(dataDir,'workspace'),idempotency_key:'qa-sources-session'});
     const sourcesRoute='/api/sessions/'+sourcesSession.session_id;
     await chat.webContents.executeJavaScript('selectSession('+JSON.stringify(sourcesSession.session_id)+')');
     await api(sourcesRoute+'/messages',{text:'fixture-source-index',idempotency_key:'qa-source-message'});
-    await until(async()=>{const value=await api(sourcesRoute);return !value.running_task_id&&value.messages.some(item=>item.text==='Sources fixture completed.');},'Source fixture did not finish',60);
+    let sourceState;const sourceApprovals=new Set();
+    try{
+      await until(async()=>{
+        sourceState=await api(sourcesRoute);
+        if(sourceState.tasks.some(task=>task.status==='waiting_approval')){
+          const target=await chat.webContents.executeJavaScript(`(()=>{
+            for(const head of document.querySelectorAll('.activity-head[aria-expanded="false"],.tool-head[aria-expanded="false"]'))head.click();
+            const item=state.items.find(item=>item.type==='approval'&&!item.resolved&&item.request_id);
+            const button=document.querySelector('.approval-card:not(.resolved) .approval-button.allow_once:not(:disabled)');
+            if(!item||!button)return null;button.scrollIntoView({block:'center'});const box=button.getBoundingClientRect();
+            return box.width&&box.height?{id:item.request_id,x:Math.round(box.x+box.width/2),y:Math.round(box.y+box.height/2)}:null;
+          })()`);
+          if(target&&!sourceApprovals.has(target.id)){
+            sourceApprovals.add(target.id);chat.focus();chat.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,x:target.x,y:target.y});chat.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,x:target.x,y:target.y});
+          }
+        }
+        return !sourceState.running_task_id&&sourceState.messages.some(item=>item.role==='assistant'&&item.text?.includes('Sources fixture completed.'));
+      },'Source fixture did not finish',60);
+    }catch(error){fs.writeFileSync(path.join(output,'source-task-state.json'),JSON.stringify(sourceState||{},null,2));console.error('Synthetic source fixture retained: '+root);throw error;}
     await until(()=>chat.webContents.executeJavaScript("document.querySelectorAll('.summary-source-group[data-source-kind=file] .summary-source').length===2&&document.querySelectorAll('[data-source-kind=web] .summary-source').length===1&&document.querySelectorAll('[data-source-kind=pull_request] .summary-source').length===1"),'Native sources groups did not update');
     assert.equal((await api(sourcesRoute+'/files')).files.length,2);
     await chat.webContents.executeJavaScript("[...document.querySelectorAll('[data-source-kind=file] .summary-source')].find(node=>node.textContent.includes('source-note.md')).click()");
     await until(()=>chat.webContents.executeJavaScript("state.panel.fileView?.status==='ready'&&state.panel.fileView.text.includes('fixture-source-index-updated')"),'Indexed source file did not open in native viewer');
     report.session_sources='passed';
+    assert.ok(sourceApprovals.size>0);report.source_approvals_once=sourceApprovals.size;
     await chat.webContents.executeJavaScript('closePanel()');
     await chat.webContents.executeJavaScript('selectSession('+JSON.stringify(session.session_id)+')');
+    const {WhatsNew}=require(path.join(appRoot,'whats-new.cjs'));
+    const installedNotes=JSON.parse(fs.readFileSync(path.join(appRoot,'assets/release-notes.json'),'utf8'));
+    assert.equal(installedNotes.version,config.factoryVersion);
+    const newsOptions={BrowserWindow,ipcMain,root:appRoot,file:path.join(root,'news-settings.json'),info:()=>installedNotes};
+    let installation='synthetic-install-a';let news=new WhatsNew({...newsOptions,identity:()=>installation});
+    let newsWindow=await news.show(chat,{automatic:true});
+    await until(()=>newsWindow.webContents.executeJavaScript("document.querySelectorAll('#whats-new-changes li').length>0&&!document.getElementById('whats-new-enabled').disabled"),'Release notes did not load');
+    assert.equal(await newsWindow.webContents.executeJavaScript("document.getElementById('whats-new-enabled').checked"),true);
+    assert.ok((await newsWindow.webContents.executeJavaScript("document.getElementById('whats-new-version').textContent")).includes(config.factoryVersion));
+    await clickNative(newsWindow,'#whats-new-enabled');await until(()=>news.store.snapshot().enabled===false,'Release notes opt-out was not saved');
+    await clickNative(newsWindow,'#whats-new-close');await until(()=>news.window===null,'Release notes did not close');news.dispose();
+    installation='synthetic-install-b';news=new WhatsNew({...newsOptions,identity:()=>installation});assert.equal(await news.show(chat,{automatic:true}),null);
+    newsWindow=await news.show(chat);await until(()=>newsWindow.webContents.executeJavaScript("!document.getElementById('whats-new-enabled').disabled"),'Manual release notes did not load');
+    assert.equal(await newsWindow.webContents.executeJavaScript("document.getElementById('whats-new-enabled').checked"),false);
+    await clickNative(newsWindow,'#whats-new-enabled');await until(()=>news.store.snapshot().enabled===true,'Release notes re-enable was not saved');
+    await clickNative(newsWindow,'#whats-new-close');await until(()=>news.window===null,'Manual release notes did not close');
+    installation='synthetic-install-c';newsWindow=await news.show(chat,{automatic:true});assert.ok(newsWindow);await clickNative(newsWindow,'#whats-new-close');await until(()=>news.window===null,'Reinstalled release notes did not close');
+    assert.equal(await news.show(chat,{automatic:true}),null);news.dispose();report.whats_new='passed';
     await chat.webContents.executeJavaScript("document.getElementById('message-input').value='/demo'; document.getElementById('composer-form').requestSubmit()");
     let demoId;
     await until(async () => {

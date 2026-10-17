@@ -70,6 +70,7 @@ _STATIC_TYPES = {
     "app.js": "text/javascript; charset=utf-8",
     "github-reviews.js": "text/javascript; charset=utf-8",
     "session-summary.js": "text/javascript; charset=utf-8",
+    "app-history.js": "text/javascript; charset=utf-8",
     "downloads.js": "text/javascript; charset=utf-8",
     "workspace-tabs.js": "text/javascript; charset=utf-8",
     "opencode-panel.js": "text/javascript; charset=utf-8",

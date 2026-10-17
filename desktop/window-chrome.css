@@ -12,6 +12,9 @@ body.igorek-sidebar-hidden .app-shell { grid-template-columns: 52px minmax(0,1fr
 body.igorek-sidebar-hidden #sidebar { display: none; }
 #igorek-toggle-sidebar svg { width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:1.5; vertical-align:middle; }
 #igorek-toggle-sidebar[aria-expanded="false"] { color:#c2ef78; }
+#igorek-window-bar .igorek-history-button { width:32px; padding:0; }
+#igorek-window-bar .igorek-history-button svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.5; stroke-linecap:round; stroke-linejoin:round; vertical-align:middle; }
+#igorek-window-bar .igorek-history-button:disabled { opacity:.35; cursor:default; background:transparent; }
 @media(max-width:900px) { body.igorek-sidebar-hidden .app-shell { grid-template-columns:48px minmax(0,1fr); } }
 @media(max-width:680px) { body.igorek-sidebar-hidden .app-shell { grid-template-columns:44px minmax(0,1fr); } }
 #desktop-choose-workspace { margin-top: 12px; }

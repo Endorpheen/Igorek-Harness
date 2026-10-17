@@ -12,6 +12,8 @@ const { constants, readFileSync } = require('node:fs');
 const { windowMenu } = require('./window-menu.cjs');
 const {GITHUB_URL}=require('./links.cjs');
 let aboutWindow;
+let whatsNew;
+const {WhatsNew,installationIdentity}=require('./whats-new.cjs');
 const { ShortcutStore, matchesShortcut } = require('./shortcuts.cjs');
 const { join, resolve } = require('node:path');
 const { catalog: navigationCatalog, findRoute: navigationRoute, settingsPanels } = require('./ui-navigation.cjs');
@@ -262,6 +264,7 @@ function updateApplicationMenu() {
     fullscreen: (_, focused) => { if (focused && !focused.isDestroyed()) focused.setFullScreen(!focused.isFullScreen()); },
     status: () => openDiagnostics('status'), tasks: () => openDiagnostics('tasks'), trace: toggleTrace,
     about: openAbout,
+    whatsNew:()=>whatsNew?.show(BrowserWindow.getFocusedWindow()||window).catch(()=>{}),
   }, tracing, id => shortcutStore.keys(id))));
   for (const { target } of chromeWindows.values()) if (!target.isDestroyed()) target.setMenuBarVisibility(false);
 }
@@ -800,6 +803,7 @@ async function openWindow() {
       if (!response.ok) throw new Error('Pairing failed');
     }
     await chatWindow.loadURL(config.origin);
+    if(managed)await whatsNew?.show(chatWindow,{automatic:true}).catch(()=>{});
   }
   catch {
     dialog.showErrorBox('Не удалось открыть Игорька',
@@ -811,6 +815,7 @@ async function openWindow() {
 
 app.whenReady().then(async () => {
   try {
+    whatsNew=new WhatsNew({BrowserWindow,ipcMain,root:__dirname,file:join(app.getPath('userData'),'release-notes-settings.json'),info:desktopReleaseInfo,identity:()=>installationIdentity({root:__dirname,executable:process.execPath,appImage:process.env.APPIMAGE||'',version:desktopReleaseInfo().version})});
     showReleaseUpdates = updateDialog({app,dialog,shell,presentationFactory:parent=>createUpdatePresentation(parent,{BrowserWindow,ipcMain}),current:()=>desktopReleaseInfo().version,channel:()=>desktopReleaseInfo().channel,portable:app.isPackaged && process.platform==='linux' && Boolean(process.env.APPIMAGE),
       install:async file=>{
         if(!managed||!runtime)throw Error('unknown_update_installation');
