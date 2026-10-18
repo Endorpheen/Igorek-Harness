@@ -26,6 +26,13 @@ right panel. The session title is `Поручение: <title>`; no extra panel 
 bar is added. Opening OpenCode manually restores its original service and saved
 navigation. Manual service configuration and running sessions are preserved.
 
+The Windows x64 runtime includes a native pipe adapter in these sandboxed
+processes and their x64 children. Default named pipes receive the restricted
+token's default DACL, allowing captured command output without granting the
+token access to private host files. Explicit pipe descriptors are preserved.
+The adapter does not change token restrictions or file permissions. A child
+whose adapter cannot be loaded is terminated before its entry point runs.
+
 Delegations are durable records, not active tasks in the main conversation queue.
 A runtime monitor reads the session outcome, message timeline, pending forms and
 permission requests. Every pending request is displayed through the existing

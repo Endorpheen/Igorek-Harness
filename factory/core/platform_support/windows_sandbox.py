@@ -57,13 +57,16 @@ class ExplicitAccess(ctypes.Structure):
 class WindowsSandbox:
     """Keep assignment writes disposable and revoke explicit manual-project grants."""
 
-    def __init__(self, root: Path, *, readable=(), writable=(), manual_projects=()):
+    def __init__(self, root: Path, *, readable=(), writable=(), manual_projects=(), process_adapter=None):
         if os.name != 'nt':
             raise OSError('windows_sandbox_requires_windows')
         self.root = Path(root).resolve(strict=True)
         self.readable = [Path(item).resolve(strict=True) for item in readable]
         self.writable = [Path(item).resolve(strict=True) for item in writable]
         self.manual_projects = [Path(item).resolve(strict=True) for item in manual_projects]
+        self.adapter_path = Path(process_adapter).resolve(strict=True) if process_adapter else None
+        if self.adapter_path and not self.adapter_path.is_relative_to(self.root):
+            raise ValueError('windows_sandbox_adapter_must_be_disposable')
         if any(not item.is_relative_to(self.root) for item in self.writable + self.readable):
             raise ValueError('windows_sandbox_writes_must_be_disposable')
         self.kernel = ctypes.WinDLL('kernel32', use_last_error=True)
@@ -333,6 +336,8 @@ class WindowsSandbox:
 
     def start(self, argv, *, cwd, env, stdin, stdout, stderr):
         import msvcrt
+        if self.adapter_path:
+            env = {**env, 'PATH': str(self.adapter_path.parent) + os.pathsep + env.get('PATH', '')}
         stdio = [msvcrt.get_osfhandle(stream.fileno()) for stream in (stdin, stdout, stderr)]
         handles = (W.HANDLE * len(set(stdio)))(*dict.fromkeys(stdio))
         for handle in handles:
@@ -367,6 +372,11 @@ class WindowsSandbox:
                 self._check(self.assign_job(self.job, self.process))
                 ui = W.DWORD(0xFF)
                 self._check(self.set_job(self.job, 4, ctypes.byref(ui), ctypes.sizeof(ui)))
+                if self.adapter_path:
+                    adapter = ctypes.WinDLL(str(self.adapter_path), use_last_error=True)
+                    adapter.IgorekEmbed.argtypes = [W.HANDLE]
+                    adapter.IgorekEmbed.restype = W.BOOL
+                    self._check(adapter.IgorekEmbed(self.process))
                 if self.resume(self.thread) == 0xFFFFFFFF:
                     raise ctypes.WinError(ctypes.get_last_error())
             except BaseException:

@@ -1036,3 +1036,20 @@ Use [TESTING.md](../TESTING.md) for reproducible commands and coverage limits,
   with Win32 5. SecurityInfo type 1 returned 87; diagnostics now compare types
   and use the handle-based kernel security API to read/change only the probe
   pipe DACL. This is not a product policy change or an acceptance pass.
+
+- Native Windows evidence now confirms the cause: default named-pipe DACL
+  contains SYSTEM/Administrators/creator full access and Everyone/Anonymous
+  read, omitting the restricted capability even though TokenDefaultDacl includes
+  it. Client open returns 5; applying that token DACL to the owned probe pipe
+  returns 0 and its client succeeds. Label is already Low.
+- Added a Windows x64 process-local pipe adapter built from project source and
+  pinned Microsoft Detours 4.0.1 (MIT notices included). It supplies only default
+  pipe DACLs from the existing restricted token and loads in suspended x64 child
+  processes before execution. Host loading is inactive; token restrictions and
+  filesystem grants are unchanged. Injection/start failures terminate the child.
+  Added nested Python/Node/Git captured-output and private Low-label read/DACL
+  modification denial assertions to native acceptance. Native result pending.
+- Local platform check first hit sandbox-denied loopback sockets (13 passed,
+  6 skipped, 3 setup errors); rerun with loopback permitted preserves all tests.
+- Permitted-loopback local platform rerun: 16 passed, 6 native-OS skips,
+  0 failures/errors. Ruff E9/F63/F7/F82 and whitespace checks pass.

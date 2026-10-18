@@ -1,4 +1,4 @@
-"""Build a Windows x64 Python payload on Linux or Windows from locked sources."""
+"""Build a Windows x64 Python payload with MSVC and locked sources."""
 from __future__ import annotations
 import argparse
 import hashlib
@@ -72,6 +72,8 @@ def build(output: Path):
         if hashlib.sha256(archive.read_bytes()).hexdigest() != RG_SHA256:
             raise ValueError('Windows ripgrep checksum mismatch')
         tools = bundle / 'tools'; tools.mkdir()
+        subprocess.run([sys.executable, str(repo / 'desktop/packaging/build-windows-pipes.py'),
+                        '--output', str(tools)], check=True)
         with zipfile.ZipFile(archive) as package:
             for name in ('rg.exe', 'COPYING', 'LICENSE-MIT', 'UNLICENSE'):
                 (tools / name).write_bytes(package.read(f'{RG_ARCHIVE}/{name}'))
@@ -84,6 +86,8 @@ def build(output: Path):
         manifest['backend_sources'] = {name: hashlib.sha256((bundle / name).read_bytes()).hexdigest() for name in BACKEND_FILES}
         manifest['tools'] = {'ripgrep': {'version': '15.1.0', 'archive_sha256': RG_SHA256,
                             'sha256': hashlib.sha256((tools / 'rg.exe').read_bytes()).hexdigest()}}
+        manifest['tools']['windows_pipes'] = {'detours_version': '4.0.1',
+            'sha256': hashlib.sha256((tools / 'igorek-pipes.dll').read_bytes()).hexdigest()}
         (bundle / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
         shutil.move(str(bundle), output)
     print(f'Windows Python payload: {output}')

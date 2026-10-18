@@ -39,8 +39,17 @@ def windows_owned_root():
         yield root
 
 
+@pytest.fixture
+def windows_pipe_adapter(windows_owned_root):
+    repo = Path(__file__).resolve().parents[1]
+    output = windows_owned_root / 'pipe-adapter'
+    subprocess.run([sys.executable, str(repo / 'desktop/packaging/build-windows-pipes.py'),
+                    '--output', str(output)], check=True, capture_output=True, text=True)
+    return output / 'igorek-pipes.dll'
+
+
 @pytest.mark.skipif(sys.platform != 'win32', reason='Native Windows restricted-process contract')
-def test_windows_opencode_restricted_process_files_network_and_job(windows_owned_root):
+def test_windows_opencode_restricted_process_files_network_and_job(windows_owned_root, windows_pipe_adapter):
     tmp_path = windows_owned_root
     import shutil
     import ctypes
@@ -50,6 +59,8 @@ def test_windows_opencode_restricted_process_files_network_and_job(windows_owned
 
     root = tmp_path / 'sandbox'
     root.mkdir()
+    adapter = root / 'igorek-pipes.dll'
+    shutil.copyfile(windows_pipe_adapter, adapter)
     workspace = root / 'workspace'
     workspace.mkdir()
     private_parent = tmp_path / 'private-parent'
@@ -59,6 +70,7 @@ def test_windows_opencode_restricted_process_files_network_and_job(windows_owned
     outside.mkdir()
     protect_directory(outside)
     (outside / 'canary.txt').write_text('private fixture', encoding='utf-8')
+    (outside / 'low-canary.txt').write_text('private low fixture', encoding='utf-8')
     python_root = root / 'python'
     shutil.copytree(Path(sys.base_prefix), python_root,
                     ignore=shutil.ignore_patterns('site-packages', 'Scripts', '__pycache__', 'test', 'tests', 'Tools', 'Doc', 'include', 'libs'))
@@ -109,10 +121,22 @@ try:
  child_git=subprocess.run([executable,'--version'],capture_output=True,timeout=5)
  result['git_probe']={'returncode':child_git.returncode,'stdout':child_git.stdout.decode(errors='replace')[:200],'stderr':child_git.stderr.decode(errors='replace')[:500]}
 except OSError as error:result['git_probe']={'error':type(error).__name__,'code':getattr(error,'winerror',None)}
+try:
+ nested=subprocess.run([sys.argv[5],'-e',"const c=require('node:child_process').spawnSync(process.argv[1],['--version'],{encoding:'utf8'});if(c.error)throw c.error;process.stdout.write(c.stdout);process.exit(c.status);",executable],capture_output=True,timeout=10)
+ result['nested_node_pipe']={'returncode':nested.returncode,'stdout':nested.stdout.decode(errors='replace')[:200],'stderr':nested.stderr.decode(errors='replace')[:500]}
+except OSError as error:result['nested_node_pipe']={'error':type(error).__name__,'code':getattr(error,'winerror',None)}
 try:private.read_text();result['private_read_denied']=False
 except OSError:result['private_read_denied']=True
 try:private.write_text('forbidden');result['private_write_denied']=False
 except OSError:result['private_write_denied']=True
+low=private.with_name('low-canary.txt')
+try:low.read_text();result['private_low_read_denied']=False
+except OSError:result['private_low_read_denied']=True
+kernel.CreateFileW.argtypes=[ctypes.c_wchar_p,ctypes.c_ulong,ctypes.c_ulong,ctypes.c_void_p,ctypes.c_ulong,ctypes.c_ulong,ctypes.c_void_p]
+kernel.CreateFileW.restype=ctypes.c_void_p
+handle=kernel.CreateFileW(str(low),0x40000,7,None,3,0,None)
+result['private_dacl_change_denied']=handle==ctypes.c_void_p(-1).value and ctypes.get_last_error()==5
+if handle!=ctypes.c_void_p(-1).value:kernel.CloseHandle(handle)
 (workspace/'written.txt').write_text('inside')
 result['workspace_write']=True
 opener=urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -125,10 +149,12 @@ time.sleep(60)
     environment = {'SystemRoot': os.environ['SystemRoot'], 'WINDIR': os.environ['SystemRoot'],
                    'PATH': str(Path(os.environ['SystemRoot']) / 'System32'), 'TEMP': str(workspace), 'TMP': str(workspace)}
     ancestor_acls = {path: read_dacl(path, directory=True) for path in root.parents if path.name}
-    sandbox = WindowsSandbox(root, writable=[workspace])
+    sandbox = WindowsSandbox(root, writable=[workspace], process_adapter=adapter)
     try:
+        label = sandbox._acl(sandbox._descriptor('S:(ML;;NW;;;LW)'), label=True)
+        assert not sandbox.set_named_security(str(outside / 'low-canary.txt'), 1, 0x10, None, None, None, label)
         with open(os.devnull, 'rb') as incoming, (tmp_path / 'stdout').open('wb') as output, (tmp_path / 'stderr').open('wb') as errors:
-            sandbox.start([executable, '-I', '-S', '-c', code, workspace, outside / 'canary.txt', str(server.server_address[1]), shutil.which('git')],
+            sandbox.start([executable, '-I', '-S', '-c', code, workspace, outside / 'canary.txt', str(server.server_address[1]), shutil.which('git'), shutil.which('node')],
                           cwd=workspace, env=environment, stdin=incoming, stdout=output, stderr=errors)
             deadline = __import__('time').monotonic() + 20
             while not (workspace / 'proof.json').exists() and __import__('time').monotonic() < deadline and sandbox.poll() is None:
@@ -136,6 +162,9 @@ time.sleep(60)
             assert (workspace / 'proof.json').exists(), (sandbox.poll(), (tmp_path / 'stderr').read_text(errors='replace'))
             proof = json.loads((workspace / 'proof.json').read_text())
         assert proof['private_read_denied'] and proof['private_write_denied'] and proof['workspace_write']
+        assert proof['private_low_read_denied'] and proof['private_dacl_change_denied'], proof
+        assert proof['git_probe']['returncode'] == 0 and 'git version' in proof['git_probe']['stdout'], proof
+        assert proof['nested_node_pipe']['returncode'] == 0 and 'git version' in proof['nested_node_pipe']['stdout'], proof
         assert proof['network'] == 'fixture-network-ok'
         assert proof['clipboard_read_denied'], proof
         assert proof['own_process_access'] and proof['own_token_query'], proof
@@ -161,7 +190,7 @@ time.sleep(60)
     assert not differences, {'differences':differences,'probe':proof.get('git_probe'),'git_read':proof.get('git_read')}
     before = read_dacl(outside / 'canary.txt')
     parent_acl = read_dacl(private_parent, directory=True)
-    manual = WindowsSandbox(root, writable=[workspace], manual_projects=[outside])
+    manual = WindowsSandbox(root, writable=[workspace], manual_projects=[outside], process_adapter=adapter)
     try:
         with open(os.devnull, 'rb') as incoming, (tmp_path / 'manual-stdout').open('wb') as output, (tmp_path / 'manual-stderr').open('wb') as errors:
             manual.start([executable, '-I', '-S', '-c',
@@ -205,11 +234,13 @@ def test_windows_opencode_profile_capability_transport(tmp_path, monkeypatch):
 
 @pytest.mark.skipif(sys.platform != 'win32', reason='Native Windows OpenCode API contract')
 @pytest.mark.timeout(120)
-def test_windows_opencode_native_assignment_api(windows_owned_root):
+def test_windows_opencode_native_assignment_api(windows_owned_root, windows_pipe_adapter):
     tmp_path = windows_owned_root
     import shutil
     repo = Path(__file__).resolve().parents[1]
     bundle = tmp_path / 'runtime'
+    (bundle / 'tools').mkdir(parents=True)
+    shutil.copyfile(windows_pipe_adapter, bundle / 'tools/igorek-pipes.dll')
     python = bundle / 'python'
     shutil.copytree(Path(sys.base_prefix), python,
                     ignore=shutil.ignore_patterns('site-packages', 'Scripts', '__pycache__', 'test', 'tests', 'Tools', 'Doc', 'include', 'libs'))

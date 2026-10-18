@@ -2,7 +2,7 @@
 
 LEGAL_FILES = ('LICENSE', 'docs/THIRD_PARTY_NOTICES.md',
                'docs/licenses/CODEX-LICENSE.txt', 'docs/licenses/CODEX-NOTICE.txt',
-               'docs/licenses/OPENCODE-ICON-LICENSE.txt')
+               'docs/licenses/OPENCODE-ICON-LICENSE.txt', 'docs/licenses/DETOURS-LICENSE.txt')
 
 
 APP_FILES = (

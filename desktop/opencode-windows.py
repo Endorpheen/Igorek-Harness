@@ -65,6 +65,8 @@ def main(config):
     source_binary = Path(config['binary_root']) / 'opencode.exe'
     if source_binary.resolve() != binary.resolve():
         shutil.copyfile(source_binary, binary)
+    adapter = service / 'bin' / 'igorek-pipes.dll'
+    shutil.copyfile(bundle / 'tools' / 'igorek-pipes.dll', adapter)
     profiles = config.get('profiles')
     if not isinstance(profiles, dict) or type(profiles.get('port')) is not int or not 1 <= profiles['port'] <= 65535:
         raise ValueError('opencode_windows_profiles_required')
@@ -125,7 +127,7 @@ console.log(JSON.stringify({bun:Bun.version,spawn_probes:results}));
             shutil.copytree(Path(sys.executable).parent, probe_python,
                             ignore=shutil.ignore_patterns('site-packages', 'Scripts', '__pycache__', 'test', 'tests', 'Tools', 'Doc', 'include', 'libs'))
             (probe_python / 'python314._pth').write_text('python314.zip\n.\nLib\nDLLs\n', encoding='utf-8')
-        probe = WindowsSandbox(root, writable=writable, manual_projects=manual)
+        probe = WindowsSandbox(root, writable=writable, manual_projects=manual, process_adapter=adapter)
         try:
             with open(os.devnull, 'rb') as incoming, (service / 'spawn-probe.log').open('wb') as outgoing:
                 probe.start([binary, '-e', script], cwd=workspace, env={**environment, 'BUN_BE_BUN': '1'},
@@ -133,7 +135,7 @@ console.log(JSON.stringify({bun:Bun.version,spawn_probes:results}));
                 probe.wait(probe.process, 15000)
         finally:
             probe.close()
-        probe = WindowsSandbox(root, writable=writable, manual_projects=manual)
+        probe = WindowsSandbox(root, writable=writable, manual_projects=manual, process_adapter=adapter)
         pipe_code = r"""
 import ctypes,json,os,subprocess,sys
 from ctypes import wintypes as W
@@ -193,7 +195,7 @@ sys.exit(completed.returncode)
                 probe.wait(probe.process, 15000)
         finally:
             probe.close()
-        probe = WindowsSandbox(root, writable=writable, manual_projects=[workspace])
+        probe = WindowsSandbox(root, writable=writable, manual_projects=[workspace], process_adapter=adapter)
         try:
             with open(os.devnull, 'rb') as incoming, (service / 'spawn-medium-probe.log').open('wb') as outgoing:
                 probe.start([binary, '-e', script], cwd=workspace, env={**environment, 'BUN_BE_BUN': '1'},
@@ -201,7 +203,7 @@ sys.exit(completed.returncode)
                 probe.wait(probe.process, 15000)
         finally:
             probe.close()
-    sandbox = WindowsSandbox(root, writable=writable, manual_projects=manual)
+    sandbox = WindowsSandbox(root, writable=writable, manual_projects=manual, process_adapter=adapter)
     try:
         with open(os.devnull, 'rb') as incoming, (service / 'process.log').open('wb') as outgoing:
             command = [binary, 'serve', '--hostname', '127.0.0.1', '--port', '0']
