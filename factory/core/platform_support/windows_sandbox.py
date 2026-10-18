@@ -116,6 +116,12 @@ class WindowsSandbox:
             [P, ctypes.POINTER(B), ctypes.POINTER(P), ctypes.POINTER(B)])
         self.set_named_security = bind(self.security, 'SetNamedSecurityInfoW', D, [W.LPWSTR, ctypes.c_int, D, P, P, P, P])
         self.set_security = bind(self.security, 'SetSecurityInfo', D, [H, ctypes.c_int, D, P, P, P, P])
+        self.descriptor_init = bind(self.security, 'InitializeSecurityDescriptor', B, [P, D])
+        self.descriptor_control = bind(self.security, 'GetSecurityDescriptorControl', B,
+            [P, ctypes.POINTER(W.WORD), ctypes.POINTER(D)])
+        self.descriptor_set_control = bind(self.security, 'SetSecurityDescriptorControl', B, [P, W.WORD, W.WORD])
+        self.descriptor_set_dacl = bind(self.security, 'SetSecurityDescriptorDacl', B, [P, B, P, B])
+        self.set_file_security = bind(self.security, 'SetFileSecurityW', B, [W.LPCWSTR, D, P])
         self.get_named_security = bind(self.security, 'GetNamedSecurityInfoW', D,
             [W.LPCWSTR, ctypes.c_int, D, P, P, ctypes.POINTER(P), P, ctypes.POINTER(P)])
         self.merge_acl = bind(self.security, 'SetEntriesInAclW', D, [D, ctypes.POINTER(ExplicitAccess), P, ctypes.POINTER(P)])
@@ -178,7 +184,7 @@ class WindowsSandbox:
 
     def _token(self):
         original = W.HANDLE()
-        self._check(self.open_token(self.current_process(), 0x8B, ctypes.byref(original)))
+        self._check(self.open_token(self.current_process(), 0x6008B, ctypes.byref(original)))
         self.handles.append(original)
         needed = W.DWORD()
         self.get_token(original, 1, None, 0, ctypes.byref(needed))
@@ -214,6 +220,10 @@ class WindowsSandbox:
         descriptor = self._descriptor('D:(A;;GA;;;SY)(A;;GA;;;' + self.owner + ')(A;;GA;;;' + self.capability + ')(A;;GA;;;' + logon + ')')
         dacl = ctypes.c_void_p(self._acl(descriptor).value)
         self._check(self.set_token(token, 6, ctypes.byref(dacl), ctypes.sizeof(dacl)))
+        access = self._descriptor('D:(A;;GA;;;SY)(A;;GA;;;' + self.owner + ')(A;;0x20008;;;' + self.capability + ')')
+        error = self.set_security(token, 6, 4, None, None, self._acl(access), None)
+        if error:
+            raise ctypes.WinError(error)
 
     def _grant(self, root, *, writable):
         root = Path(root).resolve(strict=True)
@@ -246,7 +256,14 @@ class WindowsSandbox:
                                    Trustee(None, 0, 0, 0, self._sid(self.capability)))
             error = self.merge_acl(1, ctypes.byref(entry), existing, ctypes.byref(updated))
             if not error:
-                error = self.set_named_security(str(path), 1, 4, None, None, updated, None)
+                control, revision = W.WORD(), W.DWORD()
+                self._check(self.descriptor_control(descriptor, ctypes.byref(control), ctypes.byref(revision)))
+                absolute = ctypes.create_string_buffer(8 + 4 * ctypes.sizeof(ctypes.c_void_p))
+                self._check(self.descriptor_init(absolute, 1))
+                self._check(self.descriptor_set_dacl(absolute, True, updated, bool(control.value & 8)))
+                self._check(self.descriptor_set_control(absolute, 0x1500, control.value & 0x1500))
+                if not self.set_file_security(str(path), 4, absolute):
+                    error = ctypes.get_last_error()
             if error and not revoke:
                 raise ctypes.WinError(error)
         finally:
@@ -339,6 +356,12 @@ class WindowsSandbox:
             self.process, self.thread, self.pid = process.process, process.thread, process.pid
             self.handles.extend([self.process, self.thread])
             try:
+                descriptor = self._descriptor('D:(A;;GA;;;SY)(A;;GA;;;' + self.owner + ')(A;;GA;;;' + self.capability + ')')
+                label = self._acl(self._descriptor('S:(ML;;NW;;;' + ('ME' if self.manual_projects else 'LW') + ')'), label=True)
+                for handle in (self.process, self.thread):
+                    error = self.set_security(handle, 6, 0x14, None, None, self._acl(descriptor), label)
+                    if error:
+                        raise ctypes.WinError(error)
                 self._check(self.assign_job(self.job, self.process))
                 ui = W.DWORD(0xFF)
                 self._check(self.set_job(self.job, 4, ctypes.byref(ui), ctypes.sizeof(ui)))

@@ -998,3 +998,15 @@ Use [TESTING.md](../TESTING.md) for reproducible commands and coverage limits,
   expansion of short path aliases, for source/workspace/grant identity and
   service directories. The independent fixture also uses canonical paths.
   The remaining ancestor-DACL difference will be reported with exact values.
+
+- Restricted Python successfully read and executed the same Git binary. Bun's
+  EPERM therefore is not established as an executable-read denial. Initial
+  process/thread objects now have explicit job-capability DACLs and matching
+  integrity labels; only the newly restricted token receives self-query access.
+  Native contracts assert own-process handle access and own-token query while
+  private host-file denial remains required.
+- Exact ancestor comparison showed unchanged ACEs but an added AUTO_INHERITED
+  control flag. Add/revoke now uses an explicit security descriptor and the
+  file-security setter to preserve the existing inheritance-control flags.
+  No assertion is weakened. Windows unit fixtures normalize aliases and keep
+  granted synthetic projects outside the intentionally blocked AppData tree.

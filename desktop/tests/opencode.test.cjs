@@ -3,7 +3,7 @@ const {OpenCodeService,sandboxArgv,projectPath}=require('../opencode-service.cjs
 const {OpenCodeWorkspace}=require('../opencode-workspace.cjs');
 const {publicTarget,egressServer}=require('../opencode-egress.cjs');
 const listen=server=>new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
-function root(t){const dir=fs.mkdtempSync(path.join(os.tmpdir(),'igorek-oc-test-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));return dir;}
+function root(t){const dir=fs.mkdtempSync(path.join(process.platform==='win32'?os.homedir():os.tmpdir(),'igorek-oc-test-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));return dir;}
 function fixture(t){
   const dir=root(t),service=new OpenCodeService(path.join(dir,'service'));service.origin='http://127.0.0.1:45123';service.start=async()=>service.origin;
   const ses=Object.assign(new EventEmitter(),{getUserAgent:()=> 'Electron/44',setUserAgent(){},webRequest:{onBeforeRequest(fn){ses.before=fn},onBeforeSendHeaders(fn){ses.headers=fn}},setPermissionCheckHandler(fn){ses.check=fn},setPermissionRequestHandler(fn){ses.permission=fn},setDevicePermissionHandler(fn){ses.device=fn},flushStorageData(){},cookies:{flushStore:async()=>{}}});

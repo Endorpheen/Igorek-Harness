@@ -81,6 +81,19 @@ def test_windows_opencode_restricted_process_files_network_and_job(windows_owned
     code = '''import ctypes,json,os,pathlib,socket,subprocess,sys,time,urllib.request
 workspace,private,port=pathlib.Path(sys.argv[1]),pathlib.Path(sys.argv[2]),int(sys.argv[3])
 result={}
+kernel=ctypes.WinDLL('kernel32',use_last_error=True)
+kernel.GetCurrentProcessId.restype=ctypes.c_ulong
+kernel.OpenProcess.argtypes=[ctypes.c_ulong,ctypes.c_int,ctypes.c_ulong];kernel.OpenProcess.restype=ctypes.c_void_p
+kernel.CloseHandle.argtypes=[ctypes.c_void_p]
+self_handle=kernel.OpenProcess(0x40|0x1000,False,kernel.GetCurrentProcessId())
+result['own_process_access']=bool(self_handle)
+if self_handle:kernel.CloseHandle(self_handle)
+security=ctypes.WinDLL('advapi32',use_last_error=True)
+kernel.GetCurrentProcess.restype=ctypes.c_void_p
+security.OpenProcessToken.argtypes=[ctypes.c_void_p,ctypes.c_ulong,ctypes.POINTER(ctypes.c_void_p)]
+self_token=ctypes.c_void_p()
+result['own_token_query']=bool(security.OpenProcessToken(kernel.GetCurrentProcess(),8,ctypes.byref(self_token)))
+if self_token:kernel.CloseHandle(self_token)
 user=ctypes.WinDLL('user32',use_last_error=True)
 user.OpenClipboard.argtypes=[ctypes.c_void_p];user.OpenClipboard.restype=ctypes.c_int
 user.GetClipboardData.argtypes=[ctypes.c_uint];user.GetClipboardData.restype=ctypes.c_void_p
@@ -125,6 +138,7 @@ time.sleep(60)
         assert proof['private_read_denied'] and proof['private_write_denied'] and proof['workspace_write']
         assert proof['network'] == 'fixture-network-ok'
         assert proof['clipboard_read_denied'], proof
+        assert proof['own_process_access'] and proof['own_token_query'], proof
         kernel = ctypes.WinDLL('kernel32', use_last_error=True)
         kernel.OpenProcess.argtypes = [W.DWORD, W.BOOL, W.DWORD]
         kernel.OpenProcess.restype = W.HANDLE

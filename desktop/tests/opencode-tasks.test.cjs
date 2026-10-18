@@ -7,7 +7,7 @@ const http=require('node:http');
 const {OpenCodeTasks,sessionRoute}=require('../opencode-tasks.cjs');
 
 async function fixture(t){
-  const root=fs.mkdtempSync(path.join(os.tmpdir(),'igorek-oc-task-'));
+  const root=fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(),'igorek-oc-task-')));
   t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
   const source=path.join(root,'source'),workspaceRoot=path.join(root,'tasks'),runID='oc_'+'a'.repeat(32);
   const workspace=path.join(workspaceRoot,runID,'workspace');fs.mkdirSync(source);fs.mkdirSync(workspace,{recursive:true});
