@@ -156,7 +156,7 @@ class OpenCodeService extends EventEmitter{
       }
       const windows=process.platform==='win32';
       if(windows&&(!sandbox||this.hostServicesGrant))throw Error('Этот режим OpenCode пока недоступен в Windows.');
-      const child=spawn(windows?this.python:sandbox?'/usr/bin/bwrap':this.python,windows?['-I',path.join(__dirname,'opencode-windows.py')]:sandbox?sandboxArgv({root:this.root,bridge:this.bridge,projects:this.config.projects,script:this.script,hostServices:this.hostServicesGrant,profiles:this.profilesGrant,binaryRoot:this.binaryRoot}):['-I',this.script],
+      const child=spawn(windows?this.python:sandbox?'/usr/bin/bwrap':this.python,windows?['-I','-X','utf8',path.join(__dirname,'opencode-windows.py')]:sandbox?sandboxArgv({root:this.root,bridge:this.bridge,projects:this.config.projects,script:this.script,hostServices:this.hostServicesGrant,profiles:this.profilesGrant,binaryRoot:this.binaryRoot}):['-I',this.script],
         {stdio:['pipe','pipe','ignore'],shell:false,windowsHide:true,env:windows?{SystemRoot:process.env.SystemRoot,PATH:process.env.PATH,TEMP:process.env.TEMP}:{PATH:'/usr/bin:/bin',LANG:'C.UTF-8'},cwd:this.root});
       this.child=child;child.stdin.on('error',()=>{});
       const gone=()=>{if(this.child!==child)return;this.child=null;this.state='error';this.error='Сервис OpenCode остановился. Нажми «Подключиться». ';this.closeNetwork();this.publish();};

@@ -923,3 +923,14 @@ Use [TESTING.md](../TESTING.md) for reproducible commands and coverage limits,
 - Added matching English/Russian before/after architecture diagrams as editable
   SVG and PNG. Platform documentation distinguishes native Windows filesystem/
   process restrictions from Linux namespaces and Linux-only KVM/host services.
+
+- Fifth Windows candidate passed the manual direct-edit/DACL-restoration
+  contract and built its installer. Native OpenCode admission failed (generic
+  operation error in the installed Unicode path; HTTP 500 in the ASCII-path
+  diagnostic clone). The helper protocol now explicitly enables Python UTF-8;
+  the synthetic fixture captures bounded, token-redacted API errors for exact
+  follow-up diagnosis. No real profile or account is used by these fixtures.
+- Full local Python regression: 4,885 collected, 4,852 passed, 33 platform/
+  optional skips, zero failures/errors; 630 subtests. Targeted shared contracts
+  after the Windows layout change: 54 passed, 5 Windows skips. Locked npm ci
+  completed; all 364 desktop tests passed.

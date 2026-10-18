@@ -27,6 +27,18 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
   }
   const workspace = workspaceAction('prepare');
   let release, next = 0, controller, view, parent;
+  const originalRequest = http.request;
+  http.request = function(options, callback) {
+    return originalRequest.call(this, options, response => {
+      if (response.statusCode >= 400 && String(options.path).startsWith('/api/')) {
+        let body = '';
+        response.on('data', part => { if (body.length < 8000) body += part; });
+        response.on('end', () => { proof.http_error = {status: response.statusCode, path: options.path,
+          body: body.replace(/[A-Za-z0-9+_\/=-]{32,}/g, '[redacted]').slice(0, 3000)}; });
+      }
+      callback(response);
+    });
+  };
   const gate = new Promise(resolve => { release = resolve; });
   const provider = http.createServer(async (req, res) => {
     try {
@@ -61,11 +73,11 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
     const manual = new OpenCodeService(path.join(folder, 'manual'), {python, bundle});
     await manual.install(); manual.config.projects = [source];
     controller = new OpenCodeTasks({manual, root: path.join(folder, 'services'), workspaceRoot, allowed: () => true,
-      createService: (serviceRoot, ownedWorkspace, consumer) => {assert.equal(consumer, runID); return new OpenCodeService(serviceRoot, {python, bundle,
+      createService: (serviceRoot, ownedWorkspace, consumer) => {assert.equal(consumer, runID); const service = new OpenCodeService(serviceRoot, {python, bundle,
         ownedWorkspace, binaryRoot: manual.binaryRoot, profilesControl: async operation => operation === 'grant' ? {
           socket, ...(process.platform === 'win32' ? {port: provider.address().port} : {}), token: 'd'.repeat(64),
           profiles: [{id: 'fixture-id', name: 'fixture', model: 'fixture-model', api_format: 'openai', context: 32768}],
-        } : {revoked: true}});},
+        } : {revoked: true}});service.on('state',value=>{if(value.error)proof.service_error=value.error;});return service;},
       show: async job => {
         parent = new BrowserWindow({show: true, width: 1400, height: 950,
           webPreferences: {sandbox: true, contextIsolation: true, nodeIntegration: false}});
@@ -76,7 +88,7 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
       }});
     const started = await controller.handle({action: 'start', run_id: runID, source, workspace, title: 'Native fixture',
       goal: 'Execute the synthetic filesystem fixture.', profile: 'fixture', session: 'chat-fixture'});
-    assert(started.session_id, JSON.stringify(started)); proof.nonblocking_start = true;
+    assert(started.session_id, JSON.stringify({started,diagnostics:proof})); proof.nonblocking_start = true;
     assert.equal(await parent.webContents.executeJavaScript("document.getElementById('main-chat').textContent"), 'Synthetic main chat remains available');
     const job = controller.jobs.get(runID);
     const made = await request(job.service, 'POST', job.prefix + '/form', {title: 'Synthetic owner question',
@@ -116,6 +128,7 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
     proof.passed = true; return proof;
   } catch (error) { proof.error = error.message; throw error; }
   finally {
+    http.request = originalRequest;
     release(); view?.lock(); parent?.destroy(); await controller?.stop();
     await new Promise(resolve => provider.close(resolve));
     fs.writeFileSync(path.join(output, 'opencode-delegation.json'), JSON.stringify(proof, null, 2));
