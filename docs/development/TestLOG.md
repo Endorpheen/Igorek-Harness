@@ -1,6 +1,47 @@
 # Test results
 
-## 0.2.8 candidate — session sources and file visibility
+## 0.2.9 candidate — bounded transient TLS recovery and safe diagnostics
+
+The Responses adapter previously collapsed SSL exceptions into `responses_tls`,
+discarding the native subtype and excluding transient TLS closures from retries.
+It now records allowlisted SSL types/reasons and bounded errno/verification codes,
+with separate certificate-verification text. Raw exceptions, certificate subjects,
+certificate contents and headers are not added to diagnostic metadata.
+
+The executor retains the existing two-retry limit for recognized EOF/clean-close
+failures and the server internal-error alert. Certificate-verification failures,
+protocol failures and unclassified/legacy TLS failures remain nonretryable.
+Existing network/timeout and legacy provider behavior is retained. Completed tool
+results remain in the same model round and are not executed again.
+
+Real loopback HTTPS regressions perform Read, consume a ClientHello and close the
+next connection before ServerHello, then recover or exhaust the existing retry
+budget. They assert a single tool execution and preserved call/output identity.
+A real untrusted certificate is rejected before any HTTP request and receives no
+retry. The test-specific trust context keeps hostname verification and
+`CERT_REQUIRED` enabled. Native platform packaging jobs now run these TLS and
+diagnostic contracts on Linux and Windows before building installers.
+
+The corrected HTTPS regressions failed twice with the original retry policy,
+then passed with the new policy. An initial test-fixture attempt replaced the
+HTTPSConnection class and broke its standard-library `super` lookup; that fixture
+error was retained and corrected to use a verified fixture trust context. The
+final targeted Responses/TLS/output/diagnostic/taxonomy run passed **161 cases**;
+the TLS/diagnostic subset passed **13 cases**. Ruff executable-error and diff
+checks passed. Full isolated roots, desktop contracts and package/update/native
+gates remain required before publishing the candidate.
+
+The TLS regressions and their diagnostic case now live in the existing portable
+platform contract module, which the native Linux/Windows packaging jobs already
+run. Their function bodies and parameter sets are unchanged; the CI workflow
+remains unchanged. The preceding full isolated run completed both Python roots:
+**4,872 collected, 4,841 passed, 31 existing skips, zero failures/errors**, plus
+**630 passing subtests**. All **357 desktop contracts** passed. Local statement
+coverage is **46,360/78,237**, and branch coverage **12,937/27,978**.
+The relocated targeted suite passed **166 cases**, with three existing
+Windows-only skips on Linux; all original regression bodies were retained.
+
+## 0.2.8 preview — sources, navigation and installed release notes
 
 Session sources now use durable successful tool-result evidence for web and pull
 request references, and merge validated output paths and persisted file changes.
@@ -95,6 +136,56 @@ contract now also covers bridge downloads. Native failure reports include the
 viewer status/error for direct diagnosis.
 The targeted platform, bridge HTTP and source suites passed **111 cases**, with
 three existing Windows-only skips on Linux. Ruff and publication contracts passed.
+
+Final source freeze `bb6fa105` matches public PR head `259a438` and protected merge
+`ef21ba8fc39892d5b180754b3ce4d387bce40780` at tree
+`7ee94468012875430691f05988a9bd15c997fe65`. All **eleven required hosted checks**
+passed before a normal protected merge. Python 3.13 and 3.14 each collected
+**4,861 cases: 4,829 passed, 32 existing skips, zero failures/errors**, plus
+**630 passing subtests**; live grep.app searches passed in both final runs.
+Desktop contracts passed **357 cases per OS**. The first hosted Python 3.14
+attempt retained two failures: external grep.app rate limiting and a busy
+test-runtime shutdown. An unchanged rerun of that job passed; no test or skip
+condition was weakened. The final local full run retained one busy CLI shutdown
+failure (**4,829 passes, 31 skips, 630 subtests**); its exact unchanged PTY case
+passed separately in 5.72 seconds.
+Final local coverage: **46,342/78,217 statements** and **12,928/27,968 branches**.
+
+Clean final Linux and Windows packages passed all nine maintained native stages
+and the additional sources/file-opening, back/forward and release-note lifecycle
+checks, with three real one-shot source approvals per OS. Windows installed,
+reinstalled, applied its verified updater and relaunched from a path containing
+spaces and Unicode while preserving synthetic data. Its previously failing file
+viewer passed with the portable safe opener. Final Linux snapshot build is
+`a6e0b6c027d4`; actual AppImage extraction verified **6,399 files**, zero mismatches
+and six build-only omissions. Windows verified **2,739 files**, zero missing files
+or mismatches, clean provenance and no private data. Its source commit
+`ac3f8961c6903da9c8823e6c98a321210cd7f5df` has the same reviewed tree.
+
+The first final Linux runtime build encountered a TLS handshake timeout while
+fetching checksum-pinned CPython source for its socket extension. A normal clean
+retry passed with the same recipe and checksum checks. Dependent staging attempts
+before that retry had no runtime and produced no release packages. Final native,
+package and update acceptance used the successfully rebuilt payload.
+
+Preview **v0.2.8** was published on GitHub and Gitea with the same eight assets
+and matching Russian/English description: Linux DEB/AppImage, Windows EXE, CLI
+wheel, build manifest, checksums and editable SVG/PNG source-flow diagram. GitHub
+server SHA-256 digests and sizes matched all local files; every Gitea asset was
+downloaded and fully hashed before publication. Published bodies, asset inventory,
+tag targets and diagram bytes were read back. The GitHub tag targets the protected
+merge; Gitea targets the matching canonical source freeze.
+
+The actual 0.2.7 updater found 0.2.8 for DEB, AppImage and Windows and downloaded
+the public DEB with checksum verification. Installing that downloaded artifact in
+an isolated 0.2.7 prefix retained the previous generation, encrypted Vault and
+release-note opt-out; installed desktop and bridge-opener bytes matched source.
+The public Windows download returned HTTP 200. The published PNG was inspected.
+The owner's running installation and services were untouched. Users must update
+and restart the application/runtime and chat. Android remains 0.1.106 (107) and
+needs no update. Windows Server 2025 and Linux acceptance do not constitute
+physical Windows 11 acceptance; the Windows EXE remains unsigned and this release
+is explicitly a preview.
 
 ## 0.2.7 preview — structured model network retries
 

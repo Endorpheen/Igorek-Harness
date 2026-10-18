@@ -114,9 +114,19 @@ TRANSIENT_NETWORK_RETRY_DELAYS_S = (0.25, 0.75)
 _RAW_TOOL_CALL_LINE = re.compile(r'^[A-Z][A-Za-z_]{2,}\s*\(')
 
 
-def _is_transient_network_error(error: str, *, error_code: str | None = None) -> bool:
+def _is_transient_network_error(error: str, *, error_code: str | None = None,
+                                error_diagnostics: dict | None = None) -> bool:
     """Return True only for transport failures that are safe to retry."""
     if error_code is not None:
+        if error_code == 'responses_tls':
+            details = error_diagnostics or {}
+            kind, reason = details.get('tls_error_type'), details.get('tls_reason')
+            if (kind == 'SSLCertVerificationError' or reason == 'CERTIFICATE_VERIFY_FAILED'
+                    or details.get('tls_verify_code') is not None):
+                return False
+            if kind in {'SSLEOFError', 'SSLZeroReturnError'}:
+                return reason in {None, 'OTHER', 'UNEXPECTED_EOF_WHILE_READING'}
+            return kind == 'SSLError' and reason in {'UNEXPECTED_EOF_WHILE_READING', 'TLSV1_ALERT_INTERNAL_ERROR'}
         return error_code in ("responses_network", "responses_timeout")
     normalized = str(error or "").strip().lower()
     if not normalized or normalized.startswith("http "):
@@ -2570,6 +2580,7 @@ def execute_cc_backend_task(
                     not _is_transient_network_error(
                         network_error,
                         error_code=body.get("error_code") if isinstance(body, dict) else None,
+                        error_diagnostics=model_failure_diagnostics(body),
                     )
                     or network_retry_count >= MAX_TRANSIENT_NETWORK_RETRIES
                 ):
