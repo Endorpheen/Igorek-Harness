@@ -901,3 +901,11 @@ Use [TESTING.md](../TESTING.md) for reproducible commands and coverage limits,
   flag combination is not established as the cause. Added synthetic SID/layout
   diagnostics to the failing test; diagnostic token probes are immediately
   closed and never launch a process. Production still fails closed.
+
+- Native parameter probes isolated WinError 87: zero, one and two restricting
+  SIDs succeeded; adding ALL_APPLICATION_PACKAGES (third SID) failed, despite
+  valid SID encoding and correct 16-byte structure layout. Replaced that
+  unsupported application-package group with the standard World SID. Full
+  restricting access checks, private owner/SYSTEM DACL protection, low integrity,
+  disabled Administrators and maximum-privilege removal remain enabled.
+  Temporary diagnostic probes were removed after obtaining this evidence.

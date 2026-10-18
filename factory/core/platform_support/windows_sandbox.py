@@ -195,7 +195,7 @@ class WindowsSandbox:
             raise ValueError('windows_sandbox_logon_sid_required')
         self.logon = logon
         entries = (Sid * 5)(*[Sid(self._sid(text), 0) for text in
-                             [self.capability, logon, 'S-1-15-2-1', 'S-1-5-12', 'S-1-5-32-545']])
+                             [self.capability, logon, 'S-1-1-0', 'S-1-5-12', 'S-1-5-32-545']])
         disabled = (Sid * 1)(Sid(self._sid('S-1-5-32-544'), 0))
         token = W.HANDLE()
         self._check(self.restrict(original, 1, len(disabled), disabled, 0, None, len(entries), entries, ctypes.byref(token)))
