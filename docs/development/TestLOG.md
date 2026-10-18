@@ -1032,3 +1032,7 @@ Use [TESTING.md](../TESTING.md) for reproducible commands and coverage limits,
 - Low/medium diagnostic spawning has the same piped-stdio EPERM. The pipe
   probe now uses the exact duplex/WRITE_DAC open mode used by the runtime;
   READ_CONTROL is obtained through duplex access rather than an open-mode bit.
+- The exact named-pipe server mode succeeds and its client open is denied
+  with Win32 5. SecurityInfo type 1 returned 87; diagnostics now compare types
+  and use the handle-based kernel security API to read/change only the probe
+  pipe DACL. This is not a product policy change or an acceptance pass.

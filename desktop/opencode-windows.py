@@ -147,6 +147,8 @@ A.OpenProcessToken.argtypes=[H,D,ctypes.POINTER(H)]
 A.GetTokenInformation.argtypes=[H,ctypes.c_int,P,D,ctypes.POINTER(D)]
 A.GetSecurityInfo.argtypes=[H,ctypes.c_int,D,P,P,P,P,ctypes.POINTER(P)];A.GetSecurityInfo.restype=D
 A.SetSecurityInfo.argtypes=[H,ctypes.c_int,D,P,P,P,P];A.SetSecurityInfo.restype=D
+A.GetKernelObjectSecurity.argtypes=[H,D,P,D,ctypes.POINTER(D)]
+A.SetKernelObjectSecurity.argtypes=[H,D,P]
 A.InitializeSecurityDescriptor.argtypes=[P,D]
 A.SetSecurityDescriptorDacl.argtypes=[P,W.BOOL,P,W.BOOL]
 A.ConvertSecurityDescriptorToStringSecurityDescriptorW.argtypes=[P,D,D,ctypes.POINTER(W.LPWSTR),P]
@@ -162,15 +164,22 @@ name='\\\\.\\pipe\\igorek-capability-probe-'+str(os.getpid())
 server=K.CreateNamedPipeW(name,3|0x40000,0,1,65536,65536,0,None)
 if server==P(-1).value:result['create_server_error']=ctypes.get_last_error()
 else:
- descriptor=P();result['query_error']=A.GetSecurityInfo(server,1,0x14,None,None,None,None,ctypes.byref(descriptor))
- result['pipe_security']=sddl(descriptor,0x14)
+ for kind in [1,6]:
+  descriptor=P();error=A.GetSecurityInfo(server,kind,4,None,None,None,None,ctypes.byref(descriptor))
+  result['security_type_'+str(kind)]={'error':error,'dacl':sddl(descriptor,4) if not error else None}
+ for flags in [4,0x10]:
+  size=D();A.GetKernelObjectSecurity(server,flags,None,0,ctypes.byref(size))
+  security=ctypes.create_string_buffer(size.value)
+  okay=A.GetKernelObjectSecurity(server,flags,security,size.value,ctypes.byref(size))
+  result['kernel_security_'+str(flags)]={'error':0 if okay else ctypes.get_last_error(),'descriptor':sddl(security,flags) if okay else None}
  def connect():
   handle=K.CreateFileW(name,0xC0040000,0,None,3,0,None)
   if handle==P(-1).value:return ctypes.get_last_error()
   K.CloseHandle(handle);return 0
  result['initial_client_error']=connect()
  if result['initial_client_error']:
-  result['set_dacl_error']=A.SetSecurityInfo(server,1,4,None,None,dacl,None)
+  okay=A.SetKernelObjectSecurity(server,4,own)
+  result['set_dacl_error']=0 if okay else ctypes.get_last_error()
   result['updated_client_error']=connect()
  K.CloseHandle(server)
 print(json.dumps({'named_pipe_probe':result}),flush=True)
