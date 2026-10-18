@@ -27,18 +27,23 @@ class OpenCodeProfiles(socketserver.ThreadingMixIn, socketserver.TCPServer if os
     request_queue_size = 8
 
     def __init__(self, root, lifecycle, allowed):
-        from factory.core.platform_support import require_linux
-        require_linux('opencode_profile_proxy')
         self.lifecycle, self.allowed = lifecycle, allowed
         self.grant = None
+        self.consumer_grants = {}
         self.mutex = threading.RLock()
         self.slots = threading.BoundedSemaphore(8)
         root = Path(root)
         root.mkdir(parents=True, exist_ok=True, mode=0o700)
         info = root.lstat()
-        if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077:
+        if not stat.S_ISDIR(info.st_mode) or (os.name != 'nt' and (info.st_uid != os.getuid() or info.st_mode & 0o077)):
             raise ValueError('opencode_profiles_private_directory_required')
         self.path = root / 'api.sock'
+        self.identity = None
+        if os.name == 'nt':
+            from factory.core.platform_support.windows_security import protect_directory
+            protect_directory(root)
+            super().__init__(('127.0.0.1', 0), Handler)
+            return
         if self.path.exists() or self.path.is_symlink():
             info = self.path.lstat()
             if not stat.S_ISSOCK(info.st_mode) or info.st_uid != os.getuid():
@@ -79,13 +84,23 @@ class OpenCodeProfiles(socketserver.ThreadingMixIn, socketserver.TCPServer if os
             if operation == 'revoke' and set(value) == {'token'} and isinstance(value['token'], str):
                 if self.grant and hmac.compare_digest(self.grant['token'], value['token']):
                     self.grant = None
+                self.consumer_grants = {key: grant for key, grant in self.consumer_grants.items()
+                                        if not hmac.compare_digest(grant['token'], value['token'])}
                 return {'revoked': True}
-            if operation != 'grant' or value or not self.allowed():
+            consumer = value.get('consumer')
+            if operation != 'grant' or (value and (set(value) != {'consumer'} or not isinstance(consumer, str)
+                    or not __import__('re').fullmatch(r'oc_[a-f0-9]{32}', consumer))) or not self.allowed():
                 raise ValueError('opencode_profile_access_denied')
+            if consumer and consumer not in self.consumer_grants and len(self.consumer_grants) >= 4:
+                raise ValueError('opencode_profile_consumer_limit')
             profiles = {p['credential_id']: p['config'] for p in self.lifecycle.list_provider_profiles()
                         if p['status'] == 'verified' and not is_openai_realtime(p['config'])
                         and p['config'].get('api_format') in {'openai', 'anthropic', 'openai-responses'}}
-            self.grant = {'token': secrets.token_hex(32), 'profiles': json.loads(json.dumps(profiles))}
+            grant = {'token': secrets.token_hex(32), 'profiles': json.loads(json.dumps(profiles))}
+            if consumer:
+                self.consumer_grants[consumer] = grant
+            else:
+                self.grant = grant
             contexts, catalog = {}, []
             for identity, config in profiles.items():
                 base = config['base_url']
@@ -93,7 +108,8 @@ class OpenCodeProfiles(socketserver.ThreadingMixIn, socketserver.TCPServer if os
                     contexts[base] = self.context(config)
                 catalog.append({'id': identity, 'name': config['name'], 'model': config['model'],
                                 'api_format': config['api_format'], 'context': contexts[base]})
-            return {'socket': str(self.path), 'token': self.grant['token'], 'profiles': catalog}
+            return {'socket': str(self.path), 'token': grant['token'], 'profiles': catalog,
+                    **({'port': self.server_address[1]} if os.name == 'nt' else {})}
 
     def context(self, config):
         if not is_loopback_provider(config):
@@ -111,9 +127,11 @@ class OpenCodeProfiles(socketserver.ThreadingMixIn, socketserver.TCPServer if os
 
     def binding(self, token, identity):
         with self.mutex:
-            if not self.grant or not isinstance(token, str) or not hmac.compare_digest(token, self.grant['token']) or not self.allowed():
+            candidates = [*self.consumer_grants.values(), *([self.grant] if self.grant else [])]
+            grant = next((entry for entry in candidates if isinstance(token, str) and hmac.compare_digest(token, entry['token'])), None)
+            if not grant or not self.allowed():
                 raise ValueError('opencode_profile_access_denied')
-            config = self.grant['profiles'].get(identity)
+            config = grant['profiles'].get(identity)
             if config is None:
                 raise ValueError('opencode_profile_not_granted')
             current = next((p for p in self.lifecycle.list_provider_profiles() if p['credential_id'] == identity), None)
@@ -124,7 +142,10 @@ class OpenCodeProfiles(socketserver.ThreadingMixIn, socketserver.TCPServer if os
     def server_close(self):
         with self.mutex:
             self.grant = None
+            self.consumer_grants.clear()
         super().server_close()
+        if os.name == 'nt':
+            return
         try:
             info = self.path.lstat()
             if (info.st_dev, info.st_ino) == self.identity:

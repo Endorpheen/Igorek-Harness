@@ -168,6 +168,15 @@ def test_closed_server_removes_only_its_own_private_socket(tmp_path):
     assert not path.exists()
 
 
+def test_delegated_consumer_does_not_rotate_manual_profile_grant(endpoint):
+    grant = endpoint[0].configure('grant', {'consumer': 'oc_' + 'a' * 32})
+    assert request(endpoint)[0] == 200
+    assert request(endpoint, token=grant['token'])[0] == 200
+    endpoint[0].configure('revoke', {'token': grant['token']})
+    assert request(endpoint)[0] == 200
+    assert request(endpoint, token=grant['token'])[0] == 403
+
+
 def test_anthropic_base_without_v1_preserves_profile_probe_route(endpoint):
     endpoint[3][0]['config'] = {**endpoint[2], 'api_format': 'anthropic',
                               'base_url': endpoint[2]['base_url'].removesuffix('/v1')}

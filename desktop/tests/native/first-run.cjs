@@ -97,6 +97,8 @@ async function run() {
   timeout.unref();
   try {
     await app.whenReady();
+    await require('./opencode-form.cjs').verifyOpenCodeForm({BrowserWindow,bundle,clickNative,until,output});
+    report.opencode_form='passed';
     await require('./update-flow.cjs').verifyUpdateFlow({appRoot,root,BrowserWindow,ipcMain,python:loadBundle(bundle).python});
     server = http.createServer((request, response) => {
       let raw = '';

@@ -28,6 +28,113 @@ from factory.core.artifact_files import atomic_write_file, open_regular_file, op
 from factory.core.platform_support import exclusive_lock
 
 
+@pytest.mark.skipif(sys.platform != 'win32', reason='Native Windows restricted-process contract')
+def test_windows_opencode_restricted_process_files_network_and_job(tmp_path):
+    import shutil
+    import ctypes
+    from ctypes import wintypes as W
+    from factory.core.platform_support.windows_security import protect_directory
+    from factory.core.platform_support.windows_sandbox import WindowsSandbox
+
+    root = tmp_path / 'sandbox'
+    root.mkdir()
+    workspace = root / 'workspace'
+    workspace.mkdir()
+    outside = tmp_path / 'private'
+    outside.mkdir()
+    protect_directory(outside)
+    (outside / 'canary.txt').write_text('private fixture', encoding='utf-8')
+    python_root = root / 'python'
+    shutil.copytree(Path(sys.base_prefix), python_root,
+                    ignore=shutil.ignore_patterns('site-packages', 'Scripts', '__pycache__', 'test', 'tests', 'Tools', 'Doc', 'include', 'libs'))
+    (python_root / 'python314._pth').write_text('python314.zip\n.\nLib\nDLLs\n', encoding='utf-8')
+    executable = python_root / 'python.exe'
+    if not executable.exists():
+        shutil.copy2(sys._base_executable, executable)
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *_):
+            pass
+
+        def do_GET(self):
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b'fixture-network-ok')
+
+    server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    code = '''import json,os,pathlib,socket,subprocess,sys,time,urllib.request
+workspace,private,port=pathlib.Path(sys.argv[1]),pathlib.Path(sys.argv[2]),int(sys.argv[3])
+result={}
+try:private.read_text();result['private_read_denied']=False
+except OSError:result['private_read_denied']=True
+try:private.write_text('forbidden');result['private_write_denied']=False
+except OSError:result['private_write_denied']=True
+(workspace/'written.txt').write_text('inside')
+result['workspace_write']=True
+opener=urllib.request.build_opener(urllib.request.ProxyHandler({}))
+result['network']=opener.open('http://127.0.0.1:'+str(port),timeout=5).read().decode()
+child=subprocess.Popen([sys.executable,'-I','-S','-c','import time;time.sleep(60)'],stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+result['child_pid']=child.pid
+(workspace/'proof.json').write_text(json.dumps(result))
+time.sleep(60)
+'''
+    environment = {'SystemRoot': os.environ['SystemRoot'], 'WINDIR': os.environ['SystemRoot'],
+                   'PATH': str(Path(os.environ['SystemRoot']) / 'System32'), 'TEMP': str(workspace), 'TMP': str(workspace)}
+    sandbox = WindowsSandbox(root, writable=[workspace])
+    try:
+        with open(os.devnull, 'rb') as incoming, (tmp_path / 'stdout').open('wb') as output, (tmp_path / 'stderr').open('wb') as errors:
+            sandbox.start([executable, '-I', '-S', '-c', code, workspace, outside / 'canary.txt', str(server.server_address[1])],
+                          cwd=workspace, env=environment, stdin=incoming, stdout=output, stderr=errors)
+            deadline = __import__('time').monotonic() + 20
+            while not (workspace / 'proof.json').exists() and __import__('time').monotonic() < deadline and sandbox.poll() is None:
+                __import__('time').sleep(.05)
+            assert (workspace / 'proof.json').exists(), (sandbox.poll(), (tmp_path / 'stderr').read_text(errors='replace'))
+            proof = json.loads((workspace / 'proof.json').read_text())
+        assert proof['private_read_denied'] and proof['private_write_denied'] and proof['workspace_write']
+        assert proof['network'] == 'fixture-network-ok'
+        kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+        kernel.OpenProcess.argtypes = [W.DWORD, W.BOOL, W.DWORD]
+        kernel.OpenProcess.restype = W.HANDLE
+        kernel.WaitForSingleObject.argtypes = [W.HANDLE, W.DWORD]
+        kernel.WaitForSingleObject.restype = W.DWORD
+        kernel.CloseHandle.argtypes = [W.HANDLE]
+        child = kernel.OpenProcess(0x100000, False, proof['child_pid'])
+        assert child
+        try:
+            sandbox.close()
+            assert kernel.WaitForSingleObject(child, 5000) == 0
+        finally:
+            kernel.CloseHandle(child)
+    finally:
+        sandbox.close()
+        server.shutdown()
+        server.server_close()
+    assert (outside / 'canary.txt').read_text(encoding='utf-8') == 'private fixture'
+
+
+@pytest.mark.skipif(sys.platform != 'win32', reason='Native Windows profile capability transport')
+def test_windows_opencode_profile_capability_transport(tmp_path):
+    import importlib.util
+    from types import SimpleNamespace
+    module_path = Path(__file__).resolve().parents[1] / 'desktop' / 'opencode_profiles.py'
+    spec = importlib.util.spec_from_file_location('windows_profile_proxy_contract', module_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    server = module.OpenCodeProfiles(tmp_path / 'profiles', SimpleNamespace(list_provider_profiles=lambda: []), lambda: True)
+    try:
+        grant = server.configure('grant', {})
+        assert server.server_address[0] == '127.0.0.1'
+        assert grant['port'] == server.server_address[1]
+        assert len(grant['token']) == 64
+        assert not server.path.exists()
+        server.configure('revoke', {'token': grant['token']})
+        with pytest.raises(ValueError, match='access_denied'):
+            server.binding(grant['token'], 'absent')
+    finally:
+        server.server_close()
+
+
 class PlatformFiles(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()

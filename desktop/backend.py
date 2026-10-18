@@ -47,6 +47,7 @@ def run(data_dir: str) -> int:
     owner = None
     schedules = None
     browser_pipe = None
+    opencode_pipe = None
     mobile_access = None
     protocol_lock = threading.Lock()
 
@@ -69,6 +70,9 @@ def run(data_dir: str) -> int:
                 request = None
             if isinstance(request, dict) and request.get('type') == 'browser_reply':
                 browser_pipe.receive(request)
+                continue
+            if isinstance(request, dict) and request.get('type') == 'opencode_reply':
+                opencode_pipe.receive(request)
                 continue
             emit_protocol(owner.dispatch(request))
         stop.set()
@@ -99,6 +103,19 @@ def run(data_dir: str) -> int:
                 and owner.agent.execution.mode == 'off' and bool(owner.agent.available_profiles())
                 and (profile is None or profile in owner.agent.available_profiles())))
             browser_pipe.install()
+            from factory.core.opencode_tasks import OpenCodeTasks
+            opencode_pipe = OpenCodeTasks(root / 'opencode-tasks', bridge.service, emit_protocol,
+                lambda profile: sys.platform in {'linux', 'win32'} and browser_pipe.allowed(profile))
+            opencode_pipe.install()
+            bridge.service.opencode_tasks = opencode_pipe
+
+            def poll_opencode():
+                while not stop.wait(1):
+                    try:
+                        opencode_pipe.poll()
+                    except Exception as exc:
+                        print('OpenCode delegation poll: ' + type(exc).__name__, file=sys.stderr, flush=True)
+
             from factory.core.host_services import HostServices
             owner.host_services = HostServices(root / 'host-services', allowed=lambda profile=None: (
                 not owner.interface_locked and owner.service.status()['state'] == 'unlocked'
@@ -158,6 +175,7 @@ def run(data_dir: str) -> int:
                           "cert": str(cert), "pairing_code": pairing["code"],
                           "factory_version": version("igorek-agent-factory")}), file=protocol_output, flush=True)
         threading.Thread(target=watch_parent, daemon=True).start()
+        threading.Thread(target=poll_opencode, daemon=True).start()
         stop.wait()
         return 0
     except Exception:
@@ -168,6 +186,8 @@ def run(data_dir: str) -> int:
             mobile_access.close()
         if browser_pipe:
             browser_pipe.close()
+        if opencode_pipe:
+            opencode_pipe.close()
         if schedules:
             schedules.stop()
         if owner:

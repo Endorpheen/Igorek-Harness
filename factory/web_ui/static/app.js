@@ -3564,6 +3564,9 @@ function handleEvent(event) {
   const data = event.payload || {};
   const taskId = event.task_id || data.task_id || "task";
   switch (event.kind) {
+    case "opencode.message":
+      upsert({id:"opencode-"+data.message_id,type:"assistant",text:data.text||"",ts:event.ts,task_id:taskId});
+      break;
     case "compaction.started":
     case "compaction.progress":
     case "compaction.completed":
@@ -3769,7 +3772,7 @@ function handleEvent(event) {
         tool_use_id: data.tool_use_id || '', kind: data.kind, input: data.input,
         tool: data.tool, reason: data.reason, target: data.target,
       });
-      pauseTask(taskId);
+      if(!data.input?.opencode)pauseTask(taskId);
       break;
     case "approval.resolved": {
       const requestId = String(data.request_id || "");
@@ -6247,7 +6250,7 @@ function collectJournalHistory(history, event) {
         tool: String(payload.tool || ""), reason: String(payload.reason || ""),
         target: String(payload.target || ""),
       });
-      historyStatus(history, "status-" + taskId + "-approval", seq, { task_id: taskId, key: "task.paused", level: "warn" }, "first");
+      if(!payload.input?.opencode)historyStatus(history, "status-" + taskId + "-approval", seq, { task_id: taskId, key: "task.paused", level: "warn" }, "first");
       break;
     }
     case "approval.resolved": {
@@ -8728,7 +8731,15 @@ window.IgorekSelectBrowserTab = async id => {
   return reply.active===id;
 };
 window.addEventListener('igorek:open-chatgpt-tab', () => { showMainView(); const tab = state.panel.workspace.tabs.find(item => item.kind === 'browser' && item.title === 'ChatGPT'); if (tab) { activateWorkspaceTab(tab); openPanel(); } else { const start = state.panel.workspace.open('start'); workspaceOpenSite(window.IgorekWorkspaceTabs.sites.chatgpt, start).then(() => { start.title = 'ChatGPT'; }); } });
-window.addEventListener('igorek:open-opencode-tab',()=>{showMainView();activateWorkspaceTab(state.panel.workspace.open('opencode'));openPanel();});
+window.addEventListener('igorek:open-opencode-tab',async()=>{
+  await window.IgorekDesktop?.opencode?.('manual');
+  showMainView();activateWorkspaceTab(state.panel.workspace.open('opencode'));openPanel();
+});
+window.IgorekOpenCodeAssignment=(session,check=false)=>{
+  if(state.selected!==session)return false;
+  if(!check){showMainView();activateWorkspaceTab(state.panel.workspace.open('opencode'));openPanel();}
+  return true;
+};
 
 ui.pairForm.addEventListener("submit", pairBrowser);
 ui.sessionForm.addEventListener("submit", createSession);
@@ -8994,6 +9005,7 @@ window.setInterval(() => {
 }, 2000);
 
 function renderUserQuestion(item) {
+  if(item.input?.opencode)return renderOpenCodeQuestion(item);
   const card = element("article", "event-card approval-card");
   const form = element("form", "event-copy");
   form.append(element("strong", "", item.input?.title || (lang === "en" ? "Agent question" : "Вопрос агента")));
@@ -9045,6 +9057,78 @@ function renderUserQuestion(item) {
   // Until permission is granted, the form structure remains stable; the updater only maintains an up-to-date
   // link because upsert replaces the element object in state.items.
   return registerTimelineUpdater(card, (next) => { bound = next; });
+}
+
+function renderOpenCodeQuestion(item) {
+  const card=element('article','event-card approval-card'),form=element('form','event-copy');
+  form.append(element('strong','',item.input.title));card.append(form);
+  const specification=item.input.opencode,controls=new Map();
+  const read=()=>Object.fromEntries([...controls].filter(([,entry])=>entry.active).map(([key,entry])=>[key,entry.value()]).filter(([,value])=>value!==undefined&&value!==''));
+  const refresh=()=>{
+    const answer={};
+    for(const field of specification.fields||[]){
+      const entry=controls.get(field.key);if(!entry)continue;
+      entry.active=!Boolean(field.when?.some(condition=>{
+        const value=answer[condition.key];if(value===undefined||value==='')return true;
+        const matches=Array.isArray(value)?value.includes(condition.value):value===condition.value;
+        return condition.op==='eq'?!matches:matches;
+      }));
+      if(entry.active)answer[field.key]=entry.value();
+      entry.group.hidden=Boolean(field.hidden)||!entry.active;
+      for(const input of entry.group.querySelectorAll('input,select,textarea'))input.disabled=entry.group.hidden;
+    }
+  };
+  for(const field of specification.fields||[]){
+    const group=element('fieldset','question-group');group.append(element('legend','',field.title||field.key));
+    if(field.description)group.append(element('p','side-note',field.description));
+    let value;
+    if(field.type==='multiselect'){
+      const choices=[];
+      for(const option of field.options||[]){
+        const label=element('label','question-option'),input=element('input');input.type='checkbox';input.value=option.value;
+        label.append(input,element('span','',option.label));group.append(label);choices.push(input);
+      }
+      const custom=field.custom?element('input','question-answer'):null;
+      if(custom){custom.placeholder='Свой ответ';group.append(custom);}
+      value=()=>[...choices.filter(input=>input.checked).map(input=>input.value),...(custom?.value.trim()?[custom.value.trim()]:[])];
+    }else if(field.type==='boolean'||field.type==='external'){
+      if(field.type==='external')group.append(element('p','side-note',field.url||''));
+      const input=element('input');input.type='checkbox';input.required=field.type==='external';group.append(input);value=()=>input.checked;
+    }else if(field.options?.length&&!field.custom){
+      const select=element('select','question-answer');select.required=Boolean(field.required);
+      const empty=element('option','','Выбери ответ');empty.value='';select.append(empty);
+      for(const option of field.options){const node=element('option','',option.label);node.value=option.value;select.append(node);}
+      group.append(select);value=()=>select.value;
+    }else{
+      const input=element('input','question-answer');input.type=['number','integer'].includes(field.type)?'number':'text';
+      input.required=Boolean(field.required);input.autocomplete='off';input.placeholder=field.placeholder||'';
+      if(field.type==='integer')input.step='1';else if(field.type==='number')input.step='any';
+      if(field.minimum!==undefined)input.min=field.minimum;if(field.maximum!==undefined)input.max=field.maximum;
+      if(field.minLength!==undefined)input.minLength=field.minLength;if(field.maxLength!==undefined)input.maxLength=field.maxLength;
+      if(field.pattern)input.pattern=field.pattern;
+      if(field.options?.length){
+        const list=element('datalist');list.id='oc-'+item.request_id+'-'+field.key;
+        for(const option of field.options){const node=element('option','',option.label);node.value=option.value;list.append(node);}
+        input.setAttribute('list',list.id);group.append(list);
+      }
+      group.append(input);value=()=>input.value===''?undefined:['number','integer'].includes(field.type)?Number(input.value):input.value;
+    }
+    controls.set(field.key,{group,value:field.hidden?()=>field.default:value,active:true});group.addEventListener('input',refresh);group.addEventListener('change',refresh);form.append(group);
+  }
+  refresh();
+  const submit=element('button','approval-button','Ответить'),cancel=element('button','approval-button','Отклонить');
+  submit.type='submit';cancel.type='button';form.append(submit,cancel);
+  let bound=item;
+  const send=async cancelled=>{
+    submit.disabled=cancel.disabled=true;
+    try{
+      await api('/api/tasks/'+encode(bound.task_id)+'/user-input/'+encode(bound.request_id),{
+        method:'POST',body:JSON.stringify({response:{answer:read()},cancelled})});
+      upsert({...bound,resolved:cancelled?'cancel':'allow_once'});
+    }catch(error){toast(error.message,'error');submit.disabled=cancel.disabled=false;}
+  };
+  form.addEventListener('submit',event=>{event.preventDefault();send(false);});cancel.addEventListener('click',()=>send(true));
+  return registerTimelineUpdater(card,next=>{bound=next;});
 }
 
 async function loadAgentJournal(sessionId, generation) {

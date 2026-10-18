@@ -7,11 +7,22 @@ class OpenCodeWorkspace extends ChatGPTWorkspace{
   constructor(options){
     super({...options,startURL:'',surfaceSelector:'#workspace-opencode-surface',urlAllowed:()=>false});
     this.service=options.service;this.navigation=path.join(options.root,'navigation.json');this.path='/';
+    this.manualService=options.service;this.manualNavigation=this.navigation;
     try{const saved=JSON.parse(fs.readFileSync(this.navigation,'utf8'));if(typeof saved.path==='string'&&saved.path.startsWith('/')&&!saved.path.startsWith('//')&&!saved.path.startsWith('/auth/'))this.path=saved.path;}catch{}
     this.urlAllowed=raw=>this.allowed(raw);
     this.service.on('state',()=>this.notify());
   }
   allowed(raw){try{const url=new URL(raw);return !url.username&&!url.password&&url.origin===this.service.origin;}catch{return false;}}
+  useService(service, route=null){
+    if(service!==this.service){
+      const blocked=this.blocked;
+      this.routes??=new Map();this.routes.set(this.service,this.path);this.lock();
+      this.service=service;this.path=this.routes.get(service)||'/';this.pageError='';
+      this.navigation=service===this.manualService?this.manualNavigation:path.join(service.root,'navigation.json');
+      service.on('state',()=>{if(this.service===service)this.notify();});if(!blocked)this.unlock();
+    }
+    if(route){this.path=route;const wc=this.view?.webContents;if(wc&&!wc.isDestroyed())wc.loadURL(this.service.origin+route).catch(()=>{});}
+  }
   status(){return {...this.service.status(),...(this.pageError?{state:'error',error:this.pageError}:{}),visible:this.attached&&!this.blocked,loading:this.view?.webContents.isLoading()||false};}
   notify(){const parent=this.parent||this.statusWindow;if(parent&&!parent.isDestroyed())parent.webContents.send('igorek:opencode-state',this.status());}
   configurePermissions(session){
@@ -47,7 +58,7 @@ class OpenCodeWorkspace extends ChatGPTWorkspace{
       if(!this.allowed(raw))return;const url=new URL(raw);
       if(url.pathname.startsWith('/auth/'))return;
       this.path=url.pathname+url.search+url.hash;
-      fs.mkdirSync(this.root,{recursive:true,mode:0o700});fs.writeFileSync(this.navigation+'.tmp',JSON.stringify({path:this.path}),{mode:0o600});fs.renameSync(this.navigation+'.tmp',this.navigation);
+      fs.mkdirSync(path.dirname(this.navigation),{recursive:true,mode:0o700});fs.writeFileSync(this.navigation+'.tmp',JSON.stringify({path:this.path}),{mode:0o600});fs.renameSync(this.navigation+'.tmp',this.navigation);
     });
     contents.on('render-process-gone',()=>this.pageFailed());
     const health=setInterval(()=>{if(!contents.isDestroyed()&&contents.isCrashed?.())this.pageFailed();},1000);
