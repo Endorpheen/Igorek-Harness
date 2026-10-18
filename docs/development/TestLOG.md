@@ -895,3 +895,9 @@ Use [TESTING.md](../TESTING.md) for reproducible commands and coverage limits,
   and maximum privileges and retains full read/write restricting-SID checks;
   it does not fall back to an unrestricted process. Added a real installed
   OpenCode shell/write/owner-question/result/native-panel acceptance fixture.
+
+- Second Windows run: profile proxy passed; token creation still returned
+  WinError 87 (40 passed, 3 platform skips, one failed). Therefore the first
+  flag combination is not established as the cause. Added synthetic SID/layout
+  diagnostics to the failing test; diagnostic token probes are immediately
+  closed and never launch a process. Production still fails closed.

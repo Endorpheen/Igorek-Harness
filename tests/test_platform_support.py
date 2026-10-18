@@ -29,12 +29,42 @@ from factory.core.platform_support import exclusive_lock
 
 
 @pytest.mark.skipif(sys.platform != 'win32', reason='Native Windows restricted-process contract')
-def test_windows_opencode_restricted_process_files_network_and_job(tmp_path):
+def test_windows_opencode_restricted_process_files_network_and_job(tmp_path, monkeypatch):
     import shutil
     import ctypes
     from ctypes import wintypes as W
     from factory.core.platform_support.windows_security import protect_directory
     from factory.core.platform_support.windows_sandbox import WindowsSandbox
+
+    original_bind = WindowsSandbox._bind
+
+    def diagnostic_bind(instance):
+        original_bind(instance)
+        native_restrict = instance.restrict
+
+        def restrict(*arguments):
+            result = native_restrict(*arguments)
+            if result:
+                return result
+            error = ctypes.get_last_error()
+            validity = instance.security.IsValidSid
+            validity.argtypes, validity.restype = [ctypes.c_void_p], W.BOOL
+            from factory.core.platform_support.windows_sandbox import Sid
+            entries = arguments[7]
+            diagnostics = {'error': error, 'sid_size': ctypes.sizeof(Sid),
+                           'valid': [bool(validity(entry.pointer)) for entry in entries], 'probes': []}
+            for count in range(len(entries) + 1):
+                token = W.HANDLE()
+                ok = native_restrict(arguments[0], 1, 0, None, 0, None, count,
+                                     entries if count else None, ctypes.byref(token))
+                diagnostics['probes'].append([count, bool(ok), ctypes.get_last_error() if not ok else 0])
+                if ok:
+                    instance.close_handle(token)
+            raise AssertionError('Native token parameter diagnostics: ' + json.dumps(diagnostics))
+
+        instance.restrict = restrict
+
+    monkeypatch.setattr(WindowsSandbox, '_bind', diagnostic_bind)
 
     root = tmp_path / 'sandbox'
     root.mkdir()

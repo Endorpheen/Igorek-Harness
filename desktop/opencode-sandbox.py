@@ -175,7 +175,7 @@ def profile_config_directory(grant, port, original, runtime, extra):
                 (runtime / source.name).symlink_to(source.absolute(), target_is_directory=source.is_dir())
     source = original / 'opencode.jsonc'
     try:
-        current = parse_jsonc(source.read_text()) if source.is_file() else {}
+        current = parse_jsonc(source.read_text(encoding='utf-8')) if source.is_file() else {}
     except (OSError, ValueError):
         current = {}
     legacy = bool(set(current) & {'logLevel', 'server', 'command', 'reference', 'snapshot', 'plugin', 'autoshare',
@@ -186,7 +186,7 @@ def profile_config_directory(grant, port, original, runtime, extra):
     if extra.get('mcp') and not legacy:
         current.setdefault('mcp', {}).setdefault('servers', {}).update(extra['mcp'].get('servers', {}))
     target = runtime / 'opencode.jsonc'
-    target.write_text(json.dumps(current, ensure_ascii=False))
+    target.write_text(json.dumps(current, ensure_ascii=False), encoding='utf-8')
     target.chmod(0o600)
     return str(runtime)
 
