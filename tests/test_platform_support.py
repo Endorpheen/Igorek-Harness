@@ -40,7 +40,10 @@ def test_windows_opencode_restricted_process_files_network_and_job(tmp_path):
     root.mkdir()
     workspace = root / 'workspace'
     workspace.mkdir()
-    outside = tmp_path / 'private'
+    private_parent = tmp_path / 'private-parent'
+    private_parent.mkdir()
+    protect_directory(private_parent)
+    outside = private_parent / 'project'
     outside.mkdir()
     protect_directory(outside)
     (outside / 'canary.txt').write_text('private fixture', encoding='utf-8')
@@ -81,7 +84,7 @@ time.sleep(60)
 '''
     environment = {'SystemRoot': os.environ['SystemRoot'], 'WINDIR': os.environ['SystemRoot'],
                    'PATH': str(Path(os.environ['SystemRoot']) / 'System32'), 'TEMP': str(workspace), 'TMP': str(workspace)}
-    ancestor_acls = {path: read_dacl(path, directory=True) for path in root.parents}
+    ancestor_acls = {path: read_dacl(path, directory=True) for path in root.parents if path.name}
     sandbox = WindowsSandbox(root, writable=[workspace])
     try:
         with open(os.devnull, 'rb') as incoming, (tmp_path / 'stdout').open('wb') as output, (tmp_path / 'stderr').open('wb') as errors:
@@ -114,6 +117,7 @@ time.sleep(60)
     assert (outside / 'canary.txt').read_text(encoding='utf-8') == 'private fixture'
     assert all(read_dacl(path, directory=True) == acl for path, acl in ancestor_acls.items())
     before = read_dacl(outside / 'canary.txt')
+    parent_acl = read_dacl(private_parent, directory=True)
     manual = WindowsSandbox(root, writable=[workspace], manual_projects=[outside])
     try:
         with open(os.devnull, 'rb') as incoming, (tmp_path / 'manual-stdout').open('wb') as output, (tmp_path / 'manual-stderr').open('wb') as errors:
@@ -126,6 +130,7 @@ time.sleep(60)
         manual.close()
     assert (outside / 'canary.txt').read_text(encoding='utf-8') == 'manual edit'
     assert read_dacl(outside / 'canary.txt') == before
+    assert read_dacl(private_parent, directory=True) == parent_acl
     assert all(read_dacl(path, directory=True) == acl for path, acl in ancestor_acls.items())
 
 

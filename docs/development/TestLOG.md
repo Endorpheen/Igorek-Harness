@@ -956,3 +956,9 @@ Use [TESTING.md](../TESTING.md) for reproducible commands and coverage limits,
   Native acceptance also compares ancestor DACLs before and after both sandbox
   modes. Normal product logging is restored; extra tracing is explicit and used
   only by the synthetic fixture.
+
+- The ancestor-DACL assertion initially attempted to use the file helper on a
+  drive root, which has no filename; that test now omits the drive root. The
+  directory metadata probe itself still runs for every ancestor. Added safe
+  Windows error-class/numeric-code reporting for failed sandbox startup.
+  Manual projects now include metadata probes for their own distinct ancestors.

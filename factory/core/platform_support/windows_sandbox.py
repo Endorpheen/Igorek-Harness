@@ -266,7 +266,8 @@ class WindowsSandbox:
             self._check(self.revert())
 
     def _transit_grants(self):
-        for path in self.root.parents:
+        paths = dict.fromkeys(path for root in [self.root, *self.manual_projects] for path in root.parents)
+        for path in paths:
             if self._metadata_access(path):
                 continue
             self._path_grant(path, 0x1000A0, 0)
