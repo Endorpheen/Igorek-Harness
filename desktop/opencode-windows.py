@@ -99,7 +99,7 @@ def main(config):
     sandbox = WindowsSandbox(root, writable=[service / name for name in ['home', 'cache', 'tmp', 'config']] + ([workspace] if owned else []),
                              manual_projects=[] if owned else [Path(item).resolve(strict=True) for item in config['projects']])
     try:
-        with open(os.devnull, 'rb') as incoming, open(os.devnull, 'wb') as outgoing:
+        with open(os.devnull, 'rb') as incoming, (service / 'process.log').open('wb') as outgoing:
             pid = sandbox.start([binary, 'serve', '--hostname', '127.0.0.1', '--port', '0'], cwd=workspace,
                                 env=environment, stdin=incoming, stdout=outgoing, stderr=outgoing)
             authorization = 'Basic ' + base64.b64encode(('opencode:' + config['password']).encode()).decode()

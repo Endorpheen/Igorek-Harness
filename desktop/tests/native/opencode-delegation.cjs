@@ -26,7 +26,7 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
       path.join(bundle, 'packages'), source, path.join(workspaceRoot, runID), action], {encoding: 'utf8', timeout: 60000}).trim();
   }
   const workspace = workspaceAction('prepare');
-  let release, next = 0, controller, view, parent;
+  let release, next = 0, controller, view, parent; const services = [];
   const originalRequest = http.request;
   http.request = function(options, callback) {
     return originalRequest.call(this, options, response => {
@@ -77,8 +77,10 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
         ownedWorkspace, binaryRoot: manual.binaryRoot, profilesControl: async operation => operation === 'grant' ? {
           socket, ...(process.platform === 'win32' ? {port: provider.address().port} : {}), token: 'd'.repeat(64),
           profiles: [{id: 'fixture-id', name: 'fixture', model: 'fixture-model', api_format: 'openai', context: 32768}],
-        } : {revoked: true}});service.on('state',value=>{if(value.error)proof.service_error=value.error;});return service;},
+        } : {revoked: true}});services.push(service);service.on('state',value=>{if(value.error)proof.service_error=value.error;});return service;},
       show: async job => {
+        proof.shown_session = job.sessionID;
+        if (!BrowserWindow) return;
         parent = new BrowserWindow({show: true, width: 1400, height: 950,
           webPreferences: {sandbox: true, contextIsolation: true, nodeIntegration: false}});
         await parent.loadURL('data:text/html,<html><body><p id="main-chat">Synthetic main chat remains available</p><div id="workspace-opencode-surface" style="position:absolute;left:40%;top:40px;width:60%;height:850px"></div></body></html>');
@@ -89,7 +91,7 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
     const started = await controller.handle({action: 'start', run_id: runID, source, workspace, title: 'Native fixture',
       goal: 'Execute the synthetic filesystem fixture.', profile: 'fixture', session: 'chat-fixture'});
     assert(started.session_id, JSON.stringify({started,diagnostics:proof})); proof.nonblocking_start = true;
-    assert.equal(await parent.webContents.executeJavaScript("document.getElementById('main-chat').textContent"), 'Synthetic main chat remains available');
+    if(parent)assert.equal(await parent.webContents.executeJavaScript("document.getElementById('main-chat').textContent"), 'Synthetic main chat remains available');
     const job = controller.jobs.get(runID);
     const made = await request(job.service, 'POST', job.prefix + '/form', {title: 'Synthetic owner question',
       fields: [{key: 'choice', type: 'boolean', title: 'Continue?', required: true}]});
@@ -118,19 +120,27 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
     proof.source_isolation = true;
     assert(JSON.parse(workspaceAction('apply')).applied);
     assert.equal(fs.readFileSync(path.join(source, 'result.txt'), 'utf8'), 'native result\n'); proof.result_applied = true;
-    for (let attempt = 0; attempt < 100; attempt++) {
+    if(view){for (let attempt = 0; attempt < 100; attempt++) {
       if ((await view.view.webContents.executeJavaScript('document.body.innerText')).includes('Поручение: Native fixture')) { proof.native_right_panel = true; break; }
       await new Promise(resolve => setTimeout(resolve, 200));
     }
     assert(proof.native_right_panel, 'Native right panel did not display the assigned session');
     await new Promise(resolve => setTimeout(resolve, 200));
-    fs.writeFileSync(path.join(output, 'opencode-delegation.png'), (await parent.webContents.capturePage()).toPNG());
+    fs.writeFileSync(path.join(output, 'opencode-delegation.png'), (await parent.webContents.capturePage()).toPNG());}
     proof.passed = true; return proof;
   } catch (error) { proof.error = error.message; throw error; }
   finally {
     http.request = originalRequest;
     release(); view?.lock(); parent?.destroy(); await controller?.stop();
     await new Promise(resolve => provider.close(resolve));
+    if (!proof.passed) {
+      proof.process_logs = services.map(service => {
+        try { return fs.readFileSync(path.join(service.root, 'process.log'), 'utf8').slice(-14000)
+          .replaceAll(service.password, '[redacted]').replace(/[A-Za-z0-9+_\/=-]{32,}/g, '[redacted]'); }
+        catch { return ''; }
+      });
+      console.error(JSON.stringify(proof));
+    }
     fs.writeFileSync(path.join(output, 'opencode-delegation.json'), JSON.stringify(proof, null, 2));
   }
 }

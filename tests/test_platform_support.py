@@ -152,6 +152,39 @@ def test_windows_opencode_profile_capability_transport(tmp_path, monkeypatch):
         server.server_close()
 
 
+@pytest.mark.skipif(sys.platform != 'win32', reason='Native Windows OpenCode API contract')
+@pytest.mark.timeout(120)
+def test_windows_opencode_native_assignment_api(tmp_path):
+    import shutil
+    repo = Path(__file__).resolve().parents[1]
+    bundle = tmp_path / 'runtime'
+    python = bundle / 'python'
+    shutil.copytree(Path(sys.base_prefix), python,
+                    ignore=shutil.ignore_patterns('site-packages', 'Scripts', '__pycache__', 'test', 'tests', 'Tools', 'Doc', 'include', 'libs'))
+    (python / 'python314._pth').write_text('python314.zip\n.\nLib\nDLLs\n../packages\n', encoding='utf-8')
+    if not (python / 'python.exe').exists():
+        shutil.copy2(sys._base_executable, python / 'python.exe')
+    names = ['factory/__init__.py', 'factory/core/__init__.py', 'factory/core/opencode_workspace.py']
+    names += ['factory/core/platform_support/' + name for name in
+              ['__init__.py', 'windows_sandbox.py', 'windows_security.py', 'windows_files.py']]
+    for name in names:
+        target = bundle / 'packages' / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(repo / name, target)
+    (bundle / 'manifest.json').write_text(json.dumps({'schema_version': 1, 'python': 'python/python.exe',
+                                                     'entry': 'packages/factory/__init__.py'}))
+    output = tmp_path / 'output'
+    output.mkdir()
+    script = "const p=process.argv;require(p[1]).verifyOpenCodeDelegation({appRoot:p[2],bundle:p[3],root:p[4],output:p[5]}).catch(e=>{console.error(e.message);process.exitCode=1;});"
+    result = subprocess.run(['node', '-e', script, str(repo / 'desktop/tests/native/opencode-delegation.cjs'),
+                             str(repo / 'desktop'), str(bundle), str(tmp_path), str(output)],
+                            encoding='utf-8', errors='replace', capture_output=True, timeout=105)
+    assert result.returncode == 0, result.stdout[-2000:] + result.stderr[-18000:]
+    proof = json.loads((output / 'opencode-delegation.json').read_text())
+    assert proof['passed'] and proof['nonblocking_start'] and proof['source_isolation']
+    assert proof['exact_form_reply'] and proof['native_question_roundtrip'] and proof['result_applied']
+
+
 class PlatformFiles(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()

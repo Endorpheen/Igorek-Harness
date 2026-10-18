@@ -934,3 +934,10 @@ Use [TESTING.md](../TESTING.md) for reproducible commands and coverage limits,
   optional skips, zero failures/errors; 630 subtests. Targeted shared contracts
   after the Windows layout change: 54 passed, 5 Windows skips. Locked npm ci
   completed; all 364 desktop tests passed.
+
+- Sixth Windows candidate: both the Unicode installed runtime and ASCII
+  diagnostic runtime reached the native server, but POST /api/session returned
+  HTTP 500 with an empty body. Added a private per-service process log (truncated
+  on each start), redacted synthetic-log capture on fixture failure, and a native
+  headless API contract before packaging. This shortens diagnosis without
+  removing the separate installed Electron/right-panel acceptance.
