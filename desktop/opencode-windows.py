@@ -159,10 +159,10 @@ A.GetTokenInformation(token,6,buffer,size.value,ctypes.byref(size));dacl=P.from_
 own=ctypes.create_string_buffer(40);A.InitializeSecurityDescriptor(own,1);A.SetSecurityDescriptorDacl(own,True,dacl,False)
 result['token_dacl']=sddl(own,4)
 name='\\\\.\\pipe\\igorek-capability-probe-'+str(os.getpid())
-server=K.CreateNamedPipeW(name,3|0xE0000,0,1,65536,65536,0,None)
+server=K.CreateNamedPipeW(name,3|0x60000,0,1,65536,65536,0,None)
 if server==P(-1).value:result['create_server_error']=ctypes.get_last_error()
 else:
- descriptor=P();result['query_error']=A.GetSecurityInfo(server,6,0x14,None,None,None,None,ctypes.byref(descriptor))
+ descriptor=P();result['query_error']=A.GetSecurityInfo(server,1,0x14,None,None,None,None,ctypes.byref(descriptor))
  result['pipe_security']=sddl(descriptor,0x14)
  def connect():
   handle=K.CreateFileW(name,0xC0040000,0,None,3,0,None)
@@ -170,7 +170,7 @@ else:
   K.CloseHandle(handle);return 0
  result['initial_client_error']=connect()
  if result['initial_client_error']:
-  result['set_dacl_error']=A.SetSecurityInfo(server,6,4,None,None,dacl,None)
+  result['set_dacl_error']=A.SetSecurityInfo(server,1,4,None,None,dacl,None)
   result['updated_client_error']=connect()
  K.CloseHandle(server)
 print(json.dumps({'named_pipe_probe':result}),flush=True)
@@ -181,6 +181,14 @@ sys.exit(completed.returncode)
             with open(os.devnull, 'rb') as incoming, (service / 'spawn-python-probe.log').open('wb') as outgoing:
                 probe.start([probe_python / 'python.exe', '-I', '-c', pipe_code, binary, '-e', script], cwd=workspace,
                             env={**environment, 'BUN_BE_BUN': '1'}, stdin=incoming, stdout=outgoing, stderr=outgoing)
+                probe.wait(probe.process, 15000)
+        finally:
+            probe.close()
+        probe = WindowsSandbox(root, writable=writable, manual_projects=[workspace])
+        try:
+            with open(os.devnull, 'rb') as incoming, (service / 'spawn-medium-probe.log').open('wb') as outgoing:
+                probe.start([binary, '-e', script], cwd=workspace, env={**environment, 'BUN_BE_BUN': '1'},
+                            stdin=incoming, stdout=outgoing, stderr=outgoing)
                 probe.wait(probe.process, 15000)
         finally:
             probe.close()

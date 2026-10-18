@@ -1025,3 +1025,7 @@ Use [TESTING.md](../TESTING.md) for reproducible commands and coverage limits,
   Added diagnostics-only checks of an owned named pipe and nested restricted
   Python/Bun spawning to identify the failing Windows access check. Production
   startup remains unchanged; native delegation acceptance is still pending.
+- Nested restricted Python/Bun still reproduces EPERM. The owned named-pipe
+  probe rejected an unsupported open-mode bit (87); corrected its documented
+  mode/object type and added a diagnostics-only medium-integrity comparison on
+  the same disposable workspace. Production remains low-integrity for tasks.
