@@ -306,12 +306,18 @@ class WindowsSandbox:
 
     @staticmethod
     def _paths(root, *, ignore_reparse=False):
-        pending = [Path(root)]
+        root = Path(root).resolve(strict=True)
+        pending = [root]
         while pending:
             path = pending.pop()
             if path.is_symlink() or path.is_junction():
                 if ignore_reparse:
                     continue
+                if path.is_symlink() and not path.is_junction():
+                    target = path.resolve(strict=True)
+                    if target.is_relative_to(root) and target.is_file():
+                        yield target
+                        continue
                 raise ValueError('windows_sandbox_reparse_point')
             yield path
             if path.is_dir():

@@ -28,8 +28,8 @@ function request(service, method, route, body) {
 }
 
 class OpenCodeTasks {
-  constructor({manual,root,workspaceRoot,createService,show,allowed,platform=process.platform}) {
-    Object.assign(this,{manual,root,workspaceRoot,createService,show,allowed,platform});
+  constructor({manual,root,createService,show,allowed,platform=process.platform}) {
+    Object.assign(this,{manual,root,createService,show,allowed,platform});
     this.jobs=new Map();this.starting=false;this.generation=0;
   }
   async handle(fields) {
@@ -50,13 +50,14 @@ class OpenCodeTasks {
     }catch(error){return {error:/^opencode_[a-z0-9_]+$/.test(error.message)?error.message:'opencode_operation_failed'};}
   }
   async start(fields) {
-    if(this.jobs.has(fields.run_id))return {session_id:this.jobs.get(fields.run_id).sessionID};
+    if(fields.execution_mode!=='direct'||Object.hasOwn(fields,'workspace'))return {error:'opencode_direct_protocol_required'};
+    if(this.jobs.has(fields.run_id))return {session_id:this.jobs.get(fields.run_id).sessionID,execution_mode:'direct'};
     if(this.starting)return {error:'opencode_task_already_running'};
     if(typeof fields.goal!=='string'||!fields.goal.trim()||fields.goal.length>24000||typeof fields.title!=='string'||fields.title.length>120)return {error:'invalid_request'};
     if(!['linux','win32'].includes(this.platform)||!this.manual.status().installed)return {error:'opencode_installation_required'};
-    const source=canonicalPath(fields.source),workspace=canonicalPath(fields.workspace);
+    const source=canonicalPath(fields.source);
+    if(!fs.statSync(source).isDirectory())return {error:'opencode_project_not_granted'};
     if(!this.manual.config.projects.some(folder=>source===canonicalPath(folder)||source.startsWith(canonicalPath(folder)+path.sep)))return {error:'opencode_project_not_granted'};
-    if(workspace!==path.join(canonicalPath(this.workspaceRoot),fields.run_id,'workspace'))return {error:'opencode_workspace_not_owned'};
     this.starting=fields.run_id;const generation=this.generation;
     let service;
     try{
@@ -65,28 +66,28 @@ class OpenCodeTasks {
         if(!state.outcome)return {error:'opencode_task_already_running'};
         await prior.service.stop();this.jobs.delete(id);
       }
-      service=this.createService(this.platform==='win32'?path.join(path.dirname(workspace),'service'):path.join(this.root,fields.run_id),workspace,fields.run_id);
-      await service.addProject(workspace);
+      service=this.createService(path.join(this.root,fields.run_id),source,fields.run_id);
+      await service.addProject(source);
       await service.start();
       if(!this.allowed()||generation!==this.generation)throw Error('opencode_access_denied');
       const selected=service.profilesGrant?.profiles.find(profile=>profile.name===fields.profile);
       if(!selected)throw Error('opencode_profile_not_available');
       const created=await request(service,'POST','/api/session',{
-        title:'Поручение: '+fields.title.trim(),location:{directory:workspace},
+        title:'Поручение: '+fields.title.trim(),location:{directory:source},
         model:{providerID:'igorek-'+selected.name,id:selected.model},metadata:{igorek_run_id:fields.run_id},
       });
       const sessionID=created?.data?.id;
       if(typeof sessionID!=='string'||!/^ses[_a-zA-Z0-9-]+$/.test(sessionID))throw Error('opencode_invalid_session');
-      const job={service,sessionID,prefix:'/api/session/'+encodeURIComponent(sessionID),runID:fields.run_id,workspace,session:fields.session};
+      const job={service,sessionID,prefix:'/api/session/'+encodeURIComponent(sessionID),runID:fields.run_id,source,session:fields.session};
       this.jobs.set(fields.run_id,job);
       const messageID='msg_'+fields.run_id.slice(3);
       await request(service,'POST',job.prefix+'/prompt',{id:messageID,text:fields.goal});
       if(!this.allowed()||generation!==this.generation)throw Error('opencode_access_denied');
       await this.show(job).catch(()=>{});
-      return {session_id:sessionID};
+      return {session_id:sessionID,execution_mode:'direct'};
     }catch(error){
       const job=this.jobs.get(fields.run_id);
-      if(job&&![400,401,403,404,409].includes(error.status))return {session_id:job.sessionID,uncertain:true};
+      if(job&&![400,401,403,404,409].includes(error.status))return {session_id:job.sessionID,execution_mode:'direct',uncertain:true};
       this.jobs.delete(fields.run_id);
       if(service)await service.stop().catch(()=>{});
       throw error;

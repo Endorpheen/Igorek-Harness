@@ -117,3 +117,16 @@ test('profile bridge grants only its readonly socket and revokes its capability 
   assert(!JSON.stringify(service.status()).includes('fixture-capability'));
   await service.stop();assert.deepEqual(calls,[['revoke',{token:'fixture-capability'}]]);assert.equal(service.profilesGrant,null);
 });
+
+test('direct assignment service admits only its selected original project; manual grants stay separate',async t=>{
+  const dir=root(t),source=path.join(dir,'source'),other=path.join(dir,'other');
+  fs.mkdirSync(source);fs.mkdirSync(other);
+  const manual=new OpenCodeService(path.join(dir,'manual'));
+  await manual.addProject(source);await manual.addProject(other);
+  const assigned=new OpenCodeService(path.join(dir,'assigned'),{assignedProject:source});
+  await assigned.addProject(source);
+  await assert.rejects(assigned.addProject(other),/opencode_project_not_granted/);
+  assert.equal(manual.assignedProject,null);
+  assert.deepEqual(manual.config.projects,[source,other]);
+  assert.deepEqual(assigned.config.projects,[source]);
+});

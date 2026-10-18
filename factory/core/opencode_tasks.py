@@ -10,13 +10,13 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from .desktop_browser import DesktopBrowserPipe
-from .opencode_workspace import apply_result, prepare
+from .opencode_workspace import git
 from .tool_registry import registry
 
 
 SCHEMA = {
     'name': 'opencode_task',
-    'description': 'Передать явно порученную пользователем работу OpenCode в отдельной копии текущего Git-проекта. start возвращает run_id сразу после принятия: не жди завершения и не опрашивай в цикле. Вопросы автоматически передаются владельцу; отвечать за него запрещено. Результат приходит автоматически. status читает состояние, cancel останавливает поручение. Обычный OpenCode не изменяется.',
+    'description': 'Передать явно порученную пользователем работу OpenCode в текущем Git-проекте без копирования. Правки сразу видны в проекте; до завершения или отмены основной чат может только читать. Отмена не откатывает сделанные правки. start возвращает run_id сразу после принятия: не жди завершения и не опрашивай в цикле. Вопросы автоматически передаются владельцу; отвечать за него запрещено. Результат приходит автоматически. status читает состояние, cancel останавливает поручение. Обычный OpenCode не изменяется.',
     'input_schema': {'type': 'object', 'properties': {
         'action': {'type': 'string', 'enum': ['start', 'status', 'cancel']},
         'goal': {'type': 'string'}, 'title': {'type': 'string'}, 'run_id': {'type': 'string'},
@@ -35,12 +35,13 @@ class OpenCodeTasks(DesktopBrowserPipe):
             protect_directory(self.root)
         self.db = self.root / 'tasks.sqlite3'
         self.state_lock = threading.RLock()
+        self.writers = {}
         with self.connect() as conn:
             conn.execute('CREATE TABLE IF NOT EXISTS runs (id TEXT PRIMARY KEY, request_key TEXT UNIQUE, state TEXT, document TEXT)')
         for run in self.runs():
             if run['state'] not in FINAL:
                 self.clear_inputs(run)
-                run.update(state='interrupted', result='OpenCode: приложение было перезапущено. Работа прервана; повторный запуск не выполнялся.', inputs=[])
+                run.update(state='interrupted', result='OpenCode: приложение было перезапущено. Работа прервана; повторный запуск не выполнялся. Уже сделанные изменения сохранены.', inputs=[])
                 self.save(run)
 
     @contextmanager
@@ -84,19 +85,23 @@ class OpenCodeTasks(DesktopBrowserPipe):
                     return json.dumps(self.public(prior), ensure_ascii=False)
                 if any(r['state'] not in FINAL for r in self.runs()):
                     return json.dumps({'error': 'opencode_task_already_running'})
+                source = Path(context['workdir']).resolve(strict=True)
+                if any(self.overlaps(source, session, writer) for writer in self.writers.values()):
+                    return json.dumps({'error': 'opencode_project_writer_active'})
                 run_id = 'oc_' + uuid.uuid4().hex
                 run = {'id': run_id, 'request_key': key, 'session': session, 'profile': context.get('profile'),
-                       'source': str(Path(context['workdir']).resolve()), 'goal': goal, 'title': title,
+                       'source': str(source), 'execution_mode': 'direct', 'goal': goal, 'title': title,
                        'state': 'preparing', 'inputs': [], 'seen': [], 'delivered': False, 'result': ''}
                 self.save(run)
                 submitted = False
                 try:
-                    workspace = prepare(run['source'], self.root / run_id)
-                    run['workspace'] = str(workspace)
-                    self.save(run)
+                    if not source.is_dir() or git(source, 'rev-parse', '--is-inside-work-tree').strip() != b'true':
+                        raise ValueError('opencode_git_project_required')
                     submitted = True
                     reply = json.loads(self.request({'action': 'start', 'run_id': run_id, 'source': run['source'],
-                        'workspace': str(workspace), 'title': title, 'goal': goal, 'profile': run['profile'], 'session': session}, context.get('profile')))
+                        'execution_mode': 'direct', 'title': title, 'goal': goal, 'profile': run['profile'], 'session': session}, context.get('profile')))
+                    if not reply.get('error') and reply.get('execution_mode') != 'direct':
+                        raise ValueError('opencode_direct_protocol_required')
                     if reply.get('error'):
                         raise ValueError(str(reply['error']))
                     run.update(state='running', external_session=reply['session_id'])
@@ -116,7 +121,7 @@ class OpenCodeTasks(DesktopBrowserPipe):
                 if reply.get('error'):
                     return json.dumps(reply)
                 self.clear_inputs(run)
-                run.update(state='cancelled', inputs=[], result='OpenCode: поручение остановлено. Изменения остались в отдельной копии.')
+                run.update(state='cancelled', inputs=[], result='OpenCode: поручение остановлено. Уже сделанные изменения остались в исходном проекте.')
                 self.save(run)
             elif action not in {'status', 'cancel'}:
                 return json.dumps({'error': 'invalid_request'})
@@ -129,6 +134,57 @@ class OpenCodeTasks(DesktopBrowserPipe):
     def install(self):
         registry.register(name='opencode_task', toolset='delegation', schema=SCHEMA,
                           handler=self.call, check_fn=self.available)
+        registry.add_execution_guard(self)
+
+    @staticmethod
+    def overlaps(source, session, context):
+        if session and str(context.get('current_session') or '') == session:
+            return True
+        paths = [context.get('workdir')]
+        paths.extend(context.get('targets', []))
+        for value in paths:
+            if value:
+                target = Path(value).resolve()
+                if target.is_relative_to(source) or source.is_relative_to(target):
+                    return True
+        return False
+
+    def policy_error(self, name, args, context):
+        if name in {'Read', 'Grep', 'Glob', 'opencode_task'}:
+            return None
+        context = dict(context)
+        if isinstance(args, dict):
+            context['targets'] = [str(Path(context.get('workdir') or '.') / args[key])
+                                  for key in ('file_path', 'path') if isinstance(args.get(key), str)]
+        with self.state_lock:
+            for run in self.runs():
+                if run['state'] not in FINAL and self.overlaps(Path(run['source']), run['session'], context):
+                    return {'error': 'opencode_project_read_only', 'run_id': run['id'],
+                            'message': 'OpenCode работает в исходном проекте. Доступны разговор и Read/Grep/Glob; запись возобновится после завершения или отмены.'}
+        return None
+
+    @contextmanager
+    def lease(self, name, args, context):
+        token = None
+        context = dict(context)
+        if isinstance(args, dict):
+            context['targets'] = [str(Path(context.get('workdir') or '.') / args[key])
+                                  for key in ('file_path', 'path') if isinstance(args.get(key), str)]
+        with self.state_lock:
+            error = self.policy_error(name, args, context)
+            if not error and name not in {'Read', 'Grep', 'Glob', 'opencode_task'}:
+                token = uuid.uuid4().hex
+                self.writers[token] = context
+        try:
+            yield error
+        finally:
+            if token:
+                with self.state_lock:
+                    self.writers.pop(token, None)
+
+    def close(self):
+        super().close()
+        registry.remove_execution_guard(self)
 
     def approvals(self, session=None):
         return [self.approval(run, item)
@@ -201,13 +257,7 @@ class OpenCodeTasks(DesktopBrowserPipe):
                     if outcome in {'succeeded', 'failed', 'interrupted'} and not run['inputs']:
                         run['state'] = {'succeeded': 'completed', 'failed': 'failed', 'interrupted': 'interrupted'}[outcome]
                         run['result'] = 'Состояние OpenCode: ' + outcome + '\n' + (snapshot.get('result') or 'Текстовый ответ отсутствует.')
-                        if outcome == 'succeeded':
-                            try:
-                                applied = apply_result(run['source'], self.root / run['id'])
-                                run['result'] += '\n\n' + ('Изменения перенесены: ' + ', '.join(applied['files']) if applied['applied'] else
-                                    'Изменения не перенесены: конфликт в ' + ', '.join(applied['conflicts']))
-                            except Exception as exc:
-                                run['result'] += '\n\nИзменения не перенесены: ' + type(exc).__name__ + '. Рабочая копия сохранена.'
+                        run['result'] += '\n\nИзменения уже находятся в исходном проекте; автоматического отката нет.'
                     self.save(run)
                 if run['state'] in FINAL and not run['delivered']:
                     if not self.service._active_task_id_for_session(run['session']):

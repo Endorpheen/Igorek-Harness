@@ -35,7 +35,7 @@ async function fixture(t){
   const manual={config:{projects:[source]},status:()=>({installed:true})};
   const controller=new OpenCodeTasks({manual,root:path.join(root,'service'),workspaceRoot,createService:(folder,workspace,consumer)=>{state.created={folder,workspace,consumer};return service;},
     show:async job=>state.shown.push(job),allowed:()=>true,platform:'linux'});
-  const input={action:'start',run_id:runID,source,workspace,title:'Fix fixture',goal:'Change a fixture',profile:'fixture',session:'chat-fixture'};
+  const input={action:'start',run_id:runID,source,execution_mode:'direct',title:'Fix fixture',goal:'Change a fixture',profile:'fixture',session:'chat-fixture'};
   return {controller,state,manual,service,input};
 }
 
@@ -47,14 +47,14 @@ test('OpenCode 2 assignment links use its server-scoped route, not legacy direct
 
 test('delegation admits one prompt, shows the same session, and leaves manual grants unchanged',async t=>{
   const f=await fixture(t),reply=await f.controller.handle(f.input);
-  assert.deepEqual(reply,{session_id:'ses_fixture'});
+  assert.deepEqual(reply,{session_id:'ses_fixture',execution_mode:'direct'});
   assert.deepEqual(await f.controller.handle(f.input),reply);
   assert.equal(f.state.prompts.length,1);assert.equal(f.state.shown[0].sessionID,reply.session_id);
   assert.deepEqual(f.manual.config.projects,[f.input.source]);
   const create=f.state.requests.find(row=>row[1]==='/api/session');
   assert.equal(create[2].title,'Поручение: Fix fixture');
-  assert.equal(create[2].location.directory,f.input.workspace);
-  assert.deepEqual(f.service.config.projects,[f.input.workspace]);
+  assert.equal(create[2].location.directory,f.input.source);
+  assert.deepEqual(f.service.config.projects,[f.input.source]);
 });
 
 test('every form is relayed and an answer uses its exact session and form without model mediation',async t=>{
@@ -78,10 +78,10 @@ test('completion uses explicit outcome and cancellation never requests resume',a
   assert(f.state.requests.some(row=>row[1].endsWith('/interrupt?resume=false')));
 });
 
-test('ungranted projects and substituted workspaces never receive a prompt',async t=>{
+test('ungranted projects and legacy copy protocols never receive a prompt',async t=>{
   const f=await fixture(t);
-  assert.equal((await f.controller.handle({...f.input,source:f.input.workspace})).error,'opencode_project_not_granted');
-  assert.equal((await f.controller.handle({...f.input,workspace:f.input.source})).error,'opencode_workspace_not_owned');
+  assert.equal((await f.controller.handle({...f.input,source:path.dirname(f.input.source)})).error,'opencode_project_not_granted');
+  assert.equal((await f.controller.handle({...f.input,workspace:f.input.source})).error,'opencode_direct_protocol_required');
   assert.equal(f.state.prompts.length,0);
 });
 
@@ -89,6 +89,6 @@ test('Windows service-folder layout retains the assignment profile consumer iden
   const f=await fixture(t);f.controller.platform='win32';
   const result=await f.controller.handle(f.input);assert(result.session_id);
   assert.equal(f.state.created.consumer,f.input.run_id);
-  assert.equal(f.state.created.folder,path.join(path.dirname(f.input.workspace),'service'));
-  assert.equal(f.state.created.workspace,f.input.workspace);
+  assert.equal(f.state.created.folder,path.join(f.controller.root,f.input.run_id));
+  assert.equal(f.state.created.workspace,f.input.source);
 });

@@ -100,6 +100,8 @@ def main(config):
         'OPENCODE_SERVER_PASSWORD': config['password'],
         'GIT_CONFIG_GLOBAL': str(git_config),
         'GIT_CONFIG_COUNT': '1', 'GIT_CONFIG_KEY_0': 'core.longpaths', 'GIT_CONFIG_VALUE_0': 'true'}
+    if config.get('assignment_direct') is True:
+        environment['OPENCODE_CONFIG_CONTENT'] = json.dumps({'snapshots': False})
     git = shutil.which('git')
     if git:
         environment['PATH'] += os.pathsep + str(Path(git).parent)

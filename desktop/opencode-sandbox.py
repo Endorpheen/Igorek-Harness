@@ -238,6 +238,10 @@ def main():
             directory = tempfile.mkdtemp(prefix='igorek-opencode-config-')
             env['OPENCODE_CONFIG_DIR'] = profile_config_directory(profiles, provider.getsockname()[1],
                 Path(env['XDG_CONFIG_HOME']) / 'opencode', directory, current)
+        if config.get('assignment_direct') is True:
+            current = json.loads(env.get('OPENCODE_CONFIG_CONTENT', '{}'))
+            current['snapshots'] = False
+            env['OPENCODE_CONFIG_CONTENT'] = json.dumps(current)
         child = subprocess.Popen(['/opt/opencode/opencode', 'serve', '--hostname', '127.0.0.1', '--port', '4096'],
                                  env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         env.clear()
