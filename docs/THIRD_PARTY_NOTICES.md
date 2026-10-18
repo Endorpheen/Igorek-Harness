@@ -10,6 +10,7 @@ not replace licenses of separately distributed dependencies or third-party asset
 | SheetJS | `factory/web_ui/static/vendor/XLSX-LICENSE.txt` |
 | GitHub and OpenAI provider icons | `desktop/assets/GITHUB-ICON-LICENSE.txt`, `desktop/assets/OPENAI-ICON-LICENSE.txt` |
 | OpenCode integration mark | [MIT license](licenses/OPENCODE-ICON-LICENSE.txt) |
+| Microsoft Detours 4.0.1, Windows process pipe adapter | [MIT license](licenses/DETOURS-LICENSE.txt); pinned source inventory in `desktop/native/vendor/detours/SOURCE.json` |
 | Terminal modules derived from OpenAI Codex | [Apache-2.0 license](licenses/CODEX-LICENSE.txt) and [upstream NOTICE](licenses/CODEX-NOTICE.txt) |
 
 The vendored browser asset inventory records versions and checksums in

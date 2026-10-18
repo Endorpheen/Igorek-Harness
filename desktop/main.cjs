@@ -30,6 +30,7 @@ const { ChatGPTWorkspace } = require('./chatgpt-workspace.cjs');
 const { WorkspaceBrowser } = require('./workspace-browser.cjs');
 const { OpenCodeService } = require('./opencode-service.cjs');
 const { OpenCodeWorkspace } = require('./opencode-workspace.cjs');
+const { OpenCodeTasks, sessionRoute } = require('./opencode-tasks.cjs');
 const { GitHubReviews } = require('./github-reviews.cjs');
 const { reviewRequest } = require('./github-controller.cjs');
 let githubReviews;
@@ -50,6 +51,8 @@ let chatgptWorkspace;
 let workspaceBrowser;
 let opencodeService;
 let opencodeWorkspace;
+let opencodeTasks;
+let opencodeUnlocked=false;
 const ownerUrl = pathToFileURL(join(__dirname, 'owner.html')).href;
 const trustedContents = new Set();
 const APP_ICON=join(__dirname,'assets/igorek.png');
@@ -385,9 +388,11 @@ ipcMain.handle('igorek:host-service',async(event,operation,service='')=>{
   return reply.result||{error:reply.error||'host_service_unavailable'};
 });
 ipcMain.handle('igorek:opencode',async(event,operation)=>{
-  if(!sessionMcp.trusted(event)||!['status','show','hide','layout','install','project','disable','reload','sandbox','kvm','hostServices','zoomIn','zoomOut','zoomReset'].includes(operation))throw Error('Доступ запрещён.');
+  if(!sessionMcp.trusted(event)||!['manual','status','show','hide','layout','install','project','disable','reload','sandbox','kvm','hostServices','zoomIn','zoomOut','zoomReset'].includes(operation))throw Error('Доступ запрещён.');
   if(!opencodeService)return {error:'OpenCode недоступен.'};
   const parent=BrowserWindow.fromWebContents(event.sender);
+  if(operation==='manual'){opencodeWorkspace.useService(opencodeService);return opencodeWorkspace.status();}
+  if(['install','project','disable','sandbox','kvm','hostServices'].includes(operation))opencodeWorkspace.useService(opencodeService);
   opencodeWorkspace.statusWindow=parent;
   if(operation==='status')return opencodeWorkspace.status();
   if(operation==='hide'){opencodeWorkspace.hide();return opencodeWorkspace.status();}
@@ -857,6 +862,7 @@ app.whenReady().then(async () => {
           const reply=await runtime.requestOwner('opencode_profiles',{operation,config:JSON.stringify(value)});
           if(reply.error)throw Error('Профили Игорька недоступны. Разблокируй хранилище.');
           if(operation==='grant'&&reply.result?.socket!==join(runtime.dataDir,'opencode-profiles','api.sock'))throw Error('Недопустимый канал профилей.');
+          if(operation==='grant'&&process.platform==='win32'&&(!Number.isInteger(reply.result?.port)||reply.result.port<1||reply.result.port>65535))throw Error('Недопустимый канал профилей.');
           return reply.result;
         },hostServicesControl:async(operation,value)=>{
           const reply=await runtime.requestOwner('opencode_services',{operation,config:JSON.stringify(value)});
@@ -865,6 +871,23 @@ app.whenReady().then(async () => {
           return reply.result;
         }});
         opencodeWorkspace=new OpenCodeWorkspace({root:join(app.getPath('userData'),'browser-profiles','opencode'),service:opencodeService,BrowserWindow,WebContentsView,session:electronSession,dialog,shell,overlayActive:parent=>sessionOverlays.has(parent)});
+        opencodeTasks=new OpenCodeTasks({manual:opencodeService,root:join(app.getPath('userData'),'integrations','opencode-tasks'),
+          workspaceRoot:join(runtime.dataDir,'opencode-tasks'),allowed:()=>opencodeUnlocked,
+          createService:(root,workspace,consumer)=>new OpenCodeService(root,{python:opencodeService.python,bundle:opencodeService.bundle,binaryRoot:opencodeService.binaryRoot,ownedWorkspace:workspace,
+            profilesControl:(operation,value)=>opencodeService.profilesControl(operation,operation==='grant'?{consumer}:value)}),
+          show:async job=>{
+            const route=sessionRoute(job);
+            for(const parent of chatWindows){
+              if(parent.isDestroyed())continue;
+              const selected=await parent.webContents.executeJavaScript('window.IgorekOpenCodeAssignment?.('+JSON.stringify(job.session)+',true)').catch(()=>false);
+              if(selected){
+                opencodeWorkspace.useService(job.service,route);
+                const opened=await parent.webContents.executeJavaScript('window.IgorekOpenCodeAssignment?.('+JSON.stringify(job.session)+')').catch(()=>false);
+                if(opened)await opencodeWorkspace.show(parent);break;
+              }
+            }
+          }});
+        runtime.opencodeHandler=fields=>opencodeTasks.handle(fields);
       }catch{opencodeService=null;opencodeWorkspace=null;}
       githubReviews=new GitHubReviews({root:join(app.getPath('userData'),'github-reviews'),authorized:async()=>{const reply=await runtime.requestOwner('status');return reply.result?.state==='unlocked'&&!reply.result?.interface_locked;}});
       runtime.browserHandler = async fields => {
@@ -888,7 +911,7 @@ app.whenReady().then(async () => {
         if(!parent||parent.isDestroyed()||!chatWindows.has(parent)||!sameOrigin(parent.webContents.getURL(),config.origin))return {error:'desktop_locked'};
         return workspaceBrowser.agent(parent,fields);
       };
-      runtime.on('owner-state', state => { if (state.state !== 'unlocked' || state.interface_locked) { desktopBrowser.lock();chatgptWorkspace.lock();workspaceBrowser.lock();opencodeWorkspace?.lock();opencodeService?.stop().catch(()=>{});githubReviews?.lock();for(const target of chatWindows)if(!target.isDestroyed())target.webContents.send('igorek:github-locked'); } else {desktopBrowser.unlock();workspaceBrowser.unlock();opencodeWorkspace?.unlock();} });
+      runtime.on('owner-state', state => { opencodeUnlocked=state.state==='unlocked'&&!state.interface_locked; if (!opencodeUnlocked) { desktopBrowser.lock();chatgptWorkspace.lock();workspaceBrowser.lock();opencodeWorkspace?.lock();opencodeService?.stop().catch(()=>{});opencodeTasks?.stop().catch(()=>{});githubReviews?.lock();for(const target of chatWindows)if(!target.isDestroyed())target.webContents.send('igorek:github-locked'); } else {desktopBrowser.unlock();workspaceBrowser.unlock();opencodeWorkspace?.unlock();} });
       runtime.on('failed', () => {
         if (config && !quitting) { dialog.showErrorBox('Игорёк', 'Локальный backend остановился. Закройте и заново откройте приложение.'); app.quit(); }
       });
@@ -915,6 +938,6 @@ app.on('before-quit', event => {
     workspaceBrowser?.lock();
     opencodeWorkspace?.lock();
     githubReviews?.lock();
-    Promise.allSettled([desktopBrowser?.shutdown(),opencodeService?.stop()]).finally(() => runtime.stop().finally(() => app.quit()));
+    Promise.allSettled([desktopBrowser?.shutdown(),opencodeService?.stop(),opencodeTasks?.stop()]).finally(() => runtime.stop().finally(() => app.quit()));
   }
 });

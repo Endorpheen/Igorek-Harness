@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, WebContentsView, session: electronSession, ipcMain } = require('electron');
 const assert = require('node:assert/strict');
 const { X509Certificate } = require('node:crypto');
 const fs = require('node:fs');
@@ -97,6 +97,11 @@ async function run() {
   timeout.unref();
   try {
     await app.whenReady();
+    await require('./opencode-form.cjs').verifyOpenCodeForm({BrowserWindow,bundle,clickNative,until,output});
+    report.opencode_form='passed';
+    if(process.platform==='win32'){
+      report.opencode_delegation=await require('./opencode-delegation.cjs').verifyOpenCodeDelegation({appRoot,bundle,root,output,BrowserWindow,WebContentsView,session:electronSession});
+    }
     await require('./update-flow.cjs').verifyUpdateFlow({appRoot,root,BrowserWindow,ipcMain,python:loadBundle(bundle).python});
     server = http.createServer((request, response) => {
       let raw = '';

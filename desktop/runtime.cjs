@@ -104,6 +104,16 @@ class OwnedRuntime extends EventEmitter {
             const end = pending.indexOf('\n'), line = pending.slice(0, end); pending = pending.slice(end + 1);
             try {
               const event = JSON.parse(line);
+              if (event.type === 'opencode_request') {
+                if (typeof event.id !== 'string' || !/^[a-f0-9]{32}$/.test(event.id)) continue;
+                const respond = result => {
+                  if (this.child === child && !this.stopping && child.exitCode === null)
+                    child.stdin.write(JSON.stringify({type:'opencode_reply',id:event.id,result}) + '\n');
+                };
+                Promise.resolve().then(() => this.opencodeHandler ? this.opencodeHandler(event.fields) : {error:'opencode_unavailable'})
+                  .then(respond, () => respond({error:'opencode_operation_failed'}));
+                continue;
+              }
               if (event.type === 'browser_request') {
                 if (typeof event.id !== 'string' || !/^[a-f0-9]{32}$/.test(event.id)) continue;
                 const respond = result => {

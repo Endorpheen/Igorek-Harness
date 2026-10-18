@@ -1,0 +1,3 @@
+LIBRARY igorek-pipes
+EXPORTS
+    IgorekEmbed @1

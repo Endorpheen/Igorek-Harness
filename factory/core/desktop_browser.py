@@ -49,11 +49,12 @@ SCHEMA = {
 
 
 class DesktopBrowserPipe:
-    def __init__(self, emit, allowed, timeout=45):
+    def __init__(self, emit, allowed, timeout=45, channel='browser'):
         self.emit, self.allowed, self.timeout = emit, allowed, timeout
         self.pending = {}
         self.lock = threading.Lock()
         self.closed = False
+        self.channel = channel
 
     def available(self):
         return not self.closed and self.allowed(None)
@@ -118,7 +119,7 @@ class DesktopBrowserPipe:
             result['action']=fields['action']
             self.pending[identity] = (done, result)
         try:
-            self.emit({"type": "browser_request", "id": identity, "fields": fields})
+            self.emit({"type": self.channel + "_request", "id": identity, "fields": fields})
             if not done.wait(self.timeout if timeout is None else min(self.timeout,timeout)):
                 return json.dumps({"error": "desktop_browser_timeout"})
             if self.closed or not self.allowed(profile):
@@ -129,7 +130,7 @@ class DesktopBrowserPipe:
                 self.pending.pop(identity, None)
 
     def receive(self, frame):
-        if not isinstance(frame, dict) or set(frame) != {"type", "id", "result"} or frame["type"] != "browser_reply":
+        if not isinstance(frame, dict) or set(frame) != {"type", "id", "result"} or frame["type"] != self.channel + "_reply":
             return False
         with self.lock:
             item = self.pending.get(frame["id"])

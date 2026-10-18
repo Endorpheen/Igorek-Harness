@@ -3,7 +3,7 @@ const {OpenCodeService,sandboxArgv,projectPath}=require('../opencode-service.cjs
 const {OpenCodeWorkspace}=require('../opencode-workspace.cjs');
 const {publicTarget,egressServer}=require('../opencode-egress.cjs');
 const listen=server=>new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
-function root(t){const dir=fs.mkdtempSync(path.join(os.tmpdir(),'igorek-oc-test-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));return dir;}
+function root(t){const dir=fs.mkdtempSync(path.join(process.platform==='win32'?os.homedir():os.tmpdir(),'igorek-oc-test-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));return dir;}
 function fixture(t){
   const dir=root(t),service=new OpenCodeService(path.join(dir,'service'));service.origin='http://127.0.0.1:45123';service.start=async()=>service.origin;
   const ses=Object.assign(new EventEmitter(),{getUserAgent:()=> 'Electron/44',setUserAgent(){},webRequest:{onBeforeRequest(fn){ses.before=fn},onBeforeSendHeaders(fn){ses.headers=fn}},setPermissionCheckHandler(fn){ses.check=fn},setPermissionRequestHandler(fn){ses.permission=fn},setDevicePermissionHandler(fn){ses.device=fn},flushStorageData(){},cookies:{flushStore:async()=>{}}});
@@ -57,6 +57,18 @@ test('switching tabs preserves the same session view; lock destroys it and next 
   const {workspace:w,parent}=fixture(t);w.unlock();await w.show(parent);const view=w.view;
   view.webContents.emit('did-navigate-in-page',{},w.service.origin+'/project/session/one');w.hide();await w.show(parent);assert.equal(w.view,view);assert.equal(view.visible,true);
   w.lock();assert.equal(view.webContents.isDestroyed(),true);w.unlock();await w.show(parent);assert(w.view.webContents.getURL().endsWith('/project/session/one'));w.lock();
+});
+test('delegated navigation never replaces the manual OpenCode saved session',async t=>{
+  const {workspace:w,parent,service}=fixture(t);w.unlock();await w.show(parent);
+  w.view.webContents.emit('did-navigate-in-page',{},service.origin+'/manual/session/one');
+  const saved=fs.readFileSync(w.manualNavigation,'utf8');
+  const delegated=Object.assign(new EventEmitter(),{root:path.join(path.dirname(w.manualNavigation),'delegated'),origin:'http://127.0.0.1:45125',
+    status:()=>({state:'ready'}),start:async()=>delegated.origin});
+  w.useService(delegated,'/copy/session/two');await w.show(parent);
+  w.view.webContents.emit('did-navigate-in-page',{},delegated.origin+'/copy/session/two');
+  assert.equal(fs.readFileSync(w.manualNavigation,'utf8'),saved);
+  w.useService(service);await w.show(parent);
+  assert(w.view.webContents.getURL().endsWith('/manual/session/one'));w.lock();
 });
 test('hide and lock cancel a pending asynchronous show without losing the service state',async t=>{
   const {workspace:w,parent,service}=fixture(t);let finish;service.start=()=>new Promise(resolve=>finish=resolve);w.unlock();const pending=w.show(parent);w.hide();finish(service.origin);await pending;assert.equal(w.view,null);assert.equal(w.attached,false);

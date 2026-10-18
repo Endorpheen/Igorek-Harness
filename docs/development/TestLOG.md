@@ -1,6 +1,82 @@
 # Test results
 
-## 0.2.9 candidate — bounded transient TLS recovery and safe diagnostics
+## 0.2.10 preview — independent OpenCode delegation
+
+Desktop host execution can start one OpenCode assignment in a separate sandbox
+and an independent source snapshot, while the main chat remains available.
+All forms and permission requests go directly to the owner through existing
+chat input cards; no model-facing answer or permission-grant operation exists.
+The existing right panel opens the exact assignment session, named
+`Поручение: <title>`. Manual sessions retain their service, grants and navigation.
+Source snapshots retain dirty tracked and nonignored untracked files, exclude
+private control data, and refuse symlinks/submodules. Result transfer compares
+changed files to the captured baseline and refuses conflicts before writing.
+A durable receipt schedules one result turn only after the current chat turn.
+Restarted unfinished assignments are interrupted, never automatically relaunched.
+
+Initial targeted checks: **45 Python passed**, followed by **192 passed and
+5 subtests passed** across bridge/history/UI integration. New tests cover
+independent dirty snapshots, outside symlinks, whole-transfer conflict refusal,
+idempotent starts, session ownership, owner-only answers, question reconciliation,
+automatic application and deferred one-time result delivery. Profile tests
+confirm delegated grant creation/revocation does not invalidate the manual grant.
+First full isolated Python roots: **4882 collected, 4850 passed, 32 skipped,
+0 failures/errors, 630 passing subtests**. Existing hardware/platform skips are
+retained and are not counted as physical KVM or Windows acceptance.
+First complete desktop suite: **361 passed**; a further native-view regression
+was then added for preserving manual saved navigation when switching services.
+Final isolated Python roots: **4883 collected, 4852 passed, 31 skipped,
+0 failures/errors, 630 passing subtests**. Statement coverage is
+**46612/78576 (59.32%)**; branch coverage is **13016/28106 (46.31%)**;
+combined coverage is **55.89%**. Skips comprise 17 unavailable/opt-in KVM,
+vsock and image-builder checks, 10 existing idle-application lifecycle cases,
+3 Windows-only filesystem/Git contracts and 1 live provider regression without
+its optional API key. These are not reported as physical acceptance passes.
+
+Final desktop suite: **363 passed, 0 failures/skips**. The intermediate run
+with the added navigation test exposed a missing navigation parent directory
+(**361 passed, 1 failed**); the service-specific navigation writer now creates
+its own parent directory, and the regression passes without weakening it.
+
+The final packaged Linux runtime passed all **9 maintained native stages**,
+including first task, lock/unlock, full restart, continued chat, guided demo and
+navigation, plus existing history/sources/Whats-New checks. A new real Electron
+form check verifies trusted native submission, exact request routing, boolean,
+integer and multiselect preservation, and omission of inactive conditional
+fields. Its first screenshot ran before Chromium committed a frame
+(`UnknownVizError`); waiting for animation frames and paint fixed the fixture.
+
+A separate actual OpenCode/Electron check exposed an unsupported legacy
+workspace URL (`Unrecognised route`). The bundled web router accepts only
+server-scoped session links. The integration now builds that route centrally;
+a regression covers it, and a real right-panel view displayed the assigned
+session, native question, submitted answer, tool execution and final result.
+The synthetic-provider checks also verified denial of shell writes to the
+original source and successful application from the independent copy.
+
+The first runtime build used a tool version without the pinned CPython download;
+the existing pinned build tool completed the fresh build. Staging correctly
+refused an earlier runtime after the input-cancellation source changed; it was
+rebuilt rather than overlaid. The final Linux snapshot and actual Debian payload
+match **all 7538 inventory entries**, with zero missing or mismatched files.
+Version **0.2.10**, preview, local candidate only. No published assets were
+replaced and no owner application/runtime was installed or restarted. Android
+was unchanged. Windows and physical KVM acceptance were not performed.
+
+Actual installed OpenCode **2.0.27** passed a synthetic-provider sandbox check:
+nonblocking admission, the native question tool's form/reply roundtrip, writes
+inside the copy, refused shell writes to the original directory, successful
+execution outcome, and conflict-free result application. No real model account
+or owner workspace was used. Two earlier fixture attempts failed because the
+fixture assumed v1 names/arguments (`bash`/`filePath`); they were corrected against
+actual advertised v2 schemas (`shell`/`path`). An initial restricted-sandbox
+network run produced **19 passes, 1 failure and 25 errors** from unavailable
+sockets, followed by the successful elevated temporary-socket target run.
+One attempted test command referenced an absent history test module and collected
+zero tests; the corrected integration command used the existing history module.
+No test expectations or sandbox protections were weakened.
+
+## 0.2.9 preview — bounded transient TLS recovery and safe diagnostics
 
 The Responses adapter previously collapsed SSL exceptions into `responses_tls`,
 discarding the native subtype and excluding transient TLS closures from retries.
@@ -48,6 +124,49 @@ assertions and retry/certificate behavior are unchanged. The failed job log was
 retained rather than skipping these native-platform cases.
 The portable contract module passed **16 cases** with three existing Windows-only
 skips after the explicit-encoding fix; all 357 desktop contracts remain passing.
+
+Final source freeze `35815383` and public PR head `4956682` match tree
+`d39b42f48a0b1b75e18051ac5b32d8e473ffe640`. PR 32 passed all **eleven required
+hosted checks** and merged normally into the protected branch as
+`7c3dee0accbb53a32176ce7b0ec99f1fcd887527`. Python 3.13 and 3.14 each collected
+**4,872 cases: 4,840 passed, 32 existing skips, zero failures/errors**, plus
+**630 passing subtests**. The first Python 3.14 attempt retained a busy test-CLI
+shutdown failure; an unchanged rerun of that job passed. No test or skip
+condition was weakened. All **357 desktop contracts per OS** passed.
+
+Real TLS platform contracts passed on Linux and Windows, including EOF recovery
+after Read, bounded retry exhaustion, a single completed tool execution, rejection
+of an untrusted certificate before HTTP, and safe diagnostic filtering. Packaged
+Linux and Windows acceptance passed all nine maintained native stages and the
+existing source/file-opening, application-history and installed-release-note
+lifecycle checks. Windows installed, reinstalled, self-updated and relaunched with
+synthetic data retained. Both actual-OS TLS cases and packaged UI acceptance are
+distinct from live OpenAI-account acceptance; providers were synthetic loopback.
+
+Final Linux snapshot build `79642e685d2b` and actual AppImage extraction verified
+**6,399 files**, zero mismatches and six existing build-only omissions. Windows
+verified **2,739 files**, zero missing files or mismatches, clean provenance and
+no private data. Its CI merge source `9d0d90e` has the reviewed tree above. All
+installed production Python and desktop sources matched the reviewed inventory.
+One local wheel build encountered sandbox-restricted PyPI DNS resolution; a clean
+offline build with the already cached exact pinned build dependency passed.
+
+Preview **v0.2.9** was published on GitHub and Gitea with the same six assets and
+matching Russian/English description: Linux DEB/AppImage, Windows EXE, CLI wheel,
+build manifest and checksums. GitHub server digests and sizes matched all local
+files; every Gitea file was downloaded and fully hashed before publication.
+Published bodies, asset inventory and actual tag targets were read back. GitHub
+targets the protected merge and Gitea the matching canonical source freeze.
+
+The actual 0.2.8 updater found 0.2.9 for DEB, AppImage and Windows and verified the
+downloaded public DEB. An isolated installation of that downloaded artifact over
+0.2.8 retained the previous generation, encrypted Vault and What's New preference;
+all three installed TLS production modules matched source. The public Windows
+download returned HTTP 200. The owner's runtime, application, tasks and personal
+workspace files were not replaced or restarted. Users must update and restart the
+application/runtime and chat. Android remains 0.1.106 (107) and needs no update.
+The Windows EXE is unsigned; physical Windows 11 acceptance remains pending and
+the release is explicitly preview.
 
 ## 0.2.8 preview — sources, navigation and installed release notes
 
@@ -757,3 +876,227 @@ network containment are not cleared by functional tests.
 Use [TESTING.md](../TESTING.md) for reproducible commands and coverage limits,
 [FIRST_RUN_ACCEPTANCE.md](FIRST_RUN_ACCEPTANCE.md) for maintained scenarios and
 [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) for release gates.
+
+### 2026-10-18 — Windows OpenCode port, first native validation candidate
+
+- Added a native restricted-token runner, private desktop, process Job Object,
+  disposable writable workspace, and Windows loopback capability transports.
+  Launch fails closed if the OS sandbox cannot be established.
+- Linux compatibility check after the shared transport changes: 54 passed,
+  5 Windows-only skipped; desktop Node tests: 363 passed, zero failures.
+- Windows-specific process/file/network/job and profile-proxy contracts are
+  pending execution on the actual Windows CI runner. This candidate is not
+  release acceptance and does not establish Windows OpenCode compatibility.
+
+- First actual Windows Server 2025 candidate failed two new contracts: token
+  creation returned WinError 87 for the LUA flag combination, and the synthetic
+  proxy test omitted the desktop module search path. Existing contracts: 39
+  passed, 3 platform skips. The runner now explicitly disables Administrators
+  and maximum privileges and retains full read/write restricting-SID checks;
+  it does not fall back to an unrestricted process. Added a real installed
+  OpenCode shell/write/owner-question/result/native-panel acceptance fixture.
+
+- Second Windows run: profile proxy passed; token creation still returned
+  WinError 87 (40 passed, 3 platform skips, one failed). Therefore the first
+  flag combination is not established as the cause. Added synthetic SID/layout
+  diagnostics to the failing test; diagnostic token probes are immediately
+  closed and never launch a process. Production still fails closed.
+
+- Native parameter probes isolated WinError 87: zero, one and two restricting
+  SIDs succeeded; adding ALL_APPLICATION_PACKAGES (third SID) failed, despite
+  valid SID encoding and correct 16-byte structure layout. Replaced that
+  unsupported application-package group with the standard World SID. Full
+  restricting access checks, private owner/SYSTEM DACL protection, low integrity,
+  disabled Administrators and maximum-privilege removal remain enabled.
+  Temporary diagnostic probes were removed after obtaining this evidence.
+
+- Fourth Windows candidate: all 41 OS contracts passed (3 platform skips),
+  including low-integrity writes, private-read/write denial, loopback HTTP and
+  descendant termination. Installer build succeeded. Native tour then failed
+  before OpenCode launch because its new test argument shadowed Electron's
+  session import; the fixture now uses an explicit alias.
+- Assignment capability identity is now passed explicitly by the controller,
+  preserving the run ID when Windows places service data under the assignment
+  directory. Added a regression for that platform layout (6 Node controller
+  tests passed). Added manual-project edit and exact DACL-revocation acceptance,
+  and case-insensitive Windows private-path exclusion.
+- Added matching English/Russian before/after architecture diagrams as editable
+  SVG and PNG. Platform documentation distinguishes native Windows filesystem/
+  process restrictions from Linux namespaces and Linux-only KVM/host services.
+
+- Fifth Windows candidate passed the manual direct-edit/DACL-restoration
+  contract and built its installer. Native OpenCode admission failed (generic
+  operation error in the installed Unicode path; HTTP 500 in the ASCII-path
+  diagnostic clone). The helper protocol now explicitly enables Python UTF-8;
+  the synthetic fixture captures bounded, token-redacted API errors for exact
+  follow-up diagnosis. No real profile or account is used by these fixtures.
+- Full local Python regression: 4,885 collected, 4,852 passed, 33 platform/
+  optional skips, zero failures/errors; 630 subtests. Targeted shared contracts
+  after the Windows layout change: 54 passed, 5 Windows skips. Locked npm ci
+  completed; all 364 desktop tests passed.
+
+- Sixth Windows candidate: both the Unicode installed runtime and ASCII
+  diagnostic runtime reached the native server, but POST /api/session returned
+  HTTP 500 with an empty body. Added a private per-service process log (truncated
+  on each start), redacted synthetic-log capture on fixture failure, and a native
+  headless API contract before packaging. This shortens diagnosis without
+  removing the separate installed Electron/right-panel acceptance.
+
+- Early native API contract reproduced the empty 500 before packaging (41
+  passed, 3 platform skips, one failed). Normal process output only reported
+  the listening address. Enabled temporary debug logging in the unreleased
+  Windows candidate and bounded/redacted collection of its own log files.
+  Debug verbosity must return to normal before a release is accepted.
+
+- The debug trace isolated the first failure: FileSystem.realPath failed on
+  lstat of the workspace's AppData ancestor (EPERM). Added a restricted-token
+  access probe and temporary, non-inheriting READ_ATTRIBUTES/TRAVERSE grants
+  only for inaccessible ancestor directories. Directory listing and file-data
+  access are not included; the private-read/write denial tests remain required.
+  Native acceptance also compares ancestor DACLs before and after both sandbox
+  modes. Normal product logging is restored; extra tracing is explicit and used
+  only by the synthetic fixture.
+
+- The ancestor-DACL assertion initially attempted to use the file helper on a
+  drive root, which has no filename; that test now omits the drive root. The
+  directory metadata probe itself still runs for every ancestor. Added safe
+  Windows error-class/numeric-code reporting for failed sandbox startup.
+  Manual projects now include metadata probes for their own distinct ancestors.
+
+- The metadata probe still failed after an individual grant. Ancestors are now
+  processed from the volume root down, so each intermediate traversal grant is
+  established before probing a deeper directory. Failures retain the ancestor's
+  final component in the private exception for deterministic diagnosis.
+
+- Top-down diagnostics located the remaining metadata denial at pytest's
+  private ancestor. Python 3.14 creates mode-0700 Windows directories with
+  SYSTEM/Administrators/OWNER_RIGHTS entries; an elevated runner's default owner
+  can be Administrators, which the child token intentionally disables. Windows
+  native fixtures now use a separate disposable root with the same explicit
+  current-user/SYSTEM DACL as the desktop runtime. Production's durable OpenCode
+  task directory now receives that existing private-directory protection too.
+  Administrators remain disabled in the child; file-read/write denial and exact
+  ancestor/project ACL restoration are still asserted.
+
+- Native server path resolution now succeeds. The next observed failure is
+  EPERM in Bun's uv_spawn of Git. Windows nested jobs cannot have Job UI limits;
+  the runner now uses a private window station plus desktop instead, omits the
+  shared logon SID from restricting SIDs, and retains kill-on-close containment
+  without UI limits so Bun can create nested jobs. Added an explicit native
+  denial check for opening the owner's WinSta0 clipboard station. Disposable
+  files and the child token use the current user as owner; original project
+  ownership is untouched. Ancestor ACL comparison now reports exact differences
+  instead of a bare boolean, so the remaining restoration failure is observable.
+
+- Removing Job UI limits did not resolve Bun's uv_spawn EPERM, so that causal
+  hypothesis was not confirmed. Restored full Job UI limits and the private
+  desktop. Opening a window-station handle alone is not a clipboard-read proof;
+  native acceptance now checks denied GetClipboardData access without reading
+  or modifying clipboard contents. Added a direct restricted-Python Git image/
+  spawn probe to distinguish executable access from Bun's subprocess behavior.
+- OpenCode now uses the runtime's native Windows path normalization, including
+  expansion of short path aliases, for source/workspace/grant identity and
+  service directories. The independent fixture also uses canonical paths.
+  The remaining ancestor-DACL difference will be reported with exact values.
+
+- Restricted Python successfully read and executed the same Git binary. Bun's
+  EPERM therefore is not established as an executable-read denial. Initial
+  process/thread objects now have explicit job-capability DACLs and matching
+  integrity labels; only the newly restricted token receives self-query access.
+  Native contracts assert own-process handle access and own-token query while
+  private host-file denial remains required.
+- Exact ancestor comparison showed unchanged ACEs but an added AUTO_INHERITED
+  control flag. Add/revoke now uses an explicit security descriptor and the
+  file-security setter to preserve the existing inheritance-control flags.
+  No assertion is weakened. Windows unit fixtures normalize aliases and keep
+  granted synthetic projects outside the intentionally blocked AppData tree.
+
+- Initial own-process/token access now passes, but Bun's Git spawn still fails.
+  Added an explicit diagnostics-only probe using the official executable's
+  documented BUN_BE_BUN mode, comparing Node-compatible async/sync spawning,
+  native Bun spawning and inherited/ignored/piped stdio under the same policy.
+  Normal product startup does not run these probes.
+- ACL evidence distinguishes the two setters: SetNamedSecurityInfo adds AI;
+  SetFileSecurity clears AI. Add/revoke now selects the setter according to the
+  existing AUTO_INHERITED bit so both original states can remain unchanged.
+
+- Native Windows diagnostics isolated Bun spawning failure to captured stdio;
+  inherited and ignored stdio succeed with the same Git executable and policy.
+  Added diagnostics-only checks of an owned named pipe and nested restricted
+  Python/Bun spawning to identify the failing Windows access check. Production
+  startup remains unchanged; native delegation acceptance is still pending.
+- Nested restricted Python/Bun still reproduces EPERM. The owned named-pipe
+  probe rejected an unsupported open-mode bit (87); corrected its documented
+  mode/object type and added a diagnostics-only medium-integrity comparison on
+  the same disposable workspace. Production remains low-integrity for tasks.
+- Low/medium diagnostic spawning has the same piped-stdio EPERM. The pipe
+  probe now uses the exact duplex/WRITE_DAC open mode used by the runtime;
+  READ_CONTROL is obtained through duplex access rather than an open-mode bit.
+- The exact named-pipe server mode succeeds and its client open is denied
+  with Win32 5. SecurityInfo type 1 returned 87; diagnostics now compare types
+  and use the handle-based kernel security API to read/change only the probe
+  pipe DACL. This is not a product policy change or an acceptance pass.
+
+- Native Windows evidence now confirms the cause: default named-pipe DACL
+  contains SYSTEM/Administrators/creator full access and Everyone/Anonymous
+  read, omitting the restricted capability even though TokenDefaultDacl includes
+  it. Client open returns 5; applying that token DACL to the owned probe pipe
+  returns 0 and its client succeeds. Label is already Low.
+- Added a Windows x64 process-local pipe adapter built from project source and
+  pinned Microsoft Detours 4.0.1 (MIT notices included). It supplies only default
+  pipe DACLs from the existing restricted token and loads in suspended x64 child
+  processes before execution. Host loading is inactive; token restrictions and
+  filesystem grants are unchanged. Injection/start failures terminate the child.
+  Added nested Python/Node/Git captured-output and private Low-label read/DACL
+  modification denial assertions to native acceptance. Native result pending.
+- Local platform check first hit sandbox-denied loopback sockets (13 passed,
+  6 skipped, 3 setup errors); rerun with loopback permitted preserves all tests.
+- Permitted-loopback local platform rerun: 16 passed, 6 native-OS skips,
+  0 failures/errors. Ruff E9/F63/F7/F82 and whitespace checks pass.
+- Host adapter loading now explicitly releases its DLL handle after updating
+  the suspended child, so disposable service directories remain removable.
+  Native fixture compiler failures include bounded compiler output.
+- First adapter run: native Bun async/sync/native captured spawning all pass,
+  nested Node/Git and private Low-label/DACL denial pass. Actual OpenCode starts,
+  completes tools and owner question/form round trips. The run remains failed:
+  host DLL handle prevented fixture cleanup (fixed above), and the tool-result
+  OS-denial text assertion needs the actual message shape before adjustment.
+  Removed now-completed startup probes and enabled private per-process Git
+  core.longpaths to prevent observed snapshot path-length failures.
+- Second native run: 41 passed/3 skipped, DLL cleanup now passes. The only
+  failure is the API contract assertion: actual Windows write tool returns
+  structured tool.execution / "Unable to write <path>", stripping Win32 code.
+  Acceptance now checks that exact error and independently attempts an outside
+  write through the shell, requiring the OS denial and absence of both files.
+  Per-service Git global config sets core.longpaths (environment-only setting
+  did not prevent snapshot init warnings). The sanitized environment retains
+  executable PATH; filesystem access still uses the restricted token. Windows
+  shell acceptance additionally runs the installed Node executable from PATH.
+- Linux native API fixture now passes through result application with an
+  immutable /usr negative target. An earlier synthetic /tmp target addressed
+  bubblewrap's disposable temporary tree, so its successful virtual write was
+  not an original-project write; the host source remained unchanged. A long
+  provider Unix socket fixture also hit its address-length limit and was moved
+  to a short test root. No product isolation policy changed.
+- Third Windows run: 41 passed/3 skipped. OpenCode completes assignment/forms,
+  structured denied write and inside write. Retaining PATH selected PowerShell,
+  whose sandboxed startup exited 53. The runner now explicitly selects built-in
+  cmd.exe, while retaining installed command PATH. Assertions inspect actual
+  tool output rather than assistant command strings. Core.longpaths environment
+  and private global config did not remove snapshot init warnings; native data
+  uses a Windows extended path prefix for the next acceptance run.
+- Fourth native run still completes OpenCode assignment/forms and private
+  isolation, but the shell fixture lacks its quoted node -e marker. The probe
+  now uses node --version and reports actual tool output. Extended path prefixes
+  also did not resolve Git snapshot init (Git normalizes them to //?/C:); the
+  runner now uses the existing Windows short alias for its private data home
+  where available, preserving the same directory and permissions.
+- Russian/English editable and PNG before/after diagrams now identify the
+  Windows pipe adapter; node labels fit their boxes. Windows cmd/x64/PowerShell
+  limits are recorded in the architecture and matching release descriptions.
+- Fifth Windows native run confirms real Git/Node output and successful Git
+  snapshot operations with the data-home short alias (no prior init warning in
+  captured logs). The remaining negative shell check had invalid cmd quoting;
+  it now uses the equivalent relative path to the original synthetic source,
+  requiring Access Denied and no created file. Existing private file read/write
+  and Low-label DACL-modification denial assertions remain unchanged.

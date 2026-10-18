@@ -2517,6 +2517,8 @@ class MobileService:
         if record:
             session_id = str(record.get("root_session_id") or record.get("session_id"))
         approvals: list[dict[str, Any]] = []
+        if getattr(self, 'opencode_tasks', None) is not None:
+            approvals.extend(self.opencode_tasks.approvals(session_id))
         if session_id is None:
             approvals.extend(pending_requests())
         seen_sessions: set[str] = set()
@@ -3058,6 +3060,11 @@ class MobileService:
         response: dict[str, Any] | None,
         cancelled: bool = False,
     ) -> dict[str, Any]:
+        if str(task_id).startswith('oc_') and getattr(self, 'opencode_tasks', None) is not None:
+            try:
+                return self.opencode_tasks.resolve(task_id, request_id, response, cancelled)
+            except ValueError as exc:
+                raise MobileConflict(str(exc)) from None
         request = get_user_input_request(request_id)
         if request is None or str(request.get("task_id")) != str(task_id):
             raise MobileNotFound("user input request not found for this task")
@@ -3098,6 +3105,29 @@ class MobileService:
             task_id=task_id,
         )
         return {"task_id": task_id, "request_id": request_id, "cancelled": bool(cancelled), "resumed": resumed}
+
+    def deliver_opencode_result(self, run: dict) -> bool:
+        """Queue one result turn only after the current conversation turn ends."""
+        from ..prompt_assembly import opencode_result_prompt
+        with self._approval_lock:
+            if self._active_task_id_for_session(run['session']):
+                return False
+            with open_db(get_db_path()) as conn:
+                prior = conn.execute("SELECT task_id FROM tasks WHERE json_valid(metadata) AND json_extract(metadata, '$.opencode_result_for') = ? LIMIT 1", (run['id'],)).fetchone()
+            if prior:
+                return True
+            self._require_available_profile(run['profile'])
+            message = opencode_result_prompt(run['goal'], run['result'])
+            created = create_task(text=message, profile=run['profile'], metadata={
+                'source': 'mobile_bridge', 'platform': 'desktop', 'desktop_ui': True,
+                'created_via': 'opencode.result', 'session': run['session'], 'cwd': run['source'],
+                'original_message_text': run['goal'], 'structured_session_history': True,
+                'history_messages': self._working_history(run['session']), 'session_user_message': message,
+                'opencode_result_for': run['id'], 'restrict_tools_to': ['Read', 'Grep', 'Glob'],
+            })
+            self.store.append_event(kind='task.submitted', session_id=run['session'], task_id=created['task_id'],
+                                    payload={'task_id': created['task_id'], 'text': ''})
+            return True
 
     def _profile_for_task(self, task_id: str) -> str:
         task = self._task_row(task_id)

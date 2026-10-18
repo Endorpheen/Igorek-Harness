@@ -2,11 +2,11 @@
 
 LEGAL_FILES = ('LICENSE', 'docs/THIRD_PARTY_NOTICES.md',
                'docs/licenses/CODEX-LICENSE.txt', 'docs/licenses/CODEX-NOTICE.txt',
-               'docs/licenses/OPENCODE-ICON-LICENSE.txt')
+               'docs/licenses/OPENCODE-ICON-LICENSE.txt', 'docs/licenses/DETOURS-LICENSE.txt')
 
 
 APP_FILES = (
-    'opencode-service.cjs', 'opencode-egress.cjs', 'opencode-workspace.cjs', 'opencode-sandbox.py', 'opencode-kvm-guest.py', 'opencode-host-services-client.py',
+    'opencode-service.cjs', 'opencode-tasks.cjs', 'opencode-egress.cjs', 'opencode-workspace.cjs', 'opencode-sandbox.py', 'opencode-windows.py', 'opencode-kvm-guest.py', 'opencode-host-services-client.py',
     'browser-favorites.cjs', 'workspace-agent.cjs', 'completion-sound.cjs', 'completion-sound-settings.js',
     'release-updates.cjs', 'release-updates-ui.cjs',
     'whats-new.cjs', 'whats-new-preload.cjs', 'whats-new.html', 'whats-new.css', 'whats-new.js',

@@ -28,6 +28,247 @@ from factory.core.artifact_files import atomic_write_file, open_regular_file, op
 from factory.core.platform_support import exclusive_lock
 
 
+@pytest.fixture
+def windows_owned_root():
+    if sys.platform != 'win32':
+        pytest.skip('Native Windows owned-data fixture')
+    from factory.core.platform_support.windows_security import protect_directory
+    with tempfile.TemporaryDirectory(prefix='igorek-windows-owned-') as temporary:
+        root = Path(temporary)
+        protect_directory(root)
+        yield root
+
+
+@pytest.fixture
+def windows_pipe_adapter(windows_owned_root):
+    repo = Path(__file__).resolve().parents[1]
+    output = windows_owned_root / 'pipe-adapter'
+    result = subprocess.run([sys.executable, str(repo / 'desktop/packaging/build-windows-pipes.py'),
+                             '--output', str(output)], capture_output=True, encoding='utf-8', errors='replace')
+    assert result.returncode == 0, result.stdout[-12000:] + result.stderr[-3000:]
+    return output / 'igorek-pipes.dll'
+
+
+@pytest.mark.skipif(sys.platform != 'win32', reason='Native Windows restricted-process contract')
+def test_windows_opencode_restricted_process_files_network_and_job(windows_owned_root, windows_pipe_adapter):
+    tmp_path = windows_owned_root
+    import shutil
+    import ctypes
+    from ctypes import wintypes as W
+    from factory.core.platform_support.windows_security import protect_directory, read_dacl
+    from factory.core.platform_support.windows_sandbox import WindowsSandbox
+
+    root = tmp_path / 'sandbox'
+    root.mkdir()
+    adapter = root / 'igorek-pipes.dll'
+    shutil.copyfile(windows_pipe_adapter, adapter)
+    workspace = root / 'workspace'
+    workspace.mkdir()
+    private_parent = tmp_path / 'private-parent'
+    private_parent.mkdir()
+    protect_directory(private_parent)
+    outside = private_parent / 'project'
+    outside.mkdir()
+    protect_directory(outside)
+    (outside / 'canary.txt').write_text('private fixture', encoding='utf-8')
+    (outside / 'low-canary.txt').write_text('private low fixture', encoding='utf-8')
+    python_root = root / 'python'
+    shutil.copytree(Path(sys.base_prefix), python_root,
+                    ignore=shutil.ignore_patterns('site-packages', 'Scripts', '__pycache__', 'test', 'tests', 'Tools', 'Doc', 'include', 'libs'))
+    (python_root / 'python314._pth').write_text('python314.zip\n.\nLib\nDLLs\n', encoding='utf-8')
+    executable = python_root / 'python.exe'
+    if not executable.exists():
+        shutil.copy2(sys._base_executable, executable)
+
+    class Handler(BaseHTTPRequestHandler):
+        def log_message(self, *_):
+            pass
+
+        def do_GET(self):
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b'fixture-network-ok')
+
+    server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    code = '''import ctypes,json,os,pathlib,socket,subprocess,sys,time,urllib.request
+workspace,private,port=pathlib.Path(sys.argv[1]),pathlib.Path(sys.argv[2]),int(sys.argv[3])
+result={}
+kernel=ctypes.WinDLL('kernel32',use_last_error=True)
+kernel.GetCurrentProcessId.restype=ctypes.c_ulong
+kernel.OpenProcess.argtypes=[ctypes.c_ulong,ctypes.c_int,ctypes.c_ulong];kernel.OpenProcess.restype=ctypes.c_void_p
+kernel.CloseHandle.argtypes=[ctypes.c_void_p]
+self_handle=kernel.OpenProcess(0x40|0x1000,False,kernel.GetCurrentProcessId())
+result['own_process_access']=bool(self_handle)
+if self_handle:kernel.CloseHandle(self_handle)
+security=ctypes.WinDLL('advapi32',use_last_error=True)
+kernel.GetCurrentProcess.restype=ctypes.c_void_p
+security.OpenProcessToken.argtypes=[ctypes.c_void_p,ctypes.c_ulong,ctypes.POINTER(ctypes.c_void_p)]
+self_token=ctypes.c_void_p()
+result['own_token_query']=bool(security.OpenProcessToken(kernel.GetCurrentProcess(),8,ctypes.byref(self_token)))
+if self_token:kernel.CloseHandle(self_token)
+user=ctypes.WinDLL('user32',use_last_error=True)
+user.OpenClipboard.argtypes=[ctypes.c_void_p];user.OpenClipboard.restype=ctypes.c_int
+user.GetClipboardData.argtypes=[ctypes.c_uint];user.GetClipboardData.restype=ctypes.c_void_p
+ctypes.set_last_error(0)
+if user.OpenClipboard(None):
+ ctypes.set_last_error(0);handle=user.GetClipboardData(13)
+ result['clipboard_read_denied']=not handle and ctypes.get_last_error()==5
+ user.CloseClipboard()
+else:result['clipboard_read_denied']=ctypes.get_last_error()==5
+try:
+ executable=sys.argv[4]
+ with open(executable,'rb') as image:result['git_read']=image.read(2).hex()
+ child_git=subprocess.run([executable,'--version'],capture_output=True,timeout=5)
+ result['git_probe']={'returncode':child_git.returncode,'stdout':child_git.stdout.decode(errors='replace')[:200],'stderr':child_git.stderr.decode(errors='replace')[:500]}
+except OSError as error:result['git_probe']={'error':type(error).__name__,'code':getattr(error,'winerror',None)}
+try:
+ nested=subprocess.run([sys.argv[5],'-e',"const c=require('node:child_process').spawnSync(process.argv[1],['--version'],{encoding:'utf8'});if(c.error)throw c.error;process.stdout.write(c.stdout);process.exit(c.status);",executable],capture_output=True,timeout=10)
+ result['nested_node_pipe']={'returncode':nested.returncode,'stdout':nested.stdout.decode(errors='replace')[:200],'stderr':nested.stderr.decode(errors='replace')[:500]}
+except OSError as error:result['nested_node_pipe']={'error':type(error).__name__,'code':getattr(error,'winerror',None)}
+try:private.read_text();result['private_read_denied']=False
+except OSError:result['private_read_denied']=True
+try:private.write_text('forbidden');result['private_write_denied']=False
+except OSError:result['private_write_denied']=True
+low=private.with_name('low-canary.txt')
+try:low.read_text();result['private_low_read_denied']=False
+except OSError:result['private_low_read_denied']=True
+kernel.CreateFileW.argtypes=[ctypes.c_wchar_p,ctypes.c_ulong,ctypes.c_ulong,ctypes.c_void_p,ctypes.c_ulong,ctypes.c_ulong,ctypes.c_void_p]
+kernel.CreateFileW.restype=ctypes.c_void_p
+handle=kernel.CreateFileW(str(low),0x40000,7,None,3,0,None)
+result['private_dacl_change_denied']=handle==ctypes.c_void_p(-1).value and ctypes.get_last_error()==5
+if handle!=ctypes.c_void_p(-1).value:kernel.CloseHandle(handle)
+(workspace/'written.txt').write_text('inside')
+result['workspace_write']=True
+opener=urllib.request.build_opener(urllib.request.ProxyHandler({}))
+result['network']=opener.open('http://127.0.0.1:'+str(port),timeout=5).read().decode()
+child=subprocess.Popen([sys.executable,'-I','-S','-c','import time;time.sleep(60)'],stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+result['child_pid']=child.pid
+(workspace/'proof.json').write_text(json.dumps(result))
+time.sleep(60)
+'''
+    environment = {'SystemRoot': os.environ['SystemRoot'], 'WINDIR': os.environ['SystemRoot'],
+                   'PATH': str(Path(os.environ['SystemRoot']) / 'System32'), 'TEMP': str(workspace), 'TMP': str(workspace)}
+    ancestor_acls = {path: read_dacl(path, directory=True) for path in root.parents if path.name}
+    sandbox = WindowsSandbox(root, writable=[workspace], process_adapter=adapter)
+    try:
+        label = sandbox._acl(sandbox._descriptor('S:(ML;;NW;;;LW)'), label=True)
+        assert not sandbox.set_named_security(str(outside / 'low-canary.txt'), 1, 0x10, None, None, None, label)
+        with open(os.devnull, 'rb') as incoming, (tmp_path / 'stdout').open('wb') as output, (tmp_path / 'stderr').open('wb') as errors:
+            sandbox.start([executable, '-I', '-S', '-c', code, workspace, outside / 'canary.txt', str(server.server_address[1]), shutil.which('git'), shutil.which('node')],
+                          cwd=workspace, env=environment, stdin=incoming, stdout=output, stderr=errors)
+            deadline = __import__('time').monotonic() + 20
+            while not (workspace / 'proof.json').exists() and __import__('time').monotonic() < deadline and sandbox.poll() is None:
+                __import__('time').sleep(.05)
+            assert (workspace / 'proof.json').exists(), (sandbox.poll(), (tmp_path / 'stderr').read_text(errors='replace'))
+            proof = json.loads((workspace / 'proof.json').read_text())
+        assert proof['private_read_denied'] and proof['private_write_denied'] and proof['workspace_write']
+        assert proof['private_low_read_denied'] and proof['private_dacl_change_denied'], proof
+        assert proof['git_probe']['returncode'] == 0 and 'git version' in proof['git_probe']['stdout'], proof
+        assert proof['nested_node_pipe']['returncode'] == 0 and 'git version' in proof['nested_node_pipe']['stdout'], proof
+        assert proof['network'] == 'fixture-network-ok'
+        assert proof['clipboard_read_denied'], proof
+        assert proof['own_process_access'] and proof['own_token_query'], proof
+        kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+        kernel.OpenProcess.argtypes = [W.DWORD, W.BOOL, W.DWORD]
+        kernel.OpenProcess.restype = W.HANDLE
+        kernel.WaitForSingleObject.argtypes = [W.HANDLE, W.DWORD]
+        kernel.WaitForSingleObject.restype = W.DWORD
+        kernel.CloseHandle.argtypes = [W.HANDLE]
+        child = kernel.OpenProcess(0x100000, False, proof['child_pid'])
+        assert child
+        try:
+            sandbox.close()
+            assert kernel.WaitForSingleObject(child, 5000) == 0
+        finally:
+            kernel.CloseHandle(child)
+    finally:
+        sandbox.close()
+        server.shutdown()
+        server.server_close()
+    assert (outside / 'canary.txt').read_text(encoding='utf-8') == 'private fixture'
+    differences = [(str(path), acl, read_dacl(path, directory=True)) for path, acl in ancestor_acls.items() if read_dacl(path, directory=True) != acl]
+    assert not differences, {'differences':differences,'probe':proof.get('git_probe'),'git_read':proof.get('git_read')}
+    before = read_dacl(outside / 'canary.txt')
+    parent_acl = read_dacl(private_parent, directory=True)
+    manual = WindowsSandbox(root, writable=[workspace], manual_projects=[outside], process_adapter=adapter)
+    try:
+        with open(os.devnull, 'rb') as incoming, (tmp_path / 'manual-stdout').open('wb') as output, (tmp_path / 'manual-stderr').open('wb') as errors:
+            manual.start([executable, '-I', '-S', '-c',
+                          "from pathlib import Path;import sys;Path(sys.argv[1]).write_text('manual edit')", outside / 'canary.txt'],
+                         cwd=outside, env=environment, stdin=incoming, stdout=output, stderr=errors)
+            assert manual.wait(manual.process, 10000) == 0
+            assert manual.poll() == 0, (tmp_path / 'manual-stderr').read_text(errors='replace')
+    finally:
+        manual.close()
+    assert (outside / 'canary.txt').read_text(encoding='utf-8') == 'manual edit'
+    assert read_dacl(outside / 'canary.txt') == before
+    assert read_dacl(private_parent, directory=True) == parent_acl
+    differences = [(str(path), acl, read_dacl(path, directory=True)) for path, acl in ancestor_acls.items() if read_dacl(path, directory=True) != acl]
+    assert not differences, {'differences':differences,'probe':proof.get('git_probe'),'git_read':proof.get('git_read')}
+
+
+@pytest.mark.skipif(sys.platform != 'win32', reason='Native Windows profile capability transport')
+def test_windows_opencode_profile_capability_transport(tmp_path, monkeypatch):
+    import importlib.util
+    from factory.core.opencode_workspace import private
+    assert private('.ENV') and private('Docs/LOCAL/context') and private('Archive/canary')
+    from types import SimpleNamespace
+    module_path = Path(__file__).resolve().parents[1] / 'desktop' / 'opencode_profiles.py'
+    monkeypatch.syspath_prepend(str(module_path.parent))
+    spec = importlib.util.spec_from_file_location('windows_profile_proxy_contract', module_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    server = module.OpenCodeProfiles(tmp_path / 'profiles', SimpleNamespace(list_provider_profiles=lambda: []), lambda: True)
+    try:
+        grant = server.configure('grant', {})
+        assert server.server_address[0] == '127.0.0.1'
+        assert grant['port'] == server.server_address[1]
+        assert len(grant['token']) == 64
+        assert not server.path.exists()
+        server.configure('revoke', {'token': grant['token']})
+        with pytest.raises(ValueError, match='access_denied'):
+            server.binding(grant['token'], 'absent')
+    finally:
+        server.server_close()
+
+
+@pytest.mark.skipif(sys.platform != 'win32', reason='Native Windows OpenCode API contract')
+@pytest.mark.timeout(120)
+def test_windows_opencode_native_assignment_api(windows_owned_root, windows_pipe_adapter):
+    tmp_path = windows_owned_root
+    import shutil
+    repo = Path(__file__).resolve().parents[1]
+    bundle = tmp_path / 'runtime'
+    (bundle / 'tools').mkdir(parents=True)
+    shutil.copyfile(windows_pipe_adapter, bundle / 'tools/igorek-pipes.dll')
+    python = bundle / 'python'
+    shutil.copytree(Path(sys.base_prefix), python,
+                    ignore=shutil.ignore_patterns('site-packages', 'Scripts', '__pycache__', 'test', 'tests', 'Tools', 'Doc', 'include', 'libs'))
+    (python / 'python314._pth').write_text('python314.zip\n.\nLib\nDLLs\n../packages\n', encoding='utf-8')
+    if not (python / 'python.exe').exists():
+        shutil.copy2(sys._base_executable, python / 'python.exe')
+    names = ['factory/__init__.py', 'factory/core/__init__.py', 'factory/core/opencode_workspace.py']
+    names += ['factory/core/platform_support/' + name for name in
+              ['__init__.py', 'windows_sandbox.py', 'windows_security.py', 'windows_files.py']]
+    for name in names:
+        target = bundle / 'packages' / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(repo / name, target)
+    (bundle / 'manifest.json').write_text(json.dumps({'schema_version': 1, 'python': 'python/python.exe',
+                                                     'entry': 'packages/factory/__init__.py'}))
+    output = tmp_path / 'output'
+    output.mkdir()
+    script = "const p=process.argv;require(p[1]).verifyOpenCodeDelegation({appRoot:p[2],bundle:p[3],root:p[4],output:p[5]}).catch(e=>{console.error(e.message);process.exitCode=1;});"
+    result = subprocess.run(['node', '-e', script, str(repo / 'desktop/tests/native/opencode-delegation.cjs'),
+                             str(repo / 'desktop'), str(bundle), str(tmp_path), str(output)],
+                            encoding='utf-8', errors='replace', capture_output=True, timeout=105)
+    assert result.returncode == 0, result.stdout[-2000:] + result.stderr[-18000:]
+    proof = json.loads((output / 'opencode-delegation.json').read_text())
+    assert proof['passed'] and proof['nonblocking_start'] and proof['source_isolation']
+    assert proof['exact_form_reply'] and proof['native_question_roundtrip'] and proof['result_applied']
+
+
 class PlatformFiles(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()

@@ -2095,7 +2095,7 @@ class Worker:
                 tool_schemas = _without_tool(tool_schemas, "request_user_input")
 
             explicit_skill_names: list[str] = []
-            if SKILLS_AVAILABLE and skills_manager.is_loaded:
+            if SKILLS_AVAILABLE and skills_manager.is_loaded and not task_metadata.get('opencode_result_for'):
                 explicit_skills = skills_manager.find_explicitly_mentioned_skills(
                     raw_message,
                     backend=self.backend,
