@@ -941,3 +941,9 @@ Use [TESTING.md](../TESTING.md) for reproducible commands and coverage limits,
   on each start), redacted synthetic-log capture on fixture failure, and a native
   headless API contract before packaging. This shortens diagnosis without
   removing the separate installed Electron/right-panel acceptance.
+
+- Early native API contract reproduced the empty 500 before packaging (41
+  passed, 3 platform skips, one failed). Normal process output only reported
+  the listening address. Enabled temporary debug logging in the unreleased
+  Windows candidate and bounded/redacted collection of its own log files.
+  Debug verbosity must return to normal before a release is accepted.

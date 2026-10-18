@@ -134,10 +134,14 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
     release(); view?.lock(); parent?.destroy(); await controller?.stop();
     await new Promise(resolve => provider.close(resolve));
     if (!proof.passed) {
-      proof.process_logs = services.map(service => {
-        try { return fs.readFileSync(path.join(service.root, 'process.log'), 'utf8').slice(-14000)
-          .replaceAll(service.password, '[redacted]').replace(/[A-Za-z0-9+_\/=-]{32,}/g, '[redacted]'); }
-        catch { return ''; }
+      proof.process_logs = services.flatMap(service => {
+        const files = fs.readdirSync(service.root, {recursive: true, withFileTypes: true}).filter(entry =>
+          entry.isFile() && /\.(log|jsonl)$/.test(entry.name)).slice(0, 12);
+        return files.map(entry => {
+          try { return {file: entry.name, text: fs.readFileSync(path.join(entry.parentPath, entry.name), 'utf8').slice(-16000)
+            .replaceAll(service.password, '[redacted]').replace(/[A-Za-z0-9+_\/=-]{32,}/g, '[redacted]')}; }
+          catch { return {file: entry.name, text: ''}; }
+        });
       });
       console.error(JSON.stringify(proof));
     }

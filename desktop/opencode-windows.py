@@ -100,7 +100,7 @@ def main(config):
                              manual_projects=[] if owned else [Path(item).resolve(strict=True) for item in config['projects']])
     try:
         with open(os.devnull, 'rb') as incoming, (service / 'process.log').open('wb') as outgoing:
-            pid = sandbox.start([binary, 'serve', '--hostname', '127.0.0.1', '--port', '0'], cwd=workspace,
+            pid = sandbox.start([binary, '--print-logs', '--log-level', 'debug', 'serve', '--hostname', '127.0.0.1', '--port', '0'], cwd=workspace,
                                 env=environment, stdin=incoming, stdout=outgoing, stderr=outgoing)
             authorization = 'Basic ' + base64.b64encode(('opencode:' + config['password']).encode()).decode()
             opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
