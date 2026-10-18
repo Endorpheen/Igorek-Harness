@@ -78,9 +78,15 @@ def test_windows_opencode_restricted_process_files_network_and_job(windows_owned
 
     server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
-    code = '''import json,os,pathlib,socket,subprocess,sys,time,urllib.request
+    code = '''import ctypes,json,os,pathlib,socket,subprocess,sys,time,urllib.request
 workspace,private,port=pathlib.Path(sys.argv[1]),pathlib.Path(sys.argv[2]),int(sys.argv[3])
 result={}
+user=ctypes.WinDLL('user32',use_last_error=True)
+user.OpenWindowStationW.argtypes=[ctypes.c_wchar_p,ctypes.c_bool,ctypes.c_ulong];user.OpenWindowStationW.restype=ctypes.c_void_p
+station=user.OpenWindowStationW('WinSta0',False,4)
+result['owner_station_denied']=not station
+if station:
+ user.CloseWindowStation.argtypes=[ctypes.c_void_p];user.CloseWindowStation(station)
 try:private.read_text();result['private_read_denied']=False
 except OSError:result['private_read_denied']=True
 try:private.write_text('forbidden');result['private_write_denied']=False
@@ -109,6 +115,7 @@ time.sleep(60)
             proof = json.loads((workspace / 'proof.json').read_text())
         assert proof['private_read_denied'] and proof['private_write_denied'] and proof['workspace_write']
         assert proof['network'] == 'fixture-network-ok'
+        assert proof['owner_station_denied']
         kernel = ctypes.WinDLL('kernel32', use_last_error=True)
         kernel.OpenProcess.argtypes = [W.DWORD, W.BOOL, W.DWORD]
         kernel.OpenProcess.restype = W.HANDLE
@@ -127,7 +134,8 @@ time.sleep(60)
         server.shutdown()
         server.server_close()
     assert (outside / 'canary.txt').read_text(encoding='utf-8') == 'private fixture'
-    assert all(read_dacl(path, directory=True) == acl for path, acl in ancestor_acls.items())
+    differences = [(str(path), acl, read_dacl(path, directory=True)) for path, acl in ancestor_acls.items() if read_dacl(path, directory=True) != acl]
+    assert not differences, differences
     before = read_dacl(outside / 'canary.txt')
     parent_acl = read_dacl(private_parent, directory=True)
     manual = WindowsSandbox(root, writable=[workspace], manual_projects=[outside])
@@ -143,7 +151,8 @@ time.sleep(60)
     assert (outside / 'canary.txt').read_text(encoding='utf-8') == 'manual edit'
     assert read_dacl(outside / 'canary.txt') == before
     assert read_dacl(private_parent, directory=True) == parent_acl
-    assert all(read_dacl(path, directory=True) == acl for path, acl in ancestor_acls.items())
+    differences = [(str(path), acl, read_dacl(path, directory=True)) for path, acl in ancestor_acls.items() if read_dacl(path, directory=True) != acl]
+    assert not differences, differences
 
 
 @pytest.mark.skipif(sys.platform != 'win32', reason='Native Windows profile capability transport')

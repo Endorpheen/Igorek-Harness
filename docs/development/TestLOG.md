@@ -977,3 +977,13 @@ Use [TESTING.md](../TESTING.md) for reproducible commands and coverage limits,
   task directory now receives that existing private-directory protection too.
   Administrators remain disabled in the child; file-read/write denial and exact
   ancestor/project ACL restoration are still asserted.
+
+- Native server path resolution now succeeds. The next observed failure is
+  EPERM in Bun's uv_spawn of Git. Windows nested jobs cannot have Job UI limits;
+  the runner now uses a private window station plus desktop instead, omits the
+  shared logon SID from restricting SIDs, and retains kill-on-close containment
+  without UI limits so Bun can create nested jobs. Added an explicit native
+  denial check for opening the owner's WinSta0 clipboard station. Disposable
+  files and the child token use the current user as owner; original project
+  ownership is untouched. Ancestor ACL comparison now reports exact differences
+  instead of a bare boolean, so the remaining restoration failure is observable.
