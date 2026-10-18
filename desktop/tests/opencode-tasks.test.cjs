@@ -33,7 +33,7 @@ async function fixture(t){
     profilesGrant:{profiles:[{name:'fixture',model:'fixture-model'}]},config:{projects:[]},
     async addProject(folder){this.config.projects=[folder];},async start(){},async stop(){this.state='stopped';}};
   const manual={config:{projects:[source]},status:()=>({installed:true})};
-  const controller=new OpenCodeTasks({manual,root:path.join(root,'service'),workspaceRoot,createService:()=>service,
+  const controller=new OpenCodeTasks({manual,root:path.join(root,'service'),workspaceRoot,createService:(folder,workspace,consumer)=>{state.created={folder,workspace,consumer};return service;},
     show:async job=>state.shown.push(job),allowed:()=>true,platform:'linux'});
   const input={action:'start',run_id:runID,source,workspace,title:'Fix fixture',goal:'Change a fixture',profile:'fixture',session:'chat-fixture'};
   return {controller,state,manual,service,input};
@@ -83,4 +83,12 @@ test('ungranted projects and substituted workspaces never receive a prompt',asyn
   assert.equal((await f.controller.handle({...f.input,source:f.input.workspace})).error,'opencode_project_not_granted');
   assert.equal((await f.controller.handle({...f.input,workspace:f.input.source})).error,'opencode_workspace_not_owned');
   assert.equal(f.state.prompts.length,0);
+});
+
+test('Windows service-folder layout retains the assignment profile consumer identity',async t=>{
+  const f=await fixture(t);f.controller.platform='win32';
+  const result=await f.controller.handle(f.input);assert(result.session_id);
+  assert.equal(f.state.created.consumer,f.input.run_id);
+  assert.equal(f.state.created.folder,path.join(path.dirname(f.input.workspace),'service'));
+  assert.equal(f.state.created.workspace,f.input.workspace);
 });

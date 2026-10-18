@@ -61,11 +61,11 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
     const manual = new OpenCodeService(path.join(folder, 'manual'), {python, bundle});
     await manual.install(); manual.config.projects = [source];
     controller = new OpenCodeTasks({manual, root: path.join(folder, 'services'), workspaceRoot, allowed: () => true,
-      createService: (serviceRoot, ownedWorkspace) => new OpenCodeService(serviceRoot, {python, bundle,
+      createService: (serviceRoot, ownedWorkspace, consumer) => {assert.equal(consumer, runID); return new OpenCodeService(serviceRoot, {python, bundle,
         ownedWorkspace, binaryRoot: manual.binaryRoot, profilesControl: async operation => operation === 'grant' ? {
           socket, ...(process.platform === 'win32' ? {port: provider.address().port} : {}), token: 'd'.repeat(64),
           profiles: [{id: 'fixture-id', name: 'fixture', model: 'fixture-model', api_format: 'openai', context: 32768}],
-        } : {revoked: true}}),
+        } : {revoked: true}});},
       show: async job => {
         parent = new BrowserWindow({show: true, width: 1400, height: 950,
           webPreferences: {sandbox: true, contextIsolation: true, nodeIntegration: false}});
@@ -113,7 +113,7 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
     assert(proof.native_right_panel, 'Native right panel did not display the assigned session');
     await new Promise(resolve => setTimeout(resolve, 200));
     fs.writeFileSync(path.join(output, 'opencode-delegation.png'), (await parent.webContents.capturePage()).toPNG());
-    proof.passed = true;
+    proof.passed = true; return proof;
   } catch (error) { proof.error = error.message; throw error; }
   finally {
     release(); view?.lock(); parent?.destroy(); await controller?.stop();

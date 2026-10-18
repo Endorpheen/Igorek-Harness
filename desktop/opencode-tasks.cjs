@@ -64,7 +64,7 @@ class OpenCodeTasks {
         if(!state.outcome)return {error:'opencode_task_already_running'};
         await prior.service.stop();this.jobs.delete(id);
       }
-      service=this.createService(this.platform==='win32'?path.join(path.dirname(workspace),'service'):path.join(this.root,fields.run_id),workspace);
+      service=this.createService(this.platform==='win32'?path.join(path.dirname(workspace),'service'):path.join(this.root,fields.run_id),workspace,fields.run_id);
       await service.addProject(workspace);
       await service.start();
       if(!this.allowed()||generation!==this.generation)throw Error('opencode_access_denied');

@@ -909,3 +909,17 @@ Use [TESTING.md](../TESTING.md) for reproducible commands and coverage limits,
   restricting access checks, private owner/SYSTEM DACL protection, low integrity,
   disabled Administrators and maximum-privilege removal remain enabled.
   Temporary diagnostic probes were removed after obtaining this evidence.
+
+- Fourth Windows candidate: all 41 OS contracts passed (3 platform skips),
+  including low-integrity writes, private-read/write denial, loopback HTTP and
+  descendant termination. Installer build succeeded. Native tour then failed
+  before OpenCode launch because its new test argument shadowed Electron's
+  session import; the fixture now uses an explicit alias.
+- Assignment capability identity is now passed explicitly by the controller,
+  preserving the run ID when Windows places service data under the assignment
+  directory. Added a regression for that platform layout (6 Node controller
+  tests passed). Added manual-project edit and exact DACL-revocation acceptance,
+  and case-insensitive Windows private-path exclusion.
+- Added matching English/Russian before/after architecture diagrams as editable
+  SVG and PNG. Platform documentation distinguishes native Windows filesystem/
+  process restrictions from Linux namespaces and Linux-only KVM/host services.

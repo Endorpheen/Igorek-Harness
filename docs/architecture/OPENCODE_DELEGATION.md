@@ -1,6 +1,6 @@
 # OpenCode delegation
 
-Linux desktop can delegate one explicitly requested task to the installed
+Linux and Windows x64 desktop can delegate one explicitly requested task to the installed
 OpenCode 2.0.27 service while keeping the main conversation available. The
 `opencode_task` tool supports start, status and cancellation. It never exposes
 an operation for answering owner questions or granting permissions to the model.
@@ -13,8 +13,12 @@ instead of silently exporting a partial or externally writable tree. Snapshot
 size and file-count limits apply.
 
 The Electron parent validates the source against existing owner project grants.
-It starts a separate OpenCode sandbox with only the task copy mounted writable,
-using a separate profile capability. It opens that exact session in the existing
+It starts a separate OpenCode process sandbox with a disposable task copy and
+a separate profile capability. Linux uses bubblewrap mounts and a private
+network namespace. Windows uses a restricted token, low mandatory integrity,
+a private desktop, explicit inherited standard handles and a kill-on-close
+process Job Object. The Windows runner grants writes to its disposable workspace
+and service data; it does not add write grants to the original project. It opens that exact session in the existing
 right panel. The session title is `Поручение: <title>`; no extra panel or status
 bar is added. Opening OpenCode manually restores its original service and saved
 navigation. Manual service configuration and running sessions are preserved.
@@ -43,7 +47,26 @@ relaunch them: OpenCode pending forms are process-local and cannot be recovered
 after a server restart. Cancellation interrupts execution without resuming queued
 input, and does not roll back files already changed in the task copy.
 
-This path requires Linux, host desktop execution, an installed OpenCode binary,
-an already granted Git project and an available verified provider profile. KVM
-guest execution, Windows delegation and arbitrary non-Git directories are not
-enabled by this integration. Ordinary manual OpenCode behavior is unchanged.
+This path requires host desktop execution, an installed OpenCode binary, Git in
+PATH, an already granted Git project and an available verified provider profile.
+The existing OpenCode settings install the pinned official platform binary with
+SHA-512 verification. Windows uses authenticated loopback API/profile transports;
+provider secrets remain in the host proxy. Windows does not provide the Linux
+network namespace or KVM isolation. Host-services MCP and KVM modes remain
+Linux-only. Delegation does not support arbitrary non-Git directories.
+
+The Windows manual route uses its own service and owner-selected projects, with
+separate temporary filesystem grants that are revoked on shutdown. It runs at
+medium integrity to preserve direct project editing. Assignment processes use
+low integrity and a separate copy. Choosing OpenCode manually restores manual
+navigation and does not attach typing to the assignment session.
+
+The diagrams show the prior independent manual route and the new automatic
+assignment flow. ChatGPT tabs remain independent; this feature does not add an
+automatic ChatGPT worker.
+
+![Before and after: OpenCode delegation](../images/opencode-delegation-en.png)
+
+[Editable English SVG](../images/opencode-delegation-en.svg) ·
+[Russian diagram](../images/opencode-delegation-ru.png) ·
+[Editable Russian SVG](../images/opencode-delegation-ru.svg)

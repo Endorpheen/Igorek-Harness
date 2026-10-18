@@ -27,8 +27,9 @@ def git(root: Path, *args: str) -> bytes:
 
 
 def private(name: str) -> bool:
-    path = Path(name)
-    return (bool(PRIVATE_PARTS.intersection(path.parts)) or path.parts[:2] == ('docs', 'local')
+    path = Path(name.lower() if os.name == 'nt' else name)
+    blocked = {item.lower() for item in PRIVATE_PARTS} if os.name == 'nt' else PRIVATE_PARTS
+    return (bool(blocked.intersection(path.parts)) or path.parts[:2] == ('docs', 'local')
             or path.name == '.env' or path.name.startswith('.env.') and not path.name.endswith('.example'))
 
 

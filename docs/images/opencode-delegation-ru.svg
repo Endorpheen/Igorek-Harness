@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="1640" viewBox="0 0 1400 1640"><rect width="1400" height="1640" fill="#f3f6fa"/>
+<text x="55" y="71" font-family="DejaVu Sans,sans-serif" font-size="36" font-weight="700" fill="#0f172a">OpenCode · Поручения из основного чата</text>
+<text x="55" y="116" font-family="DejaVu Sans,sans-serif" font-size="23" font-weight="400" fill="#334155">0.2.10 · Linux + Windows · одно поручение за раз</text>
+<rect x="35" y="150" width="1330" height="478" rx="20" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+<text x="65" y="202" font-family="DejaVu Sans,sans-serif" font-size="28" font-weight="700" fill="#64748b">ДО</text>
+<text x="65" y="244" font-family="DejaVu Sans,sans-serif" font-size="25" font-weight="700" fill="#0f172a">Отдельные рабочие маршруты</text>
+<rect x="70" y="315" width="350" height="112" rx="20" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+<text x="92" y="357" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#0f172a">Пользователь</text>
+<text x="92" y="390" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#334155">Сам выбирает инструмент</text>
+<rect x="505" y="315" width="350" height="112" rx="20" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+<text x="527" y="357" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#0f172a">Основной чат</text>
+<text x="527" y="390" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#334155">Разговор и свои инструменты</text>
+<rect x="940" y="315" width="350" height="112" rx="20" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+<text x="962" y="357" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#0f172a">OpenCode</text>
+<text x="962" y="390" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#334155">Ручная сессия на Linux</text>
+<polyline points="420,370 505,370" fill="none" stroke="#64748b" stroke-width="3"/>
+<polygon points="505.0,370.0 493.3,375.7 493.3,364.3" fill="#64748b"/>
+<polyline points="245,315 245,283 1115,283 1115,315" fill="none" stroke="#64748b" stroke-width="3"/>
+<polygon points="1115.0,315.0 1109.3,303.3 1120.7,303.3" fill="#64748b"/>
+<text x="940" y="470" font-family="DejaVu Sans,sans-serif" font-size="23" font-weight="400" fill="#334155">↳ Проект пользователя</text>
+<text x="70" y="524" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="400" fill="#334155">Нет автоматической передачи поручений и возврата результата.</text>
+<text x="70" y="572" font-family="DejaVu Sans,sans-serif" font-size="22" font-weight="400" fill="#334155">Вкладки ChatGPT работают отдельно.</text>
+<rect x="35" y="660" width="1330" height="890" rx="20" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+<text x="65" y="714" font-family="DejaVu Sans,sans-serif" font-size="28" font-weight="700" fill="#2563eb">ПОСЛЕ</text>
+<text x="65" y="758" font-family="DejaVu Sans,sans-serif" font-size="25" font-weight="700" fill="#0f172a">Поручение через существующую интеграцию</text>
+<rect x="70" y="835" width="350" height="112" rx="20" fill="#eff6ff" stroke="#cbd5e1" stroke-width="2"/>
+<text x="92" y="877" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#0f172a">Пользователь</text>
+<text x="92" y="910" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#334155">Общается параллельно</text>
+<rect x="505" y="835" width="350" height="112" rx="20" fill="#eff6ff" stroke="#cbd5e1" stroke-width="2"/>
+<text x="527" y="877" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#0f172a">Основной Игорёк</text>
+<text x="527" y="910" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#334155">opencode_task: start / status</text>
+<text x="527" y="937" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#334155">cancel</text>
+<rect x="940" y="835" width="350" height="112" rx="20" fill="#eff6ff" stroke="#cbd5e1" stroke-width="2"/>
+<text x="962" y="877" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#0f172a">Контроллер</text>
+<text x="962" y="910" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#334155">Отдельная сессия и профиль</text>
+<polyline points="420,889 505,889" fill="none" stroke="#2563eb" stroke-width="3"/>
+<polygon points="505.0,889.0 493.3,894.7 493.3,883.3" fill="#2563eb"/>
+<polyline points="855,889 940,889" fill="none" stroke="#2563eb" stroke-width="3"/>
+<polygon points="940.0,889.0 928.3,894.7 928.3,883.3" fill="#2563eb"/>
+<rect x="940" y="1060" width="350" height="112" rx="20" fill="#eefbf5" stroke="#cbd5e1" stroke-width="2"/>
+<text x="962" y="1102" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#0f172a">OpenCode · API + UI</text>
+<text x="962" y="1135" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#334155">Справа: «Поручение: …»</text>
+<text x="962" y="1162" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#334155">Ход работы в реальном времени</text>
+<polyline points="1115,947 1115,980" fill="none" stroke="#2563eb" stroke-width="3"/>
+<polygon points="1115.0,980.0 1109.3,968.3 1120.7,968.3" fill="#2563eb"/>
+<polyline points="1115,1028 1115,1060" fill="none" stroke="#2563eb" stroke-width="3"/>
+<polygon points="1115.0,1060.0 1109.3,1048.3 1120.7,1048.3" fill="#2563eb"/>
+<text x="955" y="1012" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#334155">Автоматически открыть</text>
+<polyline points="940,1115 245,1115 245,947" fill="none" stroke="#a16207" stroke-width="3"/>
+<polygon points="245.0,947.0 250.7,958.7 239.3,958.7" fill="#a16207"/>
+<text x="310" y="1072" font-family="DejaVu Sans,sans-serif" font-size="23" font-weight="700" fill="#a16207">Все вопросы → карточки пользователя</text>
+<text x="310" y="1100" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#a16207">Ответ по ID; модель не отвечает за пользователя</text>
+<rect x="940" y="1275" width="350" height="112" rx="20" fill="#eefbf5" stroke="#cbd5e1" stroke-width="2"/>
+<text x="962" y="1317" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#0f172a">Копия проекта</text>
+<text x="962" y="1350" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#334155">Отдельный Git + sandbox</text>
+<text x="962" y="1374" font-family="DejaVu Sans,sans-serif" font-size="17" font-weight="400" fill="#334155">Linux: bwrap · Windows: token + Job</text>
+<polyline points="1115,1172 1115,1208" fill="none" stroke="#16806a" stroke-width="3"/>
+<polygon points="1115.0,1208.0 1109.3,1196.3 1120.7,1196.3" fill="#16806a"/>
+<polyline points="1115,1250 1115,1275" fill="none" stroke="#16806a" stroke-width="3"/>
+<polygon points="1115.0,1275.0 1109.3,1263.3 1120.7,1263.3" fill="#16806a"/>
+<text x="960" y="1238" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#16806a">Изменения только в копии</text>
+<rect x="505" y="1275" width="350" height="112" rx="20" fill="#fff8ed" stroke="#cbd5e1" stroke-width="2"/>
+<text x="527" y="1317" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#0f172a">Проверка переноса</text>
+<text x="527" y="1350" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#334155">Сравнение с исходной базой</text>
+<text x="527" y="1377" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#334155">Конфликт → не переносить</text>
+<rect x="70" y="1275" width="350" height="112" rx="20" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+<text x="92" y="1317" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#0f172a">Исходный проект</text>
+<text x="92" y="1350" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#334155">Применение после проверки</text>
+<polyline points="940,1331 855,1331" fill="none" stroke="#16806a" stroke-width="3"/>
+<polygon points="855.0,1331.0 866.7,1325.3 866.7,1336.7" fill="#16806a"/>
+<polyline points="505,1331 420,1331" fill="none" stroke="#16806a" stroke-width="3"/>
+<polygon points="420.0,1331.0 431.7,1325.3 431.7,1336.7" fill="#16806a"/>
+<polyline points="855,1360 900,1360 900,925 855,925" fill="none" stroke="#2563eb" stroke-width="3"/>
+<polygon points="855.0,925.0 866.7,919.3 866.7,930.7" fill="#2563eb"/>
+<text x="470" y="1179" font-family="DejaVu Sans,sans-serif" font-size="23" font-weight="700" fill="#2563eb">Итог → основной чат</text>
+<text x="470" y="1210" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#334155">После текущего ответа</text>
+<text x="70" y="1465" font-family="DejaVu Sans,sans-serif" font-size="23" font-weight="700" fill="#0f172a">Без новых элементов UI: отметка только в названии сессии.</text>
+<text x="70" y="1510" font-family="DejaVu Sans,sans-serif" font-size="22" font-weight="400" fill="#334155">Ручной OpenCode и вкладки ChatGPT остаются отдельными маршрутами.</text>
+<text x="55" y="1600" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#334155">Схема потока · ограничения платформ описаны в документации релиза.</text>
+</svg>

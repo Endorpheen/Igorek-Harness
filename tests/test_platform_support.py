@@ -111,11 +111,27 @@ time.sleep(60)
         server.shutdown()
         server.server_close()
     assert (outside / 'canary.txt').read_text(encoding='utf-8') == 'private fixture'
+    from factory.core.platform_support.windows_security import read_dacl
+    before = read_dacl(outside / 'canary.txt')
+    manual = WindowsSandbox(root, writable=[workspace], manual_projects=[outside])
+    try:
+        with open(os.devnull, 'rb') as incoming, (tmp_path / 'manual-stdout').open('wb') as output, (tmp_path / 'manual-stderr').open('wb') as errors:
+            manual.start([executable, '-I', '-S', '-c',
+                          "from pathlib import Path;import sys;Path(sys.argv[1]).write_text('manual edit')", outside / 'canary.txt'],
+                         cwd=outside, env=environment, stdin=incoming, stdout=output, stderr=errors)
+            assert manual.wait(manual.process, 10000) == 0
+            assert manual.poll() == 0, (tmp_path / 'manual-stderr').read_text(errors='replace')
+    finally:
+        manual.close()
+    assert (outside / 'canary.txt').read_text(encoding='utf-8') == 'manual edit'
+    assert read_dacl(outside / 'canary.txt') == before
 
 
 @pytest.mark.skipif(sys.platform != 'win32', reason='Native Windows profile capability transport')
 def test_windows_opencode_profile_capability_transport(tmp_path, monkeypatch):
     import importlib.util
+    from factory.core.opencode_workspace import private
+    assert private('.ENV') and private('Docs/LOCAL/context') and private('Archive/canary')
     from types import SimpleNamespace
     module_path = Path(__file__).resolve().parents[1] / 'desktop' / 'opencode_profiles.py'
     monkeypatch.syspath_prepend(str(module_path.parent))

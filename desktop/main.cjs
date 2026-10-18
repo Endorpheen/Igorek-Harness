@@ -873,8 +873,8 @@ app.whenReady().then(async () => {
         opencodeWorkspace=new OpenCodeWorkspace({root:join(app.getPath('userData'),'browser-profiles','opencode'),service:opencodeService,BrowserWindow,WebContentsView,session:electronSession,dialog,shell,overlayActive:parent=>sessionOverlays.has(parent)});
         opencodeTasks=new OpenCodeTasks({manual:opencodeService,root:join(app.getPath('userData'),'integrations','opencode-tasks'),
           workspaceRoot:join(runtime.dataDir,'opencode-tasks'),allowed:()=>opencodeUnlocked,
-          createService:(root,workspace)=>new OpenCodeService(root,{python:opencodeService.python,bundle:opencodeService.bundle,binaryRoot:opencodeService.binaryRoot,ownedWorkspace:workspace,
-            profilesControl:(operation,value)=>opencodeService.profilesControl(operation,operation==='grant'?{consumer:require('node:path').basename(root)}:value)}),
+          createService:(root,workspace,consumer)=>new OpenCodeService(root,{python:opencodeService.python,bundle:opencodeService.bundle,binaryRoot:opencodeService.binaryRoot,ownedWorkspace:workspace,
+            profilesControl:(operation,value)=>opencodeService.profilesControl(operation,operation==='grant'?{consumer}:value)}),
           show:async job=>{
             const route=sessionRoute(job);
             for(const parent of chatWindows){
