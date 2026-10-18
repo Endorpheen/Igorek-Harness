@@ -75,7 +75,6 @@ class WindowsSandbox:
         self.process = None
         self.thread = None
         self.desktop = None
-        self.station = None
         self.job = None
         self._bind()
         self.capability = 'S-1-5-21-' + '-'.join(str(secrets.randbits(30) + 1) for _ in range(4))
@@ -143,10 +142,6 @@ class WindowsSandbox:
         self.attribute_delete = bind(self.kernel, 'DeleteProcThreadAttributeList', None, [P])
         self.create_desktop = bind(self.user, 'CreateDesktopW', H, [W.LPCWSTR, P, P, D, D, ctypes.POINTER(SecurityAttributes)])
         self.close_desktop = bind(self.user, 'CloseDesktop', B, [H])
-        self.create_station = bind(self.user, 'CreateWindowStationW', H, [W.LPCWSTR, D, D, ctypes.POINTER(SecurityAttributes)])
-        self.get_station = bind(self.user, 'GetProcessWindowStation', H, [])
-        self.set_station = bind(self.user, 'SetProcessWindowStation', B, [H])
-        self.close_station = bind(self.user, 'CloseWindowStation', B, [H])
 
     @staticmethod
     def _check(value):
@@ -190,8 +185,22 @@ class WindowsSandbox:
         user_buffer = ctypes.create_string_buffer(needed.value)
         self._check(self.get_token(original, 1, user_buffer, needed.value, ctypes.byref(needed)))
         self.owner = self._sid_text(ctypes.c_void_p.from_buffer(user_buffer))
-        entries = (Sid * 4)(*[Sid(self._sid(text), 0) for text in
-                             [self.capability, 'S-1-1-0', 'S-1-5-12', 'S-1-5-32-545']])
+        self.get_token(original, 2, None, 0, ctypes.byref(needed))
+        groups = ctypes.create_string_buffer(needed.value)
+        self._check(self.get_token(original, 2, groups, needed.value, ctypes.byref(needed)))
+        count = W.DWORD.from_buffer(groups).value
+        offset = (ctypes.sizeof(W.DWORD) + ctypes.alignment(Sid) - 1) // ctypes.alignment(Sid) * ctypes.alignment(Sid)
+        logon = None
+        for index in range(count):
+            group = Sid.from_buffer(groups, offset + index * ctypes.sizeof(Sid))
+            if group.attributes & 0xC0000000 == 0xC0000000:
+                logon = self._sid_text(group.pointer)
+                break
+        if not logon:
+            raise ValueError('windows_sandbox_logon_sid_required')
+        self.logon = logon
+        entries = (Sid * 5)(*[Sid(self._sid(text), 0) for text in
+                             [self.capability, logon, 'S-1-1-0', 'S-1-5-12', 'S-1-5-32-545']])
         disabled = (Sid * 1)(Sid(self._sid('S-1-5-32-544'), 0))
         token = W.HANDLE()
         self._check(self.restrict(original, 1, len(disabled), disabled, 0, None, len(entries), entries, ctypes.byref(token)))
@@ -202,7 +211,7 @@ class WindowsSandbox:
         self._check(self.set_token(token, 25, ctypes.byref(label), ctypes.sizeof(label) + length))
         owner = self._sid(self.owner)
         self._check(self.set_token(token, 4, ctypes.byref(owner), ctypes.sizeof(owner)))
-        descriptor = self._descriptor('D:(A;;GA;;;SY)(A;;GA;;;' + self.owner + ')(A;;GA;;;' + self.capability + ')')
+        descriptor = self._descriptor('D:(A;;GA;;;SY)(A;;GA;;;' + self.owner + ')(A;;GA;;;' + self.capability + ')(A;;GA;;;' + logon + ')')
         dacl = ctypes.c_void_p(self._acl(descriptor).value)
         self._check(self.set_token(token, 6, ctypes.byref(dacl), ctypes.sizeof(dacl)))
 
@@ -294,24 +303,14 @@ class WindowsSandbox:
         self._check(self.set_job(self.job, 9, ctypes.byref(limits), ctypes.sizeof(limits)))
 
     def _desktop(self):
-        self.station_name = 'igorek-station-' + secrets.token_hex(12)
-        self.desktop_name = 'igorek-desktop-' + secrets.token_hex(12)
-        descriptor = self._descriptor('D:(A;;GA;;;SY)(A;;GA;;;' + self.owner + ')(A;;GA;;;' + self.capability + ')')
+        self.desktop_name = 'igorek-' + secrets.token_hex(12)
+        descriptor = self._descriptor('D:(A;;GA;;;' + self.owner + ')(A;;GA;;;' + self.capability + ')(A;;GA;;;' + self.logon + ')')
         attributes = SecurityAttributes(ctypes.sizeof(SecurityAttributes), descriptor, False)
-        self.station = self._check(self.create_station(self.station_name, 0, 0x10000000, ctypes.byref(attributes)))
+        self.desktop = self._check(self.create_desktop(self.desktop_name, None, None, 0, 0x10000000, ctypes.byref(attributes)))
         label = self._acl(self._descriptor('S:(ML;;NW;;;LW)'), label=True)
-        error = self.set_security(self.station, 7, 0x10, None, None, None, label)
+        error = self.set_security(self.desktop, 7, 0x10, None, None, None, label)
         if error:
             raise ctypes.WinError(error)
-        original = self._check(self.get_station())
-        self._check(self.set_station(self.station))
-        try:
-            self.desktop = self._check(self.create_desktop(self.desktop_name, None, None, 0, 0x10000000, ctypes.byref(attributes)))
-            error = self.set_security(self.desktop, 7, 0x10, None, None, None, label)
-            if error:
-                raise ctypes.WinError(error)
-        finally:
-            self._check(self.set_station(original))
 
     def start(self, argv, *, cwd, env, stdin, stdout, stderr):
         import msvcrt
@@ -327,7 +326,7 @@ class WindowsSandbox:
             self._check(self.attribute_update(storage, 0, 0x20002, handles, ctypes.sizeof(handles), None, None))
             startup = StartupEx()
             startup.startup.cb = ctypes.sizeof(startup)
-            startup.startup.desktop = self.station_name + '\\' + self.desktop_name
+            startup.startup.desktop = 'winsta0\\' + self.desktop_name
             startup.startup.flags = 0x101
             startup.startup.show = 0
             startup.startup.stdin, startup.startup.stdout, startup.startup.stderr = stdio
@@ -341,6 +340,8 @@ class WindowsSandbox:
             self.handles.extend([self.process, self.thread])
             try:
                 self._check(self.assign_job(self.job, self.process))
+                ui = W.DWORD(0xFF)
+                self._check(self.set_job(self.job, 4, ctypes.byref(ui), ctypes.sizeof(ui)))
                 if self.resume(self.thread) == 0xFFFFFFFF:
                     raise ctypes.WinError(ctypes.get_last_error())
             except BaseException:
@@ -376,9 +377,6 @@ class WindowsSandbox:
         if self.desktop:
             self.close_desktop(self.desktop)
             self.desktop = None
-        if self.station:
-            self.close_station(self.station)
-            self.station = None
         for allocation in reversed(self.allocations):
             self.local_free(allocation)
         self.allocations.clear()

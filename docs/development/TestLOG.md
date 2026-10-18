@@ -987,3 +987,14 @@ Use [TESTING.md](../TESTING.md) for reproducible commands and coverage limits,
   files and the child token use the current user as owner; original project
   ownership is untouched. Ancestor ACL comparison now reports exact differences
   instead of a bare boolean, so the remaining restoration failure is observable.
+
+- Removing Job UI limits did not resolve Bun's uv_spawn EPERM, so that causal
+  hypothesis was not confirmed. Restored full Job UI limits and the private
+  desktop. Opening a window-station handle alone is not a clipboard-read proof;
+  native acceptance now checks denied GetClipboardData access without reading
+  or modifying clipboard contents. Added a direct restricted-Python Git image/
+  spawn probe to distinguish executable access from Bun's subprocess behavior.
+- OpenCode now uses the runtime's native Windows path normalization, including
+  expansion of short path aliases, for source/workspace/grant identity and
+  service directories. The independent fixture also uses canonical paths.
+  The remaining ancestor-DACL difference will be reported with exact values.

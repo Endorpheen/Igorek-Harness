@@ -1,6 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const http = require('node:http');
+const canonicalPath=raw=>process.platform==='win32'?fs.realpathSync.native(raw):fs.realpathSync(raw);
 
 function sessionRoute(job) {
   return '/server/'+Buffer.from(job.service.origin).toString('base64url')+'/session/'+encodeURIComponent(job.sessionID);
@@ -53,9 +54,9 @@ class OpenCodeTasks {
     if(this.starting)return {error:'opencode_task_already_running'};
     if(typeof fields.goal!=='string'||!fields.goal.trim()||fields.goal.length>24000||typeof fields.title!=='string'||fields.title.length>120)return {error:'invalid_request'};
     if(!['linux','win32'].includes(this.platform)||!this.manual.status().installed)return {error:'opencode_installation_required'};
-    const source=fs.realpathSync(fields.source),workspace=fs.realpathSync(fields.workspace);
-    if(!this.manual.config.projects.some(folder=>source===fs.realpathSync(folder)||source.startsWith(fs.realpathSync(folder)+path.sep)))return {error:'opencode_project_not_granted'};
-    if(workspace!==path.join(fs.realpathSync(this.workspaceRoot),fields.run_id,'workspace'))return {error:'opencode_workspace_not_owned'};
+    const source=canonicalPath(fields.source),workspace=canonicalPath(fields.workspace);
+    if(!this.manual.config.projects.some(folder=>source===canonicalPath(folder)||source.startsWith(canonicalPath(folder)+path.sep)))return {error:'opencode_project_not_granted'};
+    if(workspace!==path.join(canonicalPath(this.workspaceRoot),fields.run_id,'workspace'))return {error:'opencode_workspace_not_owned'};
     this.starting=fields.run_id;const generation=this.generation;
     let service;
     try{

@@ -9,13 +9,14 @@ const {randomBytes,createHash,timingSafeEqual}=require('node:crypto');
 const {pipeline}=require('node:stream/promises');
 const {egressServer}=require('./opencode-egress.cjs');
 
+const canonicalPath=raw=>process.platform==='win32'?fs.realpathSync.native(raw):fs.realpathSync(raw);
 const VERSION='2.0.27';
 const ARCHIVE='https://registry.npmjs.org/@opencode/cli-linux-x64-baseline/-/cli-linux-x64-baseline-2.0.27.tgz';
 const INTEGRITY='5q+5k6G8n4FGme5wf1zQQTX5CDEgakFPkCD45TLGlbecKCpCewJIZNoDR8n2O0HaEewRlyGIWJaNIRFrBQB5YA==';
 const WINDOWS_ARCHIVE='https://registry.npmjs.org/@opencode/cli-windows-x64-baseline/-/cli-windows-x64-baseline-2.0.27.tgz';
 const WINDOWS_INTEGRITY='7ecPhOMY7nJ7eadGd1I3PSwARonNMQ3L62x5QcIrSecFjE1sFUb5qTu4JnQnPqoiDv0Ag7aJP14RU1nP2zMdbA==';
 function projectPath(raw,root){
-  const value=fs.realpathSync(raw),home=os.homedir();
+  const value=canonicalPath(raw),home=os.homedir();
   if(process.platform==='win32'&&[process.env.SystemRoot,process.env.ProgramFiles,process.env.ProgramData,process.env.APPDATA,process.env.LOCALAPPDATA].filter(Boolean).some(root=>value.toLowerCase()===root.toLowerCase()||value.toLowerCase().startsWith(root.toLowerCase()+path.sep)))throw Error('Выбери отдельную папку проекта.');
   if(!fs.statSync(value).isDirectory()||[path.parse(value).root,home,'/home','/tmp','/var','/run','/usr','/etc','/opt'].includes(value)
     ||['/etc','/var','/usr','/boot','/proc','/sys','/dev','/run','/root','/bin','/lib','/lib64','/sbin'].some(p=>value.startsWith(p+path.sep))
@@ -107,8 +108,8 @@ class OpenCodeService extends EventEmitter{
     })().finally(()=>{this.installing=null;});return this.installing;
   }
   resolveProject(raw){
-    const real=fs.realpathSync(raw);
-    if(this.ownedWorkspace&&real===fs.realpathSync(this.ownedWorkspace)&&fs.statSync(real).isDirectory())return real;
+    const real=canonicalPath(raw);
+    if(this.ownedWorkspace&&real===canonicalPath(this.ownedWorkspace)&&fs.statSync(real).isDirectory())return real;
     if(this.ownedWorkspace)throw Error('Недопустимая рабочая копия поручения.');
     return projectPath(raw,this.root);
   }

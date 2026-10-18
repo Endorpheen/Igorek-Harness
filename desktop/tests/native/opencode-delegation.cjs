@@ -10,7 +10,7 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
   const {OpenCodeWorkspace} = require(path.join(appRoot, 'opencode-workspace.cjs'));
   const {loadBundle} = require(path.join(appRoot, 'runtime.cjs'));
   const python = loadBundle(bundle).python;
-  const folder = path.join(root, 'opencode-delegation');
+  const folder = path.join(process.platform==='win32'?fs.realpathSync.native(root):root, 'opencode-delegation');
   const source = path.join(folder, 'source'), workspaceRoot = path.join(folder, 'tasks');
   const runID = 'oc_' + 'c'.repeat(32), calls = [], proof = {platform: process.platform};
   fs.mkdirSync(source, {recursive: true}); fs.mkdirSync(workspaceRoot);
