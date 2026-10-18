@@ -1,5 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const os = require('node:os');
 const http = require('node:http');
 const assert = require('node:assert/strict');
 const {execFileSync} = require('node:child_process');
@@ -11,9 +12,10 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
   const {loadBundle} = require(path.join(appRoot, 'runtime.cjs'));
   const python = loadBundle(bundle).python;
   const folder = path.join(process.platform==='win32'?fs.realpathSync.native(root):root, 'opencode-delegation');
-  const source = path.join(folder, 'source'), workspaceRoot = path.join(folder, 'tasks');
+  const projectFolder = process.platform === 'win32' ? fs.mkdtempSync(path.join(os.homedir(), 'igorek-assignment-fixture-')) : folder;
+  const source = path.join(projectFolder, 'source'), workspaceRoot = path.join(folder, 'tasks');
   const runID = 'oc_' + 'c'.repeat(32), calls = [], proof = {platform: process.platform};
-  const forbidden = process.platform === 'win32' ? path.join(folder, 'forbidden.txt') : '/usr/igorek-native-' + runID + '.txt';
+  const forbidden = process.platform === 'win32' ? path.join(projectFolder, 'forbidden.txt') : '/usr/igorek-native-' + runID + '.txt';
   fs.mkdirSync(source, {recursive: true}); fs.mkdirSync(workspaceRoot);
   fs.writeFileSync(path.join(source, 'source.txt'), 'original\n');
   fs.writeFileSync(path.join(source, 'opencode.jsonc'), JSON.stringify({snapshots:true}));
@@ -120,7 +122,7 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
     assert.equal(proof.outcome, 'succeeded'); assert.equal(next, 4); assert(proof.native_question_roundtrip);
     assert.equal(fs.readFileSync(path.join(source, 'result.txt'), 'utf8'), 'native result\n');
     assert(!fs.existsSync(forbidden));
-    assert(!fs.existsSync(path.join(folder, 'forbidden-shell.txt')));
+    assert(!fs.existsSync(path.join(projectFolder, 'forbidden-shell.txt')));
     const shellReply = calls.flat().find(message => message.role === 'tool' && message.tool_call_id === 'call_fixture_1');
     assert(shellReply?.content.includes('fixture-shell-ok'), 'Missing native shell output: ' + JSON.stringify(shellReply));
     assert(shellReply.content.includes('git version'), 'Missing native Git command output');
@@ -170,6 +172,7 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
       console.error(JSON.stringify(proof));
     }
     fs.writeFileSync(path.join(output, 'opencode-delegation.json'), JSON.stringify(proof, null, 2));
+    if (projectFolder !== folder) fs.rmSync(projectFolder, {recursive:true, force:true});
   }
 }
 module.exports = {verifyOpenCodeDelegation};
