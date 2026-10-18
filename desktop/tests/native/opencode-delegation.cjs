@@ -12,7 +12,7 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
   const {loadBundle} = require(path.join(appRoot, 'runtime.cjs'));
   const python = loadBundle(bundle).python;
   const folder = path.join(process.platform==='win32'?fs.realpathSync.native(root):root, 'opencode-delegation');
-  const projectFolder = process.platform === 'win32' ? fs.mkdtempSync(path.join(os.homedir(), 'igorek-assignment-fixture-')) : folder;
+  const projectFolder = process.platform === 'win32' ? fs.mkdtempSync(path.join(os.userInfo().homedir, 'igorek-assignment-fixture-')) : folder;
   const source = path.join(projectFolder, 'source'), workspaceRoot = path.join(folder, 'tasks');
   const runID = 'oc_' + 'c'.repeat(32), calls = [], proof = {platform: process.platform};
   const forbidden = process.platform === 'win32' ? path.join(projectFolder, 'forbidden.txt') : '/usr/igorek-native-' + runID + '.txt';
