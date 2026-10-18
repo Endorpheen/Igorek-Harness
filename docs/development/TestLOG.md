@@ -1094,3 +1094,9 @@ Use [TESTING.md](../TESTING.md) for reproducible commands and coverage limits,
 - Russian/English editable and PNG before/after diagrams now identify the
   Windows pipe adapter; node labels fit their boxes. Windows cmd/x64/PowerShell
   limits are recorded in the architecture and matching release descriptions.
+- Fifth Windows native run confirms real Git/Node output and successful Git
+  snapshot operations with the data-home short alias (no prior init warning in
+  captured logs). The remaining negative shell check had invalid cmd quoting;
+  it now uses the equivalent relative path to the original synthetic source,
+  requiring Access Denied and no created file. Existing private file read/write
+  and Low-label DACL-modification denial assertions remain unchanged.

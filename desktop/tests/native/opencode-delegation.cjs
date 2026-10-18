@@ -49,7 +49,7 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
       if (tools.length && next === 0) await gate;
       const actions = [
         ['shell', {command: 'echo fixture-shell-ok && git --version' + (process.platform === 'win32' ?
-          ' && node --version && (echo forbidden>"' + path.join(source, 'forbidden-shell.txt') + '")' : '')}],
+          ' && node --version && (echo forbidden>..\\..\\..\\source\\forbidden-shell.txt)' : '')}],
         ['write', {path: forbidden, content: 'forbidden'}],
         ['write', {path: path.join(workspace, 'result.txt'), content: 'native result\n'}],
         ['question', {questions: [{question: 'Continue the synthetic fixture?', header: 'Fixture',
