@@ -1,0 +1,81 @@
+name: Wiki documentation
+
+on:
+  pull_request:
+    paths:
+      - 'docs/wiki/**'
+      - 'tools/wiki/**'
+      - '.github/workflows/wiki.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'docs/wiki/**'
+      - 'tools/wiki/**'
+      - '.github/workflows/wiki.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wiki-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Wiki / import, links and browser
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/wiki-browsers
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: '0.13.1'
+      - name: Install isolated locked documentation tools
+        run: |
+          uv venv "$RUNNER_TEMP/wiki-env" --python python3
+          uv pip sync --python "$RUNNER_TEMP/wiki-env/bin/python" --require-hashes docs/wiki/requirements.lock
+          echo "$RUNNER_TEMP/wiki-env/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/wiki-env/bin/python" -m playwright install --with-deps chromium
+      - name: Verify importer and build both languages
+        run: |
+          python -m unittest discover -s tools/wiki -p 'test_*.py' -v
+          mkdocs build --config-file docs/wiki/mkdocs.yml --strict
+          python tools/wiki/check.py
+      - name: Check diagrams, search, languages and mobile layout
+        run: python tools/wiki/browser_check.py
+      - name: Keep the reviewable site and verification reports
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: wiki-preview-and-checks
+          path: build/wiki
+          retention-days: 7
+      - name: Prepare Pages artifact
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
+        with:
+          path: build/wiki/site
+
+  deploy:
+    name: Publish approved Wiki
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && vars.WIKI_PUBLISH_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+      - name: Deploy the checked static site
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
