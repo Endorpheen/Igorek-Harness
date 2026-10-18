@@ -1063,3 +1063,12 @@ Use [TESTING.md](../TESTING.md) for reproducible commands and coverage limits,
   OS-denial text assertion needs the actual message shape before adjustment.
   Removed now-completed startup probes and enabled private per-process Git
   core.longpaths to prevent observed snapshot path-length failures.
+- Second native run: 41 passed/3 skipped, DLL cleanup now passes. The only
+  failure is the API contract assertion: actual Windows write tool returns
+  structured tool.execution / "Unable to write <path>", stripping Win32 code.
+  Acceptance now checks that exact error and independently attempts an outside
+  write through the shell, requiring the OS denial and absence of both files.
+  Per-service Git global config sets core.longpaths (environment-only setting
+  did not prevent snapshot init warnings). The sanitized environment retains
+  executable PATH; filesystem access still uses the restricted token. Windows
+  shell acceptance additionally runs the installed Node executable from PATH.

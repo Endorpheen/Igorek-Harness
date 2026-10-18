@@ -47,7 +47,8 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
       calls.push(payload.messages || []);
       if (tools.length && next === 0) await gate;
       const actions = [
-        ['shell', {command: 'echo fixture-shell-ok && git --version'}],
+        ['shell', {command: 'echo fixture-shell-ok && git --version' + (process.platform === 'win32' ?
+          ' && node -e "process.stdout.write(\'fixture-node-ok\')" && (echo forbidden>"' + path.join(source, 'forbidden-shell.txt') + '")' : '')}],
         ['write', {path: path.join(source, 'forbidden.txt'), content: 'forbidden'}],
         ['write', {path: path.join(workspace, 'result.txt'), content: 'native result\n'}],
         ['question', {questions: [{question: 'Continue the synthetic fixture?', header: 'Fixture',
@@ -115,8 +116,16 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
     assert.equal(proof.outcome, 'succeeded'); assert.equal(next, 4); assert(proof.native_question_roundtrip);
     assert.equal(fs.readFileSync(path.join(workspace, 'result.txt'), 'utf8'), 'native result\n');
     assert(!fs.existsSync(path.join(source, 'forbidden.txt'))); assert(!fs.existsSync(path.join(source, 'result.txt')));
+    assert(!fs.existsSync(path.join(source, 'forbidden-shell.txt')));
     assert(calls.some(messages => JSON.stringify(messages).includes('fixture-shell-ok')));
-    assert(calls.some(messages => /EACCES|EPERM|Permission denied|Access is denied|os error (5|13)/i.test(JSON.stringify(messages))), 'Outside write did not report an OS denial: ' + JSON.stringify(calls.at(-1)).slice(-6000));
+    if (process.platform === 'win32') assert(calls.some(messages => JSON.stringify(messages).includes('fixture-node-ok')));
+    const outsideReply = calls.flat().find(message => message.role === 'tool' && message.tool_call_id === 'call_fixture_2');
+    assert(outsideReply, 'Missing outside-write tool result');
+    const outsideError = JSON.parse(outsideReply.content).error;
+    assert.equal(outsideError.type, 'tool.execution');
+    assert.equal(outsideError.message, 'Unable to write ' + path.join(source, 'forbidden.txt'));
+    if (process.platform === 'win32') assert(calls.some(messages => /Access is denied|Access denied|os error 5/i.test(JSON.stringify(messages))),
+      'Outside shell write did not report an OS denial: ' + JSON.stringify(calls.at(-1).filter(message => message.role === 'tool')).slice(-6000));
     proof.source_isolation = true;
     assert(JSON.parse(workspaceAction('apply')).applied);
     assert.equal(fs.readFileSync(path.join(source, 'result.txt'), 'utf8'), 'native result\n'); proof.result_applied = true;

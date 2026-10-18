@@ -74,9 +74,11 @@ def main(config):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     directory = module.profile_config_directory(profiles, profiles['port'], service / 'home' / 'config', service / 'config', {})
+    git_config = service / 'home' / '.gitconfig'
+    git_config.write_text('[core]\n\tlongpaths = true\n', encoding='utf-8')
     environment = {'SystemRoot': os.environ['SystemRoot'], 'WINDIR': os.environ['SystemRoot'],
         'COMSPEC': str(Path(os.environ['SystemRoot']) / 'System32' / 'cmd.exe'),
-        'PATH': str(Path(os.environ['SystemRoot']) / 'System32'),
+        'PATH': os.environ.get('PATH') or str(Path(os.environ['SystemRoot']) / 'System32'),
         'HOME': str(service / 'home'), 'USERPROFILE': str(service / 'home'),
         'APPDATA': str(service / 'home'), 'LOCALAPPDATA': str(service / 'home'),
         'TEMP': str(service / 'tmp'), 'TMP': str(service / 'tmp'),
@@ -84,6 +86,7 @@ def main(config):
         'XDG_CACHE_HOME': str(service / 'cache'), 'OPENCODE_CONFIG_DIR': directory,
         'OPENCODE_DISABLE_AUTOUPDATE': '1', 'OPENCODE_DISABLE_MODELS_FETCH': '1',
         'OPENCODE_SERVER_PASSWORD': config['password'],
+        'GIT_CONFIG_GLOBAL': str(git_config),
         'GIT_CONFIG_COUNT': '1', 'GIT_CONFIG_KEY_0': 'core.longpaths', 'GIT_CONFIG_VALUE_0': 'true'}
     git = shutil.which('git')
     if git:
