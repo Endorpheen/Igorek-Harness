@@ -947,3 +947,12 @@ Use [TESTING.md](../TESTING.md) for reproducible commands and coverage limits,
   the listening address. Enabled temporary debug logging in the unreleased
   Windows candidate and bounded/redacted collection of its own log files.
   Debug verbosity must return to normal before a release is accepted.
+
+- The debug trace isolated the first failure: FileSystem.realPath failed on
+  lstat of the workspace's AppData ancestor (EPERM). Added a restricted-token
+  access probe and temporary, non-inheriting READ_ATTRIBUTES/TRAVERSE grants
+  only for inaccessible ancestor directories. Directory listing and file-data
+  access are not included; the private-read/write denial tests remain required.
+  Native acceptance also compares ancestor DACLs before and after both sandbox
+  modes. Normal product logging is restored; extra tracing is explicit and used
+  only by the synthetic fixture.

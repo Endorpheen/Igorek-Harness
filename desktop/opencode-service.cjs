@@ -51,11 +51,11 @@ function run(command,args,options={}){
   });
 }
 class OpenCodeService extends EventEmitter{
-  constructor(root,{python='/usr/bin/python3',script=path.join(__dirname,'opencode-sandbox.py'),bundle=path.join(__dirname,'runtime'),hostServicesControl=null,profilesControl=null,binaryRoot=null,ownedWorkspace=null}={}){
+  constructor(root,{python='/usr/bin/python3',script=path.join(__dirname,'opencode-sandbox.py'),bundle=path.join(__dirname,'runtime'),hostServicesControl=null,profilesControl=null,binaryRoot=null,ownedWorkspace=null,diagnostics=false}={}){
     super();this.root=root;this.python=python;this.script=script;this.bundle=bundle;this.state='stopped';this.error='';this.child=null;this.starting=null;this.generation=0;
     this.hostServicesControl=hostServicesControl;this.hostServicesGrant=null;this.profilesControl=profilesControl;this.profilesGrant=null;
     this.binaryRoot=binaryRoot||path.join(root,'bin');
-    this.ownedWorkspace=ownedWorkspace;
+    this.ownedWorkspace=ownedWorkspace;this.diagnostics=diagnostics===true;
     fs.mkdirSync(root,{recursive:true,mode:0o700});fs.chmodSync(root,0o700);
     this.file=path.join(root,'connection.json');
     this.config={mode:'sandbox',projects:[],port:0,enabled:true};
@@ -166,7 +166,7 @@ class OpenCodeService extends EventEmitter{
         const finish=error=>{clearTimeout(timer);error?reject(error):resolve();};
         child.once('error',()=>finish(Error('Не удалось запустить изоляцию OpenCode.')));child.once('exit',()=>finish(Error('Sandbox недоступен. Запуск без изоляции запрещён.')));
         child.stdout.on('data',chunk=>{pending+=chunk;if(pending.length>4096)return finish(Error('Некорректный ответ sandbox.'));if(pending.includes('\n')){try{const result=JSON.parse(pending.trim());if(result.ready===true){if(windows){if(!Number.isInteger(result.port)||result.port<1||result.port>65535)throw Error('port');this.windowsPort=result.port;}finish();}else finish(Error('Sandbox недоступен.'));}catch{finish(Error('Sandbox недоступен.'));}}});
-        child.stdin.write(JSON.stringify({mode:this.config.mode,password:this.password,bridge:sandbox?'/run/igorek':this.bridge,projects:this.config.projects,vm:this.config.vm,bundle:this.bundle,profiles:sandbox?this.profilesGrant:null,root:this.root,binary_root:this.binaryRoot,owned_workspace:!!this.ownedWorkspace})+'\n');
+        child.stdin.write(JSON.stringify({mode:this.config.mode,password:this.password,bridge:sandbox?'/run/igorek':this.bridge,projects:this.config.projects,vm:this.config.vm,bundle:this.bundle,profiles:sandbox?this.profilesGrant:null,root:this.root,binary_root:this.binaryRoot,owned_workspace:!!this.ownedWorkspace,diagnostics:this.diagnostics})+'\n');
       });
       let ready=false;
       for(let attempt=0;attempt<120&&this.child===child;attempt++){

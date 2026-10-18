@@ -33,7 +33,7 @@ def test_windows_opencode_restricted_process_files_network_and_job(tmp_path):
     import shutil
     import ctypes
     from ctypes import wintypes as W
-    from factory.core.platform_support.windows_security import protect_directory
+    from factory.core.platform_support.windows_security import protect_directory, read_dacl
     from factory.core.platform_support.windows_sandbox import WindowsSandbox
 
     root = tmp_path / 'sandbox'
@@ -81,6 +81,7 @@ time.sleep(60)
 '''
     environment = {'SystemRoot': os.environ['SystemRoot'], 'WINDIR': os.environ['SystemRoot'],
                    'PATH': str(Path(os.environ['SystemRoot']) / 'System32'), 'TEMP': str(workspace), 'TMP': str(workspace)}
+    ancestor_acls = {path: read_dacl(path, directory=True) for path in root.parents}
     sandbox = WindowsSandbox(root, writable=[workspace])
     try:
         with open(os.devnull, 'rb') as incoming, (tmp_path / 'stdout').open('wb') as output, (tmp_path / 'stderr').open('wb') as errors:
@@ -111,7 +112,7 @@ time.sleep(60)
         server.shutdown()
         server.server_close()
     assert (outside / 'canary.txt').read_text(encoding='utf-8') == 'private fixture'
-    from factory.core.platform_support.windows_security import read_dacl
+    assert all(read_dacl(path, directory=True) == acl for path, acl in ancestor_acls.items())
     before = read_dacl(outside / 'canary.txt')
     manual = WindowsSandbox(root, writable=[workspace], manual_projects=[outside])
     try:
@@ -125,6 +126,7 @@ time.sleep(60)
         manual.close()
     assert (outside / 'canary.txt').read_text(encoding='utf-8') == 'manual edit'
     assert read_dacl(outside / 'canary.txt') == before
+    assert all(read_dacl(path, directory=True) == acl for path, acl in ancestor_acls.items())
 
 
 @pytest.mark.skipif(sys.platform != 'win32', reason='Native Windows profile capability transport')

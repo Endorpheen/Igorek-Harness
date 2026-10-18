@@ -18,7 +18,10 @@ a separate profile capability. Linux uses bubblewrap mounts and a private
 network namespace. Windows uses a restricted token, low mandatory integrity,
 a private desktop, explicit inherited standard handles and a kill-on-close
 process Job Object. The Windows runner grants writes to its disposable workspace
-and service data; it does not add write grants to the original project. It opens that exact session in the existing
+and service data; it does not add write grants to the original project. Where
+required, it grants non-inheriting metadata/traversal access to ancestor
+directories so native path resolution works, without listing their contents.
+These temporary grants are revoked when the process sandbox closes. It opens that exact session in the existing
 right panel. The session title is `Поручение: <title>`; no extra panel or status
 bar is added. Opening OpenCode manually restores its original service and saved
 navigation. Manual service configuration and running sessions are preserved.

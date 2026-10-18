@@ -71,6 +71,7 @@ class WindowsSandbox:
         self.user = ctypes.WinDLL('user32', use_last_error=True)
         self.handles = []
         self.allocations = []
+        self.transit = []
         self.process = None
         self.thread = None
         self.desktop = None
@@ -79,6 +80,7 @@ class WindowsSandbox:
         self.capability = 'S-1-5-21-' + '-'.join(str(secrets.randbits(30) + 1) for _ in range(4))
         try:
             self._token()
+            self._transit_grants()
             self._grant(self.root, writable=False)
             for item in self.readable:
                 self._grant(item, writable=False)
@@ -119,6 +121,9 @@ class WindowsSandbox:
         self.merge_acl = bind(self.security, 'SetEntriesInAclW', D, [D, ctypes.POINTER(ExplicitAccess), P, ctypes.POINTER(P)])
         self.create_process = bind(self.security, 'CreateProcessAsUserW', B,
             [H, W.LPCWSTR, W.LPWSTR, P, P, B, D, P, W.LPCWSTR, ctypes.POINTER(StartupEx), ctypes.POINTER(ProcessInfo)])
+        self.impersonate = bind(self.security, 'ImpersonateLoggedOnUser', B, [H])
+        self.revert = bind(self.security, 'RevertToSelf', B, [])
+        self.open_file = bind(self.kernel, 'CreateFileW', H, [W.LPCWSTR, D, D, P, D, D, H])
         self.current_process = bind(self.kernel, 'GetCurrentProcess', H, [])
         self.close_handle = bind(self.kernel, 'CloseHandle', B, [H])
         self.local_free = bind(self.kernel, 'LocalFree', P, [P])
@@ -226,28 +231,52 @@ class WindowsSandbox:
                 if error:
                     raise ctypes.WinError(error)
 
-    def _manual_grant(self, root, *, revoke=False):
-        root = Path(root)
-        values = self._paths(root, ignore_reparse=revoke)
-        for path in values:
-            descriptor, existing, updated = ctypes.c_void_p(), ctypes.c_void_p(), ctypes.c_void_p()
-            error = self.get_named_security(str(path), 1, 4, None, None, ctypes.byref(existing), None, ctypes.byref(descriptor))
-            if error:
-                if revoke:
-                    continue
+    def _path_grant(self, path, permissions, inheritance, *, revoke=False):
+        descriptor, existing, updated = ctypes.c_void_p(), ctypes.c_void_p(), ctypes.c_void_p()
+        error = self.get_named_security(str(path), 1, 4, None, None, ctypes.byref(existing), None, ctypes.byref(descriptor))
+        if error:
+            if revoke:
+                return
+            raise ctypes.WinError(error)
+        try:
+            entry = ExplicitAccess(0 if revoke else permissions, 4 if revoke else 1, inheritance,
+                                   Trustee(None, 0, 0, 0, self._sid(self.capability)))
+            error = self.merge_acl(1, ctypes.byref(entry), existing, ctypes.byref(updated))
+            if not error:
+                error = self.set_named_security(str(path), 1, 4, None, None, updated, None)
+            if error and not revoke:
                 raise ctypes.WinError(error)
-            try:
-                entry = ExplicitAccess(0 if revoke else 0x1301BF, 4 if revoke else 1, 3,
-                                       Trustee(None, 0, 0, 0, self._sid(self.capability)))
-                error = self.merge_acl(1, ctypes.byref(entry), existing, ctypes.byref(updated))
-                if not error:
-                    error = self.set_named_security(str(path), 1, 4, None, None, updated, None)
-                if error and not revoke:
-                    raise ctypes.WinError(error)
-            finally:
-                for pointer in (descriptor, updated):
-                    if pointer:
-                        self.local_free(pointer)
+        finally:
+            for pointer in (descriptor, updated):
+                if pointer:
+                    self.local_free(pointer)
+
+    def _metadata_access(self, path):
+        self._check(self.impersonate(self.token))
+        try:
+            handle = self.open_file(str(path), 0x80, 7, None, 3, 0x02200000, None)
+            if handle == ctypes.c_void_p(-1).value:
+                error = ctypes.get_last_error()
+                if error == 5:
+                    return False
+                raise ctypes.WinError(error)
+            self.close_handle(handle)
+            return True
+        finally:
+            self._check(self.revert())
+
+    def _transit_grants(self):
+        for path in self.root.parents:
+            if self._metadata_access(path):
+                continue
+            self._path_grant(path, 0x1000A0, 0)
+            self.transit.append(path)
+            if not self._metadata_access(path):
+                raise PermissionError('windows_sandbox_ancestor_metadata_denied')
+
+    def _manual_grant(self, root, *, revoke=False):
+        for path in self._paths(Path(root), ignore_reparse=revoke):
+            self._path_grant(path, 0x1301BF, 3, revoke=revoke)
 
     @staticmethod
     def _paths(root, *, ignore_reparse=False):
@@ -338,6 +367,9 @@ class WindowsSandbox:
         self.job = self.process = self.thread = None
         for project in self.manual_projects:
             self._manual_grant(project, revoke=True)
+        for path in reversed(self.transit):
+            self._path_grant(path, 0x1000A0, 0, revoke=True)
+        self.transit.clear()
         if self.desktop:
             self.close_desktop(self.desktop)
             self.desktop = None

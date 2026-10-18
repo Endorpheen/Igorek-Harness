@@ -73,7 +73,7 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
     const manual = new OpenCodeService(path.join(folder, 'manual'), {python, bundle});
     await manual.install(); manual.config.projects = [source];
     controller = new OpenCodeTasks({manual, root: path.join(folder, 'services'), workspaceRoot, allowed: () => true,
-      createService: (serviceRoot, ownedWorkspace, consumer) => {assert.equal(consumer, runID); const service = new OpenCodeService(serviceRoot, {python, bundle,
+      createService: (serviceRoot, ownedWorkspace, consumer) => {assert.equal(consumer, runID); const service = new OpenCodeService(serviceRoot, {python, bundle, diagnostics: true,
         ownedWorkspace, binaryRoot: manual.binaryRoot, profilesControl: async operation => operation === 'grant' ? {
           socket, ...(process.platform === 'win32' ? {port: provider.address().port} : {}), token: 'd'.repeat(64),
           profiles: [{id: 'fixture-id', name: 'fixture', model: 'fixture-model', api_format: 'openai', context: 32768}],
