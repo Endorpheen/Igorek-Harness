@@ -1,3 +1,12 @@
+## 2026-10-18 — Direct OpenCode assignments (0.2.11 in preparation)
+
+- Reproduced the reported 0.2.10 admission failure at the project-snapshot boundary. The old whole-project copy/transfer design is replaced by explicitly selected direct project execution; legacy snapshot utilities and their compatibility tests remain unchanged and are not called for new assignments.
+- Targeted Python delegation regressions: 22 passed, including no-copy admission with a 10 GiB sparse Linux file, internal relative/absolute links, direct cancellation, legacy restart recovery, active-writer exclusion, read-only normal/forced/pending tool dispatch and unchanged unrelated project execution.
+- Initial fixture failures were corrected: a nonexistent registry test filename collected no tests; new executor fixtures initially lacked their artifact directory. Sandbox-denied local socket fixtures were rerun with process permissions rather than skipped. The previous focused set passed 64 tests with 6 existing Windows-only skips and 3 subtests; final broader verification is pending.
+- Native Linux OpenCode 2.0.27 API fixture passed: original file visible while its question was pending, exact typed form reply, native question round trip, relative/absolute source links, external write denial, no project/baseline repository and no OpenCode snapshot store despite project `snapshots:true`. This is a real process with synthetic provider responses; it does not establish real-provider or native-panel acceptance. An initial npm registry TLS reset was bypassed using the previously SHA-512-verified pinned binary cache, without weakening HTTPS validation.
+- RU/EN editable SVG and matching PNG architecture diagrams now compare copy/transfer with direct original-project execution and the runtime read-only guard. Both PNGs visually inspected.
+- Initial Windows native admission failed before session creation because the synthetic project was inside AppData/Local/Temp, which the normal original-project selector rejects. The fixture now creates and cleans a separate temporary project under the user profile; production path restrictions are unchanged. The next fixture run exposed a missing parent directory after separating project/service roots; recursive creation fixes that setup error. Further Windows diagnostics confirmed the project-selector rejection: pytest overrides HOME/USERPROFILE with a temporary AppData path, so os.homedir() still selected protected application data. The fixture now uses the OS account profile from os.userInfo().homedir for its temporary project; path restrictions remain unchanged. Synthetic startup diagnostics retain the exact exception and selection inputs. The corrected Windows native API step passed and the installer built; native Electron acceptance then reached fixture cleanup after the OpenCode assertions and failed at synchronous removal with EPERM. Cleanup now awaits asynchronous removal with bounded retries so native handles can close before deleting only the synthetic project. Final Windows execution, hosted Python coverage, clean installers and publication for this source revision are pending. Complete local desktop tests passed (365 tests), native Linux baseline UI passed nine stages, and a synthetic 0.2.10 → 0.2.11 update retained Vault/settings/previous generation. No owner app/service was stopped, installed over or restarted; no agent tasks were launched.
+
 # Test results
 
 ## 0.2.10 preview — independent OpenCode delegation
@@ -1100,3 +1109,67 @@ Use [TESTING.md](../TESTING.md) for reproducible commands and coverage limits,
   it now uses the equivalent relative path to the original synthetic source,
   requiring Access Denied and no created file. Existing private file read/write
   and Low-label DACL-modification denial assertions remain unchanged.
+
+### 2026-10-18 — OpenCode delegation 0.2.10 release acceptance
+
+- All 11 required checks passed on public head `48c0214d2ed6d68a49e222849532b3ab8ca18978`.
+  PR 33 merged normally through the protected branch as
+  `571d14a96d44f46ae29c7f165024a8ef1f9ad1cd`. Its tree matches canonical
+  `f75222294e44c379b1758ed274c2696edb324730` and the Windows CI merge tree.
+- Both Python roots ran on Python 3.13 and 3.14: 4,886 collected (99 under
+  `factory/tests`, 4,787 under `tests`), 4,851 passed, 35 skipped, zero failures
+  or errors, and 630 passing subtests per interpreter. Skips comprise six
+  Windows-only contracts, ten existing TUI running-state fixtures, eighteen
+  KVM/vsock/namespace-dependent checks and one live-provider regression.
+  Skipped VM, vsock and namespace checks are not acceptance passes.
+- Python 3.13 coverage: 46,615/79,076 statements and 13,073/28,258 branches;
+  combined coverage 55.6096%. Python 3.14: 46,609/79,070 statements and
+  13,017/28,258 branches; combined coverage 55.5549%. These figures do not
+  measure native C++ adapter line coverage. Desktop contracts passed on Linux
+  and Windows; the final local desktop run passed all 364 tests. Android unit,
+  lint and debug build passed without Android source/version changes.
+- Windows Server 2025 x64 acceptance passed restricted filesystem access,
+  private Low-label read/DACL-change denial, captured nested Node/Git output,
+  job termination, clipboard denial, manual project editing and exact ACL
+  restoration. The actual NSIS installer, reinstallation, updater invocation,
+  retained synthetic data and packaged relaunch passed with spaces/Unicode.
+  The native UI passed all nine baseline stages plus live OpenCode right-panel
+  navigation, nonblocking execution, exact form/question replies, denied outside
+  writes, independent task work and checked result application.
+- Linux native acceptance passed all nine baseline stages, history/restart,
+  approvals, owner forms and release notes. Local acceptance with the fresh
+  runtime used the existing machine-local AppArmor permission for a byte-identical
+  Electron 44.7.0 executable, with Chromium sandbox enabled. An initial
+  sandbox-disabled synthetic GUI run was not counted as sandbox acceptance.
+  The separate real OpenCode 2.0.27 fixture passed shell execution, owner input,
+  an immutable outside-write target, independent work and result application.
+- Built fresh runtime, snapshot, DEB, AppImage and wheel from clean canonical
+  sources. The release wheel hash matches the runtime wheel hash. Extracted
+  AppImage verification matched 6,406 manifest entries; the same six build-only
+  omissions (static libraries, Python object and build ignore file) remain.
+  Extracted Windows installer verification matched all 2,748 manifest entries.
+  All application/backend sources and all 433 actual project-wheel files match;
+  no private data was included. Initial inventory scripts incorrectly assumed
+  that non-packaged source examples/tests were installed; verification was
+  corrected to compare the actual wheel inventory. No package exclusion or
+  acceptance assertion was removed to obtain a pass.
+- A synthetic 0.2.9 to 0.2.10 DEB update retained the encrypted Vault connection,
+  release-note preferences and previous generation, and installed the exact new
+  source bytes. The old 0.2.9 public updater subsequently discovered 0.2.10 for
+  DEB, AppImage and Windows and downloaded the public DEB with the same verified
+  SHA-256 as that tested update.
+- Published preview `v0.2.10` on GitHub and the canonical Gitea mirror with the
+  same ten assets: three desktop installers, wheel, four Russian/English PNG/SVG
+  diagrams, build manifest and checksums. Published descriptions, tags, asset
+  inventory and digests were read back. GitHub tag targets the protected merge;
+  Gitea tag targets the canonical source commit. Published diagram bytes and
+  their release links were verified. The legacy gh GraphQL PR-edit operation
+  failed because of deprecated Projects; the final description was applied and
+  read through REST instead.
+- Windows remains an unsigned preview tested on Server 2025. Physical Windows
+  11 acceptance is pending. Windows commands use cmd.exe and x64 children;
+  PowerShell, x86 children, Linux network namespaces, KVM and host-services MCP
+  are outside Windows support in this version. Android remains 0.1.106 (107),
+  with no new APK. Users must restart the application/runtime and chat after
+  updating; the running owner installation and services were not replaced by
+  these synthetic checks.

@@ -24,7 +24,7 @@ factory = [
 
 [project]
 name = "igorek-agent-factory"
-version = "0.2.10"
+version = "0.2.11"
 description = "A personal AI agent workspace with desktop, mobile and terminal interfaces"
 readme = "README.md"
 license = "Apache-2.0"

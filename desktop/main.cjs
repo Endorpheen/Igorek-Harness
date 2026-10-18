@@ -872,8 +872,8 @@ app.whenReady().then(async () => {
         }});
         opencodeWorkspace=new OpenCodeWorkspace({root:join(app.getPath('userData'),'browser-profiles','opencode'),service:opencodeService,BrowserWindow,WebContentsView,session:electronSession,dialog,shell,overlayActive:parent=>sessionOverlays.has(parent)});
         opencodeTasks=new OpenCodeTasks({manual:opencodeService,root:join(app.getPath('userData'),'integrations','opencode-tasks'),
-          workspaceRoot:join(runtime.dataDir,'opencode-tasks'),allowed:()=>opencodeUnlocked,
-          createService:(root,workspace,consumer)=>new OpenCodeService(root,{python:opencodeService.python,bundle:opencodeService.bundle,binaryRoot:opencodeService.binaryRoot,ownedWorkspace:workspace,
+          allowed:()=>opencodeUnlocked,
+          createService:(root,assignedProject,consumer)=>new OpenCodeService(root,{python:opencodeService.python,bundle:opencodeService.bundle,binaryRoot:opencodeService.binaryRoot,assignedProject,
             profilesControl:(operation,value)=>opencodeService.profilesControl(operation,operation==='grant'?{consumer}:value)}),
           show:async job=>{
             const route=sessionRoute(job);

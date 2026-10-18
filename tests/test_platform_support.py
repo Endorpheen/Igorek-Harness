@@ -265,8 +265,8 @@ def test_windows_opencode_native_assignment_api(windows_owned_root, windows_pipe
                             encoding='utf-8', errors='replace', capture_output=True, timeout=105)
     assert result.returncode == 0, result.stdout[-2000:] + result.stderr[-18000:]
     proof = json.loads((output / 'opencode-delegation.json').read_text())
-    assert proof['passed'] and proof['nonblocking_start'] and proof['source_isolation']
-    assert proof['exact_form_reply'] and proof['native_question_roundtrip'] and proof['result_applied']
+    assert proof['passed'] and proof['nonblocking_start'] and proof['project_boundary'] and proof['no_project_copy'] and proof['snapshots_disabled']
+    assert proof['exact_form_reply'] and proof['native_question_roundtrip'] and proof['live_source_edit']
 
 
 class PlatformFiles(unittest.TestCase):

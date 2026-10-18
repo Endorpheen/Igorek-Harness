@@ -17,6 +17,8 @@ Anthropic input_schema format tools.
 
 import json
 import logging
+from contextlib import ExitStack
+from threading import RLock
 from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
@@ -54,6 +56,8 @@ class ToolRegistry:
 
     def __init__(self) -> None:
         self._tools: dict[str, ToolEntry] = {}
+        self._execution_guards = []
+        self._guards_lock = RLock()
         self._toolset_checks: dict[str, Callable] = {}
 
     # ------------------------------------------------------------------
@@ -137,6 +141,27 @@ class ToolRegistry:
     # Dispatch
     # ------------------------------------------------------------------
 
+    def add_execution_guard(self, guard) -> None:
+        with self._guards_lock:
+            if guard not in self._execution_guards:
+                self._execution_guards.append(guard)
+
+    def remove_execution_guard(self, guard) -> None:
+        with self._guards_lock:
+            if guard in self._execution_guards:
+                self._execution_guards.remove(guard)
+
+    def execution_guards(self):
+        with self._guards_lock:
+            return tuple(self._execution_guards)
+
+    def execution_error(self, name, args, **context):
+        for guard in self.execution_guards():
+            error = guard.policy_error(name, args, context)
+            if error:
+                return error
+        return None
+
     def dispatch(self, name: str, args: dict[str, Any], **kwargs: Any) -> str:
         """Execute a tool handler by name.
 
@@ -147,7 +172,12 @@ class ToolRegistry:
         if not entry:
             return json.dumps({"error": f"Unknown tool: {name}"})
         try:
-            return entry.handler(args, **kwargs)
+            with ExitStack() as stack:
+                for guard in self.execution_guards():
+                    error = stack.enter_context(guard.lease(name, args, kwargs))
+                    if error:
+                        return json.dumps(error, ensure_ascii=False)
+                return entry.handler(args, **kwargs)
         except Exception as e:
             logger.error("Tool %s dispatch error: %s: %s", name, type(e).__name__, e)
             return json.dumps(

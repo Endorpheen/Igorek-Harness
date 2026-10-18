@@ -1,5 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const os = require('node:os');
 const http = require('node:http');
 const assert = require('node:assert/strict');
 const {execFileSync} = require('node:child_process');
@@ -11,22 +12,20 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
   const {loadBundle} = require(path.join(appRoot, 'runtime.cjs'));
   const python = loadBundle(bundle).python;
   const folder = path.join(process.platform==='win32'?fs.realpathSync.native(root):root, 'opencode-delegation');
-  const source = path.join(folder, 'source'), workspaceRoot = path.join(folder, 'tasks');
+  const projectFolder = process.platform === 'win32' ? fs.mkdtempSync(path.join(os.userInfo().homedir, 'igorek-assignment-fixture-')) : folder;
+  const source = path.join(projectFolder, 'source'), workspaceRoot = path.join(folder, 'tasks');
   const runID = 'oc_' + 'c'.repeat(32), calls = [], proof = {platform: process.platform};
-  const forbidden = process.platform === 'win32' ? path.join(source, 'forbidden.txt') : '/usr/igorek-native-' + runID + '.txt';
-  fs.mkdirSync(source, {recursive: true}); fs.mkdirSync(workspaceRoot);
+  const forbidden = process.platform === 'win32' ? path.join(projectFolder, 'forbidden.txt') : '/usr/igorek-native-' + runID + '.txt';
+  fs.mkdirSync(source, {recursive: true}); fs.mkdirSync(workspaceRoot, {recursive:true});
   fs.writeFileSync(path.join(source, 'source.txt'), 'original\n');
+  fs.writeFileSync(path.join(source, 'opencode.jsonc'), JSON.stringify({snapshots:true}));
+  fs.symlinkSync('source.txt', path.join(source, 'source-link.txt'), 'file');
+  fs.symlinkSync(path.join(source, 'source.txt'), path.join(source, 'absolute-source-link.txt'), 'file');
   execFileSync('git', ['init', '--initial-branch=main'], {cwd: source, stdio: 'ignore'});
   execFileSync('git', ['add', 'source.txt'], {cwd: source});
   execFileSync('git', ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
     '-c', 'core.hooksPath=' + path.join(folder, 'absent-hooks'), '-c', 'commit.gpgsign=false',
     'commit', '-m', 'Create native fixture'], {cwd: source, stdio: 'ignore'});
-  function workspaceAction(action) {
-    return execFileSync(python, ['-I', '-c',
-      "import sys,json;from pathlib import Path;sys.path.insert(0,sys.argv[1]);from factory.core.opencode_workspace import prepare,apply_result; result=(prepare if sys.argv[4]=='prepare' else apply_result)(sys.argv[2],Path(sys.argv[3]));print(str(result) if sys.argv[4]=='prepare' else json.dumps(result))",
-      path.join(bundle, 'packages'), source, path.join(workspaceRoot, runID), action], {encoding: 'utf8', timeout: 60000}).trim();
-  }
-  const workspace = workspaceAction('prepare');
   let release, next = 0, controller, view, parent; const services = [];
   const originalRequest = http.request;
   http.request = function(options, callback) {
@@ -48,10 +47,11 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
       calls.push(payload.messages || []);
       if (tools.length && next === 0) await gate;
       const actions = [
-        ['shell', {command: 'echo fixture-shell-ok && git --version' + (process.platform === 'win32' ?
-          ' && node --version && (echo forbidden>..\\..\\..\\source\\forbidden-shell.txt)' : '')}],
+        ['shell', {command: 'echo fixture-shell-ok && git --version && ' + (process.platform === 'win32' ?
+          'type source-link.txt && type absolute-source-link.txt' : 'cat source-link.txt absolute-source-link.txt') + (process.platform === 'win32' ?
+          ' && node --version && (echo forbidden>..\\forbidden-shell.txt)' : '')}],
         ['write', {path: forbidden, content: 'forbidden'}],
-        ['write', {path: path.join(workspace, 'result.txt'), content: 'native result\n'}],
+        ['write', {path: path.join(source, 'result.txt'), content: 'native result\n'}],
         ['question', {questions: [{question: 'Continue the synthetic fixture?', header: 'Fixture',
           options: [{label: 'Proceed', description: 'Continue the fixture'}]}]}],
       ];
@@ -75,8 +75,12 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
     const manual = new OpenCodeService(path.join(folder, 'manual'), {python, bundle});
     await manual.install(); manual.config.projects = [source];
     controller = new OpenCodeTasks({manual, root: path.join(folder, 'services'), workspaceRoot, allowed: () => true,
-      createService: (serviceRoot, ownedWorkspace, consumer) => {assert.equal(consumer, runID); const service = new OpenCodeService(serviceRoot, {python, bundle, diagnostics: true,
-        ownedWorkspace, binaryRoot: manual.binaryRoot, profilesControl: async operation => operation === 'grant' ? {
+      createService: (serviceRoot, assignedProject, consumer) => {assert.equal(consumer, runID);
+        proof.project_selection = {directory:assignedProject, service_root:serviceRoot, home:os.homedir(),
+          is_directory:fs.statSync(assignedProject).isDirectory(),
+          protected_environment_roots:Object.fromEntries(['SystemRoot','ProgramFiles','ProgramData','APPDATA','LOCALAPPDATA'].map(key=>[key,process.env[key]||null]))};
+        const service = new OpenCodeService(serviceRoot, {python, bundle, diagnostics: true,
+        assignedProject, binaryRoot: manual.binaryRoot, profilesControl: async operation => operation === 'grant' ? {
           socket, ...(process.platform === 'win32' ? {port: provider.address().port} : {}), token: 'd'.repeat(64),
           profiles: [{id: 'fixture-id', name: 'fixture', model: 'fixture-model', api_format: 'openai', context: 32768}],
         } : {revoked: true}});services.push(service);service.on('state',value=>{if(value.error)proof.service_error=value.error;});return service;},
@@ -90,7 +94,12 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
           session, dialog: {showMessageBox: async () => ({response: 1})}, shell: {}});
         view.path = sessionRoute(job); view.unlock(); await view.show(parent);
       }});
-    const started = await controller.handle({action: 'start', run_id: runID, source, workspace, title: 'Native fixture',
+    const originalStart = controller.start.bind(controller);
+    controller.start = async fields => {
+      try { return await originalStart(fields); }
+      catch (error) { proof.start_error = {name:error.name, message:error.message}; throw error; }
+    };
+    const started = await controller.handle({action: 'start', run_id: runID, source, execution_mode:'direct', title: 'Native fixture',
       goal: 'Execute the synthetic filesystem fixture.', profile: 'fixture', session: 'chat-fixture'});
     assert(started.session_id, JSON.stringify({started,diagnostics:proof})); proof.nonblocking_start = true;
     if(parent)assert.equal(await parent.webContents.executeJavaScript("document.getElementById('main-chat').textContent"), 'Synthetic main chat remains available');
@@ -109,19 +118,24 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
         const answer = input.kind === 'permission' ? {decision: 'once'} : Object.fromEntries(input.fields.map(field =>
           [field.key, field.type === 'multiselect' ? [field.options[0].value] : field.options?.[0]?.value || 'Proceed']));
         assert.equal((await controller.handle({action: 'answer', run_id: runID, request_id: input.id, response: {answer}})).resolved, true);
-        if (input.kind === 'form') proof.native_question_roundtrip = true;
+        if (input.kind === 'form') {
+          assert.equal(fs.readFileSync(path.join(source, 'result.txt'), 'utf8'), 'native result\n');
+          assert.equal(status.outcome, null);
+          proof.live_source_edit = true;
+          proof.native_question_roundtrip = true;
+        }
       }
       if (status.outcome) { proof.outcome = status.outcome; break; }
       await new Promise(resolve => setTimeout(resolve, 250));
     }
     assert.equal(proof.outcome, 'succeeded'); assert.equal(next, 4); assert(proof.native_question_roundtrip);
-    assert.equal(fs.readFileSync(path.join(workspace, 'result.txt'), 'utf8'), 'native result\n');
-    assert(!fs.existsSync(path.join(source, 'forbidden.txt'))); assert(!fs.existsSync(path.join(source, 'result.txt')));
+    assert.equal(fs.readFileSync(path.join(source, 'result.txt'), 'utf8'), 'native result\n');
     assert(!fs.existsSync(forbidden));
-    assert(!fs.existsSync(path.join(source, 'forbidden-shell.txt')));
+    assert(!fs.existsSync(path.join(projectFolder, 'forbidden-shell.txt')));
     const shellReply = calls.flat().find(message => message.role === 'tool' && message.tool_call_id === 'call_fixture_1');
     assert(shellReply?.content.includes('fixture-shell-ok'), 'Missing native shell output: ' + JSON.stringify(shellReply));
     assert(shellReply.content.includes('git version'), 'Missing native Git command output');
+    assert((shellReply.content.match(/original/g) || []).length >= 2, 'Native process could not read the original file links');
     if (process.platform === 'win32') assert(/^v\d+\.\d+\.\d+/m.test(shellReply.content), 'Missing native Node command output: ' + JSON.stringify(shellReply));
     const outsideReply = calls.flat().find(message => message.role === 'tool' && message.tool_call_id === 'call_fixture_2');
     assert(outsideReply, 'Missing outside-write tool result');
@@ -130,9 +144,17 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
     assert.equal(outsideError.message, 'Unable to write ' + forbidden);
     if (process.platform === 'win32') assert(/Access is denied|Access denied|os error 5/i.test(shellReply.content),
       'Outside shell write did not report an OS denial: ' + JSON.stringify(shellReply));
-    proof.source_isolation = true;
-    assert(JSON.parse(workspaceAction('apply')).applied);
-    assert.equal(fs.readFileSync(path.join(source, 'result.txt'), 'utf8'), 'native result\n'); proof.result_applied = true;
+    proof.project_boundary = true;
+    assert.equal(fs.readdirSync(workspaceRoot).length, 0);
+    for (const service of services) {
+      const entries = fs.readdirSync(service.root, {recursive:true, withFileTypes:true});
+      assert(!entries.some(entry => entry.isDirectory() && ['snapshot','baseline.git','workspace'].includes(entry.name)), 'Unexpected project snapshot');
+    }
+    proof.no_project_copy = true;
+    proof.snapshots_disabled = true;
+    assert.equal(fs.readFileSync(path.join(source, 'source.txt'), 'utf8'), 'original\n');
+    assert.equal(fs.readlinkSync(path.join(source, 'source-link.txt')), 'source.txt');
+    proof.internal_symlinks_preserved = true;
     if(view){for (let attempt = 0; attempt < 100; attempt++) {
       if ((await view.view.webContents.executeJavaScript('document.body.innerText')).includes('Поручение: Native fixture')) { proof.native_right_panel = true; break; }
       await new Promise(resolve => setTimeout(resolve, 200));
@@ -159,6 +181,7 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
       console.error(JSON.stringify(proof));
     }
     fs.writeFileSync(path.join(output, 'opencode-delegation.json'), JSON.stringify(proof, null, 2));
+    if (projectFolder !== folder) await fs.promises.rm(projectFolder, {recursive:true, force:true, maxRetries:10, retryDelay:100});
   }
 }
 module.exports = {verifyOpenCodeDelegation};

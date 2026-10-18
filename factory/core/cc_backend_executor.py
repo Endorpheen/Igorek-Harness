@@ -1500,6 +1500,9 @@ def execute_cc_backend_task(
         return True
 
     def _requires_approval(tool_name: str, tool_input: Any, tool_use_id: str = "") -> bool:
+        from .tool_registry import registry
+        if registry.execution_error(tool_name, tool_input or {}, workdir=workdir, current_session=current_session):
+            return False
         if tool_name in {'calendar_create_event','calendar_move_event'} and (tool_name not in valid_tool_names or _tool_denied_by_policy(tool_name,task_metadata)):
             return False
         if not needs_approval(tool_name, tool_input):
