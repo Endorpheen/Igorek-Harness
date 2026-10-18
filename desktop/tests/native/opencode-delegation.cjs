@@ -16,7 +16,7 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
   const source = path.join(projectFolder, 'source'), workspaceRoot = path.join(folder, 'tasks');
   const runID = 'oc_' + 'c'.repeat(32), calls = [], proof = {platform: process.platform};
   const forbidden = process.platform === 'win32' ? path.join(projectFolder, 'forbidden.txt') : '/usr/igorek-native-' + runID + '.txt';
-  fs.mkdirSync(source, {recursive: true}); fs.mkdirSync(workspaceRoot);
+  fs.mkdirSync(source, {recursive: true}); fs.mkdirSync(workspaceRoot, {recursive:true});
   fs.writeFileSync(path.join(source, 'source.txt'), 'original\n');
   fs.writeFileSync(path.join(source, 'opencode.jsonc'), JSON.stringify({snapshots:true}));
   fs.symlinkSync('source.txt', path.join(source, 'source-link.txt'), 'file');
