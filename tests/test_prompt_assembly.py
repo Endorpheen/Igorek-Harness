@@ -68,6 +68,13 @@ class PromptAssemblyTest(unittest.TestCase):
         self.assertIn("reason/justification", compact)
         self.assertIn("пользовательские файлы вне workdir", compact)
 
+    def test_full_and_compact_prompts_include_readonly_opencode_observation(self):
+        for style in ("full", "compact"):
+            prompt = build_cc_backend_system_prompt(workdir="/tmp/work", filesystem_mode="workspace",
+                                                   model_name="fixture", prompt_style=style)
+            for term in ("opencode_task status", "freshness", "completed", "владелец"):
+                self.assertIn(term, prompt, style)
+
     def test_cc_backend_prompt_contains_codex_plan_contract(self):
         prompt = build_cc_backend_system_prompt(
             workdir="/tmp/work",

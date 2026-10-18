@@ -1,48 +1,51 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1400" height="1640" viewBox="0 0 1400 1640"><rect width="1400" height="1640" fill="#f3f6fa"/>
-<text x="55" y="71" font-family="DejaVu Sans,sans-serif" font-size="36" font-weight="700" fill="#0f172a">OpenCode · Работа прямо в проекте</text>
-<text x="55" y="116" font-family="DejaVu Sans,sans-serif" font-size="23" font-weight="400" fill="#334155">0.2.11 · Linux + Windows · одно поручение за раз</text>
+<text x="55" y="71" font-family="DejaVu Sans,sans-serif" font-size="36" font-weight="700" fill="#0f172a">OpenCode · Наблюдение из основного чата</text>
+<text x="55" y="116" font-family="DejaVu Sans,sans-serif" font-size="23" font-weight="400" fill="#334155">0.2.12 · Linux + Windows · одно поручение за раз</text>
 <rect x="35" y="150" width="1330" height="480" rx="20" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
-<text x="65" y="202" font-family="DejaVu Sans,sans-serif" font-size="28" font-weight="700" fill="#64748b">ДО · 0.2.10</text>
-<text x="65" y="244" font-family="DejaVu Sans,sans-serif" font-size="25" font-weight="700" fill="#0f172a">Копирование и перенос результата</text>
+<text x="65" y="202" font-family="DejaVu Sans,sans-serif" font-size="28" font-weight="700" fill="#64748b">ДО · 0.2.11</text>
+<text x="65" y="244" font-family="DejaVu Sans,sans-serif" font-size="25" font-weight="700" fill="#0f172a">Статус без текущих действий</text>
 <rect x="70" y="280" width="350" height="112" rx="20" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
 <text x="92" y="322" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#0f172a">Основной Игорёк</text>
-<text x="92" y="355" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#334155">Поручение OpenCode</text>
+<text x="92" y="355" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#334155">start / status / cancel</text>
+<text x="92" y="381" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#334155">Запуск и проверка состояния</text>
 <rect x="505" y="280" width="350" height="112" rx="20" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
-<text x="527" y="322" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#0f172a">Git-копия проекта</text>
-<text x="527" y="355" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#334155">Копирование файлов</text>
+<text x="527" y="322" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#0f172a">Контроллер</text>
+<text x="527" y="355" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#334155">Сессия и фоновый опрос</text>
 <rect x="940" y="280" width="350" height="112" rx="20" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
 <text x="962" y="322" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#0f172a">OpenCode</text>
-<text x="962" y="355" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#334155">Правки в отдельной копии</text>
+<text x="962" y="354" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#334155">Работает в исходном проекте</text>
 <polyline points="420,336 505,336" fill="none" stroke="#64748b" stroke-width="3"/>
 <polygon points="505.0,336.0 493.3,341.7 493.3,330.3" fill="#64748b"/>
 <polyline points="855,336 940,336" fill="none" stroke="#64748b" stroke-width="3"/>
 <polygon points="940.0,336.0 928.3,341.7 928.3,330.3" fill="#64748b"/>
 <rect x="505" y="450" width="350" height="112" rx="20" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
-<text x="527" y="492" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#0f172a">Проверка переноса</text>
-<text x="527" y="525" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#334155">Конфликт → без переноса</text>
+<text x="527" y="492" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#0f172a">Ответ status</text>
+<text x="527" y="522" font-family="DejaVu Sans,sans-serif" font-size="17" font-weight="400" fill="#334155">running • итог после завершения</text>
+<text x="527" y="551" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#334155">Без текущей ленты действий</text>
 <rect x="70" y="450" width="350" height="112" rx="20" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
-<text x="92" y="492" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#0f172a">Исходный проект</text>
-<text x="92" y="525" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#334155">Изменения после проверки</text>
-<polyline points="1115,392 1115,506 855,506" fill="none" stroke="#64748b" stroke-width="3"/>
+<text x="92" y="492" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#0f172a">Основной чат</text>
+<text x="92" y="525" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#334155">Состояние и итог</text>
+<text x="92" y="550" font-family="DejaVu Sans,sans-serif" font-size="18" font-weight="400" fill="#334155">Действия видны только справа</text>
+<polyline points="940,365 900,365 900,506 855,506" fill="none" stroke="#64748b" stroke-width="3"/>
 <polygon points="855.0,506.0 866.7,500.3 866.7,511.7" fill="#64748b"/>
 <polyline points="505,506 420,506" fill="none" stroke="#64748b" stroke-width="3"/>
 <polygon points="420.0,506.0 431.7,500.3 431.7,511.7" fill="#64748b"/>
-<text x="70" y="609" font-family="DejaVu Sans,sans-serif" font-size="22" font-weight="400" fill="#334155">Требуется место под копию проекта.</text>
+<text x="70" y="609" font-family="DejaVu Sans,sans-serif" font-size="22" font-weight="400" fill="#334155">Вопросы и готовые тексты приходят автоматически; действия видны только справа.</text>
 <rect x="35" y="660" width="1330" height="890" rx="20" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
-<text x="65" y="714" font-family="DejaVu Sans,sans-serif" font-size="28" font-weight="700" fill="#2563eb">ПОСЛЕ · 0.2.11</text>
-<text x="65" y="758" font-family="DejaVu Sans,sans-serif" font-size="25" font-weight="700" fill="#0f172a">Поручение работает в исходном проекте</text>
+<text x="65" y="714" font-family="DejaVu Sans,sans-serif" font-size="28" font-weight="700" fill="#2563eb">ПОСЛЕ · 0.2.12</text>
+<text x="65" y="758" font-family="DejaVu Sans,sans-serif" font-size="25" font-weight="700" fill="#0f172a">Игорёк наблюдает и объясняет по запросу</text>
 <rect x="70" y="820" width="350" height="112" rx="20" fill="#eff6ff" stroke="#cbd5e1" stroke-width="2"/>
 <text x="92" y="862" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#0f172a">Основной Игорёк</text>
-<text x="92" y="895" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#334155">Разговор • Read / Grep / Glob</text>
-<text x="92" y="922" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#334155">Запись блокирует runtime</text>
+<text x="92" y="895" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#334155">start / status</text>
+<text x="92" y="922" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#334155">Пересказ по твоему вопросу</text>
 <rect x="505" y="820" width="350" height="112" rx="20" fill="#eff6ff" stroke="#cbd5e1" stroke-width="2"/>
 <text x="527" y="862" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#0f172a">Контроллер</text>
-<text x="527" y="895" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#334155">start / status / cancel</text>
-<text x="527" y="919" font-family="DejaVu Sans,sans-serif" font-size="17" font-weight="400" fill="#334155">Одна задача • запись состояния</text>
+<text x="527" y="895" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#334155">Тот же монитор и API</text>
+<text x="527" y="921" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#334155">Сохраняет снимок прогресса</text>
 <rect x="940" y="820" width="350" height="112" rx="20" fill="#eefbf5" stroke="#cbd5e1" stroke-width="2"/>
 <text x="962" y="862" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#0f172a">OpenCode · API + UI</text>
-<text x="962" y="895" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#334155">Справа: «Поручение: …»</text>
-<text x="962" y="919" font-family="DejaVu Sans,sans-serif" font-size="17" font-weight="400" fill="#334155">Ход работы в реальном времени</text>
+<text x="962" y="895" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#334155">Живая сессия справа</text>
+<text x="962" y="922" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#334155">Работает самостоятельно</text>
 <polyline points="420,876 505,876" fill="none" stroke="#2563eb" stroke-width="3"/>
 <polygon points="505.0,876.0 493.3,881.7 493.3,870.3" fill="#2563eb"/>
 <polyline points="855,876 940,876" fill="none" stroke="#2563eb" stroke-width="3"/>
@@ -56,27 +59,27 @@
 <polyline points="1115,1055 1115,1100" fill="none" stroke="#16806a" stroke-width="3"/>
 <polygon points="1115.0,1100.0 1109.3,1088.3 1120.7,1088.3" fill="#16806a"/>
 <text x="980" y="1019" font-family="DejaVu Sans,sans-serif" font-size="22" font-weight="700" fill="#16806a">Прямая запись</text>
-<text x="950" y="1046" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#16806a">Снимки OpenCode отключены</text>
+<text x="970" y="1046" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#16806a">Как в предыдущей версии</text>
 <rect x="70" y="1100" width="350" height="112" rx="20" fill="#fff8ed" stroke="#cbd5e1" stroke-width="2"/>
 <text x="92" y="1142" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#0f172a">Пользователь</text>
-<text x="92" y="1175" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#334155">Все вопросы и разрешения</text>
-<text x="92" y="1199" font-family="DejaVu Sans,sans-serif" font-size="17" font-weight="400" fill="#334155">Ответ в существующей карточке</text>
-<polyline points="940,900 900,900 900,1050 245,1050 245,1100" fill="none" stroke="#a16207" stroke-width="3"/>
+<text x="92" y="1173" font-family="DejaVu Sans,sans-serif" font-size="18" font-weight="400" fill="#334155">Вопросы в прежних карточках</text>
+<text x="92" y="1200" font-family="DejaVu Sans,sans-serif" font-size="18" font-weight="400" fill="#334155">Остановка — в окне OpenCode</text>
+<polyline points="680,932 680,1050 245,1050 245,1100" fill="none" stroke="#a16207" stroke-width="3"/>
 <polygon points="245.0,1100.0 239.3,1088.3 250.7,1088.3" fill="#a16207"/>
-<text x="310" y="1000" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#a16207">Вопросы → пользователю</text>
-<text x="310" y="1030" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#a16207">Модель не отвечает за владельца</text>
+<text x="100" y="1003" font-family="DejaVu Sans,sans-serif" font-size="23" font-weight="700" fill="#a16207">Все вопросы → владельцу</text>
 <rect x="505" y="1100" width="350" height="112" rx="20" fill="#eff6ff" stroke="#cbd5e1" stroke-width="2"/>
-<text x="527" y="1142" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#0f172a">Итог в основном чате</text>
-<text x="527" y="1174" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#334155">Автоматически после ответа</text>
-<text x="527" y="1202" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#334155">Изменения уже в проекте</text>
-<polyline points="1290,900 1320,900 1320,1235 680,1235 680,1212" fill="none" stroke="#2563eb" stroke-width="3"/>
-<polygon points="680.0,1212.0 685.7,1223.7 674.3,1223.7" fill="#2563eb"/>
+<text x="527" y="1142" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#0f172a">Наблюдение: status</text>
+<text x="527" y="1173" font-family="DejaVu Sans,sans-serif" font-size="18" font-weight="400" fill="#334155">Текущие и недавние действия</text>
+<text x="527" y="1202" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#334155">Текст • вопросы • свежесть</text>
+<polyline points="940,910 900,910 900,1156 855,1156" fill="none" stroke="#2563eb" stroke-width="3"/>
+<polygon points="855.0,1156.0 866.7,1150.3 866.7,1161.7" fill="#2563eb"/>
+<text x="910" y="991" font-family="DejaVu Sans,sans-serif" font-size="21" font-weight="700" fill="#2563eb">GET</text>
 <polyline points="505,1178 465,1178 465,1250 50,1250 50,910 70,910" fill="none" stroke="#2563eb" stroke-width="3"/>
 <polygon points="70.0,910.0 58.3,915.7 58.3,904.3" fill="#2563eb"/>
-<text x="70" y="1334" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#0f172a">Отмена останавливает задачу; уже сделанные правки остаются.</text>
-<text x="70" y="1383" font-family="DejaVu Sans,sans-serif" font-size="23" font-weight="400" fill="#334155">Linux: bwrap · Windows: restricted token + Job + pipe adapter</text>
-<text x="70" y="1422" font-family="DejaVu Sans,sans-serif" font-size="22" font-weight="400" fill="#334155">Windows: временный доступ на запись к выбранному проекту.</text>
-<text x="70" y="1473" font-family="DejaVu Sans,sans-serif" font-size="23" font-weight="400" fill="#334155">Ручной OpenCode и вкладки ChatGPT работают как раньше.</text>
-<text x="70" y="1512" font-family="DejaVu Sans,sans-serif" font-size="22" font-weight="400" fill="#334155">Новых элементов UI нет; отметка только в названии сессии.</text>
-<text x="55" y="1600" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#334155">Изоляция процесса сохраняется · ограничения платформ — в описании релиза.</text>
+<text x="70" y="1334" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#0f172a">Наблюдение не отправляет команд и не останавливает поручение.</text>
+<text x="70" y="1382" font-family="DejaVu Sans,sans-serif" font-size="22" font-weight="400" fill="#334155">Снимок с отметкой времени; устаревшие и неполные данные обозначены.</text>
+<text x="70" y="1422" font-family="DejaVu Sans,sans-serif" font-size="22" font-weight="400" fill="#334155">Автоматически: вопросы, готовые сообщения и итог. Действия — по запросу.</text>
+<text x="70" y="1472" font-family="DejaVu Sans,sans-serif" font-size="22" font-weight="400" fill="#334155">Новых элементов UI нет. Ручной OpenCode и вкладки ChatGPT — как раньше.</text>
+<text x="70" y="1512" font-family="DejaVu Sans,sans-serif" font-size="22" font-weight="400" fill="#334155">Модель не придумывает этапы, проценты или результаты проверок.</text>
+<text x="55" y="1600" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#334155">Схема потока · ограничения платформ — в документации релиза.</text>
 </svg>

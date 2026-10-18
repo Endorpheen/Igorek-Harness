@@ -2,8 +2,10 @@
 
 Linux and Windows x64 desktop can delegate one explicitly requested task to the installed
 OpenCode 2.0.27 service while keeping the main conversation available. The
-`opencode_task` tool supports start, status and cancellation. It never exposes
-an operation for answering owner questions or granting permissions to the model.
+`opencode_task` tool supports start and read-only status. The model cannot cancel
+an assignment, answer owner questions or grant permissions. Both the Python tool
+handler and the Electron delegation bridge reject cancellation requests; the owner
+can stop the task directly in the existing OpenCode window.
 
 Assignments run directly in the selected original Git project. Admission checks
 Git membership without walking, hashing or copying project files. A durable
@@ -59,6 +61,30 @@ plain conversation messages cannot accidentally answer OpenCode. Replying in
 OpenCode resolves the corresponding main-chat card. Form values retain their
 types, and permission replies are limited to one-time approval or rejection.
 
+On an explicit progress question, `status` refreshes the same session through GET
+requests and returns a bounded observation snapshot. It includes current tool
+calls, the ten most recent actions and their timestamps/statuses, public assistant
+text (including an explicitly marked partial message), pending owner requests and
+observation time. File targets are retained for file tools; shell commands, raw
+inputs/outputs and reasoning are not relayed. Recognized secrets are redacted.
+Counts describe observed tool calls, not verified test success or a percentage of
+the assignment. Truncation flags identify incomplete timelines and bounded lists.
+
+The existing monitor caches these snapshots without starting model turns for
+every action. Explicit status and background polling share ingestion so reading
+progress neither loses nor duplicates automatic text/cards. A failed refresh
+returns the previous snapshot marked stale with its age; missing progress in an
+older desktop response is explicitly unavailable. Final receipts retain historical
+observations. Without a run ID, status chooses the current chat's active or latest
+assignment and never falls back to another chat. An owner interruption closes its
+pending chat cards and releases the main-chat write guard without sending answers
+or an interrupt back to OpenCode.
+
+Detailed action observations are returned on request. Automatic completed-text,
+owner-card and final-result delivery keep their existing behavior. The main model
+explains observed facts and distinguishes completed tool calls from successful
+checks; it must not invent missing stages, percentages or results.
+
 Completed assistant text is relayed without classifying its importance or trying
 to recognize questions in prose. External text is historical evidence, not a
 source of instructions or permissions. Completion reports the already applied
@@ -72,8 +98,8 @@ another prompt. Stable request keys protect repeated tool delivery. Closing the
 panel does not stop the service. Owner lock and application exit stop delegated
 services. Restarted runtimes mark unfinished records interrupted and do not
 relaunch them: OpenCode pending forms are process-local and cannot be recovered
-after a server restart. Cancellation interrupts execution without resuming queued
-input, and does not roll back files already changed in the original project.
+after a server restart. Owner cancellation uses OpenCode's existing controls and
+does not roll back files already changed in the original project.
 
 This path requires host desktop execution, an installed OpenCode binary, Git in
 PATH, an already granted Git project and an available verified provider profile.
@@ -89,8 +115,8 @@ medium integrity to preserve direct project editing. Assignment processes also u
 and a grant scoped to their selected original project. Choosing OpenCode manually restores manual
 navigation and does not attach typing to the assignment session.
 
-The diagrams compare the 0.2.10 copy-and-transfer flow with direct execution
-from 0.2.11. ChatGPT tabs remain independent; this feature does not add an
+The diagrams compare the limited 0.2.11 status with read-only observation from
+0.2.12. Both versions edit the original project directly without copying it. ChatGPT tabs remain independent; this feature does not add an
 automatic ChatGPT worker.
 
 ![Before and after: OpenCode delegation](../images/opencode-delegation-en.png)

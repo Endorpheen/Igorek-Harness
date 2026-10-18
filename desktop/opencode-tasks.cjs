@@ -27,6 +27,19 @@ function request(service, method, route, body) {
   });
 }
 
+function observationAction(part) {
+  if(part?.type!=='tool'||typeof part.id!=='string'||typeof part.name!=='string'||
+      !['streaming','running','completed','error'].includes(part.state?.status))return null;
+  const action={id:part.id.slice(0,150),tool:part.name.slice(0,80),status:part.state.status};
+  const input=part.state.input;
+  if(['read','write','edit','glob','list'].includes(part.name)&&input&&typeof input==='object'){
+    const target=input.path??input.file_path??input.filePath??input.directory;
+    if(typeof target==='string')action.target=Array.from(target).slice(0,1024).join('');
+  }
+  action.time=Object.fromEntries(['created','ran','completed'].filter(key=>Number.isFinite(part.time?.[key])&&part.time[key]>=0).map(key=>[key,part.time[key]]));
+  return action;
+}
+
 class OpenCodeTasks {
   constructor({manual,root,createService,show,allowed,platform=process.platform}) {
     Object.assign(this,{manual,root,createService,show,allowed,platform});
@@ -36,15 +49,12 @@ class OpenCodeTasks {
     if(!this.allowed())return {error:'opencode_access_denied'};
     if(!fields||typeof fields!=='object'||!/^oc_[a-f0-9]{32}$/.test(fields.run_id||''))return {error:'invalid_request'};
     try{
+      if(fields.action==='cancel')return {error:'opencode_observation_read_only'};
       if(fields.action==='start')return await this.start(fields);
       const job=this.jobs.get(fields.run_id);
       if(!job&&fields.action==='status'&&this.starting===fields.run_id)return {outcome:null,inputs:[],messages:[]};
       if(!job||job.service.state!=='ready')return {error:'opencode_task_lost'};
       if(fields.action==='status')return await this.status(job,fields.seen);
-      if(fields.action==='cancel'){
-        await request(job.service,'POST',job.prefix+'/interrupt?resume=false');
-        job.cancelled=true;return {cancelled:true};
-      }
       if(fields.action==='answer')return await this.answer(job,fields);
       return {error:'invalid_request'};
     }catch(error){return {error:/^opencode_[a-z0-9_]+$/.test(error.message)?error.message:'opencode_operation_failed'};}
@@ -94,19 +104,28 @@ class OpenCodeTasks {
     }finally{this.starting=false;}
   }
   async status(job,seen=[]) {
-    if(job.cancelled)return {outcome:'interrupted',inputs:[],messages:[],result:'OpenCode: поручение остановлено.'};
     const [info,active,forms,permissions,inbox]=await Promise.all([
       request(job.service,'GET',job.prefix),request(job.service,'GET','/api/session/active'),
       request(job.service,'GET',job.prefix+'/form'),request(job.service,'GET',job.prefix+'/permission'),
       request(job.service,'GET',job.prefix+'/inbox'),
     ]);
     const known=new Set(Array.isArray(seen)?seen:[]),messages=[];let bytes=0,more=false,lastText='';
+    const actionIDs=new Set(),actions=[],activeActions=[],counts={streaming:0,running:0,completed:0,error:0};let latestMessage=null,actionCount=0,activeCount=0;
     let route=job.prefix+'/message?limit=100&order=asc';
     for(let page=0;route&&page<100;page++){
       const response=await request(job.service,'GET',route);
       for(const message of response.data||[]){
-        if(message.type!=='assistant'||!message.time?.completed)continue;
+        if(message.type!=='assistant')continue;
+        for(const part of message.content||[]){
+          const action=observationAction(part),identity=JSON.stringify([message.id,part?.id]);
+          if(!action||actionIDs.has(identity))continue;actionIDs.add(identity);
+          action.message_id=String(message.id||'').slice(0,150);
+          counts[action.status]++;actionCount++;actions.push(action);actions.sort((a,b)=>(a.time.completed??a.time.ran??a.time.created??0)-(b.time.completed??b.time.ran??b.time.created??0));if(actions.length>10)actions.shift();
+          if(['running','streaming'].includes(action.status)){activeCount++;activeActions.push(action);if(activeActions.length>10)activeActions.shift();}
+        }
         const text=(message.content||[]).filter(part=>part.type==='text').map(part=>part.text).join('\n');
+        if(text)latestMessage={id:String(message.id||'').slice(0,150),text:Array.from(text).slice(0,4000).join(''),completed:Boolean(message.time?.completed),time:Object.fromEntries(['created','streamed','completed'].filter(key=>Number.isFinite(message.time?.[key])).map(key=>[key,message.time[key]]))};
+        if(!message.time?.completed)continue;
         if(text){
           lastText=text.slice(0,24000);
           if(!known.has(message.id)){
@@ -122,7 +141,10 @@ class OpenCodeTasks {
       title:permission.action,fields:[{key:'decision',type:'string',required:true,title:(permission.message||permission.action)+'\n'+permission.resources.join('\n'),
         options:[{value:'once',label:'Разрешить один раз'},{value:'reject',label:'Отклонить'}]}]});
     const running=Object.hasOwn(active.data||{},job.sessionID)||(inbox.data||[]).length>0;
-    return {outcome:running||more?null:info.data?.outcome||null,inputs,messages,result:lastText};
+    return {outcome:running||more?null:info.data?.outcome||null,inputs,messages,result:lastText,
+      progress:{schema:1,observed_at:Date.now(),session_active:running,latest_message:latestMessage,
+        recent_actions:actions,active_actions:activeActions,action_counts:counts,
+        recent_actions_truncated:actionCount>10,active_actions_truncated:activeCount>10,timeline_truncated:Boolean(route)}};
   }
   async answer(job,fields) {
     const id=fields.request_id;
