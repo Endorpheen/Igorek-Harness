@@ -262,7 +262,9 @@ class WindowsSandbox:
                 self._check(self.descriptor_init(absolute, 1))
                 self._check(self.descriptor_set_dacl(absolute, True, updated, bool(control.value & 8)))
                 self._check(self.descriptor_set_control(absolute, 0x1500, control.value & 0x1500))
-                if not self.set_file_security(str(path), 4, absolute):
+                if control.value & 0x400:
+                    error = self.set_named_security(str(path), 1, 4, None, None, updated, None)
+                elif not self.set_file_security(str(path), 4, absolute):
                     error = ctypes.get_last_error()
             if error and not revoke:
                 raise ctypes.WinError(error)

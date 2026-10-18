@@ -1010,3 +1010,12 @@ Use [TESTING.md](../TESTING.md) for reproducible commands and coverage limits,
   file-security setter to preserve the existing inheritance-control flags.
   No assertion is weakened. Windows unit fixtures normalize aliases and keep
   granted synthetic projects outside the intentionally blocked AppData tree.
+
+- Initial own-process/token access now passes, but Bun's Git spawn still fails.
+  Added an explicit diagnostics-only probe using the official executable's
+  documented BUN_BE_BUN mode, comparing Node-compatible async/sync spawning,
+  native Bun spawning and inherited/ignored/piped stdio under the same policy.
+  Normal product startup does not run these probes.
+- ACL evidence distinguishes the two setters: SetNamedSecurityInfo adds AI;
+  SetFileSecurity clears AI. Add/revoke now selects the setter according to the
+  existing AUTO_INHERITED bit so both original states can remain unchanged.

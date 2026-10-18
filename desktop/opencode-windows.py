@@ -96,8 +96,39 @@ def main(config):
         stopped.set()
 
     threading.Thread(target=owner_input, daemon=True).start()
-    sandbox = WindowsSandbox(root, writable=[service / name for name in ['home', 'cache', 'tmp', 'config']] + ([workspace] if owned else []),
-                             manual_projects=[] if owned else [Path(item).resolve(strict=True) for item in config['projects']])
+    writable = [service / name for name in ['home', 'cache', 'tmp', 'config']] + ([workspace] if owned else [])
+    manual = [] if owned else [Path(item).resolve(strict=True) for item in config['projects']]
+    if config.get('diagnostics') is True and git:
+        script = "const git=" + json.dumps(git) + ";const cwd=" + json.dumps(str(workspace)) + ";" + r"""
+(async()=>{const {spawn,spawnSync}=require('node:child_process');const results=[];
+for(const mode of ['pipe','ignore','inherit'])for(const input of ['ignore','inherit']){
+ await new Promise(resolve=>{
+  const key={mode,input};let output='';
+  try{const child=spawn(git,['--version'],{cwd,stdio:[input,mode,mode],windowsHide:true});
+   child.stdout?.on('data',part=>output+=part);
+   child.on('error',error=>{results.push({...key,error:error.code,errno:error.errno});resolve();});
+   child.on('close',code=>{if(!results.some(r=>r.mode===mode&&r.input===input))results.push({...key,code,output:output.slice(0,150)});resolve();});
+  }catch(error){results.push({...key,error:error.code,errno:error.errno});resolve();}
+ });
+}
+for(const mode of ['pipe','ignore']){
+ try{const child=spawnSync(git,['--version'],{cwd,stdio:['inherit',mode,mode],windowsHide:true});results.push({sync:true,mode,code:child.status,error:child.error?.code});}
+ catch(error){results.push({sync:true,mode,error:error.code});}
+}
+try{const child=Bun.spawn([git,'--version'],{cwd,stdin:'inherit',stdout:'pipe',stderr:'pipe'});results.push({bun:true,code:await child.exited,output:(await child.stdout.text()).slice(0,150)});}
+catch(error){results.push({bun:true,error:error.code,errno:error.errno});}
+console.log(JSON.stringify({bun:Bun.version,spawn_probes:results}));
+})().catch(error=>{console.error(error.code||error.name);process.exitCode=1;});
+"""
+        probe = WindowsSandbox(root, writable=writable, manual_projects=manual)
+        try:
+            with open(os.devnull, 'rb') as incoming, (service / 'spawn-probe.log').open('wb') as outgoing:
+                probe.start([binary, '-e', script], cwd=workspace, env={**environment, 'BUN_BE_BUN': '1'},
+                            stdin=incoming, stdout=outgoing, stderr=outgoing)
+                probe.wait(probe.process, 15000)
+        finally:
+            probe.close()
+    sandbox = WindowsSandbox(root, writable=writable, manual_projects=manual)
     try:
         with open(os.devnull, 'rb') as incoming, (service / 'process.log').open('wb') as outgoing:
             command = [binary, 'serve', '--hostname', '127.0.0.1', '--port', '0']
