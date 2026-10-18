@@ -120,11 +120,67 @@ catch(error){results.push({bun:true,error:error.code,errno:error.errno});}
 console.log(JSON.stringify({bun:Bun.version,spawn_probes:results}));
 })().catch(error=>{console.error(error.code||error.name);process.exitCode=1;});
 """
+        probe_python = service / 'probe-python'
+        if not probe_python.exists():
+            shutil.copytree(Path(sys.executable).parent, probe_python,
+                            ignore=shutil.ignore_patterns('site-packages', 'Scripts', '__pycache__', 'test', 'tests', 'Tools', 'Doc', 'include', 'libs'))
+            (probe_python / 'python314._pth').write_text('python314.zip\n.\nLib\nDLLs\n', encoding='utf-8')
         probe = WindowsSandbox(root, writable=writable, manual_projects=manual)
         try:
             with open(os.devnull, 'rb') as incoming, (service / 'spawn-probe.log').open('wb') as outgoing:
                 probe.start([binary, '-e', script], cwd=workspace, env={**environment, 'BUN_BE_BUN': '1'},
                             stdin=incoming, stdout=outgoing, stderr=outgoing)
+                probe.wait(probe.process, 15000)
+        finally:
+            probe.close()
+        probe = WindowsSandbox(root, writable=writable, manual_projects=manual)
+        pipe_code = r"""
+import ctypes,json,os,subprocess,sys
+from ctypes import wintypes as W
+K=ctypes.WinDLL('kernel32',use_last_error=True);A=ctypes.WinDLL('advapi32',use_last_error=True)
+P=ctypes.c_void_p;H=W.HANDLE;D=W.DWORD
+K.GetCurrentProcess.restype=H
+K.CloseHandle.argtypes=[H]
+K.CreateNamedPipeW.argtypes=[W.LPCWSTR,D,D,D,D,D,D,P];K.CreateNamedPipeW.restype=H
+K.CreateFileW.argtypes=[W.LPCWSTR,D,D,P,D,D,H];K.CreateFileW.restype=H
+A.OpenProcessToken.argtypes=[H,D,ctypes.POINTER(H)]
+A.GetTokenInformation.argtypes=[H,ctypes.c_int,P,D,ctypes.POINTER(D)]
+A.GetSecurityInfo.argtypes=[H,ctypes.c_int,D,P,P,P,P,ctypes.POINTER(P)];A.GetSecurityInfo.restype=D
+A.SetSecurityInfo.argtypes=[H,ctypes.c_int,D,P,P,P,P];A.SetSecurityInfo.restype=D
+A.InitializeSecurityDescriptor.argtypes=[P,D]
+A.SetSecurityDescriptorDacl.argtypes=[P,W.BOOL,P,W.BOOL]
+A.ConvertSecurityDescriptorToStringSecurityDescriptorW.argtypes=[P,D,D,ctypes.POINTER(W.LPWSTR),P]
+def sddl(descriptor,flags):
+ text=W.LPWSTR();A.ConvertSecurityDescriptorToStringSecurityDescriptorW(descriptor,1,flags,ctypes.byref(text),None)
+ return text.value
+result={};token=H();A.OpenProcessToken(K.GetCurrentProcess(),8,ctypes.byref(token))
+size=D();A.GetTokenInformation(token,6,None,0,ctypes.byref(size));buffer=ctypes.create_string_buffer(size.value)
+A.GetTokenInformation(token,6,buffer,size.value,ctypes.byref(size));dacl=P.from_buffer(buffer).value
+own=ctypes.create_string_buffer(40);A.InitializeSecurityDescriptor(own,1);A.SetSecurityDescriptorDacl(own,True,dacl,False)
+result['token_dacl']=sddl(own,4)
+name='\\\\.\\pipe\\igorek-capability-probe-'+str(os.getpid())
+server=K.CreateNamedPipeW(name,3|0xE0000,0,1,65536,65536,0,None)
+if server==P(-1).value:result['create_server_error']=ctypes.get_last_error()
+else:
+ descriptor=P();result['query_error']=A.GetSecurityInfo(server,6,0x14,None,None,None,None,ctypes.byref(descriptor))
+ result['pipe_security']=sddl(descriptor,0x14)
+ def connect():
+  handle=K.CreateFileW(name,0xC0040000,0,None,3,0,None)
+  if handle==P(-1).value:return ctypes.get_last_error()
+  K.CloseHandle(handle);return 0
+ result['initial_client_error']=connect()
+ if result['initial_client_error']:
+  result['set_dacl_error']=A.SetSecurityInfo(server,6,4,None,None,dacl,None)
+  result['updated_client_error']=connect()
+ K.CloseHandle(server)
+print(json.dumps({'named_pipe_probe':result}),flush=True)
+completed=subprocess.run(sys.argv[1:],stdin=subprocess.DEVNULL,stdout=sys.stdout,stderr=sys.stderr,creationflags=0x08000000)
+sys.exit(completed.returncode)
+"""
+        try:
+            with open(os.devnull, 'rb') as incoming, (service / 'spawn-python-probe.log').open('wb') as outgoing:
+                probe.start([probe_python / 'python.exe', '-I', '-c', pipe_code, binary, '-e', script], cwd=workspace,
+                            env={**environment, 'BUN_BE_BUN': '1'}, stdin=incoming, stdout=outgoing, stderr=outgoing)
                 probe.wait(probe.process, 15000)
         finally:
             probe.close()

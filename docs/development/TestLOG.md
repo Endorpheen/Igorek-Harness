@@ -1019,3 +1019,9 @@ Use [TESTING.md](../TESTING.md) for reproducible commands and coverage limits,
 - ACL evidence distinguishes the two setters: SetNamedSecurityInfo adds AI;
   SetFileSecurity clears AI. Add/revoke now selects the setter according to the
   existing AUTO_INHERITED bit so both original states can remain unchanged.
+
+- Native Windows diagnostics isolated Bun spawning failure to captured stdio;
+  inherited and ignored stdio succeed with the same Git executable and policy.
+  Added diagnostics-only checks of an owned named pipe and nested restricted
+  Python/Bun spawning to identify the failing Windows access check. Production
+  startup remains unchanged; native delegation acceptance is still pending.
