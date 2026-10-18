@@ -28,8 +28,20 @@ from factory.core.artifact_files import atomic_write_file, open_regular_file, op
 from factory.core.platform_support import exclusive_lock
 
 
+@pytest.fixture
+def windows_owned_root():
+    if sys.platform != 'win32':
+        pytest.skip('Native Windows owned-data fixture')
+    from factory.core.platform_support.windows_security import protect_directory
+    with tempfile.TemporaryDirectory(prefix='igorek-windows-owned-') as temporary:
+        root = Path(temporary)
+        protect_directory(root)
+        yield root
+
+
 @pytest.mark.skipif(sys.platform != 'win32', reason='Native Windows restricted-process contract')
-def test_windows_opencode_restricted_process_files_network_and_job(tmp_path):
+def test_windows_opencode_restricted_process_files_network_and_job(windows_owned_root):
+    tmp_path = windows_owned_root
     import shutil
     import ctypes
     from ctypes import wintypes as W
@@ -161,7 +173,8 @@ def test_windows_opencode_profile_capability_transport(tmp_path, monkeypatch):
 
 @pytest.mark.skipif(sys.platform != 'win32', reason='Native Windows OpenCode API contract')
 @pytest.mark.timeout(120)
-def test_windows_opencode_native_assignment_api(tmp_path):
+def test_windows_opencode_native_assignment_api(windows_owned_root):
+    tmp_path = windows_owned_root
     import shutil
     repo = Path(__file__).resolve().parents[1]
     bundle = tmp_path / 'runtime'

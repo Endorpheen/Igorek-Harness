@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import threading
 import uuid
@@ -29,6 +30,9 @@ class OpenCodeTasks(DesktopBrowserPipe):
         super().__init__(emit, allowed, timeout, channel='opencode')
         self.root, self.service = Path(root), service
         self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
+        if os.name == 'nt':
+            from .platform_support.windows_security import protect_directory
+            protect_directory(self.root)
         self.db = self.root / 'tasks.sqlite3'
         self.state_lock = threading.RLock()
         with self.connect() as conn:

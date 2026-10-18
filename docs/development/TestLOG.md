@@ -967,3 +967,13 @@ Use [TESTING.md](../TESTING.md) for reproducible commands and coverage limits,
   processed from the volume root down, so each intermediate traversal grant is
   established before probing a deeper directory. Failures retain the ancestor's
   final component in the private exception for deterministic diagnosis.
+
+- Top-down diagnostics located the remaining metadata denial at pytest's
+  private ancestor. Python 3.14 creates mode-0700 Windows directories with
+  SYSTEM/Administrators/OWNER_RIGHTS entries; an elevated runner's default owner
+  can be Administrators, which the child token intentionally disables. Windows
+  native fixtures now use a separate disposable root with the same explicit
+  current-user/SYSTEM DACL as the desktop runtime. Production's durable OpenCode
+  task directory now receives that existing private-directory protection too.
+  Administrators remain disabled in the child; file-read/write denial and exact
+  ancestor/project ACL restoration are still asserted.
