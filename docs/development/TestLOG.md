@@ -1029,3 +1029,6 @@ Use [TESTING.md](../TESTING.md) for reproducible commands and coverage limits,
   probe rejected an unsupported open-mode bit (87); corrected its documented
   mode/object type and added a diagnostics-only medium-integrity comparison on
   the same disposable workspace. Production remains low-integrity for tasks.
+- Low/medium diagnostic spawning has the same piped-stdio EPERM. The pipe
+  probe now uses the exact duplex/WRITE_DAC open mode used by the runtime;
+  READ_CONTROL is obtained through duplex access rather than an open-mode bit.

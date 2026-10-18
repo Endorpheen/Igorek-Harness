@@ -159,7 +159,7 @@ A.GetTokenInformation(token,6,buffer,size.value,ctypes.byref(size));dacl=P.from_
 own=ctypes.create_string_buffer(40);A.InitializeSecurityDescriptor(own,1);A.SetSecurityDescriptorDacl(own,True,dacl,False)
 result['token_dacl']=sddl(own,4)
 name='\\\\.\\pipe\\igorek-capability-probe-'+str(os.getpid())
-server=K.CreateNamedPipeW(name,3|0x60000,0,1,65536,65536,0,None)
+server=K.CreateNamedPipeW(name,3|0x40000,0,1,65536,65536,0,None)
 if server==P(-1).value:result['create_server_error']=ctypes.get_last_error()
 else:
  descriptor=P();result['query_error']=A.GetSecurityInfo(server,1,0x14,None,None,None,None,ctypes.byref(descriptor))
