@@ -887,3 +887,11 @@ Use [TESTING.md](../TESTING.md) for reproducible commands and coverage limits,
 - Windows-specific process/file/network/job and profile-proxy contracts are
   pending execution on the actual Windows CI runner. This candidate is not
   release acceptance and does not establish Windows OpenCode compatibility.
+
+- First actual Windows Server 2025 candidate failed two new contracts: token
+  creation returned WinError 87 for the LUA flag combination, and the synthetic
+  proxy test omitted the desktop module search path. Existing contracts: 39
+  passed, 3 platform skips. The runner now explicitly disables Administrators
+  and maximum privileges and retains full read/write restricting-SID checks;
+  it does not fall back to an unrestricted process. Added a real installed
+  OpenCode shell/write/owner-question/result/native-panel acceptance fixture.

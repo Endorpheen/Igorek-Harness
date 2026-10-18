@@ -114,10 +114,11 @@ time.sleep(60)
 
 
 @pytest.mark.skipif(sys.platform != 'win32', reason='Native Windows profile capability transport')
-def test_windows_opencode_profile_capability_transport(tmp_path):
+def test_windows_opencode_profile_capability_transport(tmp_path, monkeypatch):
     import importlib.util
     from types import SimpleNamespace
     module_path = Path(__file__).resolve().parents[1] / 'desktop' / 'opencode_profiles.py'
+    monkeypatch.syspath_prepend(str(module_path.parent))
     spec = importlib.util.spec_from_file_location('windows_profile_proxy_contract', module_path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

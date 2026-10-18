@@ -194,10 +194,11 @@ class WindowsSandbox:
         if not logon:
             raise ValueError('windows_sandbox_logon_sid_required')
         self.logon = logon
-        entries = (Sid * 4)(*[Sid(self._sid(text), 0) for text in
-                             [self.capability, logon, 'S-1-15-2-1', 'S-1-5-12']])
+        entries = (Sid * 5)(*[Sid(self._sid(text), 0) for text in
+                             [self.capability, logon, 'S-1-15-2-1', 'S-1-5-12', 'S-1-5-32-545']])
+        disabled = (Sid * 1)(Sid(self._sid('S-1-5-32-544'), 0))
         token = W.HANDLE()
-        self._check(self.restrict(original, 5, 0, None, 0, None, len(entries), entries, ctypes.byref(token)))
+        self._check(self.restrict(original, 1, len(disabled), disabled, 0, None, len(entries), entries, ctypes.byref(token)))
         self.handles.append(token)
         self.token = token
         label = Sid(self._sid('S-1-16-8192' if self.manual_projects else 'S-1-16-4096'), 0x20)
@@ -334,6 +335,7 @@ class WindowsSandbox:
         for handle in reversed(self.handles):
             self.close_handle(handle)
         self.handles.clear()
+        self.job = self.process = self.thread = None
         for project in self.manual_projects:
             self._manual_grant(project, revoke=True)
         if self.desktop:
