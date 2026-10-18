@@ -235,7 +235,7 @@ def test_real_tls_eof_retries_after_tool_without_reexecuting_it(tls_server, tmp_
     assert trusted.check_hostname and trusted.verify_mode == ssl.CERT_REQUIRED
     monkeypatch.setattr(ssl, '_create_default_https_context', lambda *args, **kwargs: trusted)
     path = tmp_path / 'input.txt'
-    path.write_text('tls-evidence-7351')
+    path.write_text('tls-evidence-7351', encoding='utf-8')
 
     def reply(payload, index):
         if index == 1:
@@ -252,7 +252,7 @@ def test_real_tls_eof_retries_after_tool_without_reexecuting_it(tls_server, tmp_
     result = executor.execute_cc_backend_task(base_url=base, model='fixture', system_prompt='Fixture',
         user_message='Read input.txt', workdir=str(tmp_path), api_format='openai-responses',
         enabled_tools=[tool], checkpoint_config={'enabled': False}, timeout_s=3)
-    events = [json.loads(line) for line in (tmp_path / 'cc_backend_trace.jsonl').read_text().splitlines()]
+    events = [json.loads(line) for line in (tmp_path / 'cc_backend_trace.jsonl').read_text(encoding='utf-8').splitlines()]
     retries = [item for item in events if item['kind'] == 'network.retry']
     assert len(retries) == min(failures, 2)
     assert all(item['round'] == 2 and item['error_diagnostics']['error_code'] == 'responses_tls'
@@ -274,7 +274,7 @@ def test_real_untrusted_certificate_is_not_retried_or_bypassed(tls_server, tmp_p
     result = executor.execute_cc_backend_task(base_url=base, model='fixture', system_prompt='Fixture',
         user_message='Hello', workdir=str(tmp_path), api_format='openai-responses',
         enabled_tools=[], checkpoint_config={'enabled': False}, timeout_s=3)
-    events = [json.loads(line) for line in (tmp_path / 'cc_backend_trace.jsonl').read_text().splitlines()]
+    events = [json.loads(line) for line in (tmp_path / 'cc_backend_trace.jsonl').read_text(encoding='utf-8').splitlines()]
     assert result['status'] == 'fail' and state['connections'] == 1 and not calls
     assert not [item for item in events if item['kind'] == 'network.retry']
     details = events[-1]['error_diagnostics']

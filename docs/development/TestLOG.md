@@ -41,6 +41,14 @@ coverage is **46,360/78,237**, and branch coverage **12,937/27,978**.
 The relocated targeted suite passed **166 cases**, with three existing
 Windows-only skips on Linux; all original regression bodies were retained.
 
+The first Windows package check on public head `646301b` reached the real TLS
+contracts but three cases failed while decoding UTF-8 traces with the platform's
+default cp1252 codec. The fixture now reads its trace explicitly as UTF-8; TLS
+assertions and retry/certificate behavior are unchanged. The failed job log was
+retained rather than skipping these native-platform cases.
+The portable contract module passed **16 cases** with three existing Windows-only
+skips after the explicit-encoding fix; all 357 desktop contracts remain passing.
+
 ## 0.2.8 preview — sources, navigation and installed release notes
 
 Session sources now use durable successful tool-result evidence for web and pull
