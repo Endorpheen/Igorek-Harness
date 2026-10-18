@@ -32,6 +32,8 @@ token's default DACL, allowing captured command output without granting the
 token access to private host files. Explicit pipe descriptors are preserved.
 The adapter does not change token restrictions or file permissions. A child
 whose adapter cannot be loaded is terminated before its entry point runs.
+Windows assignment commands use cmd.exe and installed x64 command tools;
+PowerShell and x86 child processes are not supported in this version.
 
 Delegations are durable records, not active tasks in the main conversation queue.
 A runtime monitor reads the session outcome, message timeline, pending forms and

@@ -49,7 +49,7 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
       if (tools.length && next === 0) await gate;
       const actions = [
         ['shell', {command: 'echo fixture-shell-ok && git --version' + (process.platform === 'win32' ?
-          ' && node -e "process.stdout.write(\'fixture-node-ok\')" && (echo forbidden>"' + path.join(source, 'forbidden-shell.txt') + '")' : '')}],
+          ' && node --version && (echo forbidden>"' + path.join(source, 'forbidden-shell.txt') + '")' : '')}],
         ['write', {path: forbidden, content: 'forbidden'}],
         ['write', {path: path.join(workspace, 'result.txt'), content: 'native result\n'}],
         ['question', {questions: [{question: 'Continue the synthetic fixture?', header: 'Fixture',
@@ -122,7 +122,7 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
     const shellReply = calls.flat().find(message => message.role === 'tool' && message.tool_call_id === 'call_fixture_1');
     assert(shellReply?.content.includes('fixture-shell-ok'), 'Missing native shell output: ' + JSON.stringify(shellReply));
     assert(shellReply.content.includes('git version'), 'Missing native Git command output');
-    if (process.platform === 'win32') assert(shellReply.content.includes('fixture-node-ok'), 'Missing native Node command output');
+    if (process.platform === 'win32') assert(/^v\d+\.\d+\.\d+/m.test(shellReply.content), 'Missing native Node command output: ' + JSON.stringify(shellReply));
     const outsideReply = calls.flat().find(message => message.role === 'tool' && message.tool_call_id === 'call_fixture_2');
     assert(outsideReply, 'Missing outside-write tool result');
     const outsideError = JSON.parse(outsideReply.content).error;

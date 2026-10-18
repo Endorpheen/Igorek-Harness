@@ -1085,3 +1085,12 @@ Use [TESTING.md](../TESTING.md) for reproducible commands and coverage limits,
   tool output rather than assistant command strings. Core.longpaths environment
   and private global config did not remove snapshot init warnings; native data
   uses a Windows extended path prefix for the next acceptance run.
+- Fourth native run still completes OpenCode assignment/forms and private
+  isolation, but the shell fixture lacks its quoted node -e marker. The probe
+  now uses node --version and reports actual tool output. Extended path prefixes
+  also did not resolve Git snapshot init (Git normalizes them to //?/C:); the
+  runner now uses the existing Windows short alias for its private data home
+  where available, preserving the same directory and permissions.
+- Russian/English editable and PNG before/after diagrams now identify the
+  Windows pipe adapter; node labels fit their boxes. Windows cmd/x64/PowerShell
+  limits are recorded in the architecture and matching release descriptions.

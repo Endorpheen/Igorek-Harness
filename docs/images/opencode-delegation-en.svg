@@ -51,9 +51,9 @@
 <text x="310" y="1072" font-family="DejaVu Sans,sans-serif" font-size="23" font-weight="700" fill="#a16207">Every question → owner input cards</text>
 <text x="310" y="1100" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#a16207">Reply by ID; the model never answers for the owner</text>
 <rect x="940" y="1275" width="350" height="112" rx="20" fill="#eefbf5" stroke="#cbd5e1" stroke-width="2"/>
-<text x="962" y="1317" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#0f172a">Project copy</text>
-<text x="962" y="1350" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#334155">Independent Git + sandbox</text>
-<text x="962" y="1374" font-family="DejaVu Sans,sans-serif" font-size="17" font-weight="400" fill="#334155">Linux: bwrap · Windows: token + Job</text>
+<text x="962" y="1317" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#0f172a">Git project copy</text>
+<text x="962" y="1346" font-family="DejaVu Sans,sans-serif" font-size="16" font-weight="400" fill="#334155">Linux: bwrap · Windows: token + Job</text>
+<text x="962" y="1377" font-family="DejaVu Sans,sans-serif" font-size="20" font-weight="400" fill="#334155">Windows: pipe adapter</text>
 <polyline points="1115,1172 1115,1208" fill="none" stroke="#16806a" stroke-width="3"/>
 <polygon points="1115.0,1208.0 1109.3,1196.3 1120.7,1196.3" fill="#16806a"/>
 <polyline points="1115,1250 1115,1275" fill="none" stroke="#16806a" stroke-width="3"/>

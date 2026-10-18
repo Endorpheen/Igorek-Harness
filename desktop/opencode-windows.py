@@ -46,6 +46,17 @@ def listening_port(pid):
     return None
 
 
+def short_path(path):
+    query = ctypes.WinDLL('kernel32', use_last_error=True).GetShortPathNameW
+    query.argtypes = [W.LPCWSTR, W.LPWSTR, W.DWORD]
+    query.restype = W.DWORD
+    size = query(str(path), None, 0)
+    if not size:
+        return str(path)
+    result = ctypes.create_unicode_buffer(size)
+    return result.value if query(str(path), result, size) else str(path)
+
+
 def main(config):
     if os.name != 'nt':
         raise OSError('opencode_windows_requires_windows')
@@ -83,7 +94,7 @@ def main(config):
         'HOME': str(service / 'home'), 'USERPROFILE': str(service / 'home'),
         'APPDATA': str(service / 'home'), 'LOCALAPPDATA': str(service / 'home'),
         'TEMP': str(service / 'tmp'), 'TMP': str(service / 'tmp'),
-        'XDG_CONFIG_HOME': str(service / 'home'), 'XDG_DATA_HOME': '\\\\?\\' + str(service / 'home'),
+        'XDG_CONFIG_HOME': str(service / 'home'), 'XDG_DATA_HOME': short_path(service / 'home'),
         'XDG_CACHE_HOME': str(service / 'cache'), 'OPENCODE_CONFIG_DIR': directory,
         'OPENCODE_DISABLE_AUTOUPDATE': '1', 'OPENCODE_DISABLE_MODELS_FETCH': '1',
         'OPENCODE_SERVER_PASSWORD': config['password'],
