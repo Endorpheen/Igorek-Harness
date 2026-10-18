@@ -1,0 +1,72 @@
+:root {
+  --md-primary-fg-color: #202d27;
+  --md-primary-fg-color--light: #385443;
+  --md-primary-fg-color--dark: #142219;
+  --md-accent-fg-color: #568a21;
+  --md-mermaid-font-family: ui-sans-serif, system-ui, sans-serif;
+  --md-mermaid-node-bg-color: #edf5e5;
+  --md-mermaid-node-fg-color: #243929;
+  --md-mermaid-edge-color: #5e8050;
+  --md-mermaid-label-bg-color: #f6f8f2;
+  --md-mermaid-label-fg-color: #243929;
+  --md-mermaid-sequence-actor-bg-color: #edf5e5;
+  --md-mermaid-sequence-actor-fg-color: #243929;
+  --md-mermaid-sequence-actor-border-color: #759b61;
+  --md-mermaid-sequence-actor-line-color: #759b61;
+  --md-mermaid-sequence-message-line-color: #5e8050;
+  --md-mermaid-sequence-message-fg-color: #243929;
+  --md-mermaid-sequence-note-bg-color: #f0f6dd;
+  --md-mermaid-sequence-note-border-color: #a5ba70;
+  --md-mermaid-sequence-note-fg-color: #243929;
+}
+[data-md-color-scheme="slate"] {
+  --md-default-bg-color: #141b18;
+  --md-default-fg-color: #e5ede6;
+  --md-default-fg-color--light: #a5b6a9;
+  --md-typeset-a-color: #b9eb78;
+  --md-accent-fg-color: #c4f26c;
+  --md-code-bg-color: #202a24;
+  --md-mermaid-node-bg-color: #253a2b;
+  --md-mermaid-node-fg-color: #d7edce;
+  --md-mermaid-edge-color: #9cbf83;
+  --md-mermaid-label-bg-color: #141b18;
+  --md-mermaid-label-fg-color: #d7edce;
+  --md-mermaid-sequence-actor-bg-color: #253a2b;
+  --md-mermaid-sequence-actor-fg-color: #d7edce;
+  --md-mermaid-sequence-actor-border-color: #88ad6e;
+  --md-mermaid-sequence-actor-line-color: #88ad6e;
+  --md-mermaid-sequence-message-line-color: #9cbf83;
+  --md-mermaid-sequence-message-fg-color: #d7edce;
+  --md-mermaid-sequence-note-bg-color: #344024;
+  --md-mermaid-sequence-note-border-color: #9db779;
+  --md-mermaid-sequence-note-fg-color: #e4eecd;
+}
+.md-header__button.md-logo img {height: 1.65rem; width: 1.65rem;}
+.md-typeset {font-size: .81rem; line-height: 1.75;}
+.md-typeset h1 {font-weight: 750; letter-spacing: -.035em; color: var(--md-default-fg-color);}
+.md-typeset h2 {font-weight: 650; letter-spacing: -.02em;}
+.md-header {box-shadow: 0 1px 0 #b9eb7822;}
+.md-header__topic {font-weight: 650; letter-spacing: -.02em;}
+.md-nav__link--active {font-weight: 700;}
+.wiki-hero {padding: 1.7rem 1.8rem; border: 1px solid #b9eb7833; border-radius: 1rem; margin: .4rem 0 1.8rem; background: radial-gradient(ellipse at top right, #476a394d, transparent 65%), #1b2a21; color: #d4e1d5; box-shadow: 0 14px 35px #0b180b12;}
+.wiki-hero img {width: 6rem; height: 6rem; float: right; margin: 1.1rem 0 1rem 1.1rem; filter: drop-shadow(0 8px 16px #07190b44);}
+.wiki-hero h1 {font-size: 2.05rem; line-height: 1.15; color: #eef9e8; margin: .8rem 0; max-width: 32rem;}
+.wiki-hero .eyebrow {font-size: .56rem; text-transform: uppercase; letter-spacing: .13em; color: #c4f26c; font-weight: 700;}
+.wiki-hero p {max-width: 42rem; font-size: .83rem;}
+.wiki-hero .md-button {font-size: .68rem; padding: .55rem .9rem; margin: .4rem .25rem 0 0; border-radius: .4rem; border-color: #bddca966; color: #d4e1d5;}
+.wiki-hero .md-button--primary {background: #c4f26c; border-color: #c4f26c; color: #182419;}
+.wiki-hero .md-button:hover {background: #d5fa9d; border-color: #d5fa9d; color: #182419;}
+.wiki-links {display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .7rem;}
+.wiki-links > p {margin: 0;}
+.wiki-links a {display: block; padding: 1.1rem 1rem; border: 1px solid #82b25b44; border-radius: .6rem; background: #82b25b08; font-weight: 600; font-size: .72rem; transition: background .15s, border-color .15s;}
+.wiki-links a::after {content: '↗'; float: right; color: #82b25b; margin-left: .3rem;}
+.wiki-links a:hover {border-color: var(--md-accent-fg-color); background: #82b25b15;}
+.md-typeset .mermaid {overflow-x: auto; max-width: 100%; border: 1px solid #82b25b33; border-radius: .5rem; padding: .8rem; margin: 1.2rem 0; background: #82b25b05;}
+.md-typeset .mermaid svg {max-width: none !important; min-width: min(100%, 38rem);}
+.md-typeset details {border-radius: .4rem;}
+@media (max-width: 600px) {
+  .wiki-links {grid-template-columns: 1fr;}
+  .wiki-hero {padding: 1.1rem;}
+  .wiki-hero h1 {font-size: 1.65rem;}
+  .wiki-hero img {width: 3.5rem; height: 3.5rem; margin-top: 1.6rem;}
+}

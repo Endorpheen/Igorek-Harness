@@ -9,6 +9,26 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 
 
+@pytest.mark.parametrize('page,target,expected_errors', [
+    ('docs/wiki/content/en/chapter/page.md', 'factory/current.py', 0),
+    ('docs/wiki/content/en/chapter/page.md', 'docs/local/private.md', 1),
+    ('docs/guide.md', 'factory/current.py', 1),
+])
+def test_wiki_repository_links_require_public_inventory(tmp_path, monkeypatch, page, target, expected_errors):
+    monkeypatch.syspath_prepend(str(ROOT / 'tools'))
+    import check_publication
+    files = {Path(page): '[Source](' + target + ')\n', Path('factory/current.py'): 'VALUE = 1\n'}
+    for relative, text in files.items():
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+    private = tmp_path / 'docs/local/private.md'
+    private.parent.mkdir(parents=True, exist_ok=True)
+    private.write_text('Never part of the publication inventory\n')
+    monkeypatch.setattr(check_publication, 'source_files', lambda root: sorted(files))
+    assert len(check_publication.check(tmp_path, language=False)) == expected_errors
+
+
 @pytest.mark.parametrize("suffix,text", [
     (".py", 'label = "Русский интерфейс"\n# Комментарий\n'),
     (".js", 'const label = "Русский интерфейс"; // Комментарий\n'),

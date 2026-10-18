@@ -1,0 +1,72 @@
+site_name: Igorek Harness Wiki
+site_description: Technical encyclopedia of the Igorek Harness agent platform
+site_url: https://endorpheen.github.io/Igorek-Harness/
+repo_url: https://github.com/Endorpheen/Igorek-Harness
+repo_name: Endorpheen/Igorek-Harness
+edit_uri: edit/main/docs/wiki/content/en/
+docs_dir: content
+site_dir: ../../build/wiki/site
+strict: true
+theme:
+  name: material
+  logo: assets/octopus.svg
+  favicon: assets/octopus.svg
+  font: false
+  features:
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - navigation.footer
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+  palette:
+    - scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark theme
+    - scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light theme
+plugins:
+  - search:
+      lang: [en, ru]
+  - i18n:
+      docs_structure: folder
+      fallback_to_default: true
+      languages:
+        - locale: en
+          name: English
+          default: true
+          build: true
+        - locale: ru
+          name: Русский
+          build: true
+hooks:
+  - hooks.py
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+extra_css:
+  - assets/wiki.css
+extra:
+  generator: false
+  documentation_version: '0.2.12'
+copyright: 'Igorek Harness · Documentation for 0.2.12 · English / Русский'

@@ -67,7 +67,8 @@ def comments(path: Path, text: str):
 
 def check(root: Path = REPO, *, language: bool = True) -> list[str]:
     problems = []
-    for relative in source_files(root):
+    inventory = source_files(root)
+    for relative in inventory:
         path = root / relative
         name = relative.as_posix()
         if path.is_symlink():
@@ -91,6 +92,15 @@ def check(root: Path = REPO, *, language: bool = True) -> list[str]:
                 url = urlsplit(target)
                 if url.scheme or url.netloc or not url.path:
                     continue
+                if relative.is_relative_to(Path('docs/wiki/content')):
+                    repository_path = Path(unquote(url.path))
+                    if repository_path.parts and repository_path.parts[0] not in {'.', '..'}:
+                        source = (root / repository_path).resolve()
+                        if source.is_relative_to(root.resolve()) and any(
+                            item == repository_path or item.is_relative_to(repository_path)
+                            for item in inventory
+                        ):
+                            continue
                 destination = (path.parent / unquote(url.path)).resolve()
                 if not destination.is_relative_to(root.resolve()) or not destination.exists():
                     problems.append(f"{name}: broken or nonportable local link")

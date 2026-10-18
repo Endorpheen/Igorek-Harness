@@ -1,0 +1,10 @@
+{
+  "version": "0.2.12",
+  "reviewed_on": "2026-10-19",
+  "release_commit": "d0e210bbdb9db152c312dc2d089f0cf4f0b520d9",
+  "historical_pages": [
+    "5-OpenCode-Delegation-Subsystem/5-OpenCode-Delegation-Subsystem.md",
+    "5-OpenCode-Delegation-Subsystem/5.1-OpenCodeService-and-Task-Lifecycle.md",
+    "5-OpenCode-Delegation-Subsystem/5.2-Workspace-Snapshots-and-Transfer-Check.md"
+  ]
+}
