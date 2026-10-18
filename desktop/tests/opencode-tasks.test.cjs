@@ -68,14 +68,16 @@ test('every form is relayed and an answer uses its exact session and form withou
   assert.equal(f.state.answers.length,1);
 });
 
-test('completion uses explicit outcome and cancellation never requests resume',async t=>{
+test('completion uses explicit outcome and observation cannot interrupt a session',async t=>{
   const f=await fixture(t);await f.controller.handle(f.input);
+  const count=f.state.requests.length;
+  assert.equal((await f.controller.handle({action:'cancel',run_id:f.input.run_id})).error,'opencode_observation_read_only');
+  assert.equal(f.state.requests.length,count);
+  assert(!f.state.requests.some(row=>row[1].includes('/interrupt')));
   f.state.outcome='succeeded';f.state.running=false;
   f.state.messages=[{id:'msg_result',type:'assistant',time:{completed:123},content:[{type:'text',text:'Fixture result'}]}];
   const status=await f.controller.handle({action:'status',run_id:f.input.run_id});
   assert.equal(status.outcome,'succeeded');assert.equal(status.result,'Fixture result');
-  await f.controller.handle({action:'cancel',run_id:f.input.run_id});
-  assert(f.state.requests.some(row=>row[1].endsWith('/interrupt?resume=false')));
 });
 
 test('ungranted projects and legacy copy protocols never receive a prompt',async t=>{
@@ -91,4 +93,60 @@ test('Windows service-folder layout retains the assignment profile consumer iden
   assert.equal(f.state.created.consumer,f.input.run_id);
   assert.equal(f.state.created.folder,path.join(f.controller.root,f.input.run_id));
   assert.equal(f.state.created.workspace,f.input.source);
+});
+
+test('live status reads actual tools and public partial text using GET only',async t=>{
+  const f=await fixture(t);await f.controller.handle(f.input);
+  f.state.messages=[{id:'msg_live',type:'assistant',time:{created:1},content:[
+    {type:'reasoning',text:'private reasoning fixture'},
+    {type:'text',text:'Inspecting the project'},
+    {type:'tool',id:'call_read',name:'read',time:{created:1,completed:2},state:{status:'completed',input:{path:'code.py'},content:[{type:'text',text:'private output'}]}},
+    {type:'tool',id:'call_shell',name:'shell',time:{created:3,ran:4},state:{status:'running',input:{command:'private command'},metadata:{}}},
+  ]}];
+  f.state.forms=[{id:'frm_live',title:'Choose',fields:[]}];
+  const start=f.state.requests.length;
+  const result=await f.controller.handle({action:'status',run_id:f.input.run_id});
+  assert.equal(result.outcome,null);assert.equal(result.messages.length,0);
+  assert.equal(result.progress.latest_message.text,'Inspecting the project');
+  assert.equal(result.progress.latest_message.completed,false);
+  assert.deepEqual(result.progress.action_counts,{streaming:0,running:1,completed:1,error:0});
+  assert.equal(result.progress.recent_actions[0].target,'code.py');
+  assert.equal(result.progress.active_actions[0].tool,'shell');
+  assert(!JSON.stringify(result.progress).includes('private'));
+  assert(f.state.requests.slice(start).every(row=>row[0]==='GET'));
+  assert(Number.isFinite(result.progress.observed_at));
+});
+
+test('progress is bounded independently of message delivery and includes failed calls',async t=>{
+  const f=await fixture(t);await f.controller.handle(f.input);
+  f.state.messages=[{id:'msg_many',type:'assistant',time:{created:1,completed:100},content:[
+    {type:'text',text:'Done with this step'},
+    ...Array.from({length:25},(_,i)=>({type:'tool',id:'call_'+i,name:'read',time:{created:i},state:{status:i===24?'error':'completed',input:{path:'file-'+i}}})),
+  ]}];
+  const result=await f.controller.handle({action:'status',run_id:f.input.run_id,seen:['msg_many']});
+  assert.equal(result.messages.length,0);
+  assert.equal(result.progress.recent_actions.length,10);
+  assert.equal(result.progress.recent_actions_truncated,true);
+  assert.equal(result.progress.action_counts.error,1);
+  assert.equal(result.progress.recent_actions.at(-1).status,'error');
+});
+
+test('bounded public text keeps Unicode code points intact',async t=>{
+  const f=await fixture(t);await f.controller.handle(f.input);
+  f.state.messages=[{id:'msg_unicode',type:'assistant',time:{created:1},content:[{type:'text',text:'x'.repeat(3999)+'🐙 ending'}]}];
+  const result=await f.controller.handle({action:'status',run_id:f.input.run_id});
+  assert.equal(result.progress.latest_message.text,'x'.repeat(3999)+'🐙');
+});
+
+test('provider call IDs reused in different messages do not hide current work',async t=>{
+  const f=await fixture(t);await f.controller.handle(f.input);
+  f.state.messages=[{id:'msg_first',type:'assistant',time:{created:1,completed:2},content:[
+    {type:'tool',id:'call_reused',name:'read',time:{created:1,completed:2},state:{status:'completed',input:{path:'first.py'}}}]},
+    {id:'msg_second',type:'assistant',time:{created:3},content:[
+    {type:'tool',id:'call_reused',name:'write',time:{created:3},state:{status:'running',input:{path:'second.py'}}}]}];
+  const result=await f.controller.handle({action:'status',run_id:f.input.run_id});
+  assert.equal(result.progress.action_counts.completed,1);
+  assert.equal(result.progress.action_counts.running,1);
+  assert.equal(result.progress.active_actions[0].message_id,'msg_second');
+  assert.equal(result.progress.active_actions[0].target,'second.py');
 });

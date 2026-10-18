@@ -59,7 +59,7 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
       if (tools.length && next < actions.length) {
         const [name, args] = actions[next++];
         assert(tools.some(tool => tool.function?.name === name), 'Native tool missing: ' + name);
-        delta = {role: 'assistant', tool_calls: [{index: 0, id: 'call_fixture_' + next, type: 'function',
+        delta = {role: 'assistant', content: 'Working on the synthetic fixture.', tool_calls: [{index: 0, id: 'call_fixture_' + next, type: 'function',
           function: {name, arguments: JSON.stringify(args)}}]}; finish = 'tool_calls';
       }
       const base = {id: 'chatcmpl_fixture', object: 'chat.completion.chunk', created: 1, model: 'fixture-model'};
@@ -104,6 +104,8 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
     assert(started.session_id, JSON.stringify({started,diagnostics:proof})); proof.nonblocking_start = true;
     if(parent)assert.equal(await parent.webContents.executeJavaScript("document.getElementById('main-chat').textContent"), 'Synthetic main chat remains available');
     const job = controller.jobs.get(runID);
+    assert.equal((await controller.handle({action:'cancel',run_id:runID})).error, 'opencode_observation_read_only');
+    proof.observation_read_only = true;
     const made = await request(job.service, 'POST', job.prefix + '/form', {title: 'Synthetic owner question',
       fields: [{key: 'choice', type: 'boolean', title: 'Continue?', required: true}]});
     const waiting = await controller.handle({action: 'status', run_id: runID});
@@ -121,6 +123,12 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
         if (input.kind === 'form') {
           assert.equal(fs.readFileSync(path.join(source, 'result.txt'), 'utf8'), 'native result\n');
           assert.equal(status.outcome, null);
+          assert(status.progress.recent_actions.some(action => action.tool === 'write' && action.status === 'completed' && action.target === path.join(source, 'result.txt')), 'Missing completed native write in observer progress');
+          assert(status.progress.active_actions.some(action => action.tool === 'question'), 'Missing running native question in observer progress');
+          assert(status.progress.observed_at > 0);
+          assert(status.progress.latest_message?.text.includes('Working on the synthetic fixture.'));
+          proof.public_progress_text = true;
+          proof.running_progress_exposed = true;
           proof.live_source_edit = true;
           proof.native_question_roundtrip = true;
         }

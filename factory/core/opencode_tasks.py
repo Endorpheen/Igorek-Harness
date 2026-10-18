@@ -5,6 +5,7 @@ import json
 import os
 import sqlite3
 import threading
+import time
 import uuid
 from contextlib import contextmanager
 from pathlib import Path
@@ -12,13 +13,14 @@ from pathlib import Path
 from .desktop_browser import DesktopBrowserPipe
 from .opencode_workspace import git
 from .tool_registry import registry
+from .vault.logging_redaction import redact_text
 
 
 SCHEMA = {
     'name': 'opencode_task',
-    'description': 'Передать явно порученную пользователем работу OpenCode в текущем Git-проекте без копирования. Правки сразу видны в проекте; до завершения или отмены основной чат может только читать. Отмена не откатывает сделанные правки. start возвращает run_id сразу после принятия: не жди завершения и не опрашивай в цикле. Вопросы автоматически передаются владельцу; отвечать за него запрещено. Результат приходит автоматически. status читает состояние, cancel останавливает поручение. Обычный OpenCode не изменяется.',
+    'description': 'Передать явно порученную пользователем работу OpenCode в текущем Git-проекте без копирования. Правки сразу видны в проекте; до завершения или отмены основной чат может только читать. Отмена не откатывает сделанные правки. start возвращает run_id сразу после принятия: не жди завершения и не опрашивай в цикле. Вопросы автоматически передаются владельцу; отвечать за него запрещено. Результат приходит автоматически. status читает текущие действия, последние сообщения и запросы к владельцу; без run_id выбирается последнее поручение этого чата. Наблюдение не управляет OpenCode. Остановка доступна только владельцу в окне OpenCode. Обычный OpenCode не изменяется.',
     'input_schema': {'type': 'object', 'properties': {
-        'action': {'type': 'string', 'enum': ['start', 'status', 'cancel']},
+        'action': {'type': 'string', 'enum': ['start', 'status']},
         'goal': {'type': 'string'}, 'title': {'type': 'string'}, 'run_id': {'type': 'string'},
     }, 'required': ['action'], 'additionalProperties': False},
 }
@@ -74,6 +76,10 @@ class OpenCodeTasks(DesktopBrowserPipe):
         if not session:
             return json.dumps({'error': 'opencode_requires_desktop_session'})
         action = fields.get('action')
+        if action == 'cancel':
+            return json.dumps({'error': 'opencode_observation_read_only'})
+        if not isinstance(action, str) or action not in {'start', 'status'}:
+            return json.dumps({'error': 'invalid_request'})
         with self.state_lock:
             if action == 'start':
                 goal, title = fields.get('goal'), fields.get('title')
@@ -113,23 +119,74 @@ class OpenCodeTasks(DesktopBrowserPipe):
                                'OpenCode: поручение не запущено (' + str(exc)[:150] + ').')
                 self.save(run)
                 return json.dumps(self.public(run), ensure_ascii=False)
-            run = self.lookup(str(fields.get('run_id') or ''))
+            run_id = str(fields.get('run_id') or '')
+            run = self.lookup(run_id) if run_id else next((r for r in reversed(self.runs()) if r['session'] == session and r['state'] not in FINAL), None)
+            if not run and not run_id:
+                run = next((r for r in reversed(self.runs()) if r['session'] == session), None)
             if not run or run['session'] != session:
                 return json.dumps({'error': 'opencode_task_not_found'})
-            if action == 'cancel' and run['state'] not in FINAL:
-                reply = json.loads(self.request({'action': 'cancel', 'run_id': run['id']}))
-                if reply.get('error'):
-                    return json.dumps(reply)
-                self.clear_inputs(run)
-                run.update(state='cancelled', inputs=[], result='OpenCode: поручение остановлено. Уже сделанные изменения остались в исходном проекте.')
-                self.save(run)
-            elif action not in {'status', 'cancel'}:
-                return json.dumps({'error': 'invalid_request'})
+            if run['state'] not in FINAL and run['state'] != 'preparing':
+                self.refresh(run)
             return json.dumps(self.public(run), ensure_ascii=False)
 
     @staticmethod
     def public(run):
-        return {'run_id': run['id'], 'status': run['state'], 'result': run['result']}
+        progress = dict(run.get('progress') or {})
+        observed = progress.get('observed_at')
+        age = max(0, int(time.time() - observed / 1000)) if observed else None
+        error = run.get('observation_error')
+        progress.update(available=bool(observed), age_seconds=age,
+                        freshness='unavailable' if not observed else 'historical' if run['state'] in FINAL else
+                                  'stale' if error or age > 5 else 'live')
+        if error:
+            progress['refresh_error'] = error
+        return {'run_id': run['id'], 'status': run['state'], 'result': run['result'], 'progress': progress}
+
+    @staticmethod
+    def progress_snapshot(value, inputs):
+        if not isinstance(value, dict) or type(value.get('schema')) is not int or value['schema'] != 1:
+            return None
+        observed = value.get('observed_at')
+        if type(observed) not in (int, float) or not 0 < observed <= time.time() * 1000 + 60000:
+            return None
+        def text(value, limit):
+            return redact_text(value)[:limit] if isinstance(value, str) else ''
+        def actions(items):
+            if not isinstance(items, list):
+                return []
+            result = []
+            for item in items[-10:]:
+                if not isinstance(item, dict) or item.get('status') not in {'streaming', 'running', 'completed', 'error'}:
+                    continue
+                action = {key: text(item.get(key), limit) for key, limit in [('id', 150), ('message_id', 150), ('tool', 80), ('status', 20)]}
+                if isinstance(item.get('target'), str):
+                    action['target'] = text(item['target'], 1024)
+                times = item.get('time') or {}
+                if isinstance(times, dict):
+                    action['time'] = {key: times[key] for key in ['created', 'ran', 'completed']
+                                      if type(times.get(key)) in (int, float) and 0 <= times[key] <= observed + 60000}
+                result.append(action)
+            return result
+        message = value.get('latest_message')
+        latest = {'id': text(message.get('id'), 150), 'text': text(message.get('text'), 4000),
+                  'completed': message.get('completed') is True} if isinstance(message, dict) else None
+        if latest and isinstance(message.get('time'), dict):
+            latest['time'] = {key: message['time'][key] for key in ['created', 'streamed', 'completed']
+                              if type(message['time'].get(key)) in (int, float) and 0 <= message['time'][key] <= observed + 60000}
+        counts = value.get('action_counts')
+        if not isinstance(counts, dict):
+            counts = {}
+        return {'schema': 1, 'observed_at': observed, 'session_active': value.get('session_active') is True,
+                'latest_message': latest, 'recent_actions': actions(value.get('recent_actions')),
+                'active_actions': actions(value.get('active_actions')),
+                'action_counts': {key: counts.get(key) if type(counts.get(key)) is int and counts[key] >= 0 else None
+                                  for key in ['streaming', 'running', 'completed', 'error']},
+                'recent_actions_truncated': value.get('recent_actions_truncated') is True,
+                'active_actions_truncated': value.get('active_actions_truncated') is True,
+                'timeline_truncated': value.get('timeline_truncated') is True,
+                'pending_input_count': len(inputs), 'pending_inputs_truncated': len(inputs) > 10,
+                'waiting_for_owner': [{'id': text(i.get('id'), 150), 'kind': text(i.get('kind'), 30),
+                                       'title': text(i.get('title'), 300)} for i in inputs[:10]]}
 
     def install(self):
         registry.register(name='opencode_task', toolset='delegation', schema=SCHEMA,
@@ -231,34 +288,54 @@ class OpenCodeTasks(DesktopBrowserPipe):
         self.event(run, 'opencode.message', {'message_id': run['id'] + '-' + identity, 'text': text})
         run['seen'].append(identity)
 
+    def refresh(self, run):
+        try:
+            snapshot = json.loads(self.request({'action': 'status', 'run_id': run['id'], 'seen': run['seen']}, timeout=8))
+            if not isinstance(snapshot, dict):
+                raise ValueError('invalid_snapshot')
+            for key, required in [('inputs', ['id']), ('messages', ['id', 'text'])]:
+                values = snapshot.get(key, [])
+                if not isinstance(values, list) or any(not isinstance(v, dict) or any(not isinstance(v.get(k), str) for k in required) for v in values):
+                    raise ValueError('invalid_snapshot')
+        except (ValueError, TypeError, OSError):
+            snapshot = {'error': 'opencode_status_unavailable'}
+        if snapshot.get('error'):
+            run['observation_error'] = 'opencode_task_lost' if snapshot['error'] == 'opencode_task_lost' else 'opencode_status_unavailable'
+            if snapshot['error'] == 'opencode_task_lost':
+                self.clear_inputs(run)
+                run.update(state='interrupted', inputs=[], result='OpenCode: сервис остановился. Автоматического повторного запуска не было.')
+            self.save(run)
+            return
+        interrupted = snapshot.get('outcome') == 'interrupted'
+        if interrupted:
+            snapshot['inputs'] = []
+        progress = self.progress_snapshot(snapshot.get('progress'), snapshot.get('inputs', []))
+        run['observation_error'] = None if progress else 'opencode_progress_unavailable'
+        if progress:
+            run['progress'] = progress
+        previous = {item['id'] for item in run['inputs']}
+        run['inputs'] = snapshot.get('inputs', [])
+        for item in run['inputs']:
+            if item['id'] not in previous:
+                self.event(run, 'approval.required', self.approval(run, item))
+        for old in previous - {item['id'] for item in run['inputs']}:
+            self.event(run, 'approval.resolved', {'task_id': run['id'], 'request_id': old, 'decision': 'cancel' if interrupted else 'allow_once'})
+        for item in snapshot.get('messages', []):
+            self.message(run, item['id'], item['text'])
+        outcome = snapshot.get('outcome')
+        if outcome in {'succeeded', 'failed', 'interrupted'} and not run['inputs']:
+            run['state'] = {'succeeded': 'completed', 'failed': 'failed', 'interrupted': 'interrupted'}[outcome]
+            run['result'] = 'Состояние OpenCode: ' + outcome + '\n' + (snapshot.get('result') or 'Текстовый ответ отсутствует.')
+            run['result'] += '\n\nИзменения уже находятся в исходном проекте; автоматического отката нет.'
+        self.save(run)
+
     def poll(self):
         if not self.allowed(None) or not self.state_lock.acquire(blocking=False):
             return
         try:
             for run in self.runs():
                 if run['state'] not in FINAL and run['state'] != 'preparing':
-                    snapshot = json.loads(self.request({'action': 'status', 'run_id': run['id'], 'seen': run['seen']}, timeout=8))
-                    if snapshot.get('error'):
-                        if snapshot['error'] == 'opencode_task_lost':
-                            self.clear_inputs(run)
-                            run.update(state='interrupted', inputs=[], result='OpenCode: сервис остановился. Автоматического повторного запуска не было.')
-                        self.save(run)
-                        continue
-                    previous = {item['id'] for item in run['inputs']}
-                    run['inputs'] = snapshot.get('inputs', [])
-                    for item in run['inputs']:
-                        if item['id'] not in previous:
-                            self.event(run, 'approval.required', self.approval(run, item))
-                    for old in previous - {item['id'] for item in run['inputs']}:
-                        self.event(run, 'approval.resolved', {'task_id': run['id'], 'request_id': old, 'decision': 'allow_once'})
-                    for item in snapshot.get('messages', []):
-                        self.message(run, item['id'], item['text'])
-                    outcome = snapshot.get('outcome')
-                    if outcome in {'succeeded', 'failed', 'interrupted'} and not run['inputs']:
-                        run['state'] = {'succeeded': 'completed', 'failed': 'failed', 'interrupted': 'interrupted'}[outcome]
-                        run['result'] = 'Состояние OpenCode: ' + outcome + '\n' + (snapshot.get('result') or 'Текстовый ответ отсутствует.')
-                        run['result'] += '\n\nИзменения уже находятся в исходном проекте; автоматического отката нет.'
-                    self.save(run)
+                    self.refresh(run)
                 if run['state'] in FINAL and not run['delivered']:
                     if not self.service._active_task_id_for_session(run['session']):
                         if self.service.deliver_opencode_result(run):

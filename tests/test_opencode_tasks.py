@@ -103,7 +103,7 @@ def test_start_is_idempotent_and_model_cannot_answer_owner_questions(project, tm
     assert len(requests) == 1
     assert json.loads(instance.call({'action': 'answer', 'run_id': first['run_id']}, **context))['error'] == 'invalid_request'
     assert json.loads(instance.call({'action': 'status', 'run_id': first['run_id']}, **(context | {'current_session': 'other'})))['error'] == 'opencode_task_not_found'
-    assert tasks.SCHEMA['input_schema']['properties']['action']['enum'] == ['start', 'status', 'cancel']
+    assert tasks.SCHEMA['input_schema']['properties']['action']['enum'] == ['start', 'status']
 
 
 def test_pending_inputs_do_not_make_main_chat_busy_and_restart_never_relaunches(project, tmp_path, monkeypatch):
@@ -167,16 +167,19 @@ def test_forms_are_journaled_without_busy_main_task_and_direct_answer_resolves_t
     assert instance.service.store.events[-1]['kind'] == 'approval.resolved'
 
 
-def test_cancel_resolves_pending_cards_without_answering_them(project, tmp_path, monkeypatch):
-    instance, _ = client(tmp_path, monkeypatch)
+def test_model_cannot_cancel_or_answer_even_with_pending_owner_cards(project, tmp_path, monkeypatch):
+    instance, requests = client(tmp_path, monkeypatch)
     context = dict(workdir=str(project), current_session='chat-1', profile='fixture', task_id='parent', tool_use_id='call-1')
     started = json.loads(instance.call({'action': 'start', 'goal': 'Change code', 'title': 'Change'}, **context))
     run = instance.lookup(started['run_id'])
     run['inputs'] = [{'id': 'frm_pending'}]
     instance.save(run)
-    instance.call({'action': 'cancel', 'run_id': run['id']}, **context)
-    assert instance.approvals('chat-1') == []
-    assert instance.service.store.events[-1]['payload']['decision'] == 'cancel'
+    assert json.loads(instance.call({'action': 'cancel', 'run_id': run['id']}, **context))['error'] == 'opencode_observation_read_only'
+    assert json.loads(instance.call({'action': 'answer', 'run_id': run['id']}, **context))['error'] == 'invalid_request'
+    assert instance.approvals('chat-1')[0]['request_id'] == 'frm_pending'
+    assert instance.lookup(run['id'])['state'] == 'running'
+    assert [r['action'] for r in requests] == ['start']
+    assert not instance.service.store.events
 
 
 def start(instance, project, **extra):
@@ -201,7 +204,7 @@ def test_direct_admission_does_not_walk_hash_or_copy_project(project, tmp_path, 
     assert (project / 'relative-link').is_symlink()
 
 
-def test_direct_cancel_preserves_live_changes_and_releases_writes(project, tmp_path, monkeypatch):
+def test_owner_interruption_preserves_live_changes_and_releases_writes(project, tmp_path, monkeypatch):
     from factory.core.tool_registry import ToolRegistry
     instance, _ = client(tmp_path, monkeypatch)
     registry = ToolRegistry()
@@ -220,7 +223,8 @@ def test_direct_cancel_preserves_live_changes_and_releases_writes(project, tmp_p
     assert json.loads(registry.dispatch('Write', {'file_path': str(project / 'code.py')},
         workdir=str(tmp_path / 'unrelated'), current_session='other'))['error'] == 'opencode_project_read_only'
     (project / 'code.py').write_text('live change')
-    instance.call({'action': 'cancel', 'run_id': result['run_id']}, **ctx, profile='fixture')
+    monkeypatch.setattr(instance, 'request', lambda *a, **kw: json.dumps({'outcome': 'interrupted', 'inputs': [], 'messages': []}))
+    instance.poll()
     assert (project / 'code.py').read_text() == 'live change'
     assert registry.dispatch('Write', {}, **ctx) == 'ok'
 
@@ -311,3 +315,139 @@ def test_windows_project_enumeration_accepts_only_internal_file_links(project, t
     else:
         with pytest.raises((ValueError, OSError)):
             list(WindowsSandbox._paths(project))
+
+
+def progress_fixture(**extra):
+    return dict(schema=1, observed_at=tasks.time.time() * 1000, session_active=True,
+                latest_message={'id': 'msg_live', 'text': 'Reading the project', 'completed': False},
+                recent_actions=[{'id': 'read-1', 'tool': 'read', 'status': 'completed', 'target': 'code.py'}],
+                active_actions=[{'id': 'write-1', 'tool': 'write', 'status': 'running', 'target': 'other.py'}],
+                action_counts={'completed': 1, 'running': 1, 'streaming': 0, 'error': 0}, **extra)
+
+
+def test_status_fetches_live_progress_without_sending_control_or_losing_auto_delivery(project, tmp_path, monkeypatch):
+    import factory.core.cli_chat as journal
+    journaled = []
+    monkeypatch.setattr(journal, '_append_entry', lambda *args, **kwargs: journaled.append(kwargs))
+    instance, requests = client(tmp_path, monkeypatch)
+    started = start(instance, project)
+    def request(fields, *args, **kwargs):
+        requests.append(fields)
+        assert fields['action'] == 'status'
+        return json.dumps({'outcome': None, 'inputs': [{'id': 'frm_pending', 'kind': 'form', 'title': 'Choose', 'fields': []}],
+                           'messages': [{'id': 'msg_auto', 'text': 'Finished reading'}], 'progress': progress_fixture()})
+    monkeypatch.setattr(instance, 'request', request)
+    status = json.loads(instance.call({'action': 'status'}, current_session='chat-1', profile='fixture'))
+    assert status['run_id'] == started['run_id'] and status['status'] == 'running' and status['result'] == ''
+    progress = status['progress']
+    assert progress['available'] and progress['freshness'] == 'live'
+    assert progress['active_actions'][0]['target'] == 'other.py'
+    assert progress['recent_actions'][0]['status'] == 'completed'
+    assert progress['latest_message']['completed'] is False
+    assert progress['waiting_for_owner'][0]['id'] == 'frm_pending'
+    instance.poll()
+    assert len(journaled) == 1
+    assert [event['kind'] for event in instance.service.store.events].count('opencode.message') == 1
+    assert [event['kind'] for event in instance.service.store.events].count('approval.required') == 1
+    assert all(r['action'] in {'start', 'status'} for r in requests)
+
+
+def test_status_falls_back_to_marked_stale_snapshot_and_never_relaunches(project, tmp_path, monkeypatch):
+    instance, requests = client(tmp_path, monkeypatch)
+    started = start(instance, project)
+    run = instance.lookup(started['run_id'])
+    run['progress'] = instance.progress_snapshot(progress_fixture(), [])
+    run['progress']['observed_at'] -= 20000
+    instance.save(run)
+    monkeypatch.setattr(instance, 'request', lambda *a, **kw: json.dumps({'error': 'desktop_browser_timeout'}))
+    result = json.loads(instance.call({'action': 'status'}, current_session='chat-1', profile='fixture'))
+    assert result['status'] == 'running' and result['progress']['freshness'] == 'stale'
+    assert result['progress']['age_seconds'] >= 20
+    assert result['progress']['refresh_error'] == 'opencode_status_unavailable'
+    assert len(requests) == 1
+    assert json.loads(instance.call({'action': 'status', 'run_id': started['run_id']},
+                                   current_session='other', profile='fixture'))['error'] == 'opencode_task_not_found'
+    assert json.loads(instance.call({'action': 'status'}, current_session='other', profile='fixture'))['error'] == 'opencode_task_not_found'
+
+
+def test_missing_progress_is_unavailable_not_fabricated_and_legacy_receipts_remain_readable(project, tmp_path, monkeypatch):
+    instance, _ = client(tmp_path, monkeypatch)
+    start(instance, project)
+    result = json.loads(instance.call({'action': 'status'}, current_session='chat-1', profile='fixture'))
+    assert result['progress']['freshness'] == 'unavailable' and result['progress']['available'] is False
+    run = instance.runs()[0]
+    run.update(state='completed', result='Done')
+    instance.save(run)
+    monkeypatch.setattr(instance, 'request', lambda *a, **kw: pytest.fail('Completed receipts must not contact an unrelated live service'))
+    assert json.loads(instance.call({'action': 'status'}, current_session='chat-1', profile='fixture'))['result'] == 'Done'
+
+
+def test_observation_payload_is_bounded_redacted_and_does_not_relay_reasoning_or_tool_inputs():
+    value = progress_fixture()
+    value['latest_message']['text'] = 'token=fixture-secret-value ' + 'x' * 6000
+    value['latest_message']['reasoning'] = 'must not relay'
+    value['active_actions'] = [dict(id=str(i), tool='shell', status='running', input={'command': 'must not relay'},
+                                     content='must not relay', time={'ran': 5, 'completed': float('inf')}) for i in range(30)]
+    result = tasks.OpenCodeTasks.progress_snapshot(value, [{'id':str(i),'kind':'form','title':'Choose'} for i in range(20)])
+    assert len(result['active_actions']) == len(result['waiting_for_owner']) == 10
+    assert result['pending_input_count'] == 20 and result['pending_inputs_truncated']
+    assert len(result['latest_message']['text']) <= 4000
+    assert 'fixture-secret-value' not in json.dumps(result) and 'must not relay' not in json.dumps(result)
+    assert tasks.OpenCodeTasks.progress_snapshot({'schema':1,'observed_at':float('nan')}, []) is None
+
+
+def test_main_chat_can_request_and_explain_running_progress_via_actual_tool_dispatch(project, tmp_path, monkeypatch):
+    from factory.core import cc_backend_executor as executor
+    from factory.core.tool_registry import registry
+    from factory.core.cc_backend_tools import get_tool_schemas
+    instance, _ = client(tmp_path, monkeypatch)
+    start(instance, project)
+    instance.request = lambda *a, **kw: json.dumps({'outcome': None, 'inputs': [], 'messages': [], 'progress': progress_fixture()})
+    monkeypatch.setattr(registry, '_tools', dict(registry._tools))
+    monkeypatch.setattr(registry, '_toolset_checks', dict(registry._toolset_checks))
+    instance.install()
+    posted = []
+    def post(url, payload, headers, *a, **kw):
+        posted.append(json.loads(json.dumps(payload)))
+        message = {'role': 'assistant', 'content': 'OpenCode редактирует other.py; чтение code.py завершено.'}
+        if len(posted) == 1:
+            message = {'role': 'assistant', 'content': None, 'tool_calls': [{'id':'observe','type':'function',
+                'function':{'name':'opencode_task','arguments':'{"action":"status"}'}}]}
+        return {'choices':[{'message':message,'finish_reason':'stop'}], 'usage':{}}, 1
+    monkeypatch.setattr(executor, '_http_post_streaming_openai', post)
+    monkeypatch.setattr(executor, '_resolve_backend_context_window', lambda **kw: (32768, 'fixture'))
+    monkeypatch.setattr(executor, 'is_interrupt_requested', lambda: False)
+    monkeypatch.setattr(executor, 'task_should_stop', lambda task_id: False)
+    (tmp_path / 'artifacts').mkdir()
+    try:
+        result = executor.execute_cc_backend_task(base_url='http://127.0.0.1:1/v1', model='fixture', system_prompt='fixture',
+            user_message='What is OpenCode doing?', workdir=str(project), artifact_workdir=str(tmp_path/'artifacts'),
+            api_format='openai', current_session='chat-1', profile='fixture',
+            enabled_tools=[t for t in get_tool_schemas() if t['name']=='opencode_task'], checkpoint_config={'enabled':False})
+        assert result['status']=='ok' and 'other.py' in result['output_text']
+        tool_results=[m for m in posted[1]['messages'] if m.get('role')=='tool']
+        assert len(tool_results)==1
+        value=json.loads(tool_results[0]['content'])
+        assert value['progress']['active_actions'][0]['target']=='other.py'
+        assert value['status']=='running' and (project/'other.py').read_text()=='other\n'
+    finally:
+        instance.close()
+
+
+def test_owner_interrupt_closes_pending_chat_cards_without_answer_or_interrupt_requests(project, tmp_path, monkeypatch):
+    instance, _ = client(tmp_path, monkeypatch)
+    started = start(instance, project)
+    run = instance.lookup(started['run_id'])
+    run['inputs'] = [{'id':'frm_stopped','kind':'form','title':'Choose'}]
+    instance.save(run)
+    requests = []
+    def request(fields, *a, **kw):
+        requests.append(fields)
+        return json.dumps({'outcome':'interrupted','inputs':run['inputs'],'messages':[], 'progress':progress_fixture()})
+    monkeypatch.setattr(instance, 'request', request)
+    value=json.loads(instance.call({'action':'status'}, current_session='chat-1', profile='fixture'))
+    assert value['status']=='interrupted' and value['progress']['freshness']=='historical'
+    assert value['progress']['waiting_for_owner']==[]
+    assert instance.approvals('chat-1')==[]
+    assert instance.service.store.events[-1]['payload']['decision']=='cancel'
+    assert [r['action'] for r in requests]==['status']
