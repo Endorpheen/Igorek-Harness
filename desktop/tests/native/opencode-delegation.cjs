@@ -13,6 +13,7 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
   const folder = path.join(process.platform==='win32'?fs.realpathSync.native(root):root, 'opencode-delegation');
   const source = path.join(folder, 'source'), workspaceRoot = path.join(folder, 'tasks');
   const runID = 'oc_' + 'c'.repeat(32), calls = [], proof = {platform: process.platform};
+  const forbidden = process.platform === 'win32' ? path.join(source, 'forbidden.txt') : '/usr/igorek-native-' + runID + '.txt';
   fs.mkdirSync(source, {recursive: true}); fs.mkdirSync(workspaceRoot);
   fs.writeFileSync(path.join(source, 'source.txt'), 'original\n');
   execFileSync('git', ['init', '--initial-branch=main'], {cwd: source, stdio: 'ignore'});
@@ -49,7 +50,7 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
       const actions = [
         ['shell', {command: 'echo fixture-shell-ok && git --version' + (process.platform === 'win32' ?
           ' && node -e "process.stdout.write(\'fixture-node-ok\')" && (echo forbidden>"' + path.join(source, 'forbidden-shell.txt') + '")' : '')}],
-        ['write', {path: path.join(source, 'forbidden.txt'), content: 'forbidden'}],
+        ['write', {path: forbidden, content: 'forbidden'}],
         ['write', {path: path.join(workspace, 'result.txt'), content: 'native result\n'}],
         ['question', {questions: [{question: 'Continue the synthetic fixture?', header: 'Fixture',
           options: [{label: 'Proceed', description: 'Continue the fixture'}]}]}],
@@ -116,16 +117,19 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
     assert.equal(proof.outcome, 'succeeded'); assert.equal(next, 4); assert(proof.native_question_roundtrip);
     assert.equal(fs.readFileSync(path.join(workspace, 'result.txt'), 'utf8'), 'native result\n');
     assert(!fs.existsSync(path.join(source, 'forbidden.txt'))); assert(!fs.existsSync(path.join(source, 'result.txt')));
+    assert(!fs.existsSync(forbidden));
     assert(!fs.existsSync(path.join(source, 'forbidden-shell.txt')));
-    assert(calls.some(messages => JSON.stringify(messages).includes('fixture-shell-ok')));
-    if (process.platform === 'win32') assert(calls.some(messages => JSON.stringify(messages).includes('fixture-node-ok')));
+    const shellReply = calls.flat().find(message => message.role === 'tool' && message.tool_call_id === 'call_fixture_1');
+    assert(shellReply?.content.includes('fixture-shell-ok'), 'Missing native shell output: ' + JSON.stringify(shellReply));
+    assert(shellReply.content.includes('git version'), 'Missing native Git command output');
+    if (process.platform === 'win32') assert(shellReply.content.includes('fixture-node-ok'), 'Missing native Node command output');
     const outsideReply = calls.flat().find(message => message.role === 'tool' && message.tool_call_id === 'call_fixture_2');
     assert(outsideReply, 'Missing outside-write tool result');
     const outsideError = JSON.parse(outsideReply.content).error;
     assert.equal(outsideError.type, 'tool.execution');
-    assert.equal(outsideError.message, 'Unable to write ' + path.join(source, 'forbidden.txt'));
-    if (process.platform === 'win32') assert(calls.some(messages => /Access is denied|Access denied|os error 5/i.test(JSON.stringify(messages))),
-      'Outside shell write did not report an OS denial: ' + JSON.stringify(calls.at(-1).filter(message => message.role === 'tool')).slice(-6000));
+    assert.equal(outsideError.message, 'Unable to write ' + forbidden);
+    if (process.platform === 'win32') assert(/Access is denied|Access denied|os error 5/i.test(shellReply.content),
+      'Outside shell write did not report an OS denial: ' + JSON.stringify(shellReply));
     proof.source_isolation = true;
     assert(JSON.parse(workspaceAction('apply')).applied);
     assert.equal(fs.readFileSync(path.join(source, 'result.txt'), 'utf8'), 'native result\n'); proof.result_applied = true;

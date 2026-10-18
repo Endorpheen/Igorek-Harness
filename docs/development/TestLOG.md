@@ -1072,3 +1072,16 @@ Use [TESTING.md](../TESTING.md) for reproducible commands and coverage limits,
   did not prevent snapshot init warnings). The sanitized environment retains
   executable PATH; filesystem access still uses the restricted token. Windows
   shell acceptance additionally runs the installed Node executable from PATH.
+- Linux native API fixture now passes through result application with an
+  immutable /usr negative target. An earlier synthetic /tmp target addressed
+  bubblewrap's disposable temporary tree, so its successful virtual write was
+  not an original-project write; the host source remained unchanged. A long
+  provider Unix socket fixture also hit its address-length limit and was moved
+  to a short test root. No product isolation policy changed.
+- Third Windows run: 41 passed/3 skipped. OpenCode completes assignment/forms,
+  structured denied write and inside write. Retaining PATH selected PowerShell,
+  whose sandboxed startup exited 53. The runner now explicitly selects built-in
+  cmd.exe, while retaining installed command PATH. Assertions inspect actual
+  tool output rather than assistant command strings. Core.longpaths environment
+  and private global config did not remove snapshot init warnings; native data
+  uses a Windows extended path prefix for the next acceptance run.
