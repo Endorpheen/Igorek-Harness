@@ -9,11 +9,28 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
+TLS_ERROR_TYPES = {
+    'SSLError', 'SSLCertVerificationError', 'SSLEOFError', 'SSLZeroReturnError',
+    'SSLWantReadError', 'SSLWantWriteError', 'SSLSyscallError',
+}
+TLS_ERROR_REASONS = {
+    'OTHER', 'UNEXPECTED_EOF_WHILE_READING', 'TLSV1_ALERT_INTERNAL_ERROR',
+    'CERTIFICATE_VERIFY_FAILED', 'WRONG_VERSION_NUMBER', 'UNSUPPORTED_PROTOCOL',
+    'TLSV1_ALERT_PROTOCOL_VERSION', 'SSLV3_ALERT_HANDSHAKE_FAILURE',
+    'TLSV1_ALERT_UNKNOWN_CA', 'SSLV3_ALERT_BAD_CERTIFICATE',
+    'SSLV3_ALERT_CERTIFICATE_EXPIRED', 'TLSV1_ALERT_ACCESS_DENIED',
+    'TLSV1_ALERT_DECODE_ERROR', 'TLSV1_ALERT_DECRYPT_ERROR',
+    'SSLV3_ALERT_BAD_RECORD_MAC', 'NO_CIPHERS_AVAILABLE', 'NO_SHARED_CIPHER',
+    'DH_KEY_TOO_SMALL', 'EE_KEY_TOO_SMALL', 'CA_KEY_TOO_SMALL', 'CA_MD_TOO_WEAK',
+}
+
 
 def model_failure_diagnostics(body) -> dict:
     if not isinstance(body,dict):return {}
     result = {}
     allowed = {
+        'tls_error_type': TLS_ERROR_TYPES,
+        'tls_reason': TLS_ERROR_REASONS,
         'error_code': {'responses_failed','responses_network','responses_timeout','responses_tls','responses_invalid_response','responses_incomplete_stream','responses_transport','authentication','subscription_sharing_usage_limit_exceeded','subscription_sharing_usage_unavailable','invalid_api_key','invalid_token','model_not_found','context_length_exceeded'},
         'provider_error_code': {'server_error','internal_server_error','model_error','invalid_request_error','unsupported_parameter','unknown_parameter','invalid_value','model_not_found','context_length_exceeded','rate_limit_exceeded','insufficient_quota','invalid_api_key','invalid_token','access_denied','subscription_sharing_usage_limit_exceeded','subscription_sharing_usage_unavailable'},
         'transport_phase': {'request_build','credentials','connect','http_body','sse_read','sse_parse','response_validation','response_terminal'},
@@ -26,6 +43,8 @@ def model_failure_diagnostics(body) -> dict:
     for key,values in allowed.items():
         if isinstance(body.get(key),str) and body[key] in values:result[key]=body[key]
     if type(body.get('http_status')) is int and 100<=body['http_status']<=599:result['http_status']=body['http_status']
+    for key, maximum in [('tls_errno', 255), ('tls_verify_code', 2**31-1)]:
+        if type(body.get(key)) is int and 0<=body[key]<=maximum:result[key]=body[key]
     if isinstance(body.get('request_id'),str) and re.fullmatch(r'req_[A-Za-z0-9]{8,128}',body['request_id']):result['request_id']=body['request_id']
     return result
 

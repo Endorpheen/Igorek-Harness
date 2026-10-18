@@ -11,7 +11,7 @@ import time
 from copy import deepcopy
 from urllib.parse import urlsplit
 
-from .cc_backend_trace import append_cc_backend_trace
+from .cc_backend_trace import append_cc_backend_trace, model_failure_diagnostics, TLS_ERROR_REASONS
 from .trace_taxonomy import CcTraceEvent
 
 NAMESPACE = "igorek"
@@ -213,6 +213,18 @@ def _failure(error, status=None, request_id=None):
             "error_code": "responses_failed", **details}
 
 
+def _tls_failure_details(error):
+    """Preserve safe native TLS codes without certificate subjects or raw messages."""
+    kind = next((cls.__name__ for cls in (
+        ssl.SSLCertVerificationError, ssl.SSLEOFError, ssl.SSLZeroReturnError,
+        ssl.SSLWantReadError, ssl.SSLWantWriteError, ssl.SSLSyscallError,
+    ) if isinstance(error, cls)), 'SSLError')
+    reason = getattr(error, 'reason', None)
+    return model_failure_diagnostics({'tls_error_type': kind,
+        'tls_reason': reason if reason in TLS_ERROR_REASONS else 'OTHER',
+        'tls_errno': error.errno, 'tls_verify_code': getattr(error, 'verify_code', None)})
+
+
 def post(url, payload, headers, timeout_s, *, trace_dir=None, round_num=0, parent_task_id=None,
          cancel_check=None, log_fn=None):
     """Read SSE to a completed terminal event before exposing any tool calls."""
@@ -364,12 +376,18 @@ def post(url, payload, headers, timeout_s, *, trace_dir=None, round_num=0, paren
                 'responses_invalid_response' if isinstance(error, (ValueError, TypeError, KeyError)) else
                 'responses_transport')
         details = {**response_details, 'transport_phase': phase}
+        error_message = 'Не удалось завершить запрос OpenAI. Проверьте вход и соединение.'
+        if isinstance(error, ssl.SSLError):
+            details.update(_tls_failure_details(error))
+            error_message = ('Сертификат TLS-соединения с OpenAI не прошёл проверку.'
+                if isinstance(error, ssl.SSLCertVerificationError)
+                else 'Не удалось установить TLS-соединение с OpenAI.')
         if isinstance(error, ValueError) and error.args and isinstance(error.args[0], str) and error.args[0] in {
             'responses_invalid_tool_choice', 'responses_invalid_tool_call', 'responses_invalid_output',
             'responses_unsupported_output', 'responses_not_completed', 'responses_invalid_content_type',
             'responses_event_too_large', 'responses_invalid_role', 'responses_invalid_sse_envelope'}:
             details['validation_code'] = error.args[0]
-        return {"error": "Не удалось завершить запрос OpenAI. Проверьте вход и соединение.",
+        return {"error": error_message,
                 "error_code": code, **details}, int((time.monotonic() - start) * 1000)
     finally:
         done.set()
