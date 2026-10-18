@@ -181,7 +181,7 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
       console.error(JSON.stringify(proof));
     }
     fs.writeFileSync(path.join(output, 'opencode-delegation.json'), JSON.stringify(proof, null, 2));
-    if (projectFolder !== folder) fs.rmSync(projectFolder, {recursive:true, force:true});
+    if (projectFolder !== folder) await fs.promises.rm(projectFolder, {recursive:true, force:true, maxRetries:10, retryDelay:100});
   }
 }
 module.exports = {verifyOpenCodeDelegation};
