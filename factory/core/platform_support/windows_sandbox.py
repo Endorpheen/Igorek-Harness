@@ -374,9 +374,13 @@ class WindowsSandbox:
                 self._check(self.set_job(self.job, 4, ctypes.byref(ui), ctypes.sizeof(ui)))
                 if self.adapter_path:
                     adapter = ctypes.WinDLL(str(self.adapter_path), use_last_error=True)
-                    adapter.IgorekEmbed.argtypes = [W.HANDLE]
-                    adapter.IgorekEmbed.restype = W.BOOL
-                    self._check(adapter.IgorekEmbed(self.process))
+                    try:
+                        adapter.IgorekEmbed.argtypes = [W.HANDLE]
+                        adapter.IgorekEmbed.restype = W.BOOL
+                        self._check(adapter.IgorekEmbed(self.process))
+                    finally:
+                        import _ctypes
+                        _ctypes.FreeLibrary(adapter._handle)
                 if self.resume(self.thread) == 0xFFFFFFFF:
                     raise ctypes.WinError(ctypes.get_last_error())
             except BaseException:

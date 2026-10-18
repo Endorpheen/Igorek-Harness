@@ -83,7 +83,8 @@ def main(config):
         'XDG_CONFIG_HOME': str(service / 'home'), 'XDG_DATA_HOME': str(service / 'home'),
         'XDG_CACHE_HOME': str(service / 'cache'), 'OPENCODE_CONFIG_DIR': directory,
         'OPENCODE_DISABLE_AUTOUPDATE': '1', 'OPENCODE_DISABLE_MODELS_FETCH': '1',
-        'OPENCODE_SERVER_PASSWORD': config['password']}
+        'OPENCODE_SERVER_PASSWORD': config['password'],
+        'GIT_CONFIG_COUNT': '1', 'GIT_CONFIG_KEY_0': 'core.longpaths', 'GIT_CONFIG_VALUE_0': 'true'}
     git = shutil.which('git')
     if git:
         environment['PATH'] += os.pathsep + str(Path(git).parent)
@@ -100,109 +101,6 @@ def main(config):
     threading.Thread(target=owner_input, daemon=True).start()
     writable = [service / name for name in ['home', 'cache', 'tmp', 'config']] + ([workspace] if owned else [])
     manual = [] if owned else [Path(item).resolve(strict=True) for item in config['projects']]
-    if config.get('diagnostics') is True and git:
-        script = "const git=" + json.dumps(git) + ";const cwd=" + json.dumps(str(workspace)) + ";" + r"""
-(async()=>{const {spawn,spawnSync}=require('node:child_process');const results=[];
-for(const mode of ['pipe','ignore','inherit'])for(const input of ['ignore','inherit']){
- await new Promise(resolve=>{
-  const key={mode,input};let output='';
-  try{const child=spawn(git,['--version'],{cwd,stdio:[input,mode,mode],windowsHide:true});
-   child.stdout?.on('data',part=>output+=part);
-   child.on('error',error=>{results.push({...key,error:error.code,errno:error.errno});resolve();});
-   child.on('close',code=>{if(!results.some(r=>r.mode===mode&&r.input===input))results.push({...key,code,output:output.slice(0,150)});resolve();});
-  }catch(error){results.push({...key,error:error.code,errno:error.errno});resolve();}
- });
-}
-for(const mode of ['pipe','ignore']){
- try{const child=spawnSync(git,['--version'],{cwd,stdio:['inherit',mode,mode],windowsHide:true});results.push({sync:true,mode,code:child.status,error:child.error?.code});}
- catch(error){results.push({sync:true,mode,error:error.code});}
-}
-try{const child=Bun.spawn([git,'--version'],{cwd,stdin:'inherit',stdout:'pipe',stderr:'pipe'});results.push({bun:true,code:await child.exited,output:(await child.stdout.text()).slice(0,150)});}
-catch(error){results.push({bun:true,error:error.code,errno:error.errno});}
-console.log(JSON.stringify({bun:Bun.version,spawn_probes:results}));
-})().catch(error=>{console.error(error.code||error.name);process.exitCode=1;});
-"""
-        probe_python = service / 'probe-python'
-        if not probe_python.exists():
-            shutil.copytree(Path(sys.executable).parent, probe_python,
-                            ignore=shutil.ignore_patterns('site-packages', 'Scripts', '__pycache__', 'test', 'tests', 'Tools', 'Doc', 'include', 'libs'))
-            (probe_python / 'python314._pth').write_text('python314.zip\n.\nLib\nDLLs\n', encoding='utf-8')
-        probe = WindowsSandbox(root, writable=writable, manual_projects=manual, process_adapter=adapter)
-        try:
-            with open(os.devnull, 'rb') as incoming, (service / 'spawn-probe.log').open('wb') as outgoing:
-                probe.start([binary, '-e', script], cwd=workspace, env={**environment, 'BUN_BE_BUN': '1'},
-                            stdin=incoming, stdout=outgoing, stderr=outgoing)
-                probe.wait(probe.process, 15000)
-        finally:
-            probe.close()
-        probe = WindowsSandbox(root, writable=writable, manual_projects=manual, process_adapter=adapter)
-        pipe_code = r"""
-import ctypes,json,os,subprocess,sys
-from ctypes import wintypes as W
-K=ctypes.WinDLL('kernel32',use_last_error=True);A=ctypes.WinDLL('advapi32',use_last_error=True)
-P=ctypes.c_void_p;H=W.HANDLE;D=W.DWORD
-K.GetCurrentProcess.restype=H
-K.CloseHandle.argtypes=[H]
-K.CreateNamedPipeW.argtypes=[W.LPCWSTR,D,D,D,D,D,D,P];K.CreateNamedPipeW.restype=H
-K.CreateFileW.argtypes=[W.LPCWSTR,D,D,P,D,D,H];K.CreateFileW.restype=H
-A.OpenProcessToken.argtypes=[H,D,ctypes.POINTER(H)]
-A.GetTokenInformation.argtypes=[H,ctypes.c_int,P,D,ctypes.POINTER(D)]
-A.GetSecurityInfo.argtypes=[H,ctypes.c_int,D,P,P,P,P,ctypes.POINTER(P)];A.GetSecurityInfo.restype=D
-A.SetSecurityInfo.argtypes=[H,ctypes.c_int,D,P,P,P,P];A.SetSecurityInfo.restype=D
-A.GetKernelObjectSecurity.argtypes=[H,D,P,D,ctypes.POINTER(D)]
-A.SetKernelObjectSecurity.argtypes=[H,D,P]
-A.InitializeSecurityDescriptor.argtypes=[P,D]
-A.SetSecurityDescriptorDacl.argtypes=[P,W.BOOL,P,W.BOOL]
-A.ConvertSecurityDescriptorToStringSecurityDescriptorW.argtypes=[P,D,D,ctypes.POINTER(W.LPWSTR),P]
-def sddl(descriptor,flags):
- text=W.LPWSTR();A.ConvertSecurityDescriptorToStringSecurityDescriptorW(descriptor,1,flags,ctypes.byref(text),None)
- return text.value
-result={};token=H();A.OpenProcessToken(K.GetCurrentProcess(),8,ctypes.byref(token))
-size=D();A.GetTokenInformation(token,6,None,0,ctypes.byref(size));buffer=ctypes.create_string_buffer(size.value)
-A.GetTokenInformation(token,6,buffer,size.value,ctypes.byref(size));dacl=P.from_buffer(buffer).value
-own=ctypes.create_string_buffer(40);A.InitializeSecurityDescriptor(own,1);A.SetSecurityDescriptorDacl(own,True,dacl,False)
-result['token_dacl']=sddl(own,4)
-name='\\\\.\\pipe\\igorek-capability-probe-'+str(os.getpid())
-server=K.CreateNamedPipeW(name,3|0x40000,0,1,65536,65536,0,None)
-if server==P(-1).value:result['create_server_error']=ctypes.get_last_error()
-else:
- for kind in [1,6]:
-  descriptor=P();error=A.GetSecurityInfo(server,kind,4,None,None,None,None,ctypes.byref(descriptor))
-  result['security_type_'+str(kind)]={'error':error,'dacl':sddl(descriptor,4) if not error else None}
- for flags in [4,0x10]:
-  size=D();A.GetKernelObjectSecurity(server,flags,None,0,ctypes.byref(size))
-  security=ctypes.create_string_buffer(size.value)
-  okay=A.GetKernelObjectSecurity(server,flags,security,size.value,ctypes.byref(size))
-  result['kernel_security_'+str(flags)]={'error':0 if okay else ctypes.get_last_error(),'descriptor':sddl(security,flags) if okay else None}
- def connect():
-  handle=K.CreateFileW(name,0xC0040000,0,None,3,0,None)
-  if handle==P(-1).value:return ctypes.get_last_error()
-  K.CloseHandle(handle);return 0
- result['initial_client_error']=connect()
- if result['initial_client_error']:
-  okay=A.SetKernelObjectSecurity(server,4,own)
-  result['set_dacl_error']=0 if okay else ctypes.get_last_error()
-  result['updated_client_error']=connect()
- K.CloseHandle(server)
-print(json.dumps({'named_pipe_probe':result}),flush=True)
-completed=subprocess.run(sys.argv[1:],stdin=subprocess.DEVNULL,stdout=sys.stdout,stderr=sys.stderr,creationflags=0x08000000)
-sys.exit(completed.returncode)
-"""
-        try:
-            with open(os.devnull, 'rb') as incoming, (service / 'spawn-python-probe.log').open('wb') as outgoing:
-                probe.start([probe_python / 'python.exe', '-I', '-c', pipe_code, binary, '-e', script], cwd=workspace,
-                            env={**environment, 'BUN_BE_BUN': '1'}, stdin=incoming, stdout=outgoing, stderr=outgoing)
-                probe.wait(probe.process, 15000)
-        finally:
-            probe.close()
-        probe = WindowsSandbox(root, writable=writable, manual_projects=[workspace], process_adapter=adapter)
-        try:
-            with open(os.devnull, 'rb') as incoming, (service / 'spawn-medium-probe.log').open('wb') as outgoing:
-                probe.start([binary, '-e', script], cwd=workspace, env={**environment, 'BUN_BE_BUN': '1'},
-                            stdin=incoming, stdout=outgoing, stderr=outgoing)
-                probe.wait(probe.process, 15000)
-        finally:
-            probe.close()
     sandbox = WindowsSandbox(root, writable=writable, manual_projects=manual, process_adapter=adapter)
     try:
         with open(os.devnull, 'rb') as incoming, (service / 'process.log').open('wb') as outgoing:

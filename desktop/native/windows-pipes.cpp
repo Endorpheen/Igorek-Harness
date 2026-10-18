@@ -101,9 +101,8 @@ static BOOL WINAPI process_a(LPCSTR application, LPSTR command, LPSECURITY_ATTRI
     return result;
 }
 
-BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID) {
+BOOL WINAPI DllMain(HINSTANCE, DWORD reason, LPVOID) {
     if (reason != DLL_PROCESS_ATTACH) return TRUE;
-    DisableThreadLibraryCalls(instance);
     if (!DetourRestoreAfterWith()) return TRUE;
     HANDLE token = nullptr;
     if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) return FALSE;

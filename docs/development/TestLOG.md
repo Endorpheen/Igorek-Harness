@@ -1053,3 +1053,13 @@ Use [TESTING.md](../TESTING.md) for reproducible commands and coverage limits,
   6 skipped, 3 setup errors); rerun with loopback permitted preserves all tests.
 - Permitted-loopback local platform rerun: 16 passed, 6 native-OS skips,
   0 failures/errors. Ruff E9/F63/F7/F82 and whitespace checks pass.
+- Host adapter loading now explicitly releases its DLL handle after updating
+  the suspended child, so disposable service directories remain removable.
+  Native fixture compiler failures include bounded compiler output.
+- First adapter run: native Bun async/sync/native captured spawning all pass,
+  nested Node/Git and private Low-label/DACL denial pass. Actual OpenCode starts,
+  completes tools and owner question/form round trips. The run remains failed:
+  host DLL handle prevented fixture cleanup (fixed above), and the tool-result
+  OS-denial text assertion needs the actual message shape before adjustment.
+  Removed now-completed startup probes and enabled private per-process Git
+  core.longpaths to prevent observed snapshot path-length failures.

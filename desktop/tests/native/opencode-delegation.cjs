@@ -47,7 +47,7 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
       calls.push(payload.messages || []);
       if (tools.length && next === 0) await gate;
       const actions = [
-        ['shell', {command: 'echo fixture-shell-ok'}],
+        ['shell', {command: 'echo fixture-shell-ok && git --version'}],
         ['write', {path: path.join(source, 'forbidden.txt'), content: 'forbidden'}],
         ['write', {path: path.join(workspace, 'result.txt'), content: 'native result\n'}],
         ['question', {questions: [{question: 'Continue the synthetic fixture?', header: 'Fixture',
@@ -116,7 +116,7 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
     assert.equal(fs.readFileSync(path.join(workspace, 'result.txt'), 'utf8'), 'native result\n');
     assert(!fs.existsSync(path.join(source, 'forbidden.txt'))); assert(!fs.existsSync(path.join(source, 'result.txt')));
     assert(calls.some(messages => JSON.stringify(messages).includes('fixture-shell-ok')));
-    assert(calls.some(messages => /EACCES|EPERM|Permission denied|Access is denied|os error (5|13)/i.test(JSON.stringify(messages))), 'Outside write did not report an OS denial');
+    assert(calls.some(messages => /EACCES|EPERM|Permission denied|Access is denied|os error (5|13)/i.test(JSON.stringify(messages))), 'Outside write did not report an OS denial: ' + JSON.stringify(calls.at(-1)).slice(-6000));
     proof.source_isolation = true;
     assert(JSON.parse(workspaceAction('apply')).applied);
     assert.equal(fs.readFileSync(path.join(source, 'result.txt'), 'utf8'), 'native result\n'); proof.result_applied = true;
@@ -138,7 +138,7 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
         const files = fs.readdirSync(service.root, {recursive: true, withFileTypes: true}).filter(entry =>
           entry.isFile() && /\.(log|jsonl)$/.test(entry.name)).slice(0, 12);
         return files.map(entry => {
-          try { return {file: entry.name, text: fs.readFileSync(path.join(entry.parentPath, entry.name), 'utf8').slice(-16000)
+          try { return {file: entry.name, text: fs.readFileSync(path.join(entry.parentPath, entry.name), 'utf8').slice(-6000)
             .replaceAll(service.password, '[redacted]').replace(/[A-Za-z0-9+_\/=-]{32,}/g, '[redacted]')}; }
           catch { return {file: entry.name, text: ''}; }
         });

@@ -43,8 +43,9 @@ def windows_owned_root():
 def windows_pipe_adapter(windows_owned_root):
     repo = Path(__file__).resolve().parents[1]
     output = windows_owned_root / 'pipe-adapter'
-    subprocess.run([sys.executable, str(repo / 'desktop/packaging/build-windows-pipes.py'),
-                    '--output', str(output)], check=True, capture_output=True, text=True)
+    result = subprocess.run([sys.executable, str(repo / 'desktop/packaging/build-windows-pipes.py'),
+                             '--output', str(output)], capture_output=True, encoding='utf-8', errors='replace')
+    assert result.returncode == 0, result.stdout[-12000:] + result.stderr[-3000:]
     return output / 'igorek-pipes.dll'
 
 
