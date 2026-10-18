@@ -90,6 +90,11 @@ async function verifyOpenCodeDelegation({appRoot, bundle, root, output, BrowserW
           session, dialog: {showMessageBox: async () => ({response: 1})}, shell: {}});
         view.path = sessionRoute(job); view.unlock(); await view.show(parent);
       }});
+    const originalStart = controller.start.bind(controller);
+    controller.start = async fields => {
+      try { return await originalStart(fields); }
+      catch (error) { proof.start_error = {name:error.name, message:error.message}; throw error; }
+    };
     const started = await controller.handle({action: 'start', run_id: runID, source, execution_mode:'direct', title: 'Native fixture',
       goal: 'Execute the synthetic filesystem fixture.', profile: 'fixture', session: 'chat-fixture'});
     assert(started.session_id, JSON.stringify({started,diagnostics:proof})); proof.nonblocking_start = true;
