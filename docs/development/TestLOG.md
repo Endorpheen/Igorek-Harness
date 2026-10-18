@@ -962,3 +962,8 @@ Use [TESTING.md](../TESTING.md) for reproducible commands and coverage limits,
   directory metadata probe itself still runs for every ancestor. Added safe
   Windows error-class/numeric-code reporting for failed sandbox startup.
   Manual projects now include metadata probes for their own distinct ancestors.
+
+- The metadata probe still failed after an individual grant. Ancestors are now
+  processed from the volume root down, so each intermediate traversal grant is
+  established before probing a deeper directory. Failures retain the ancestor's
+  final component in the private exception for deterministic diagnosis.

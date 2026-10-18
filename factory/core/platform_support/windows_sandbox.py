@@ -266,14 +266,14 @@ class WindowsSandbox:
             self._check(self.revert())
 
     def _transit_grants(self):
-        paths = dict.fromkeys(path for root in [self.root, *self.manual_projects] for path in root.parents)
+        paths = dict.fromkeys(path for root in [self.root, *self.manual_projects] for path in reversed(root.parents))
         for path in paths:
             if self._metadata_access(path):
                 continue
             self._path_grant(path, 0x1000A0, 0)
             self.transit.append(path)
             if not self._metadata_access(path):
-                raise PermissionError('windows_sandbox_ancestor_metadata_denied')
+                raise PermissionError('windows_sandbox_ancestor_metadata_denied:' + path.name)
 
     def _manual_grant(self, root, *, revoke=False):
         for path in self._paths(Path(root), ignore_reparse=revoke):
