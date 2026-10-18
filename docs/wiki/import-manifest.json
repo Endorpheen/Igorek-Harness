@@ -1,0 +1,381 @@
+{
+  "schema": 1,
+  "languages": {
+    "en": {
+      "archive_sha256": "50fe433113c28315ce59d6ccdb4ba1d5e12575182547cf7a8121a0f55f7c4c6f",
+      "export_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd",
+      "generated_at": "2026-10-18T18:22:06.711836",
+      "language": "en",
+      "files": {
+        "1-Overview/1-Overview.md": {
+          "sha256": "6ec640dbbc4d79067effa2f70badc04519fec8fbbba179f6682b875299dd0f03",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "1-Overview/1.1-Getting-Started-and-Project-Layout.md": {
+          "sha256": "0316487a6ef1407e794251069d3033ff7ed2f00ef28bbd578dbd22eab8a9d5aa",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "1-Overview/1.2-Repository-Conventions-and-Contribution-Rules.md": {
+          "sha256": "4665896dd5f071c8542e3c00ea6b44743382a4913c1c3957a7ebfe12f1d59551",
+          "mermaid": 3,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "2-Python-Agent-Core-factory/2-Python-Agent-Core-factory.md": {
+          "sha256": "50d27b2713d237fa6f6c02d7301f8f47b2cef172bc6010f087cf1be13de3a972",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "2-Python-Agent-Core-factory/2.1-Model-Execution-Loop-and-Wire-Adapters.md": {
+          "sha256": "bd19dd7732deab331531086d464dd6498afd69732a7e57a0b9a3095d291504d6",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "2-Python-Agent-Core-factory/2.1.1-Context-Compaction-and-Session-History.md": {
+          "sha256": "bdc2fc90fb4122181e17513ac992c6a21d9e4d9f8ac4bb6ab235e9742f27d768",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "2-Python-Agent-Core-factory/2.1.2-Tools-Prompts-and-Policy.md": {
+          "sha256": "e8b6360ade6d15e069c380e66c418d4d71f0923178652f2875b659b30f7b9ff9",
+          "mermaid": 3,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "2-Python-Agent-Core-factory/2.2-Isolation-Subsystem-and-Checkpoints.md": {
+          "sha256": "8d0d9594b10192a0f5e47b52f1b01b7631eb6f6da00764bf49bec0b6c40be6ed",
+          "mermaid": 3,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "2-Python-Agent-Core-factory/2.3-Vault-and-Secrets.md": {
+          "sha256": "5668dc431b9b4279b0b168faf8e895374ed5c0ce42c5c7489bb554df5ba386cc",
+          "mermaid": 3,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "2-Python-Agent-Core-factory/2.4-API-Server-Core-and-Web-UI.md": {
+          "sha256": "866dcbdcc5f02bd30aad375c91bdcc927b118d5d04cc7aa82c0a85b145c9a00e",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "2-Python-Agent-Core-factory/2.5-Workers-Scheduler-and-Runtime.md": {
+          "sha256": "dc6f0978f3030ef988dfd397da2ba33722659f698ffa2e03ec3ae778aa6395ea",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "3-Terminal-CLI-and-TUI/3-Terminal-CLI-and-TUI.md": {
+          "sha256": "3b176e4e824023a73d8af945dde9355984a1956279a5928cedb8ac313113e32d",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "3-Terminal-CLI-and-TUI/3.1-CLI-Launch-Daemon-and-Chat-Session.md": {
+          "sha256": "3d57f2ae209dd79e892ae5acf0aff85385a0173b21d06ac59429097b8f6c0040",
+          "mermaid": 3,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "3-Terminal-CLI-and-TUI/3.2-TUI-Rendering-and-Mouse-Support.md": {
+          "sha256": "f482739b6a7eb38a09b489e92c5d51ee862e681368daf1b1b7fdf39580add68d",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "4-Electron-Desktop-Application/4-Electron-Desktop-Application.md": {
+          "sha256": "ca19f3bdb39d5310015d0352b8180d55aec3013d440e922f2026d1feab72a33a",
+          "mermaid": 1,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "4-Electron-Desktop-Application/4.1-Main-Process-and-IPC-Handlers.md": {
+          "sha256": "a064216dca11401c22a0ecfab2a9f25742db1bec15dc1ae3634f63475ce8b8dc",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "4-Electron-Desktop-Application/4.2-Owned-Runtime-and-Owner-UI.md": {
+          "sha256": "02607999fc7d094445ec489815de2f87aa25f8ee694a5210bc1fa8a98d07f97c",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "4-Electron-Desktop-Application/4.3-Release-Updates-and-Whats-New.md": {
+          "sha256": "c1eb4f5233bf19c6412bf7ef2d07981267760de6774e57dcf3d6acff372714e0",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "5-OpenCode-Delegation-Subsystem/5-OpenCode-Delegation-Subsystem.md": {
+          "sha256": "6e5332b7b081f4bd3243855d5c4479b1417209fbb6e96ff33fbf18b2e5343a6a",
+          "mermaid": 4,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "5-OpenCode-Delegation-Subsystem/5.1-OpenCodeService-and-Task-Lifecycle.md": {
+          "sha256": "9aab1eb97407e7649508eb791240163f5ce1423a39ef3f1c4fcf150ccce1db18",
+          "mermaid": 5,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "5-OpenCode-Delegation-Subsystem/5.2-Workspace-Snapshots-and-Transfer-Check.md": {
+          "sha256": "9222e8a28c3dcd2921cccf94b28fe10e5d875241b01f66533725834103a9b3a5",
+          "mermaid": 3,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "5-OpenCode-Delegation-Subsystem/5.3-Sandbox-Profiles-and-Host-Services.md": {
+          "sha256": "775ba4ee48039b706b62656933d1f3f077fb09ae7a02f3153f7aa888e64545b9",
+          "mermaid": 3,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "6-Platform-Support-and-Windows-Sandboxing/6-Platform-Support-and-Windows-Sandboxing.md": {
+          "sha256": "a7dd04ab2aac9e8f4b34f2586a1b938bff0dbdd90203a1f754f965bbc118d35f",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "6-Platform-Support-and-Windows-Sandboxing/6.1-WindowsSandbox-Internals.md": {
+          "sha256": "f00d620597b94fb9138d44db7c9827d8860ae0008fb4aadc3ac97389d5d8fa32",
+          "mermaid": 4,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "6-Platform-Support-and-Windows-Sandboxing/6.2-Native-Pipe-Adapter-and-Detours.md": {
+          "sha256": "b1a00bd676b13f1f8ebadf9c0c48c5fd06d2b712d331aa4f6923acd1aaa95f5c",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "6-Platform-Support-and-Windows-Sandboxing/6.3-Windows-OpenCode-Host-Runner.md": {
+          "sha256": "4ffa7bb1262a8665cb495e8409f645b4dd6c346919d6c89d26ae10affab93725",
+          "mermaid": 3,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "6-Platform-Support-and-Windows-Sandboxing/6.4-Safe-File-and-Process-Primitives.md": {
+          "sha256": "49dcd95e0d92f4b53265f46c5aece1b21d94a3bcb611e1a2c1c38b8fc44a0cc4",
+          "mermaid": 3,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "7-Mobile-Android-Client-and-Bridge/7-Mobile-Android-Client-and-Bridge.md": {
+          "sha256": "9998dbff4b7512d314c4cd9821ba4ca469088b526a6646337a8ffd3f8d6ea858",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "7-Mobile-Android-Client-and-Bridge/7.1-Android-App-Structure-and-Build.md": {
+          "sha256": "85ff6992b6fe25883ce7d4693b53fe0d74a5d8b4b15f44660209fa5f198cb916",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "7-Mobile-Android-Client-and-Bridge/7.2-Mobile-Bridge-Backend.md": {
+          "sha256": "5730b2b041c1927b19a85147c642d30460ba8a7dff27ea64bdd00f64ce57eaf6",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "8-Build-Packaging-CI-and-Testing/8-Build-Packaging-CI-and-Testing.md": {
+          "sha256": "2d3ec05f8a8296ae48653e1026b15854f0bc3b7219d7c0fafa979278d1a073be",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "8-Build-Packaging-CI-and-Testing/8.1-Desktop-Packaging-and-Distribution.md": {
+          "sha256": "9c783c2deb35205d3d4efce2bf271bf107008f6b90075288684f59a2ba9a9f7f",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "8-Build-Packaging-CI-and-Testing/8.2-CI-Workflows-and-Publication-Checks.md": {
+          "sha256": "4d338761cd6362091d755008e358756c7f4d364085d47286cd43e9e699e15a21",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "8-Build-Packaging-CI-and-Testing/8.3-Test-Suites-and-Native-Acceptance-Runs.md": {
+          "sha256": "908f9551a810b0446bd9576fc497b9d834fd8ecd815ede83cc2ce243ab2361a5",
+          "mermaid": 4,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "9-Glossary.md": {
+          "sha256": "4366be123dbbfff4898b0651808602dd5064c3dbae94ea005de56dfbd2a1e4ec",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "repo-note.md": {
+          "sha256": "26e685d35185e52c496dc10537f52d533e59ab955f0610a93cce50c1d5b61027",
+          "mermaid": 0,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        }
+      }
+    },
+    "ru": {
+      "archive_sha256": "07896506c671f180f3fac6ce9457defc2b80cfebe24d30cc3571797f74e4817d",
+      "export_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd",
+      "generated_at": "2026-10-18T18:22:06.711836",
+      "language": "ru",
+      "files": {
+        "1-Overview/1-Overview.md": {
+          "sha256": "35b94ea1113d790689060bd38b40e74ce95e8534db57ff2ac54f4c237b3a2f0b",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "1-Overview/1.1-Getting-Started-and-Project-Layout.md": {
+          "sha256": "ec0c53944763583af78af773fb7c42d432c4ebb7ae8029cfc1ea13bc84ff0ccb",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "1-Overview/1.2-Repository-Conventions-and-Contribution-Rules.md": {
+          "sha256": "0662a9a1fb92b335759708abdc97b2af71316a87159d2d71c8a70bcbc6c2e52e",
+          "mermaid": 3,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "2-Python-Agent-Core-factory/2-Python-Agent-Core-factory.md": {
+          "sha256": "d3c17b446e5bd8f89e24375d1c94c9112d64aefadaf41d92d5af02c6ff4edbe4",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "2-Python-Agent-Core-factory/2.1-Model-Execution-Loop-and-Wire-Adapters.md": {
+          "sha256": "721ed3e39ac8d1d73940f64e4a7fc06fc6eec08d181585732434079f29df2a50",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "2-Python-Agent-Core-factory/2.1.1-Context-Compaction-and-Session-History.md": {
+          "sha256": "08afbb5012263319055e63276e59e5d976afa2eb561808a4c45790398970b613",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "2-Python-Agent-Core-factory/2.1.2-Tools-Prompts-and-Policy.md": {
+          "sha256": "367342b8fa05cd320fa8b5bdf980b9806df6d92df2a2d726148066c22ce3d0fc",
+          "mermaid": 3,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "2-Python-Agent-Core-factory/2.2-Isolation-Subsystem-and-Checkpoints.md": {
+          "sha256": "7f7440fc6c921f35ca2d1b98122c10c3231b745c5097e1f388561379586abcf1",
+          "mermaid": 3,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "2-Python-Agent-Core-factory/2.3-Vault-and-Secrets.md": {
+          "sha256": "9be5dc1acf037a3c17eb75b01a409145d41e2f9117ae5ec14806890f9ae66f89",
+          "mermaid": 3,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "2-Python-Agent-Core-factory/2.4-API-Server-Core-and-Web-UI.md": {
+          "sha256": "d7bccc7775ebcefb7fe4ddb23ed9d37c388a74623999ac1f7263f9cad11a7d73",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "2-Python-Agent-Core-factory/2.5-Workers-Scheduler-and-Runtime.md": {
+          "sha256": "783f1f9293e95da9da9abe3092e7d8aa3fec0413b504eb0f712cbd5dfb9b410d",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "3-Terminal-CLI-and-TUI/3-Terminal-CLI-and-TUI.md": {
+          "sha256": "32289271a45f3467768a834029e2aabe988b25dd25b5fd67bbed2bbd37a791f5",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "3-Terminal-CLI-and-TUI/3.1-CLI-Launch-Daemon-and-Chat-Session.md": {
+          "sha256": "b5a0e641a24c69f7bc5f7decd91a0f73b4ba1784d8718c04ae38eff423d0c30b",
+          "mermaid": 3,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "3-Terminal-CLI-and-TUI/3.2-TUI-Rendering-and-Mouse-Support.md": {
+          "sha256": "981e696a9984e042194cc74c07f0f225a7aa57608e3db71ad3314ee9ba58e1c0",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "4-Electron-Desktop-Application/4-Electron-Desktop-Application.md": {
+          "sha256": "f8e98945b574a075fcd21d9556c20f9dcd2ebb9255a048ed4720ec27504aa7c1",
+          "mermaid": 1,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "4-Electron-Desktop-Application/4.1-Main-Process-and-IPC-Handlers.md": {
+          "sha256": "4fa2fa0fa9b98bb6f38dfebc3309f53226e35a52d77e131f0327433b8c9c1641",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "4-Electron-Desktop-Application/4.2-Owned-Runtime-and-Owner-UI.md": {
+          "sha256": "95bd9a59517df8f91b962597ce52cfaf826068ce797266e08a5609d1db338e11",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "4-Electron-Desktop-Application/4.3-Release-Updates-and-Whats-New.md": {
+          "sha256": "60d2fc074367e310b2308edb2abc2087c48d8a3f140742b20253d57fee8a68d7",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "5-OpenCode-Delegation-Subsystem/5-OpenCode-Delegation-Subsystem.md": {
+          "sha256": "0a7a0ed4ed35886badb083dba9bd1efbbc783ceee3925bc3d42c30e98b73bd36",
+          "mermaid": 4,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "5-OpenCode-Delegation-Subsystem/5.1-OpenCodeService-and-Task-Lifecycle.md": {
+          "sha256": "e9e4d7364f68c56d22a99525c000a48159398098f76a4aeede329f057575cc00",
+          "mermaid": 5,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "5-OpenCode-Delegation-Subsystem/5.2-Workspace-Snapshots-and-Transfer-Check.md": {
+          "sha256": "489fe7b34dc51a92b1c54fd48974514e21a698cad2439eca130cd55483cad503",
+          "mermaid": 3,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "5-OpenCode-Delegation-Subsystem/5.3-Sandbox-Profiles-and-Host-Services.md": {
+          "sha256": "d471a52ef7a926e3d03abdd7d34f2416a43403c7e9dc6f688775e881e97bfea5",
+          "mermaid": 3,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "6-Platform-Support-and-Windows-Sandboxing/6-Platform-Support-and-Windows-Sandboxing.md": {
+          "sha256": "f75915ff4b243eec36defe037aaf0de73ecdb6d3b4c9ef8ab6c2190eb6dbc31a",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "6-Platform-Support-and-Windows-Sandboxing/6.1-WindowsSandbox-Internals.md": {
+          "sha256": "a92c1514540bbab2ee9ad4c0a9f684a6b64ead38fcc79d4a91a4a5d0e2bff4b0",
+          "mermaid": 4,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "6-Platform-Support-and-Windows-Sandboxing/6.2-Native-Pipe-Adapter-and-Detours.md": {
+          "sha256": "c3d00e19996474e1141029c46a6a176143fa5820e6a287c2305424ea0d7de6e7",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "6-Platform-Support-and-Windows-Sandboxing/6.3-Windows-OpenCode-Host-Runner.md": {
+          "sha256": "98f5403d86fedf4a19d92e38ccf1a58f414b897d517f7814e15206784a9f74ae",
+          "mermaid": 3,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "6-Platform-Support-and-Windows-Sandboxing/6.4-Safe-File-and-Process-Primitives.md": {
+          "sha256": "4cfa4a5344222f268e37f64a6315f2bf4ec1c2a24dfedc1646bfc1bd2c55d46c",
+          "mermaid": 3,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "7-Mobile-Android-Client-and-Bridge/7-Mobile-Android-Client-and-Bridge.md": {
+          "sha256": "56b0e2960ca0032dfb3238945f5cb69e95e7471146b302d17c8531c4716e8357",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "7-Mobile-Android-Client-and-Bridge/7.1-Android-App-Structure-and-Build.md": {
+          "sha256": "3dba79b4214c037f616c963c3f7eb1a4220b2b23ebb636b96bf7cbcb6234fb0c",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "7-Mobile-Android-Client-and-Bridge/7.2-Mobile-Bridge-Backend.md": {
+          "sha256": "036db2405b0d354949aee64812a5559e9f644529044cbc4f3ac0b9e637e314a9",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "8-Build-Packaging-CI-and-Testing/8-Build-Packaging-CI-and-Testing.md": {
+          "sha256": "117c3e430ac9af84b8f3ea6d93eb0b43a420aa10afe60ae63357f49a2bf068ab",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "8-Build-Packaging-CI-and-Testing/8.1-Desktop-Packaging-and-Distribution.md": {
+          "sha256": "d6c617c2bdab8c8bfdc2ff945ac7e386097aaecfb04389513832a200866a4d3b",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "8-Build-Packaging-CI-and-Testing/8.2-CI-Workflows-and-Publication-Checks.md": {
+          "sha256": "7a0f08e50438bf06da8b49e5820ae5d736c55fc0c8d958d6add5e86a0e6a863e",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "8-Build-Packaging-CI-and-Testing/8.3-Test-Suites-and-Native-Acceptance-Runs.md": {
+          "sha256": "42924b18556d9098c4eafb5bc6f817f21d2634bc02d4c90dcc7c115392198fcd",
+          "mermaid": 4,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "9-Glossary.md": {
+          "sha256": "a6d0baa25facc1b1afd743d1123d63240b6ccfd9259dee324fd3a20fa12ab809",
+          "mermaid": 2,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        },
+        "repo-note.md": {
+          "sha256": "d0238ea253378ed56ebff3ae35e8d653f15c88376af1f6c4f1302e130195b452",
+          "mermaid": 0,
+          "source_commit": "571d14a96d44f46ae29c7f165024a8ef1f9ad1cd"
+        }
+      }
+    }
+  }
+}

@@ -83,3 +83,6 @@ dist/
 custom_emoji_registry.json
 
 /android/.kotlin/
+
+# Wiki export archives contain private export metadata; import public pages only.
+/docs/Igorek-Harness-wiki*.zip
