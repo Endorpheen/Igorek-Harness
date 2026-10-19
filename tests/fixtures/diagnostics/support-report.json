@@ -1,0 +1,17 @@
+{
+  "local": {
+    "version": "0.2.13",
+    "raw_body": "EXCLUDED",
+    "health": {"state": "ready", "write_failures": 0, "authorization": "EXCLUDED"},
+    "incidents": [{
+      "incident_id": "fixture-report-incident",
+      "state": "observed",
+      "observations": 3,
+      "first_seen_ms": 1000,
+      "last_seen_ms": 2000,
+      "text": "EXCLUDED",
+      "error": {"code": "NET.CONNECTION_RESET", "event_id": "fixture-event", "component": "fixture", "operation": "read", "owner": "fixture-owner", "model": "org/model", "http_request_id": "req_fixture", "prompt": "EXCLUDED", "authorization": "EXCLUDED"},
+      "events": []
+    }]
+  }
+}

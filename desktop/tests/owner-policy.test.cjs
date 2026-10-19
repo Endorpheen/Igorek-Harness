@@ -213,6 +213,24 @@ test('onboarding refresh preserves credential drafts and discards a reply after 
   assert.deepEqual(Array.from(ui.run('successfulProfiles')), []);
   assert.equal(ui.element('mcp-password').value, 'unsaved-fixture');
 });
+test('onboarding can defer a missing primary model without completing its guide', async () => {
+  const ui = recoveryUiHarness(); let returned = 0, opened = 0;
+  ui.context.window.igorekVault = { returnToChat: async () => returned++, openOpenCode: async () => opened++ };
+  ui.run("state='unlocked'; interfaceLocked=false; savedProfiles=[]; profilesState='ready'; agent={running:false}; el('refresh').disabled=false; renderOnboarding()");
+  assert.equal(ui.element('onboarding-alternatives').hidden, false);
+  assert.equal(ui.element('onboarding-later').disabled, false);
+  ui.click('onboarding-later');
+  assert.equal(returned, 1);
+  await ui.click('onboarding-opencode');
+  assert.equal(opened, 1);
+  assert.equal(ui.run("window.igorekOnboardingState(state,[],agent).action"), 'add');
+  for (const code of ["state='locked'", "state='unlocked'; interfaceLocked=true"]) {
+    ui.run(code + '; renderOnboarding()');
+    assert.equal(ui.element('onboarding-alternatives').hidden, true);
+    ui.click('onboarding-later'); await ui.click('onboarding-opencode');
+  }
+  assert.equal(returned, 1); assert.equal(opened, 1);
+});
 test('recovery preparation rejects empty phrase and back clears confirmation secrets', () => {
   const ui = recoveryUiHarness(); ui.run("state = 'unlocked'; setRecoveryStep('prepare')");
   ui.element('recovery-phrase').value = '   '; ui.click('recovery-next');

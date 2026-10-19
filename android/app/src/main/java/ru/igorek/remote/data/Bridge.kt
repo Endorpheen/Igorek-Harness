@@ -1796,6 +1796,7 @@ object Bridge {
             put("version",JsonPrimitive(ru.igorek.remote.BuildConfig.VERSION_NAME));put("write_failures",JsonPrimitive(notificationWriteFailures))
             put("incidents",JsonArray(_notifications.value.mapNotNull { entry -> entry.diagnostic?.let { error -> buildJsonObject {
                 put("incident_id",JsonPrimitive(entry.id));put("state",JsonPrimitive(entry.state));put("observations",JsonPrimitive(entry.count))
+                put("read",JsonPrimitive(entry.read))
                 put("recovered_at_ms",JsonPrimitive(entry.recoveredAt));put("recovery_proof",JsonPrimitive(entry.recoveryProof))
                 put("first_seen_ms",JsonPrimitive(entry.firstSeen));put("last_seen_ms",JsonPrimitive(entry.lastSeen))
                 put("error",diagnosticJson.parseToJsonElement(diagnosticJson.encodeToString(sanitizeDiagnostic(error))))

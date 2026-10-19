@@ -199,7 +199,7 @@ window.IgorekErrorCatalog = {
       "action": "check_connection",
       "severity": "error",
       "retryable": true,
-      "ru": "Не удалось связаться с сервисом. Причина соединения не определена.",
+      "ru": "Не удалось связаться с сервисом. Причину сбоя определить не удалось.",
       "en": "The service could not be reached. The transport cause is unknown."
     },
     "TLS.CONNECTION_INTERRUPTED": {
@@ -218,5 +218,6 @@ window.IgorekErrorCatalog = {
       "ru": "Причина ошибки не определена. Доступны диагностические сведения.",
       "en": "The failure cause is unknown. Diagnostic details are available."
     }
-  }
+  },
+  "support_email": "igorek-dot@tutamail.com"
 };

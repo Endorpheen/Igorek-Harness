@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('IgorekNotifications', Object.freeze({
   recover: value => ipcRenderer.invoke('igorek:notifications', 'recover', value),
   confirm: value => ipcRenderer.invoke('igorek:notifications', 'confirm', value),
   snapshot: () => ipcRenderer.invoke('igorek:notifications', 'snapshot'),
+  support: value => ipcRenderer.invoke('igorek:diagnostic-support', value),
   onChange: callback => { ipcRenderer.on('igorek:notifications-changed', (_, items) => callback(items)); },
 }));
 ipcRenderer.on('igorek:owner-panel', (_, panel) => {
@@ -73,6 +74,7 @@ contextBridge.exposeInMainWorld('igorekVault', {
   chooseWorkspace: () => invoke('igorek:owner-workspace', 'choose'),
   openWorkspaceSession: () => invoke('igorek:owner-workspace', 'open-session'),
   returnToChat: () => invoke('igorek:owner-return-to-chat'),
+  openOpenCode: () => invoke('igorek:owner-open-opencode'),
   mobile: (action,fields={}) => invoke('igorek:owner-vault',action,fields),
   dataLocations: () => invoke('igorek:owner-locations'),
   changePassword: (current, new_password) => invoke('igorek:owner-vault', 'change_password', { current, new_password }),

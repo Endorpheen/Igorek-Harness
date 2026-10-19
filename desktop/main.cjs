@@ -1,6 +1,6 @@
 const { app, BrowserWindow, WebContentsView, session: electronSession, Notification, dialog, Menu, shell, ipcMain, nativeTheme, contentTracing } = require('electron');
 const { pathToFileURL } = require('node:url');
-const { isOwnerFrame, shouldRefreshProfiles, ownedDataLocations } = require('./owner-policy.cjs');
+const { isOwnerFrame, shouldRefreshProfiles, ownedDataLocations, ownerOpenCodeHandler } = require('./owner-policy.cjs');
 const { installedImage } = require('./installed-image.cjs');
 const { updateDialog } = require('./release-updates-ui.cjs');
 const { createUpdatePresentation } = require('./release-progress.cjs');
@@ -96,6 +96,17 @@ ipcMain.handle('igorek:notifications', (event, action, value) => {
   return items;
 });
 
+ipcMain.handle('igorek:diagnostic-support', async (event, value) => {
+  const target=trustedChromeWindow(event);
+  const support=require('./diagnostic-support.cjs');
+  if(value?.action==='prepare')return support.createReport(value.report,{version:require('./package.json').version,surface:process.platform});
+  if(value?.action!=='save')throw new Error('Invalid diagnostic support action');
+  return support.saveAndCompose(value,{
+    version:require('./package.json').version,surface:process.platform,documents:app.getPath('documents'),
+    chooseFile:options=>dialog.showSaveDialog(target,options),openComposer:url=>shell.openExternal(url),
+    isActive:async()=>{try{return trustedChromeWindow(event)===target && await support.previewIsOpen(event.sender,value.report?.report_id);}catch{return false;}},
+  });
+});
 function installWindowChrome(target, urlCheck) {
   const contents = target.webContents;
   completionSound.attach(target, urlCheck);
@@ -326,6 +337,11 @@ ipcMain.handle('igorek:owner-return-to-chat', event => {
   window.focus();
   return true;
 });
+ipcMain.handle('igorek:owner-open-opencode', ownerOpenCodeHandler({
+  owner: () => ownerWindow, main: () => window, ownerUrl, origin: () => config?.origin, sameOrigin,
+  available: () => Boolean(managed && runtime && opencodeService && opencodeWorkspace),
+  requestStatus: () => runtime.requestOwner('status'),
+}));
 
 ipcMain.handle('igorek:browser-control-settings', async (event,value) => {
   if(!isOwnerFrame(event,ownerWindow?.webContents,ownerUrl)||!workspaceBrowser)throw Error('Доступ запрещён.');

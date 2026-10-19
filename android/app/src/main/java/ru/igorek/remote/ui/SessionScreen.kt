@@ -18,6 +18,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 
 import android.content.Context
+import android.widget.Toast
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -294,6 +295,7 @@ fun SessionScreen(
         onDispose { if (selectedMcp != null || mcpRows.isNotEmpty()) disconnectMcp(); mcpLifecycle.removeObserver(observer) }
     }
     var notificationsOpen by remember { mutableStateOf(false) }
+    var diagnosticSupportOpen by remember { mutableStateOf(false) }
     // Error notifications persist in the Bridge (survive screen disappearance), while
     // local notifications pertain to current screen attachments. Each entry has a timestamp.
     val bridgeNotifications by Bridge.notifications.collectAsState()
@@ -961,10 +963,17 @@ fun SessionScreen(
         }
     }
 
+    if (diagnosticSupportOpen) DiagnosticSupportDialog { diagnosticSupportOpen=false;notificationsOpen=true }
+
     if (notificationsOpen) {
         AlertDialog(
             onDismissRequest = { closeNotificationCenter() },
-            title = { Text(uiText("Уведомления", "Notifications")) },
+            title = { Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
+                Text(uiText("Уведомления", "Notifications"))
+                IconButton(onClick={notificationsOpen=false;diagnosticSupportOpen=true}) {
+                    Icon(Icons.AutoMirrored.Filled.Send,contentDescription=uiText("Отправить диагностику", "Send diagnostics"))
+                }
+            } },
             text = {
                 LazyColumn(
                     Modifier.heightIn(max = 420.dp),
@@ -973,7 +982,7 @@ fun SessionScreen(
                     if (notificationEntries.isEmpty()) {
                         item { Text(uiText("Уведомлений об ошибках пока нет", "No error notifications yet")) }
                     } else {
-                        items(notificationEntries, key = { "${it.kind}|${it.text}" }) { entry ->
+                        items(notificationEntries, key = { it.id }) { entry ->
                             NotificationCard(entry)
                         }
                     }
@@ -1057,9 +1066,14 @@ fun SessionScreen(
 @OptIn(ExperimentalFoundationApi::class)
 private fun NotificationCard(entry: NotificationEntry) {
     val clipboard=LocalClipboardManager.current
+    val context = LocalContext.current
+    val copiedMessage = uiText("Диагностика скопирована в буфер обмена", "Diagnostics copied to clipboard")
     Surface(
         modifier=Modifier.combinedClickable(onClick={},onLongClickLabel=uiText("Скопировать диагностику","Copy diagnostics"),
-            onLongClick={clipboard.setText(AnnotatedString(Bridge.diagnosticSnapshot()))}),
+            onLongClick={
+                clipboard.setText(AnnotatedString(Bridge.diagnosticSnapshot()))
+                Toast.makeText(context, copiedMessage, Toast.LENGTH_SHORT).show()
+            }),
         shape = RoundedCornerShape(12.dp),
         color = if(entry.state=="recovered")MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.errorContainer,
     ) {

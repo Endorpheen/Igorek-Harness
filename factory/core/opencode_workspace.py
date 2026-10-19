@@ -90,6 +90,8 @@ def prepare(source: str, folder: Path) -> Path:
     if inventory(root) != before:
         raise ValueError('opencode_source_changed_during_snapshot')
     git(workspace, 'init', '--initial-branch=main')
+    git(workspace, 'config', 'maintenance.auto', 'false')
+    git(workspace, 'config', 'gc.auto', '0')
     git(workspace, 'add', '--force', '--all')
     git(workspace, '-c', 'user.name=Igorek', '-c', 'user.email=igorek@localhost',
         'commit', '--allow-empty', '-m', 'Capture delegated task baseline')

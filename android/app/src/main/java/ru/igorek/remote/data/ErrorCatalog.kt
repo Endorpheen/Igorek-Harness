@@ -4,6 +4,7 @@ package ru.igorek.remote.data
 internal data class ErrorDefinition(val category: String, val action: String, val severity: String, val retryable: Boolean, val ru: String, val en: String)
 internal object ErrorCatalog {
     const val schemaVersion = 1
+    const val supportEmail = "igorek-dot@tutamail.com"
     const val stableAfterMs = 5000L
     val codes = mapOf(
         "NET.DNS_FAILURE" to ErrorDefinition("network", "retry", "error", true, "Не удалось определить адрес сервера.", "Could not resolve the server address."),
@@ -29,7 +30,7 @@ internal object ErrorCatalog {
         "OPERATION.CANCELLED" to ErrorDefinition("operation", "none", "info", false, "Действие остановлено.", "The operation was cancelled."),
         "OPERATION.OUTCOME_UNKNOWN" to ErrorDefinition("operation", "reconcile", "error", false, "Результат действия пока не подтверждён.", "The operation outcome is not confirmed."),
         "DIAGNOSTICS.WRITE_FAILED" to ErrorDefinition("diagnostics", "diagnostics", "error", false, "Часть диагностических сведений не удалось сохранить.", "Some diagnostic details could not be saved."),
-        "NET.TRANSPORT_FAILURE" to ErrorDefinition("network", "check_connection", "error", true, "Не удалось связаться с сервисом. Причина соединения не определена.", "The service could not be reached. The transport cause is unknown."),
+        "NET.TRANSPORT_FAILURE" to ErrorDefinition("network", "check_connection", "error", true, "Не удалось связаться с сервисом. Причину сбоя определить не удалось.", "The service could not be reached. The transport cause is unknown."),
         "TLS.CONNECTION_INTERRUPTED" to ErrorDefinition("tls", "retry", "error", true, "Защищённое соединение прервалось.", "The secure connection was interrupted."),
         "ERROR.UNKNOWN" to ErrorDefinition("unknown", "diagnostics", "error", false, "Причина ошибки не определена. Доступны диагностические сведения.", "The failure cause is unknown. Diagnostic details are available."),
     )

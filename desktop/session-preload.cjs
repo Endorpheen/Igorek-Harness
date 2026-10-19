@@ -39,6 +39,7 @@ contextBridge.exposeInMainWorld('IgorekNotifications', Object.freeze({
   recover: value => ipcRenderer.invoke('igorek:notifications', 'recover', value),
   confirm: value => ipcRenderer.invoke('igorek:notifications', 'confirm', value),
   snapshot: () => ipcRenderer.invoke('igorek:notifications', 'snapshot'),
+  support: value => ipcRenderer.invoke('igorek:diagnostic-support', value),
   onChange: callback => { ipcRenderer.on('igorek:notifications-changed', (_, items) => callback(items)); },
 }));
 contextBridge.exposeInMainWorld('IgorekDesktop', Object.freeze({

@@ -3,9 +3,9 @@ package ru.igorek.remote.data
 /**
  * One notification card in the notification list.
  *
- * Repeating the same error does not create a new entry: [lastSeen] and
- * [count] are updated. This shows the time of the last appearance in the interface, allowing you to distinguish
- * an old error from a fresh one.
+ * Repeated observations update an active incident. A failure after recovery or
+ * from another owner creates a separate incident, possibly with the same text.
+ * [id] remains stable across updates, acknowledgment and history restoration.
  */
 @kotlinx.serialization.Serializable
 data class NotificationEntry(
@@ -30,7 +30,7 @@ internal fun unreadNotificationCount(entries: List<NotificationEntry>): Int =
 internal const val NOTIFICATION_LIMIT = 50
 
 /**
- * Adds a message to the feed, merging duplicates based on text.
+ * Adds an observation to its active incident, or merges legacy messages by text.
  *
  * Returns a new list: the old entry is updated with the time of the last appearance and counter,
  * the new one is appended at the end.
