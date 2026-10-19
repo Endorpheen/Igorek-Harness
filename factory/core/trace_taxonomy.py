@@ -40,6 +40,7 @@ class CcTraceEvent:
     FACT_CHECK_CORRECTION_FORCED = "fact_check.correction_forced"
 
     NETWORK_RETRY = "network.retry"
+    NETWORK_RECOVERED = "network.recovered"
 
     PAYLOAD_RETRY = "payload.retry"
 

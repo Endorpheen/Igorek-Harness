@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import time
+import threading
 from contextvars import ContextVar
 from functools import wraps
 from pathlib import Path
@@ -41,6 +42,9 @@ def model_failure_diagnostics(body) -> dict:
         'error_param': {'tool_choice','tool_choice.namespace','tool_choice.name','tools','input','model','store','stream','include','instructions','reasoning'},
     }
     for key,values in allowed.items():
+        if key == 'error_code':
+            from .diagnostics import CODES
+            values = values | set(CODES)
         if isinstance(body.get(key),str) and body[key] in values:result[key]=body[key]
     if type(body.get('http_status')) is int and 100<=body['http_status']<=599:result['http_status']=body['http_status']
     for key, maximum in [('tls_errno', 255), ('tls_verify_code', 2**31-1)]:
@@ -115,6 +119,13 @@ def scoped_agent_trace(function):
 
 
 TRACE_FILENAME = "cc_backend_trace.jsonl"
+_TRACE_HEALTH = {'write_failures': 0, 'dropped': 0}
+_TRACE_HEALTH_LOCK = threading.Lock()
+
+
+def trace_health():
+    with _TRACE_HEALTH_LOCK:
+        return dict(_TRACE_HEALTH)
 
 
 def _trace_path(workdir: str) -> Path:
@@ -132,11 +143,26 @@ def _json_safe(value: Any) -> Any:
 
 
 def append_cc_backend_trace(workdir: str, event: dict[str, Any]) -> None:
-    payload = {
-        "ts": int(time.time()),
-        **(_AGENT_TRACE.get() if _AGENT_TRACE.get().get("subagent_id") else {}),
-        **{str(key): _json_safe(value) for key, value in event.items()},
-    }
-    path = _trace_path(workdir)
-    with path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    try:
+        from .diagnostics import safe_text, sanitize_observation
+        event = dict(event)
+        if 'diagnostic' in event:
+            event['diagnostic'] = sanitize_observation(event['diagnostic'])
+        if 'error_diagnostics' in event:
+            event['error_diagnostics'] = model_failure_diagnostics(event['error_diagnostics'])
+        if 'error' in event:
+            event['error'] = safe_text(event['error'])
+        if event.get('status') == 'fail' and 'output_preview' in event:
+            event['output_preview'] = safe_text(event['output_preview'], 4000)
+        payload = {
+            "ts": int(time.time()),
+            **(_AGENT_TRACE.get() if _AGENT_TRACE.get().get("subagent_id") else {}),
+            **{str(key): _json_safe(value) for key, value in event.items()},
+        }
+        path = _trace_path(workdir)
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    except Exception:
+        with _TRACE_HEALTH_LOCK:
+            _TRACE_HEALTH['write_failures'] += 1
+            _TRACE_HEALTH['dropped'] += 1

@@ -464,7 +464,7 @@ data class UserInputRequest(
 )
 
 @Serializable
-data class ErrorResponse(val error: String = "", val code: String = "")
+data class ErrorResponse(val error: String = "", val code: String = "", val diagnostic: ErrorObservation? = null)
 
 // OpenCode Go subscription quota. The phone receives the same numbers as the web panel:
 // percent — already used portion of the window, resetsAt — reset moment in ISO-8601 format.

@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1660" viewBox="0 0 1440 1660" role="img"><title>Igorek Harness · Error diagnostics · ru</title><rect width="1440" height="1660" fill="#101b17"/>
+<text x="55" y="56" font-family="DejaVu Sans,sans-serif" font-size="22" font-weight="700" fill="#a7d76b">IGOREK HARNESS</text>
+<text x="55" y="124" font-family="DejaVu Sans,sans-serif" font-size="42" font-weight="700" fill="#f0f7ef">Диагностика ошибок</text>
+<text x="55" y="171" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="400" fill="#d5e4da">Десктоп · Web · Android · Python runtime</text>
+<rect x="35" y="215" width="1370" height="405" rx="18" fill="#1e3027" stroke="#3c5847" stroke-width="2"/>
+<text x="65" y="269" font-family="DejaVu Sans,sans-serif" font-size="29" font-weight="700" fill="#e6c481">ДО · разрозненные контракты</text>
+<rect x="65" y="310" width="380" height="124" rx="18" fill="#263e30" stroke="#3c5847" stroke-width="2"/>
+<text x="85" y="349" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#bfee78">Транспорт и модель</text>
+<text x="85" y="386" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#d5e4da">Частично типизированные ошибки</text>
+<text x="85" y="413" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#d5e4da">Разные механизмы повторов</text>
+<rect x="530" y="310" width="380" height="124" rx="18" fill="#263e30" stroke="#3c5847" stroke-width="2"/>
+<text x="550" y="349" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#bfee78">Границы компонентов</text>
+<text x="550" y="386" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#d5e4da">Не все поля доходят до клиента</text>
+<text x="550" y="413" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#d5e4da">Разная группировка сообщений</text>
+<rect x="995" y="310" width="380" height="124" rx="18" fill="#263e30" stroke="#3c5847" stroke-width="2"/>
+<text x="1015" y="349" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#bfee78">Уведомления</text>
+<text x="1015" y="386" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#d5e4da">Текст и счётчик повторов</text>
+<text x="1015" y="413" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#d5e4da">Смысл восстановления различается</text>
+<polyline points="445,372 530,372" fill="none" stroke="#a7d76b" stroke-width="3"/>
+<polygon points="530,372 518.5914266954252,378.2325320018546 518.5914266954252,365.7674679981454" fill="#a7d76b"/>
+<polyline points="910,372 995,372" fill="none" stroke="#a7d76b" stroke-width="3"/>
+<polygon points="995,372 983.5914266954252,378.2325320018546 983.5914266954252,365.7674679981454" fill="#a7d76b"/>
+<text x="65" y="502" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="400" fill="#d5e4da">Наблюдения, попытки и отдельные отключения легко спутать.</text>
+<text x="65" y="550" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="400" fill="#d5e4da">Неизвестный результат записи требует отдельного подтверждения.</text>
+<rect x="35" y="655" width="1370" height="875" rx="18" fill="#1e3027" stroke="#3c5847" stroke-width="2"/>
+<text x="65" y="710" font-family="DejaVu Sans,sans-serif" font-size="29" font-weight="700" fill="#bfee78">ПОСЛЕ · единый контракт, локальные владельцы</text>
+<rect x="530" y="754" width="380" height="124" rx="18" fill="#263e30" stroke="#3c5847" stroke-width="2"/>
+<text x="550" y="793" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#bfee78">Общий каталог</text>
+<text x="550" y="830" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#d5e4da">Коды · категории · действия</text>
+<text x="550" y="857" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#d5e4da">Генерируемые Python / JS / Kotlin</text>
+<rect x="65" y="946" width="380" height="124" rx="18" fill="#263e30" stroke="#3c5847" stroke-width="2"/>
+<text x="85" y="985" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#bfee78">Наблюдение ошибки</text>
+<text x="85" y="1022" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#d5e4da">Код · фаза · профиль и модель</text>
+<text x="85" y="1049" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#d5e4da">Request / operation / task IDs</text>
+<rect x="530" y="946" width="380" height="124" rx="18" fill="#263e30" stroke="#3c5847" stroke-width="2"/>
+<text x="550" y="985" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#bfee78">Локальный журнал</text>
+<text x="550" y="1022" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#d5e4da">Инцидент ≠ попытка ≠ отключение</text>
+<text x="550" y="1049" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#d5e4da">100 инцидентов · 8 событий</text>
+<rect x="995" y="946" width="380" height="124" rx="18" fill="#263e30" stroke="#3c5847" stroke-width="2"/>
+<text x="1015" y="985" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#bfee78">Существующий UI</text>
+<text x="1015" y="1022" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#d5e4da">Состояние и безопасный снимок</text>
+<text x="1015" y="1049" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#d5e4da">Прочитано ≠ восстановлено</text>
+<polyline points="720,878 720,946" fill="none" stroke="#a7d76b" stroke-width="3"/>
+<polygon points="720,946 713.7674679981453,934.5914266954252 726.2325320018547,934.5914266954252" fill="#a7d76b"/>
+<polyline points="530,816 255,816 255,946" fill="none" stroke="#a7d76b" stroke-width="3"/>
+<polygon points="255,946 248.76746799814535,934.5914266954252 261.2325320018546,934.5914266954252" fill="#a7d76b"/>
+<polyline points="445,1008 530,1008" fill="none" stroke="#a7d76b" stroke-width="3"/>
+<polygon points="530,1008 518.5914266954252,1014.2325320018547 518.5914266954252,1001.7674679981453" fill="#a7d76b"/>
+<polyline points="910,1008 995,1008" fill="none" stroke="#a7d76b" stroke-width="3"/>
+<polygon points="995,1008 983.5914266954252,1014.2325320018547 983.5914266954252,1001.7674679981453" fill="#a7d76b"/>
+<rect x="65" y="1160" width="380" height="124" rx="18" fill="#263e30" stroke="#3c5847" stroke-width="2"/>
+<text x="85" y="1199" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#bfee78">Владелец соединения</text>
+<text x="85" y="1236" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#d5e4da">Повторы: лимит и задержка</text>
+<text x="85" y="1263" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#d5e4da">Устойчивая готовность своего канала</text>
+<rect x="530" y="1160" width="380" height="124" rx="18" fill="#263e30" stroke="#3c5847" stroke-width="2"/>
+<text x="550" y="1199" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#bfee78">Неизвестный результат</text>
+<text x="550" y="1236" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#d5e4da">Чтение квитанции по тому же ключу</text>
+<text x="550" y="1263" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#d5e4da">Без повторной отправки сообщения</text>
+<rect x="995" y="1160" width="380" height="124" rx="18" fill="#263e30" stroke="#3c5847" stroke-width="2"/>
+<text x="1015" y="1199" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#bfee78">Квитанция принятия</text>
+<text x="1015" y="1236" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#d5e4da">Принято либо всё ещё неизвестно</text>
+<text x="1015" y="1263" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#d5e4da">Принято ≠ задача завершена</text>
+<polyline points="255,1160 255,1110 720,1110 720,1070" fill="none" stroke="#a7d76b" stroke-width="3"/>
+<polygon points="720,1070 726.2325320018547,1081.408573304575 713.7674679981453,1081.408573304575" fill="#a7d76b"/>
+<polyline points="910,1222 995,1222" fill="none" stroke="#a7d76b" stroke-width="3"/>
+<polygon points="995,1222 983.5914266954252,1228.2325320018547 983.5914266954252,1215.7674679981453" fill="#a7d76b"/>
+<text x="65" y="1371" font-family="DejaVu Sans,sans-serif" font-size="23" font-weight="700" fill="#f0f7ef">Нет автосмены модели или ключа; наблюдатель не останавливает задачи.</text>
+<text x="65" y="1421" font-family="DejaVu Sans,sans-serif" font-size="23" font-weight="400" fill="#d5e4da">Снимок: только разрешённые метаданные; без запросов, ключей и аргументов.</text>
+<text x="65" y="1469" font-family="DejaVu Sans,sans-serif" font-size="23" font-weight="400" fill="#d5e4da">Изоляция, разрешения владельца и рабочие проекты сохраняют свои правила.</text>
+<text x="55" y="1595" font-family="DejaVu Sans,sans-serif" font-size="21" font-weight="400" fill="#91ad9b">RU / EN · Исходник SVG и PNG · Синтетические проверки ≠ физическая приёмка</text>
+</svg>

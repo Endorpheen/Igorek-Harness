@@ -7,7 +7,7 @@ hide:
 
 ![Igorek octopus](../assets/octopus.svg)
 
-<span class="eyebrow">The project encyclopedia · 0.2.12</span>
+<span class="eyebrow">The project encyclopedia · 0.2.13</span>
 
 # Inside Igorek Harness
 
@@ -38,11 +38,13 @@ One Python agent core. Desktop, terminal, web and Android interfaces. Explore ho
 
 [08 · Packaging, CI & testing](8-Build-Packaging-CI-and-Testing/8-Build-Packaging-CI-and-Testing.md)
 
+[10 · Error diagnostics](10-Error-Diagnostics.md)
+
 </div>
 
 ## About this edition
 
-The complete English and Russian Wiki exports contain 36 technical pages and 87 Mermaid diagrams per language. The initial export was generated on 18 October 2026 from commit `571d14a` (0.2.10). The current-behavior revisions are checked against release **0.2.12**, including direct OpenCode project editing, read-only progress and the desktop octopus branding. Historical snapshot helpers remain documented as legacy behavior.
+The complete English and Russian Wiki exports contain 36 technical pages and 87 Mermaid diagrams per language. The initial export was generated on 18 October 2026 from commit `571d14a` (0.2.10). The current-behavior revisions are checked against release **0.2.13**, including direct OpenCode project editing, read-only progress, desktop branding and the unified error diagnostics contract. Historical snapshot helpers remain documented as legacy behavior.
 
 Use the language menu to keep the current chapter when switching languages. Search covers the documentation; the navigation and [glossary](9-Glossary.md) provide another way in.
 

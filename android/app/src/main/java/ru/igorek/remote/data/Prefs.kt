@@ -74,6 +74,20 @@ class Prefs(context: Context) {
     internal fun connection(id: String): ServerConnection? =
         ConnectionCodec.decode(prefs.getString("server_connections", "[]").orEmpty()).find { it.id == id }
 
+    internal var notificationHistory: String
+        get() = prefs.getString("diagnostics:"+activeConnectionId+":"+connectionScope(baseUrl), "[]").orEmpty().take(131072)
+        set(value) {
+            require(value.length<=131072)
+            check(prefs.edit().putString("diagnostics:"+activeConnectionId+":"+connectionScope(baseUrl),value).commit()) { "Diagnostic history could not be saved" }
+        }
+
+    internal var pendingOperationKeys: String
+        get() = prefs.getString("pending-operations:"+activeConnectionId+":"+connectionScope(baseUrl),"{}").orEmpty().take(16000)
+        set(value) {
+            require(value.length<=16000)
+            check(prefs.edit().putString("pending-operations:"+activeConnectionId+":"+connectionScope(baseUrl),value).commit()) { "Pending operation keys could not be saved" }
+        }
+
     fun savedConnections(): List<SavedConnection> =
         ConnectionCodec.decode(prefs.getString("server_connections", "[]").orEmpty()).map {
             SavedConnection(it.id, it.label, it.url, it.id == activeConnectionId)

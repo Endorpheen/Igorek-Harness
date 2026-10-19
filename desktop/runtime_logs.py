@@ -6,6 +6,7 @@ import os
 import threading
 
 from factory.core.vault.logging_redaction import redact_text
+from factory.core.diagnostics import safe_text
 
 
 class RuntimeLogs(io.TextIOBase):
@@ -15,31 +16,45 @@ class RuntimeLogs(io.TextIOBase):
         self.pending = {}
         self.mutex = threading.Lock()
         self.since = datetime.now(timezone.utc).isoformat()
+        self.health = {'write_failures': 0, 'dropped': 0}
 
     @property
     def encoding(self):
         return self.stream.encoding
 
     def write(self, text):
-        self.stream.write(text)
         with self.mutex:
             identity = threading.get_ident()
             pending = self.pending.get(identity, '') + text
             parts = pending.split('\n')
             for line in parts[:-1]:
                 if line:
-                    self.rows.append(datetime.now(timezone.utc).isoformat() + ' ' + redact_text(line)[:20000])
+                    if len(self.rows) == self.rows.maxlen:
+                        self.health['dropped'] += 1
+                    cleaned = safe_text(redact_text(line), 20000)
+                    self.rows.append(datetime.now(timezone.utc).isoformat() + ' ' + cleaned)
+                    try:
+                        self.stream.write(cleaned+'\n')
+                    except (OSError, ValueError):
+                        self.health['write_failures'] += 1
             if len(parts[-1]) > 20000:
+                self.health['dropped'] += 1
                 self.pending.pop(identity, None)
                 self.rows.append('Слишком длинная незавершённая строка пропущена.')
             elif parts[-1]:
+                if identity not in self.pending and len(self.pending) >= 64:
+                    self.pending.pop(next(iter(self.pending)))
+                    self.health['dropped'] += 1
                 self.pending[identity] = parts[-1]
             else:
                 self.pending.pop(identity, None)
         return len(text)
 
     def flush(self):
-        self.stream.flush()
+        try:
+            self.stream.flush()
+        except (OSError, ValueError):
+            self.health['write_failures'] += 1
 
     def status(self, stop, threads, agent):
         running = agent.status()['running']
@@ -57,4 +72,4 @@ class RuntimeLogs(io.TextIOBase):
         with self.mutex:
             rows = list(self.rows)
         return {'unit': f'desktop {key} · общий журнал текущего запуска',
-                'lines': rows[-lines:], 'truncated': len(rows) > lines}
+                'lines': rows[-lines:], 'truncated': len(rows) > lines, 'health': dict(self.health)}

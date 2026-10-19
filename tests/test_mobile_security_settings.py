@@ -263,7 +263,9 @@ class SecuritySettingsRouteTest(SecurityLevelAuditMixin, unittest.TestCase):
             body={"level": "root", "confirm": True},
             token=token,
         )
-        self.assertEqual(root, {"error": "Unknown security level: 'root'"})
+        self.assertEqual(root['error'], "Unknown security level: 'root'")
+        self.assertEqual(root['diagnostic']['code'], 'HTTP.REQUEST_REJECTED')
+        self.assertTrue(root['http_request_id'].startswith('req_'))
 
 
 if __name__ == "__main__":

@@ -16,7 +16,7 @@ APP_FILES = (
     'owner-preload.cjs', 'owner-ui.js', 'onboarding-state.cjs', 'profile-cards.cjs', 'owner.html', 'owner.css',
     'browser.cjs', 'browser-preload.cjs', 'browser-ui.js', 'browser.html', 'browser.css',
     'browser-interaction.cjs', 'browser-reading.cjs',
-    'notifications.cjs', 'notification-ui.js',
+    'notifications.cjs', 'notification-ui.js', 'error-catalog.json', 'error-diagnostics.js',
     'shortcuts.cjs', 'shortcuts-preload.cjs', 'shortcuts.html', 'shortcuts.css', 'shortcuts-ui.js',
     'github-reviews.cjs', 'github-controller.cjs', 'chatgpt-workspace.cjs', 'chatgpt-page-tools.cjs', 'chatgpt-permissions.cjs', 'workspace-browser.cjs', 'download-history.cjs',
 )

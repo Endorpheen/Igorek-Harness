@@ -19,6 +19,7 @@ const { join, resolve } = require('node:path');
 const { catalog: navigationCatalog, findRoute: navigationRoute, settingsPanels } = require('./ui-navigation.cjs');
 const { OwnedRuntime, loadBundle } = require('./runtime.cjs');
 const { NotificationStore } = require('./notifications.cjs');
+const errorDiagnostics = require('./error-diagnostics.js');
 const { CompletionSound } = require('./completion-sound.cjs');
 const { settings, sameOrigin, certificateMatches, allowAudio, allowClipboardWrite } = require('./policy.cjs');
 let config;
@@ -81,9 +82,13 @@ ipcMain.handle('igorek:notifications', (event, action, value) => {
   trustedChromeWindow(event);
   let items;
   if (action === 'list') return notificationStore.snapshot();
-  if (action === 'add') items = notificationStore.add(value);
+  if (action === 'snapshot') return notificationStore.report();
+  if (action === 'add') items = notificationStore.add(value && value.level === 'error' && !value.diagnostic
+    ? {...value,diagnostic:errorDiagnostics.observation('ERROR.UNKNOWN',{component:'desktop',operation:'operation',endpoint_role:'desktop_to_runtime',owner:'desktop-ui:'+errorDiagnostics.scope(value.source || 'application')})} : value);
   else if (action === 'read') items = notificationStore.read();
   else if (action === 'clear') items = notificationStore.clear();
+  else if (action === 'recover') items = notificationStore.recover(value);
+  else if (action === 'confirm') items = notificationStore.confirm(value);
   else throw new Error('Недопустимое действие.');
   for (const [contents, entry] of chromeWindows) {
     if (!contents.isDestroyed() && entry.urlCheck(contents.getURL())) contents.send('igorek:notifications-changed', items);

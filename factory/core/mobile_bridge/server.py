@@ -30,6 +30,11 @@ from ..isolation.host_op_runtime import build_host_op_gate
 from ..opencode_quota import OpenCodeUsageError
 from ..realtime_voice.service import VoiceService, VoiceUnavailable
 from ..sudo_broker import SudoRequestError, deliver_decision, pending_requests
+from ..diagnostics import IncidentJournal, classify_error, observation, ActivityTracker
+from pathlib import Path
+from uuid import uuid4
+import re
+import hashlib
 
 API_PREFIX = "/mobile/v1"
 SSE_HEARTBEAT_S = 15.0
@@ -149,6 +154,21 @@ class MobileBridge:
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._seen_sudo_requests: set[str] = set()
+        self.diagnostics = IncidentJournal(Path(self.store.db_path).with_name('diagnostic-incidents.json') if self.store.db_path != ':memory:' else None)
+        self._poll_ready_since = None
+        self.activity = ActivityTracker()
+        self.journaler.add_live_hook(self._record_diagnostic_event)
+
+    def _record_diagnostic_event(self, event):
+        self.activity.observe(event)
+        payload = event.get('payload') or {}
+        diagnostic = payload.get('diagnostic')
+        if not isinstance(diagnostic, dict) or not diagnostic.get('code'):
+            return
+        if event.get('kind') == 'network.recovered':
+            self.diagnostics.recover(owner=diagnostic.get('owner'), proof='operation_completed')
+        elif event.get('kind') in {'network.retry', 'task.finish', 'task.error'}:
+            self.diagnostics.observe(diagnostic)
 
     def revoke_device(self,device_id):
         revoked=self.store.revoke_device(device_id)
@@ -196,8 +216,13 @@ class MobileBridge:
         while not self._stop.is_set():
             try:
                 self.tick()
-            except Exception:
-                pass
+                if self._poll_ready_since is None:
+                    self._poll_ready_since = time.monotonic()
+                self.diagnostics.recover(owner='bridge-poll', stable_s=time.monotonic()-self._poll_ready_since)
+            except Exception as error:
+                self._poll_ready_since = None
+                self.diagnostics.observe(observation(classify_error(error), component='bridge', operation='poll',
+                    endpoint_role='runtime_to_tool', owner='bridge-poll', native_code=type(error).__name__))
             self._stop.wait(max(0.2, float(self.config.poll_interval_s)))
 
 
@@ -228,6 +253,10 @@ class MobileRequestHandler(BaseHTTPRequestHandler):
     def log_message(self, format: str, *args: Any) -> None:
         return
 
+    def send_response(self, code, message=None):
+        self._diagnostic_response_started = True
+        super().send_response(code, message)
+
     def handle_one_request(self) -> None:
         # A standard disconnection of an SSE connection via the phone should not log a socket server traceback.
         try:
@@ -248,6 +277,24 @@ class MobileRequestHandler(BaseHTTPRequestHandler):
         self._dispatch("PATCH")
 
     def _dispatch(self, method: str) -> None:
+        self.http_request_id = 'req_' + uuid4().hex
+        self._diagnostic_owner = 'bridge-http:'+hashlib.sha256((method+urlparse(self.path).path).encode()).hexdigest()[:24]
+        candidate = str(self.headers.get('X-Client-Operation-Id') or '')
+        self.client_operation_id = candidate if re.fullmatch(r'[A-Za-z0-9_-]{8,160}', candidate) else ''
+        self._diagnostic_response_started = False
+        try:
+            self._dispatch_request(method)
+        except (BrokenPipeError, ConnectionResetError, TimeoutError, ssl.SSLError):
+            self.close_connection = True
+        except Exception as error:
+            diagnostic = observation(classify_error(error), component='bridge', operation='read' if method in {'GET', 'HEAD'} else 'write',
+                endpoint_role='client_to_bridge', owner=self._diagnostic_owner, http_request_id=self.http_request_id,
+                client_operation_id=self.client_operation_id, native_code=type(error).__name__)
+            self.bridge.diagnostics.observe(diagnostic)
+            if not self._diagnostic_response_started:
+                self._send_json(500, {'error': 'Internal server error', 'diagnostic': diagnostic})
+
+    def _dispatch_request(self, method: str) -> None:
         parsed = urlparse(self.path)
         path = parsed.path.rstrip("/") or "/"
         query = parse_qs(parsed.query or "")
@@ -269,6 +316,12 @@ class MobileRequestHandler(BaseHTTPRequestHandler):
         if device is None:
             return
 
+        if path == f'{API_PREFIX}/diagnostics' and method == 'GET':
+            from importlib.metadata import version
+            from ..cc_backend_trace import trace_health
+            self._send_json(200, {**self.bridge.diagnostics.snapshot(), 'activity': self.bridge.activity.snapshot(), 'trace_health': trace_health(), 'version': version('igorek-agent-factory')})
+            return
+
         if path == f"{API_PREFIX}/events" and method == "GET":
             self._handle_events(query,str(device["device_id"]))
             return
@@ -281,6 +334,11 @@ class MobileRequestHandler(BaseHTTPRequestHandler):
         route = parts[len(prefix_parts) :]
 
         try:
+            if len(route)==2 and route[0]=='operations' and method=='GET':
+                if not re.fullmatch(r'[A-Za-z0-9_-]{8,160}',route[1]) or set(query)-{'session_id'}:
+                    self._send_json(400,{'error':'Invalid operation reference'});return
+                self._send_json(200,self.bridge.service.operation_receipt(route[1],str((query.get('session_id') or [''])[0])))
+                return
             if route == ['browser', 'select'] and method == 'POST':
                 payload = self._read_json_body()
                 if query or not isinstance(payload, dict) or set(payload) != {'tab_id'} or not isinstance(payload['tab_id'], str) or not __import__('re').fullmatch('[-a-zA-Z0-9]{1,64}', payload['tab_id']):
@@ -1088,11 +1146,27 @@ class MobileRequestHandler(BaseHTTPRequestHandler):
         return parsed
 
     def _send_json(self, code: int, payload: dict[str, Any]) -> None:
+        if code >= 400:
+            payload = dict(payload)
+            diagnostic = payload.get('diagnostic')
+            if not isinstance(diagnostic, dict):
+                diagnostic = observation(classify_error(status=code), component='bridge', operation='read' if self.command in {'GET', 'HEAD'} else 'write',
+                    endpoint_role='client_to_bridge', owner=getattr(self,'_diagnostic_owner','bridge-http'), http_status=code, delivery='rejected',
+                    http_request_id=getattr(self, 'http_request_id', ''), client_operation_id=getattr(self, 'client_operation_id', ''))
+            payload['diagnostic'] = diagnostic
+            payload['http_request_id'] = getattr(self, 'http_request_id', '')
+            payload['client_operation_id'] = getattr(self, 'client_operation_id', '')
+            self.bridge.diagnostics.observe(diagnostic)
+        elif self.command == 'GET':
+            self.bridge.diagnostics.recover(owner=getattr(self,'_diagnostic_owner','bridge-http'),proof='operation_completed')
+        self._diagnostic_response_started = True
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
-        if urlparse(self.path).path.rstrip('/')==f'{API_PREFIX}/browser/preview':self.send_header('Cache-Control','no-store')
+        if getattr(self, 'http_request_id', ''):
+            self.send_header('X-Request-Id', self.http_request_id)
+        if code >= 400 or urlparse(self.path).path.rstrip('/') in {f'{API_PREFIX}/browser/preview',f'{API_PREFIX}/diagnostics'}:self.send_header('Cache-Control','no-store')
         self.end_headers()
         try:
             self.wfile.write(body)

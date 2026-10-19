@@ -274,6 +274,10 @@ def post(url, payload, headers, timeout_s, *, trace_dir=None, round_num=0, paren
             media_type if media_type in {'text/event-stream', 'application/json', 'text/html', 'text/plain',
                                         'application/octet-stream'} else 'other' if media_type else 'missing'}
         request_id=response.getheader('x-request-id')
+        from .diagnostics import transport_failure
+        retry_details = transport_failure(status=response.status, phase=phase, request_id=request_id or '', retry_after=response.getheader('retry-after'))
+        if retry_details['diagnostic'].get('retry_after_s'):
+            response_details['retry_after_s'] = retry_details['diagnostic']['retry_after_s']
         if isinstance(request_id,str) and re.fullmatch(r'req_[A-Za-z0-9]{8,128}',request_id):response_details['request_id']=request_id
         io_socket = getattr(getattr(getattr(response, "fp", None), "raw", None), "_sock", None)
         if response.status != 200:
@@ -281,7 +285,8 @@ def post(url, payload, headers, timeout_s, *, trace_dir=None, round_num=0, paren
                 error = json.loads(response.read(65536)).get("error")
             except Exception:
                 error = None
-            return {**_failure(error, response.status, response.getheader('x-request-id')), 'transport_phase': phase}, int((time.monotonic() - start) * 1000)
+            return {**_failure(error, response.status, response.getheader('x-request-id')), 'transport_phase': phase,
+                **({'retry_after_s':response_details['retry_after_s']} if 'retry_after_s' in response_details else {})}, int((time.monotonic() - start) * 1000)
         # Validate the actual SSE envelope, not the advisory media type. Some
         # gateways preserve SSE events while replacing or omitting this header.
         phase = 'sse_read'
@@ -376,6 +381,8 @@ def post(url, payload, headers, timeout_s, *, trace_dir=None, round_num=0, paren
                 'responses_invalid_response' if isinstance(error, (ValueError, TypeError, KeyError)) else
                 'responses_transport')
         details = {**response_details, 'transport_phase': phase}
+        from .diagnostics import transport_failure
+        details['diagnostic'] = transport_failure(error, phase=phase)['diagnostic']
         error_message = 'Не удалось завершить запрос OpenAI. Проверьте вход и соединение.'
         if isinstance(error, ssl.SSLError):
             details.update(_tls_failure_details(error))

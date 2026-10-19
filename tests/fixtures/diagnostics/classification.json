@@ -1,0 +1,86 @@
+[
+  {
+    "input": {
+      "native_code": "EAI_AGAIN"
+    },
+    "code": "NET.DNS_FAILURE"
+  },
+  {
+    "input": {
+      "native_code": "ECONNREFUSED"
+    },
+    "code": "NET.CONNECTION_REFUSED"
+  },
+  {
+    "input": {
+      "native_code": "ECONNRESET"
+    },
+    "code": "NET.CONNECTION_RESET"
+  },
+  {
+    "input": {
+      "native_code": "TIMEOUT",
+      "phase": "connect"
+    },
+    "code": "NET.CONNECT_TIMEOUT"
+  },
+  {
+    "input": {
+      "native_code": "TIMEOUT",
+      "phase": "read"
+    },
+    "code": "NET.READ_TIMEOUT"
+  },
+  {
+    "input": {
+      "native_code": "CERTIFICATE_REJECTED"
+    },
+    "code": "TLS.CERTIFICATE_REJECTED"
+  },
+  {
+    "input": {
+      "status": 401
+    },
+    "code": "AUTH.REJECTED"
+  },
+  {
+    "input": {
+      "status": 429
+    },
+    "code": "HTTP.RATE_LIMITED"
+  },
+  {
+    "input": {
+      "status": 503
+    },
+    "code": "HTTP.SERVICE_UNAVAILABLE"
+  },
+  {
+    "input": {
+      "status": 400
+    },
+    "code": "HTTP.REQUEST_REJECTED"
+  },
+  {
+    "input": {
+      "native_code": "INVALID_RESPONSE"
+    },
+    "code": "PROTOCOL.INVALID_RESPONSE"
+  },
+  {
+    "input": {
+      "native_code": "CANCELLED"
+    },
+    "code": "OPERATION.CANCELLED"
+  },
+  {
+    "input": {
+      "native_code": "ENOSPC"
+    },
+    "code": "STORAGE.FULL"
+  },
+  {
+    "input": {},
+    "code": "INTERNAL.UNEXPECTED"
+  }
+]

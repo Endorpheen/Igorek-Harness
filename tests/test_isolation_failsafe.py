@@ -1009,6 +1009,7 @@ class WorkerErrorSurfaceTest(unittest.TestCase):
         metadata = json.loads(row[0]) if row and row[0] else {}
         self.assertNotIn("infra_failure", metadata)
         self.assertNotIn("failure_reason", metadata)
+        self.assertEqual(metadata.get("diagnostic_failure_reason"), "http_error")
 
     def test_missing_approval_record_retries_with_safe_recovery_context(self) -> None:
         # Given: a missing approval record followed by a valid approval request

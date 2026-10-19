@@ -71,7 +71,7 @@ class StreamCancelTest(unittest.TestCase):
         self.assertFalse(body.get("__interrupted__"))
         self.assertEqual(body["choices"][0]["message"]["content"], "Hi")
 
-    def test_no_cancel_check_keeps_previous_behavior(self):
+    def test_missing_terminal_event_is_not_success(self):
         lines = [
             b'data: {"choices":[{"delta":{"content":"ok"}}]}\n',
             b"\n",
@@ -88,7 +88,17 @@ class StreamCancelTest(unittest.TestCase):
                 5,
             )
         self.assertFalse(body.get("__interrupted__"))
-        self.assertEqual(body["choices"][0]["message"]["content"], "ok")
+        self.assertEqual(body['error_code'], 'STREAM.INTERRUPTED')
+        self.assertNotIn('choices', body)
+
+    def test_partial_tool_call_is_never_exposed(self):
+        body, _ = self._run([b'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"fixture","type":"function","function":{"name":"Write","arguments":"{\\\"path\\\":\\\"unfinished"}}]}}]}\n', b'\n'], lambda: False)
+        self.assertEqual(body['error_code'], 'STREAM.INTERRUPTED')
+        self.assertNotIn('choices', body)
+
+    def test_finish_reason_is_a_terminal_marker_without_done(self):
+        body, _ = self._run([b'data: {"choices":[{"delta":{"content":"complete"},"finish_reason":"stop"}]}\n', b'\n'], lambda: False)
+        self.assertEqual(body['choices'][0]['message']['content'], 'complete')
 
 
 if __name__ == "__main__":

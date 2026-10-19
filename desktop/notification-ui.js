@@ -34,6 +34,16 @@
       summary.append(dot, text, time);
       if (item.count > 1) summary.append(make('span', 'igorek-notification-count', '×' + item.count));
       const detail = make('pre', 'igorek-notification-detail', item.detail);
+      if (item.diagnostic) {
+        detail.textContent += '\n\n' + (item.recoveryProof === 'operation_confirmed' ? 'Принятие подтверждено' : ({observed:'Ошибка зарегистрирована',recovering:'Восстановление соединения',needs_owner:'Требует внимания',recovered:'Восстановлено'}[item.state] || 'Ошибка зарегистрирована')) +
+          '\nКод: '+item.diagnostic.code+'\nНаблюдений: '+item.count+'\nИнцидент: '+item.id+
+          (item.diagnostic.http_request_id ? '\nЗапрос: '+item.diagnostic.http_request_id : '')+
+          (item.diagnostic.attempt ? '\nПопытка: '+item.diagnostic.attempt : '')+
+          (item.firstSeen ? '\nПервое наблюдение: '+new Date(item.firstSeen).toLocaleString('ru-RU') : '')+
+          (item.recoveredAt ? '\nПодтверждение: '+new Date(item.recoveredAt).toLocaleString('ru-RU') : '')+
+          (item.diagnostic.next_retry_at_ms ? '\nСледующая попытка: '+new Date(item.diagnostic.next_retry_at_ms).toLocaleString('ru-RU') : '');
+        dot.className='igorek-notification-dot '+(item.state==='recovered'?'info':item.level);
+      }
       row.append(summary, detail); row.addEventListener('toggle', () => row.open ? expanded.add(item.id) : expanded.delete(item.id)); list.append(row);
     }
   };

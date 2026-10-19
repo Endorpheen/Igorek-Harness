@@ -12,6 +12,9 @@ from factory.core.trace_taxonomy import (
 
 
 class TraceTaxonomyTest(unittest.TestCase):
+    def test_network_recovery_is_registered(self):
+        self.assertEqual(CcTraceEvent.NETWORK_RECOVERED, 'network.recovered')
+        self.assertIn(CcTraceEvent.NETWORK_RECOVERED, all_event_kinds())
     def test_compaction_progress_is_registered(self):
         self.assertEqual(CcTraceEvent.COMPACTION_PROGRESS, "compaction.progress")
         self.assertIn(CcTraceEvent.COMPACTION_PROGRESS, all_event_kinds())

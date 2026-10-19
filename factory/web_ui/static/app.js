@@ -1825,28 +1825,109 @@ function handleViewportResize() {
   scheduleRailLayout();
 }
 
-function desktopNotification(source, detail, level = 'error') {
-  window.IgorekNotifications?.add({ source, detail: String(detail || ''), level }).catch(() => {});
+function desktopNotification(source, detail, level = 'error', diagnostic = null) {
+  if(window.IgorekNotifications)return window.IgorekNotifications.add({ source, detail: String(detail || ''), level, ...(diagnostic ? {diagnostic} : {}) }).catch(() => {});
+  if(level==='error' && diagnosticsContract)localDiagnosticJournal?.observe(diagnostic || diagnosticsContract.observation('ERROR.UNKNOWN',{component:'web',operation:'operation',endpoint_role:'web_to_bridge',owner:'web-ui:'+diagnosticsContract.scope(source)}));
+  return Promise.resolve();
 }
+const diagnosticsContract = window.IgorekDiagnosticsContract;
+const localDiagnosticJournal=diagnosticsContract?.createLocalJournal({getItem:key=>window.sessionStorage.getItem(key),setItem:(key,value)=>window.sessionStorage.setItem(key,value)});
+function recoverDiagnostics(value) {
+  if(window.IgorekNotifications)return window.IgorekNotifications.recover?.(value).catch(()=>{});
+  localDiagnosticJournal?.recover(value);
+}
+function confirmDiagnostics(value) {
+  if(window.IgorekNotifications)return window.IgorekNotifications.confirm?.(value).catch(()=>{});
+  localDiagnosticJournal?.confirm(value);
+}
+const pendingIdempotentRequests=new Map();
+function finishPendingOperation(key) {
+  if(!key)return;
+  pendingIdempotentRequests.delete(key);
+  try {const saved=JSON.parse(window.localStorage.getItem('igorek.pending-operations.v1')||'{}');delete saved[key];window.localStorage.setItem('igorek.pending-operations.v1',JSON.stringify(saved));}catch{}
+}
+const failedReadOwners = new Map();
+let httpReadySince = 0;
+let streamRecovery = null;
 async function api(path, options = {}) {
   const { notify = true, ...fetchOptions } = options;
-  const response = await fetch(path, {
+  const method = String(options.method || 'GET').toUpperCase();
+  let operationId = globalThis.crypto?.randomUUID?.().replaceAll('-','') || 'operation_'+Date.now();
+  let pendingKey='';
+  let requestBody=null;
+  try {
+    requestBody=typeof options.body==='string'?JSON.parse(options.body):null;
+    if(requestBody && typeof requestBody.idempotency_key==='string' && /^[A-Za-z0-9_-]{8,160}$/.test(requestBody.idempotency_key)) {
+      operationId=requestBody.idempotency_key;
+      const {idempotency_key,...identity}=requestBody;
+      const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify([method,path,identity])));
+      pendingKey=Array.from(new Uint8Array(bytes),x=>x.toString(16).padStart(2,'0')).join('');
+      const saved=JSON.parse(window.localStorage.getItem('igorek.pending-operations.v1') || '{}');
+      operationId=pendingIdempotentRequests.get(pendingKey) || saved[pendingKey] || idempotency_key;
+      if(!/^[A-Za-z0-9_-]{8,160}$/.test(operationId))operationId=idempotency_key;
+      requestBody.idempotency_key=operationId;fetchOptions.body=JSON.stringify(requestBody);
+      pendingIdempotentRequests.set(pendingKey,operationId);
+      saved[pendingKey]=operationId;
+      window.localStorage.setItem('igorek.pending-operations.v1',JSON.stringify(Object.fromEntries(Object.entries(saved).slice(-20))));
+    }
+  }catch{ /* Storage is advisory; never block a user operation on diagnostics. */ }
+  const owner = 'web-http:'+(diagnosticsContract?.scope(location.origin) || 'local');
+  const identity = {component:'web',operation:['GET','HEAD'].includes(method)?'read':'write',endpoint_role:'web_to_bridge',owner,
+    client_operation_id:operationId,session_id:state.selected || '',profile:state.session?.meta?.profile || ''};
+  let response;
+  try { response = await fetch(path, {
     credentials: "same-origin",
     ...fetchOptions,
-    headers: { ...(options.body ? { "Content-Type": "application/json" } : {}), ...(options.headers || {}) },
-  });
-  const payload = await response.json().catch(() => ({}));
+    headers: { ...(options.body ? { "Content-Type": "application/json" } : {}), ...(options.headers || {}), 'X-Client-Operation-Id':operationId },
+  }); } catch (cause) {
+    httpReadySince=0;
+    const diagnostic=diagnosticsContract?.observation(diagnosticsContract.classify({native_code:diagnosticsContract.nativeError(cause)}),identity);
+    const message=diagnostic ? diagnosticsContract.message(diagnostic)+(diagnostic.outcome==='unknown'?' Результат действия пока не подтверждён.':'') : String(cause.message || cause);
+    if(notify && diagnostic?.code!=='OPERATION.CANCELLED')await desktopNotification('Подключение',message,'error',diagnostic);
+    if(diagnostic?.outcome==='unknown' && requestBody?.idempotency_key && !path.startsWith('/api/operations/')) {
+      const match=path.match(/^\/api\/sessions\/([^/]+)\/messages$/);
+      const receipt=await api('/api/operations/'+encode(operationId)+(match?'?session_id='+match[1]:''),{notify:false}).catch(()=>null);
+      const validKind=match ? receipt?.kind==='message' : path==='/api/sessions' && receipt?.kind==='session';
+      if(receipt?.recorded === true && validKind && typeof receipt.session_id==='string' && /^[A-Za-z0-9_-]{8,160}$/.test(receipt.session_id) && (!match || (typeof receipt.task_id==='string' && /^[A-Za-z0-9_-]{8,160}$/.test(receipt.task_id))) && (!match || receipt.session_id===decodeURIComponent(match[1]))) {
+        await confirmDiagnostics({client_operation_id:operationId,task_id:receipt.task_id || ''});
+        finishPendingOperation(pendingKey);
+        return receipt.kind==='session' ? {session_id:receipt.session_id} : {...receipt.receipt,task_id:receipt.task_id,duplicate:true};
+      }
+    }
+    throw Object.assign(new Error(message),{cause,diagnostic,code:diagnostic?.code});
+  }
+  let payload={};
+  try { if(response.status!==204)payload=await response.json(); }
+  catch(cause) { if(response.ok) {
+    const diagnostic=diagnosticsContract?.observation('PROTOCOL.INVALID_RESPONSE',identity);
+    const message=diagnostic ? diagnosticsContract.message(diagnostic) : 'Invalid response';
+    if(notify)desktopNotification('Ответ сервера',message,'error',diagnostic);
+    throw Object.assign(new Error(message),{cause,diagnostic});
+  }}
+  const diagnostic=diagnosticsContract?.clean(payload.diagnostic || diagnosticsContract.observation(diagnosticsContract.classify({status:response.status}),identity));
   if (response.status === 401) {
     showConnection();
-    desktopNotification('Подключение', payload.error || t("error.connection_closed"));
+    if(notify)desktopNotification('Подключение', payload.error || t("error.connection_closed"),'error',diagnostic);
     throw Object.assign(new Error(payload.error || t("error.connection_closed")),{code:"connection_closed",status:401});
   }
   if (!response.ok) {
     const error = new Error(payload.error || t("error.request_failed", { status: response.status }));
     error.status = response.status;
     if (payload.code) error.code = String(payload.code);
-    if (notify) desktopNotification('Запрос приложения', error.message + (error.code ? ' · ' + error.code : ''));
+    error.diagnostic=diagnostic;
+    if(method==='GET' && diagnostic){failedReadOwners.set(path,diagnostic.owner);if(failedReadOwners.size>100)failedReadOwners.delete(failedReadOwners.keys().next().value);}
+    if (notify) desktopNotification('Запрос приложения', diagnostic ? diagnosticsContract.message(diagnostic) : error.message,'error',diagnostic);
     throw error;
+  }
+  const monotonic=globalThis.performance?.now?.() ?? Date.now();
+  if(!httpReadySince)httpReadySince=monotonic;
+  if(monotonic-httpReadySince>=5000)recoverDiagnostics({owner,stable_ms:monotonic-httpReadySince});
+  if(method==='GET' && failedReadOwners.has(path)) {
+    recoverDiagnostics({owner:failedReadOwners.get(path),proof:'operation_completed'});
+    failedReadOwners.delete(path);
+  }
+  if(pendingKey) {
+    finishPendingOperation(pendingKey);
   }
   return payload;
 }
@@ -1872,7 +1953,7 @@ function showConnection() {
   byId("nav-scheduled").disabled = true;
   byId("scheduled-view").hidden = true;
   document.querySelector(".workspace-row").hidden = false;
-  state.stream?.close();
+  stopStream();
   state.stream = null;
   stopMic();
   closePanel();
@@ -2393,6 +2474,7 @@ window.addEventListener("igorek:workspace-selected", (event) => {
   openNewSession();
 });
 function stopStream() {
+  streamRecovery?.cancel(); streamRecovery=null;
   state.stream?.close();
   state.stream = null;
 }
@@ -3418,16 +3500,30 @@ function renderReasoning(item) {
 }
 function startStream(sessionId, after) {
   stopStream();
-  const stream = new EventSource("/api/sessions/" + encode(sessionId) + "/events?after=" + encode(after));
+  const control={stopped:false,attempt:0,timer:null,stable:null};
+  const owner='web-events:'+(diagnosticsContract?.scope(location.origin+sessionId) || sessionId);
+  control.cancel=()=>{control.stopped=true;clearTimeout(control.timer);clearTimeout(control.stable);};
+  streamRecovery=control;
+  const connect=()=>{
+  if(control.stopped)return;
+  const cursor=Math.max(Number(after)||0,Number(state.lastSeq)||0);
+  const stream = new EventSource("/api/sessions/" + encode(sessionId) + "/events?after=" + encode(cursor));
+  let retired=false;
   state.stream = stream;
   stream.onopen = () => {
     if (state.activeTasks.size) setRuntime(true, "status.working");
     else if (state.runtimeKey === "status.reconnecting") setRuntime(false, "status.ready");
   };
   stream.onmessage = (message) => {
+    if(control.stopped || retired || state.stream!==stream)return;
     try {
       const event = JSON.parse(message.data);
-      if (event.kind === "stream.ready") return;
+      if (event.kind === "stream.ready") {
+        clearTimeout(control.stable);
+        control.stable=setTimeout(()=>{if(control.stopped || state.stream!==stream)return;control.attempt=0;
+          recoverDiagnostics({owner,stable_ms:5000});},5000);
+        return;
+      }
       if (Number.isInteger(event.seq)) {
         if (state.seenSeq.has(event.seq)) return;
         state.seenSeq.add(event.seq);
@@ -3441,9 +3537,20 @@ function startStream(sessionId, after) {
     }
   };
   stream.onerror = () => {
+    if(control.stopped || retired || state.stream!==stream)return;
+    retired=true;
+    stream.close();clearTimeout(control.stable);clearTimeout(control.timer);
+    const delay=control.attempt>=3 ? 30000 : diagnosticsContract?.retryDelay(control.attempt+1) || 2000;
+    control.attempt++;
+    const diagnostic=diagnosticsContract?.observation('STREAM.INTERRUPTED',{component:'web-events',operation:'read',endpoint_role:'web_to_bridge',owner,
+      attempt:control.attempt,next_retry_at_ms:Date.now()+delay,session_id:sessionId});
+    desktopNotification('Обновления чата','Обновления чата временно недоступны. Переподключаемся; задача на сервере может продолжаться.','error',diagnostic);
+    control.timer=setTimeout(connect,delay);
     if (state.activeTasks.size) setRuntime(true, "status.reconnecting");
     else setRuntime(false, "status.offline");
   };
+  };
+  connect();
 }
 function isolationStarting() {
   return String((state.session && state.session.isolation) || "") === "kvm";
@@ -3808,7 +3915,7 @@ function handleEvent(event) {
       finishTask(taskId, false, "task.stopped", null, "status.stopped", toMillis(data.ts) || Date.now());
       break;
     case "task.error":
-      desktopNotification('Ошибка агента · ' + taskId, data.error_message || t("task.no_description"));
+      desktopNotification('Ошибка агента · ' + taskId, data.error_message || t("task.no_description"),'error',data.diagnostic || null);
       finishTask(
         taskId, false,
         "task.finished_error",
@@ -3818,6 +3925,7 @@ function handleEvent(event) {
       break;
     case "task.finish": {
       const status = String(data.status || "").toLowerCase();
+      if(status==='fail' && data.diagnostic?.code)desktopNotification('Ошибка задачи',diagnosticsContract?.message(data.diagnostic) || data.output_preview,'error',data.diagnostic);
       if (status === "waiting_approval") {
         // `task.finish` with status `waiting_approval` is a **pause in the trace for confirmation**, not a terminal task outcome.
         pauseTask(taskId);
@@ -3832,6 +3940,12 @@ function handleEvent(event) {
       );
       break;
     }
+    case 'network.retry':
+      if(data.diagnostic?.code)desktopNotification('Запрос модели',diagnosticsContract?.message(data.diagnostic) || 'Повтор запроса','error',data.diagnostic);
+      break;
+    case 'network.recovered':
+      if(data.diagnostic?.owner)recoverDiagnostics({owner:data.diagnostic.owner,proof:'operation_completed'});
+      break;
     case "subagent.start":
     case "subagent.progress":
     case "subagent.finish":
@@ -5366,21 +5480,15 @@ function renderDashboard() {
 }
 async function copyDiagnostics(model) {
   const about = model.about || {};
-  const bridge = about.bridge_host
-    ? about.bridge_scheme + "://" + about.bridge_host + (about.bridge_port ? ":" + about.bridge_port : "")
-    : t("dashboard.unknown");
   const lines = [
     t("dashboard.diag_version", { v: about.version || t("dashboard.unknown") }),
-    t("dashboard.diag_bridge", { url: bridge }),
-    t("dashboard.diag_device", {
-      name: (model.status && model.status.device && model.status.device.name) || t("dashboard.local_browser_lower"),
-    }),
     t("dashboard.diag_sessions", { n: state.sessions.length }),
-    t("dashboard.diag_profile", {
-      p: (state.session && state.session.meta && state.session.meta.profile)
-        || (model.options && model.options.default_profile) || t("dashboard.not_selected"),
-    }),
   ];
+  const local=window.IgorekNotifications ? await window.IgorekNotifications.snapshot?.().catch(()=>null) : localDiagnosticJournal?.snapshot();
+  const server=await api('/api/diagnostics',{notify:false}).catch(()=>null);
+  if(local)lines.push(JSON.stringify(local));
+  if(server)lines.push(JSON.stringify(server));
+  else lines.push(JSON.stringify({server_diagnostics:'unavailable'}));
   if (navigator.clipboard && navigator.clipboard.writeText) {
     await navigator.clipboard.writeText(lines.join("\n"));
     toast(t("dashboard.copied"));

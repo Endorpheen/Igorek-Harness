@@ -28,13 +28,18 @@ import javax.net.ssl.X509TrustManager
 
 // The code carries the server error machine code (e.g., ``no_key`` for quota), so
 // UI can display localized text instead of a generic message.
-class BridgeException(val status: Int, message: String, val code: String? = null) : IOException(message)
+class BridgeException(val status: Int, message: String, val code: String? = null, val diagnostic: ErrorObservation? = null) : IOException(message)
 
 class BridgeClient(
     baseUrl: String,
     private val token: String,
     pinnedFingerprint: String? = null,
 ) {
+    internal val transportOwner = "bridge-http:" + connectionScope(baseUrl)
+    internal var onDiagnostic: ((ErrorObservation) -> Unit)? = null
+    internal var onSuccess: (() -> Unit)? = null
+    internal var onRecovered: ((String) -> Unit)? = null
+    private val failedReadOwners = java.util.concurrent.ConcurrentHashMap<String,String>()
     private val json = Json {
         ignoreUnknownKeys = true
         explicitNulls = false
@@ -44,6 +49,7 @@ class BridgeClient(
     private val api = secureBridgeUrl(baseUrl) + "/mobile/v1"
 
     private val http: OkHttpClient = OkHttpClient.Builder()
+        .retryOnConnectionFailure(false)
         .followSslRedirects(false)
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
@@ -52,6 +58,7 @@ class BridgeClient(
         .build()
 
     private val streamHttp: OkHttpClient = OkHttpClient.Builder()
+        .retryOnConnectionFailure(false)
         .followSslRedirects(false)
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(45, TimeUnit.SECONDS)
@@ -59,6 +66,7 @@ class BridgeClient(
         .build()
 
     private val uploadHttp: OkHttpClient = OkHttpClient.Builder()
+        .retryOnConnectionFailure(false)
         .followSslRedirects(false)
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(120, TimeUnit.SECONDS)
@@ -85,6 +93,7 @@ class BridgeClient(
             .url(api + path)
             .header("Authorization", "Bearer $token")
             .header("Accept", "application/json")
+            .header("X-Client-Operation-Id", java.util.UUID.randomUUID().toString())
 
     suspend fun browserPreview(after: String = ""): BrowserPreviewResponse = suspendCancellableCoroutine { continuation ->
         val query = if (after.matches(Regex("[a-f0-9]{64}"))) "?after=$after" else ""
@@ -152,14 +161,61 @@ class BridgeClient(
     private fun <T> execute(request: Request, decode: (String) -> T): T = executeWithClient(http, request, decode)
 
     private fun <T> executeWithClient(client: OkHttpClient, request: Request, decode: (String) -> T): T {
-        client.newCall(request).execute().use { response ->
+        val started=System.nanoTime()
+        var attempt=1
+        while(true) {
+        val phase=java.util.concurrent.atomic.AtomicReference("connect")
+        try {
+        val remaining=(30000-(System.nanoTime()-started)/1000000).coerceAtLeast(1)
+        val builder=client.newBuilder().eventListener(object:okhttp3.EventListener() {
+            override fun secureConnectStart(call:Call) { phase.set("tls_handshake") }
+            override fun requestHeadersStart(call:Call) { phase.set("request_send") }
+            override fun responseHeadersStart(call:Call) { phase.set("http_body") }
+            override fun responseBodyStart(call:Call) { phase.set("read") }
+        })
+        if(request.method in setOf("GET","HEAD"))builder.callTimeout(remaining,TimeUnit.MILLISECONDS)
+        val runner=builder.build()
+        runner.newCall(request).execute().use { response ->
             val body = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
                 val parsed = runCatching { parse<ErrorResponse>(body) }.getOrNull()
                 val message = parsed?.error ?: "HTTP ${response.code}"
-                throw BridgeException(response.code, message, parsed?.code?.takeIf { it.isNotBlank() })
+                val diagnostic=parsed?.diagnostic?.let(::sanitizeDiagnostic) ?: ErrorObservation(
+                    code=classifyDiagnostic(status=response.code),component="bridge",operation=if(request.method=="GET")"read" else "write",
+                    owner="bridge-operation:"+connectionScope(request.method+request.url.encodedPath), delivery="rejected",outcome="failed",
+                    httpRequestId=response.header("x-request-id").orEmpty(),clientOperationId=request.header("X-Client-Operation-Id").orEmpty(),httpStatus=response.code)
+                val retryAfter=parseRetryAfter(response.header("Retry-After"))
+                throw BridgeException(response.code, message, parsed?.code?.takeIf { it.isNotBlank() }, diagnostic.copy(attempt=attempt,retryAfter=retryAfter ?: diagnostic.retryAfter))
             }
-            return decode(body)
+            val value=try { decode(body) } catch(error: kotlinx.serialization.SerializationException) {
+                throw DiagnosticIOException(ErrorObservation(code="PROTOCOL.INVALID_RESPONSE",owner="bridge-operation:"+connectionScope(request.method+request.url.encodedPath),phase="response_validation",clientOperationId=request.header("X-Client-Operation-Id").orEmpty()),error)
+            }
+            runCatching { onSuccess?.invoke() }
+            if(request.method=="GET")failedReadOwners.remove(request.url.encodedPath)?.let { owner -> runCatching { onRecovered?.invoke(owner) } }
+            return value
+        }
+        } catch(error: Exception) {
+            if(error is java.util.concurrent.CancellationException)throw error
+            val diagnostic=(when(error){is BridgeException->error.diagnostic;is DiagnosticIOException->error.diagnostic;else->null}
+                ?: ErrorObservation(code=classifyDiagnostic(error,phase=phase.get()),owner=transportOwner,operation=if(request.method=="GET")"read" else "write",phase=phase.get(),
+                    delivery=if(phase.get()=="connect")"not_sent" else "unknown",outcome=if(request.method=="GET" || phase.get()=="connect")"failed" else "unknown",
+                    clientOperationId=request.header("X-Client-Operation-Id").orEmpty(),nativeCode=error.javaClass.simpleName)).copy(attempt=attempt)
+            val elapsed=(System.nanoTime()-started)/1000000
+            val delay=maxOf(reconnectDelay(attempt-1),((diagnostic.retryAfter ?: 0.0)*1000).toLong())
+            val retry=diagnosticRetryAllowed(diagnostic,request.method in setOf("GET","HEAD"),attempt,elapsed,delay)
+            val observed=diagnostic.copy(nextRetryAt=if(retry)System.currentTimeMillis()+delay else null)
+            if(request.method=="GET" && observed.owner!=transportOwner) {
+                if(failedReadOwners.size>=100)failedReadOwners.clear()
+                failedReadOwners[request.url.encodedPath]=observed.owner
+            }
+            runCatching { onDiagnostic?.invoke(observed) }
+            if(!retry) {
+                if(error is BridgeException)throw BridgeException(error.status,error.message.orEmpty(),error.code,observed)
+                throw DiagnosticIOException(observed,error)
+            }
+            Thread.sleep(delay)
+            attempt++
+        }
         }
     }
 
@@ -406,6 +462,7 @@ class BridgeClient(
             ),
         )
         val request = requestBuilder("/sessions/$sessionId/messages")
+            .apply { if(!idempotencyKey.isNullOrBlank())header("X-Client-Operation-Id",idempotencyKey) }
             .header("Content-Type", "application/json")
             .post(payload.toRequestBody(JSON_MEDIA))
             .build()
@@ -578,6 +635,10 @@ class BridgeClient(
                 .post("{}".toRequestBody(JSON_MEDIA))
                 .build(),
         ) { parse(it) }
+
+    fun diagnostics(): JsonObject = execute(requestBuilder("/diagnostics").get().build()) { parse(it) }
+
+    fun operationReceipt(key:String,sessionId:String):JsonObject = execute(requestBuilder("/operations/"+URLEncoder.encode(key,"UTF-8")+"?session_id="+URLEncoder.encode(sessionId,"UTF-8")).get().build()) { parse(it) }
 
     fun openEventStream(
         afterSeq: Long,

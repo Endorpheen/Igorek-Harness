@@ -1,0 +1,42 @@
+# Error diagnostics
+
+## Contract and ownership
+
+The canonical catalogue is `factory/config/error-catalog.json`. Run `python3 tools/generate_error_contract.py` after changing it or the shared browser implementation; `--check` verifies the generated desktop, web and Android copies. Schema version 1 is additive: legacy `error`, `message`, `code` and task-status fields retain their existing meaning. CC trace `domain.action` events and API/workflow events remain separate families.
+
+Each observation carries a code, category, severity, recommended action, component, capability owner, endpoint role, operation, UTC timestamp and an event ID. Where available it retains session, task, tool-use, client-operation, HTTP-request and provider-request identifiers. A provider request ID is not an approval ID. Profile/model identity is captured at failure time; later selection changes do not relabel it. Native exception classes, transport phases and HTTP status drive classification. Browser fetch failures cannot reliably identify DNS, TLS or VPN causes and therefore preserve an unspecified transport failure.
+
+## Incidents and recovery
+
+An incident groups observations by owner, endpoint role, component, code and operation safety class. The observation count is not the number of distinct server outages and is not the automatic retry count. Attempts include the initial call and have their own attempt/next-retry fields. A recurrent failure after recovery creates a new incident. Reading a notification acknowledges it without resolving it; a further observation in that incident does not make it unread again.
+
+States are `observed`, `recovering`, `needs_owner` and `recovered`. The owning capability may recover its own incidents after five seconds of stable readiness, or after successful completion of the exact read operation. Merely opening a socket is insufficient. An HTTP success does not recover an unrelated event stream or model failure. Unknown write outcomes require an operation receipt instead of generic connectivity recovery. Stored recovery proof distinguishes readiness, completed reads and confirmed admission.
+
+Activity snapshots report observed duration, recent progress and waiting for owner input. After 120 seconds without an observed progress event the snapshot says progress is unconfirmed; after 180 seconds of active work with recent events it may report long-running work. These are observer facts, not a diagnosis of a hung model. The monitor never stops, restarts or changes a user task.
+
+## Retry and delivery safety
+
+A logical operation has one retry owner. The common transient-read budget is three attempts including the initial request, a 30-second deadline, capped jittered backoff and a bounded `Retry-After`. A long server-directed delay can exhaust the deadline and prevent another attempt. Certificate rejection, authentication failure, cancellation, policy rejection and quota exhaustion are not blindly retried. No automatic model/key rotation or whole-task replay is added.
+
+Android retries explicitly safe GET/HEAD operations with SDK connection retries disabled. Event streams have one reconnect loop, stable-ready confirmation and a cooldown after a short burst. Desktop/web use one event-stream reconnect owner. Closing or losing the client does not terminate admitted server work. An incomplete model stream cannot execute partially received tool arguments.
+
+Delivery is `not_sent`, `accepted`, `rejected` or `unknown`; outcome is tracked separately. Losing the response to a write does not prove failure. An uncaught server exception during a write also preserves uncertainty. After a lost message response, web/Android perform a read-only receipt lookup using the same idempotency key. A matching recorded receipt confirms admission without sending the write again. Admission does not mean task completion. A missing receipt stays unknown. Manual retries of the same retained pending message reuse its key; only a bounded digest/key map is stored, without message text. Receipt retention and crash gaps do not constitute a universal exactly-once guarantee for arbitrary tools.
+
+## Existing interfaces and diagnostics
+
+The existing notification panels show a stable code/reference, incident state, first/last observation, count and known retry information. There is no additional permanent diagnostics panel. Desktop/web's existing diagnostic-copy action includes a safe snapshot; Android copies its local snapshot by long-pressing an existing notification. Localized descriptions do not determine incident identity.
+
+Authenticated endpoints:
+
+- `GET /mobile/v1/diagnostics`: bounded incident history, observer/writer health, version and observed task activity. Web proxy: `/api/diagnostics`.
+- `GET /mobile/v1/operations/{key}?session_id={session_id}`: matching recorded admission receipt, or `recorded: false` / `status: unknown`. Web proxy: `/api/operations/{key}`. It neither admits nor replays work.
+
+Diagnostics are local and owner-controlled. Journals retain at most 100 incidents and eight recent observations per incident, with bounded serialized output and retention/drop counters. Android stores history and pending keys in encrypted preferences per connection. The browser stores safe history in session storage and only pending-operation digests/keys in local storage. Desktop and backend write bounded local history. Backend incident files use private permissions and atomic replacement. Corrupt or unwritable storage appears in writer health; logging/formatting failures must not replace the original operation error.
+
+Exports contain allowlisted metadata rather than raw prompts, tool arguments, response bodies, cookies, credentials, local endpoint URLs or private paths. Existing owner execution/approval inputs retain their original bytes and signatures; diagnostic redaction applies to diagnostic copies. Local diagnostic references are for correlation and are not authentication credentials. No external telemetry or paste service is introduced.
+
+## Validation and limits
+
+Shared classification fixtures run in Python, Node and Kotlin. Regression coverage includes certificate rejection, rate limiting and server errors, malformed responses, interrupted streams, admitted-write reconciliation without replay, retry budgets, flapping, ownership, acknowledgment, retention, corrupt history, failed storage and redaction. Android transport tests use a separate pinned local TLS fixture. Synthetic faults and hosted native builds are reported separately from physical-device VPN switching and Windows 11 acceptance. No classifier proves which VPN or remote network component caused an unspecified transport failure.
+
+![Error diagnostics before and after](../images/error-diagnostics-en.png)

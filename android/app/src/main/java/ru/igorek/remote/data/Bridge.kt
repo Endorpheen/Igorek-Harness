@@ -7,6 +7,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.withTimeoutOrNull
+import android.net.ConnectivityManager
+import android.net.Network
+import android.os.SystemClock
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.decodeFromString
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,6 +32,8 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.longOrNull
 import okhttp3.Call
 
@@ -156,6 +165,7 @@ object Bridge {
     private val checkpointDiffRefresh = Mutex()
     private val errorLock = Any()
     private var lastErrorKind: BridgeErrorKind? = null
+    private var lastDiagnostic: ErrorObservation? = null
     private val sessionGeneration = AtomicLong()
     @Volatile private var selectedSessionId: String? = null
     @Volatile private var pendingDiffPath: String? = null
@@ -164,6 +174,13 @@ object Bridge {
     @Volatile private var archivedOnly = false
     private val pendingMessages = ConcurrentHashMap<String, String>()
     private var replayThrough = 0L
+    private val networkWake = Channel<Unit>(Channel.CONFLATED)
+    @Volatile private var networkAvailable = true
+    private var connectivityCallback: ConnectivityManager.NetworkCallback? = null
+    private val diagnosticJson = kotlinx.serialization.json.Json { ignoreUnknownKeys=true; encodeDefaults=true }
+    private var notificationWriteFailures = 0
+    private var httpReadySince = 0L
+    private var streamReadyJob: Job? = null
 
     private val _savedConnections = MutableStateFlow<List<SavedConnection>>(emptyList())
     val savedConnections = _savedConnections.asStateFlow()
@@ -339,6 +356,17 @@ object Bridge {
         if (prefs != null) return
         val store = Prefs(context.applicationContext)
         prefs = store
+        loadNotificationHistory()
+        runCatching {
+            val manager=context.applicationContext.getSystemService(ConnectivityManager::class.java)
+            networkAvailable=manager.activeNetwork!=null
+            val callback=object:ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network:Network) { networkAvailable=true; networkWake.trySend(Unit) }
+                override fun onLost(network:Network) { networkAvailable=manager.activeNetwork!=null; networkWake.trySend(Unit) }
+            }
+            connectivityCallback=callback
+            manager.registerDefaultNetworkCallback(callback)
+        }
         store.saveCurrentConnection()
         _savedConnections.value = store.savedConnections()
         _screenshotsBlocked.value = store.screenshotsBlocked
@@ -361,7 +389,16 @@ object Bridge {
     }
 
     private fun buildClient(store: Prefs): BridgeClient =
-        BridgeClient(store.baseUrl, store.token, store.fingerprint.ifBlank { null })
+        instrumentClient(BridgeClient(store.baseUrl, store.token, store.fingerprint.ifBlank { null }))
+
+    private fun instrumentClient(active: BridgeClient): BridgeClient = active.also {
+        active.onDiagnostic={ error -> if(client===active) {
+            synchronized(errorLock) { if(error.owner==active.transportOwner)httpReadySince=0 }
+            recordDiagnostic(error)
+        }}
+        active.onSuccess={ if(client===active) clearRecoveredConnectionError() }
+        active.onRecovered={ owner -> if(client===active)recoverDiagnostic(owner,0,operationCompleted=true) }
+    }
 
     fun normalizeUrl(raw: String): String {
         val trimmed = raw.trim().trimEnd('/')
@@ -1101,7 +1138,8 @@ object Bridge {
                 store.saveCurrentConnection()
                 clearConnectionState()
                 store.activateConnection(id)
-                client = probe; _paired.value = true; _serverUrl.value = saved.url
+                client = instrumentClient(probe); _paired.value = true; _serverUrl.value = saved.url
+                loadNotificationHistory()
                 _savedConnections.value = store.savedConnections()
                 _sessions.value = listing.sessions; _archiveCandidateCount.value = listing.archiveCandidateCount
                 refreshApprovals(); refreshApprovalSettings(); refreshSecuritySettings(); refreshSandboxSettings()
@@ -1119,10 +1157,11 @@ object Bridge {
                 val probe = BridgeClient(normalized, store.token, store.fingerprint.ifBlank { null })
                 val listing = probe.sessionListing()
                 stopStream()
-                client = probe
+                client = instrumentClient(probe)
                 store.baseUrl = normalized
                 store.saveCurrentConnection()
                 _savedConnections.value = store.savedConnections()
+                loadNotificationHistory()
                 _serverUrl.value = normalized
                 _sessions.value = listing.sessions
                 _archiveCandidateCount.value = listing.archiveCandidateCount
@@ -1144,12 +1183,30 @@ object Bridge {
     ) {
         val active = client ?: return
         clearLastError()
-        val messageKey = "$sessionId|$text|${uploadIds.joinToString(",")}|${skillIds.joinToString(",")}"
+        val messageKey = connectionScope(diagnosticJson.encodeToString(listOf(listOf(sessionId, text), uploadIds, skillIds)))
         val key = pendingMessages.getOrPut(messageKey) { "android-${UUID.randomUUID()}" }
+        persistPendingOperations()
         scope.launch {
-            runCatching { active.sendMessage(sessionId, text, key, uploadIds, skillIds) }
+            runCatching {
+                try { active.sendMessage(sessionId, text, key, uploadIds, skillIds) }
+                catch(error:DiagnosticIOException) {
+                    if(error.diagnostic.outcome!="unknown")throw error
+                    val lookup=runCatching { active.operationReceipt(key,sessionId) }.getOrNull()
+                    val confirmed=lookup ?: throw error
+                    val task=(confirmed["task_id"] as? JsonPrimitive)?.content.orEmpty()
+                    if((confirmed["recorded"] as? JsonPrimitive)?.booleanOrNull!=true || !task.matches(Regex("[A-Za-z0-9_-]{8,160}")) ||
+                        (confirmed["session_id"] as? JsonPrimitive)?.content!=sessionId || (confirmed["kind"] as? JsonPrimitive)?.content!="message")throw error
+                    synchronized(errorLock) {
+                        _notifications.value=confirmNotifications(_notifications.value,key,task,System.currentTimeMillis());persistNotifications()
+                        if(lastDiagnostic?.clientOperationId==key){lastDiagnostic=null;lastErrorKind=null;_lastError.value=null}
+                    }
+                    val receipt=runCatching { lookup?.get("receipt")?.let { diagnosticJson.decodeFromString<SendMessageResponse>(it.toString()) } }.getOrNull()
+                    (receipt ?: SendMessageResponse(taskId=task,status="queued")).copy(taskId=task,duplicate=true)
+                }
+            }
                 .onSuccess { response ->
                     pendingMessages.remove(messageKey, key)
+                    persistPendingOperations()
                     val attachmentLine = if (attachmentNames.isEmpty()) ""
                     else AppLocale.text(
                         "[вложения: ${attachmentNames.joinToString(", ")}]",
@@ -1437,44 +1494,65 @@ object Bridge {
 
     fun startStream() {
         val store = prefs ?: return
-        if (!store.isPaired()) return
-        if (streamJob?.isActive == true) return
+        if (!store.isPaired() || streamJob?.isActive == true) return
         val active = client ?: buildClient(store).also { client = it }
         streamJob = scope.launch {
-            while (isActive) {
-                if (store.token.isEmpty()) {
-                    delay(3_000)
+            var attempt=0
+            while(isActive && client===active) {
+                if(!networkAvailable || store.token.isEmpty()) {
+                    _connection.value="offline"
+                    withTimeoutOrNull(30000) { networkWake.receive() }
                     continue
                 }
-                val closed = CompletableDeferred<Throwable?>()
-                _connection.value = "connecting"
-                val call = active.openEventStream(
-                    afterSeq = store.lastSeq,
-                    sessionId = null,
-                    onEvent = { event -> if (client === active && isActive) handleEvent(event) },
-                    onClosed = { error -> closed.complete(error) },
-                )
-                streamCall = call
-                val error = try { closed.await() } finally { call.cancel() }
-                if (client !== active || !isActive) return@launch
-                _connection.value = "offline"
-                if (error is BridgeException && error.status == 401) {
-                    withContext(Dispatchers.Main) { ru.igorek.remote.service.VoiceCalls.close() }
-                    _paired.value = false
-                    setLastError(AppLocale.text("Устройство отозвано на сервере", "Device access was revoked on the server"), BridgeErrorKind.OPERATION)
+                val closed=CompletableDeferred<Throwable?>()
+                val owner="bridge-events:"+connectionScope(store.baseUrl)
+                var ready=false
+                _connection.value="connecting"
+                val call=active.openEventStream(store.lastSeq,null,
+                    onEvent={ event -> if(client===active && isActive) {
+                        if(event.kind=="stream.ready") {
+                            ready=true
+                            streamReadyJob?.cancel()
+                            streamReadyJob=scope.launch {
+                                delay(ErrorCatalog.stableAfterMs)
+                                if(client===active && !closed.isCompleted) {
+                                    attempt=0
+                                    recoverDiagnostic(owner,ErrorCatalog.stableAfterMs)
+                                    refreshSessions();refreshApprovals();refreshApprovalSettings();refreshSecuritySettings();refreshSandboxSettings()
+                                    selectedSessionId?.let { refreshSessionChanges(it) }
+                                }
+                            }
+                        }
+                        handleEvent(event)
+                    } },onClosed={ closed.complete(it) })
+                streamCall=call
+                val error=try { closed.await() } finally { call.cancel() }
+                streamReadyJob?.cancel()
+                if(client!==active || !isActive)return@launch
+                _connection.value="offline"
+                val code=if(error==null)"STREAM.INTERRUPTED" else classifyDiagnostic(error,status=(error as? BridgeException)?.status)
+                if(code=="AUTH.REJECTED" || code=="TLS.CERTIFICATE_REJECTED" || code=="TLS.PROTOCOL_FAILURE") {
+                    recordDiagnostic(ErrorObservation(code=code,component="mobile-events",owner=owner,phase="connect"))
+                    if(code=="AUTH.REJECTED") {
+                        withContext(Dispatchers.Main) { ru.igorek.remote.service.VoiceCalls.close() }
+                        _paired.value=false
+                    }
                     break
                 }
-                delay(2_000)
+                val wait=reconnectDelay(attempt)
+                attempt++
+                recordDiagnostic(ErrorObservation(code=code,component="mobile-events",owner=owner,phase=if(ready)"sse_read" else "connect",
+                    attempt=attempt,nextRetryAt=System.currentTimeMillis()+wait))
+                withTimeoutOrNull(wait) { networkWake.receive() }
             }
         }
     }
 
     fun stopStream() {
-        streamCall?.cancel()
-        streamCall = null
-        streamJob?.cancel()
-        streamJob = null
-        _connection.value = "offline"
+        streamReadyJob?.cancel()
+        streamCall?.cancel();streamCall=null
+        streamJob?.cancel();streamJob=null
+        _connection.value="offline"
     }
 
     private fun handleEvent(event: BridgeEvent) {
@@ -1483,15 +1561,16 @@ object Bridge {
         if (event.kind == "stream.ready") {
             replayThrough = (event.payload["replay_through"] as? JsonPrimitive)?.longOrNull ?: 0L
             _connection.value = "online"
-            clearRecoveredConnectionError()
-            refreshSessions()
-            refreshApprovals()
-            refreshApprovalSettings()
-            refreshSecuritySettings()
-            refreshSandboxSettings()
-            selectedSessionId?.let { refreshSessionChanges(it) }
             selectedSessionId?.let { sessionId ->
                 if (_sessionCheckpoints.value != null) refreshSessionCheckpoints(sessionId)
+            }
+        }
+
+        if(event.kind in setOf("network.retry","network.recovered","task.finish","task.error")) {
+            val error=event.payload["diagnostic"]?.let { runCatching { diagnosticJson.decodeFromString<ErrorObservation>(it.toString()) }.getOrNull() }
+            if(error!=null) {
+                if(event.kind=="network.recovered")recoverDiagnostic(error.owner,0,operationCompleted=true)
+                else if(event.kind in setOf("network.retry","task.error") || event.payload.str("status")=="fail")recordDiagnostic(error)
             }
         }
 
@@ -1604,58 +1683,126 @@ object Bridge {
     }
 
     private fun handleFailure(error: Throwable) {
+        if(error is java.util.concurrent.CancellationException)return
+        val diagnostic=when(error){is BridgeException->error.diagnostic;is DiagnosticIOException->error.diagnostic;else->null}
+        if(diagnostic!=null) {
+            val detail=if(error is BridgeException && !error.message.isNullOrBlank())"\n"+safeDiagnosticText(error.message.orEmpty()) else ""
+            setLastError(errorMessage(diagnostic)+detail,if(diagnostic.code.startsWith("NET.") || diagnostic.code.startsWith("TLS."))BridgeErrorKind.CONNECTION else BridgeErrorKind.OPERATION,diagnostic)
+            if(error is BridgeException && error.status==401)_paired.value=false
+            return
+        }
         if (error is BridgeException && error.status == 401) {
             _paired.value = false
-            setLastError(AppLocale.text("Устройство отозвано на сервере", "Device access was revoked on the server"), BridgeErrorKind.OPERATION)
+            setLastError(AppLocale.text("Подключение не авторизовано. Проверьте вход.", "The connection is not authorized. Check sign-in."), BridgeErrorKind.OPERATION)
             return
         }
         val kind = bridgeErrorKind(error)
-        val message = if (kind == BridgeErrorKind.CONNECTION)
-            AppLocale.text(
-                "Нет связи с ${_serverUrl.value}. Проверьте адрес сервера и сеть.",
-                "No connection to ${_serverUrl.value}. Check the server address and network.",
-            )
-        else error.message ?: error.javaClass.simpleName
-        setLastError(message, kind)
+        val fallback=ErrorObservation(code=classifyDiagnostic(error),owner=client?.transportOwner.orEmpty(),nativeCode=error.javaClass.simpleName)
+        setLastError(errorMessage(fallback),kind,fallback)
     }
 
-    private fun setLastError(message: String, kind: BridgeErrorKind) {
+    private fun setLastError(message: String, kind: BridgeErrorKind, diagnostic: ErrorObservation? = null) {
         synchronized(errorLock) {
             lastErrorKind = kind
+            lastDiagnostic = diagnostic
             _lastError.value = message
             _notifications.value = mergeNotification(
                 _notifications.value,
                 message,
                 kind.name,
                 System.currentTimeMillis(),
+                diagnostic,
             )
+            persistNotifications()
         }
     }
 
     fun markNotificationsRead() {
         synchronized(errorLock) {
             _notifications.value = _notifications.value.map { it.copy(read = true) }
+            persistNotifications()
         }
     }
 
     fun clearNotifications() {
-        synchronized(errorLock) { _notifications.value = emptyList() }
+        synchronized(errorLock) { _notifications.value = emptyList();persistNotifications() }
     }
 
     private fun clearLastError() {
         synchronized(errorLock) {
             lastErrorKind = null
+            lastDiagnostic = null
             _lastError.value = null
         }
     }
 
     private fun clearRecoveredConnectionError() {
         synchronized(errorLock) {
-            if (shouldClearBridgeErrorAfterReconnect(lastErrorKind)) {
+            if(httpReadySince==0L)httpReadySince=SystemClock.elapsedRealtime()
+            val stable=SystemClock.elapsedRealtime()-httpReadySince
+            if(stable<ErrorCatalog.stableAfterMs)return
+            recoverDiagnostic(client?.transportOwner.orEmpty(),stable)
+            if (shouldClearBridgeErrorAfterReconnect(lastErrorKind) && lastDiagnostic?.owner==client?.transportOwner && lastDiagnostic?.outcome!="unknown") {
                 lastErrorKind = null
                 _lastError.value = null
             }
         }
+    }
+
+    private fun recordDiagnostic(error: ErrorObservation) {
+        val safe=sanitizeDiagnostic(error)
+        if(safe.code=="OPERATION.CANCELLED")return
+        setLastError(errorMessage(safe),if(safe.code.startsWith("NET.") || safe.code.startsWith("TLS.") || safe.code.startsWith("STREAM."))BridgeErrorKind.CONNECTION else BridgeErrorKind.OPERATION,safe)
+    }
+
+    private fun recoverDiagnostic(owner:String,stableMs:Long,operationCompleted:Boolean=false) {
+        synchronized(errorLock) {
+            val updated=recoverNotifications(_notifications.value,owner,stableMs,System.currentTimeMillis(),operationCompleted)
+            if(updated!=_notifications.value){_notifications.value=updated;persistNotifications()}
+            if(lastDiagnostic?.owner==owner && lastDiagnostic?.outcome!="unknown" && (operationCompleted || stableMs>=ErrorCatalog.stableAfterMs)) {
+                lastDiagnostic=null;lastErrorKind=null;_lastError.value=null
+            }
+        }
+    }
+
+    private fun persistNotifications() {
+        runCatching {
+            var values=_notifications.value.takeLast(NOTIFICATION_LIMIT)
+            var encoded=diagnosticJson.encodeToString(values)
+            while(encoded.length>131072 && values.size>1){values=values.drop(1);encoded=diagnosticJson.encodeToString(values)}
+            prefs?.notificationHistory=encoded
+        }
+            .onFailure { notificationWriteFailures++ }
+    }
+
+    private fun loadNotificationHistory() {
+        synchronized(errorLock) {
+            _notifications.value=runCatching { diagnosticJson.decodeFromString<List<NotificationEntry>>(prefs?.notificationHistory ?: "[]")
+                .takeLast(NOTIFICATION_LIMIT).map { it.copy(text=safeDiagnosticText(it.text),diagnostic=it.diagnostic?.let(::sanitizeDiagnostic),events=it.events.takeLast(8).map(::sanitizeDiagnostic),count=it.count.coerceIn(1,1000000000)) } }.getOrDefault(emptyList())
+            pendingMessages.clear()
+            runCatching { diagnosticJson.decodeFromString<Map<String,String>>(prefs?.pendingOperationKeys ?: "{}") }.getOrDefault(emptyMap()).entries.toList().takeLast(20).forEach { (hash,key) ->
+                if(hash.matches(Regex("[a-f0-9]{24}")) && key.matches(Regex("[A-Za-z0-9_-]{8,160}")))pendingMessages[hash]=key
+            }
+        }
+    }
+
+    private fun persistPendingOperations() {
+        runCatching { prefs?.pendingOperationKeys=diagnosticJson.encodeToString(pendingMessages.entries.toList().takeLast(20).associate { it.key to it.value }) }.onFailure { notificationWriteFailures++ }
+    }
+
+    fun diagnosticSnapshot(): String = synchronized(errorLock) {
+        buildJsonObject {
+            put("schema_version",JsonPrimitive(1));put("captured_at_ms",JsonPrimitive(System.currentTimeMillis()))
+            put("version",JsonPrimitive(ru.igorek.remote.BuildConfig.VERSION_NAME));put("write_failures",JsonPrimitive(notificationWriteFailures))
+            put("incidents",JsonArray(_notifications.value.mapNotNull { entry -> entry.diagnostic?.let { error -> buildJsonObject {
+                put("incident_id",JsonPrimitive(entry.id));put("state",JsonPrimitive(entry.state));put("observations",JsonPrimitive(entry.count))
+                put("recovered_at_ms",JsonPrimitive(entry.recoveredAt));put("recovery_proof",JsonPrimitive(entry.recoveryProof))
+                put("first_seen_ms",JsonPrimitive(entry.firstSeen));put("last_seen_ms",JsonPrimitive(entry.lastSeen))
+                put("error",diagnosticJson.parseToJsonElement(diagnosticJson.encodeToString(sanitizeDiagnostic(error))))
+                put("events",diagnosticJson.parseToJsonElement(diagnosticJson.encodeToString(entry.events.takeLast(8).map(::sanitizeDiagnostic))))
+                put("history_omitted",JsonPrimitive((entry.count-entry.events.size).coerceAtLeast(0)))
+            } } }))
+        }.toString()
     }
 }
 

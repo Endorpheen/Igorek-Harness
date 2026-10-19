@@ -1106,7 +1106,8 @@ test('late quota response cannot restore data after lock or profile switch', asy
 
 test('quiet API errors remain typed and ordinary failures still create notifications', async () => {
   const vm=require('node:vm'),source=require('node:fs').readFileSync(require('node:path').join(__dirname, '..','../factory/web_ui/static/app.js'),'utf8'),notices=[],requests=[];
-  const c={fetch:async(path,options)=>{requests.push(options);return {ok:false,status:423,json:async()=>({code:'vault_locked',error:'locked'})};},desktopNotification:(...args)=>notices.push(args),t:v=>v,showConnection(){}};
+  const c={diagnosticsContract:require('../error-diagnostics.js'),failedReadOwners:new Map(),state:{selected:'',session:null},location:{origin:'https://example.test'},window:{},httpReadySince:0,crypto:globalThis.crypto,
+    fetch:async(path,options)=>{requests.push(options);return {ok:false,status:423,json:async()=>({code:'vault_locked',error:'locked'})};},desktopNotification:(...args)=>notices.push(args),t:v=>v,showConnection(){}};
   vm.createContext(c);vm.runInContext(source.slice(source.indexOf('async function api('),source.indexOf('function toast(')),c);
   await assert.rejects(c.api('/quota',{notify:false}),e=>e.code==='vault_locked'&&e.status===423);assert.equal(notices.length,0);assert.equal('notify' in requests[0],false);
   await assert.rejects(c.api('/explicit'));assert.equal(notices.length,1);

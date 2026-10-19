@@ -63,6 +63,8 @@ from .websocket import (
 _COOKIE = "__Host-igorek-device"
 _STATIC = Path(__file__).with_name("static")
 _STATIC_TYPES = {
+    "error-catalog.js": "text/javascript; charset=utf-8",
+    "error-diagnostics.js": "text/javascript; charset=utf-8",
     "completion-sound.js": "text/javascript; charset=utf-8",
     "alarm1.mp3": "audio/mpeg",
     "audio/task-completed.mp3": "audio/mpeg",
@@ -807,6 +809,13 @@ class _Handler(BaseHTTPRequestHandler):
         if path == "/api/session-options" and method == "GET":
             self._proxy(method, "/session-options")
             return
+        if path == '/api/diagnostics' and method == 'GET':
+            self._proxy(method, '/diagnostics')
+            return
+        operation_match = re.fullmatch(r'/api/operations/([A-Za-z0-9_-]{8,160})', path)
+        if operation_match and method == 'GET':
+            self._proxy(method, '/operations/'+operation_match.group(1)+'?'+urllib.parse.urlparse(self.path).query)
+            return
         if path == '/api/schedules' and method in {'GET','POST'}:
             body = self._body() if method=='POST' else None
             if method=='GET' or body is not None:self._proxy(method,'/schedules',body)
@@ -1345,6 +1354,9 @@ class _Handler(BaseHTTPRequestHandler):
         extra_headers: dict[str, str] | None = None,
     ) -> tuple[int, bytes, str]:
         headers = {"Accept": "application/json"}
+        operation_id = str(self.headers.get('X-Client-Operation-Id') or '')
+        if re.fullmatch(r'[A-Za-z0-9_-]{8,160}', operation_id):
+            headers['X-Client-Operation-Id'] = operation_id
         data: bytes | None = None
         if token:
             headers["Authorization"] = f"Bearer {token}"
