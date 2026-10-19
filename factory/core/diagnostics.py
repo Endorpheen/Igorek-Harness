@@ -324,7 +324,7 @@ class ActivityTracker:
             return
         stamp = time.monotonic() if now is None else now
         kind = event.get('kind')
-        if kind not in {'task.start','task.finish','task.status','model.text_delta','model.reasoning_delta','model.round_response','tool.request_batch','tool.result','approval.required','approval.resolved'}:
+        if kind not in {'task.start','task.finish','task.status','task.error','model.text_delta','model.reasoning_delta','model.round_response','tool.request_batch','tool.result','approval.required','approval.resolved'}:
             return
         with self.lock:
             item = self.items.setdefault(task, {'started':stamp,'progress':stamp,'phase':'unknown','status':'active'})
@@ -332,9 +332,16 @@ class ActivityTracker:
                 item.update(started=stamp, status='active', phase='unknown')
                 item.pop('finished', None)
             item['progress'] = stamp
-            if kind == 'task.finish':
-                item['finished'] = stamp
-                item['status'] = str(payload.get('status') or 'unknown')
+            if kind in {'task.finish', 'task.status', 'task.error'}:
+                status = 'fail' if kind == 'task.error' else str(payload.get('status') or 'unknown')
+                if status in {'waiting_approval', 'waiting_owner'}:
+                    item.update(status='waiting_owner', phase='approval')
+                    item.pop('finished', None)
+                elif status in {'running', 'retry', 'queued'}:
+                    item.update(status='active', phase='queued' if status != 'running' else 'unknown')
+                    item.pop('finished', None)
+                else:
+                    item.update(status=status, finished=stamp)
             elif kind == 'approval.required':
                 item.update(status='waiting_owner', phase='approval')
             elif kind == 'approval.resolved':

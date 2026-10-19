@@ -128,6 +128,19 @@ class ErrorDiagnosticsTest(unittest.TestCase):
         self.assertEqual(resumed['status'], 'active')
         self.assertEqual(resumed['observed_duration_ms'], 5000)
 
+    def test_persisted_status_and_error_events_close_observation_without_changing_work(self):
+        tracker = ActivityTracker()
+        tracker.observe({'kind': 'task.start', 'task_id': 'fixture'}, now=0)
+        tracker.observe({'kind': 'task.status', 'task_id': 'fixture', 'payload': {'status': 'waiting_approval'}}, now=5)
+        self.assertEqual(tracker.snapshot(now=10)[0]['status'], 'waiting_owner')
+        tracker.observe({'kind': 'task.status', 'task_id': 'fixture', 'payload': {'status': 'running'}}, now=15)
+        self.assertEqual(tracker.snapshot(now=16)[0]['status'], 'active')
+        tracker.observe({'kind': 'task.error', 'task_id': 'fixture', 'payload': {'error_message': 'not retained'}}, now=20)
+        value = tracker.snapshot(now=30)[0]
+        self.assertEqual(value['status'], 'fail')
+        self.assertEqual(value['observed_duration_ms'], 20000)
+        self.assertNotIn('not retained', json.dumps(value))
+
 
 if __name__ == '__main__':
     unittest.main()
