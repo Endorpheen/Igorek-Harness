@@ -10,6 +10,8 @@ Each observation carries a code, category, severity, recommended action, compone
 
 An incident groups observations by owner, endpoint role, component, code and operation safety class. The observation count is not the number of distinct server outages and is not the automatic retry count. Attempts include the initial call and have their own attempt/next-retry fields. A recurrent failure after recovery creates a new incident. Reading a notification acknowledges it without resolving it; a further observation in that incident does not make it unread again.
 
+Notification rows use the persistent incident ID, never the displayed text, as their UI identity. Separate incidents may have identical descriptions; acknowledgment, translation and history restoration preserve their IDs.
+
 States are `observed`, `recovering`, `needs_owner` and `recovered`. The owning capability may recover its own incidents after five seconds of stable readiness, or after successful completion of the exact read operation. Merely opening a socket is insufficient. An HTTP success does not recover an unrelated event stream or model failure. Unknown write outcomes require an operation receipt instead of generic connectivity recovery. Stored recovery proof distinguishes readiness, completed reads and confirmed admission.
 
 Activity snapshots report observed duration, recent progress and waiting for owner input. After 120 seconds without an observed progress event the snapshot says progress is unconfirmed; after 180 seconds of active work with recent events it may report long-running work. These are observer facts, not a diagnosis of a hung model. The monitor never stops, restarts or changes a user task.

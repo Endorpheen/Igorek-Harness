@@ -1,7 +1,17 @@
 {
-  "versionName": "0.1.108",
-  "versionCode": 109,
+  "versionName": "0.1.109",
+  "versionCode": 110,
   "changes": [
+    {
+      "ru": {
+        "title": "Исправлено открытие уведомлений",
+        "text": "Отдельные сбои с одинаковым текстом больше не конфликтуют в списке. История и прочтённость сохраняются."
+      },
+      "en": {
+        "title": "Fixed opening notifications",
+        "text": "Separate incidents with identical text no longer conflict in the list. History and read status are preserved."
+      }
+    },
     {
       "ru": {
         "title": "Добровольная отправка диагностики",

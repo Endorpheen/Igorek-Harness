@@ -981,7 +981,7 @@ fun SessionScreen(
                     if (notificationEntries.isEmpty()) {
                         item { Text(uiText("Уведомлений об ошибках пока нет", "No error notifications yet")) }
                     } else {
-                        items(notificationEntries, key = { "${it.kind}|${it.text}" }) { entry ->
+                        items(notificationEntries, key = { it.id }) { entry ->
                             NotificationCard(entry)
                         }
                     }

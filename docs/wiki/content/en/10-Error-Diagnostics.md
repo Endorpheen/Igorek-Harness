@@ -6,6 +6,8 @@ Igorek separates a failed operation, an interrupted connection and an unknown ou
 
 “100 observations” means that the application registered the same incident repeatedly. It does not establish 100 separate server outages. An incident has first/last observation times and a separate state; automatic attempts have their own counters and next-attempt time when known. A new failure after recovery starts a new incident.
 
+Separate incidents can have identical descriptions. Android keeps their persistent identifiers distinct when displaying the notification center, including after an application update; clearing application data is unnecessary.
+
 ## What happens automatically?
 
 Safe reads may retry within a bounded budget. Event streams reconnect with backoff and a cooldown. Recovery requires stable readiness or completion of the exact failed read; one working connection cannot clear another capability's error. Rejected certificates and authorization/policy errors require attention rather than repeated attempts. The system does not automatically switch your model, rotate credentials or restart your task.
