@@ -13,6 +13,7 @@ from provider_setup import profile_config
 from factory.core.vault.lifecycle import is_loopback_provider
 
 MAX_RESPONSE = 1024 * 1024
+PROBE_TIMEOUT_SECONDS = 30
 OPENAI_REALTIME_BASE = "https://api.openai.com/v1"
 
 
@@ -32,9 +33,9 @@ class ProbeFailure(Exception):
 
 def post_json(url, payload, headers):
     target = urlsplit(url)
-    connection = (http.client.HTTPSConnection(target.hostname, target.port, timeout=10,
+    connection = (http.client.HTTPSConnection(target.hostname, target.port, timeout=PROBE_TIMEOUT_SECONDS,
                   context=ssl.create_default_context()) if target.scheme == "https"
-                  else http.client.HTTPConnection(target.hostname, target.port, timeout=10))
+                  else http.client.HTTPConnection(target.hostname, target.port, timeout=PROBE_TIMEOUT_SECONDS))
     response = None
     try:
         connection.request("POST", target.path or "/", json.dumps(payload).encode(),
@@ -44,7 +45,7 @@ def post_json(url, payload, headers):
             code = response.status
             reason = "authentication" if code in {401, 403} else "rate_limit" if code == 429 else "http_error"
             raise ProbeFailure(reason, code)
-        deadline = time.monotonic() + 10
+        deadline = time.monotonic() + PROBE_TIMEOUT_SECONDS
         chunks, length = [], 0
         while True:
             if time.monotonic() >= deadline:

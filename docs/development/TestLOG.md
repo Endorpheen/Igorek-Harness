@@ -1,3 +1,9 @@
+## 2026-10-19 — Model connection-check timeout
+
+- Increased the HTTP/HTTPS socket timeout and response-read deadline from 10 to 30 seconds. Added four delayed-response regressions covering both transports, accepting a 12-second response and retaining the timeout after 30 seconds.
+- Targeted provider, catalogue, runtime and owner tests plus `factory/tests` passed: 223 passed, 10 existing idle-application fixtures skipped because they require `running_state`. The initial restricted-sandbox run could not bind seven existing local HTTP fixtures; the same complete selection passed with loopback access. A separate real local HTTP response delayed by 12 seconds passed the ordinary connection check.
+- The owner explicitly requested immediate Windows preview publication and deferred further release verification. No additional test suites or native acceptance were run for this timeout change. Existing service processes and the installed owner application were not changed.
+
 ## 2026-10-19 — Diagnostic copy feedback and Russian connection wording
 
 - Replaced the incorrect Russian transport-error phrase with “Не удалось связаться с сервисом. Причину сбоя определить не удалось.” in the canonical catalogue and regenerated Android, desktop and Web copies. This changes wording, not classification or retry behavior. Existing saved notification descriptions retain their original text. Clarified both Wiki languages: card long-press and the notification-center send action use the overall retained report; individual-incident selection is not implemented.

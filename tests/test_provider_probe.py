@@ -7,6 +7,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'desktop'))
 from provider_setup import profile_config
+import provider_probe
 from provider_probe import check_connection, post_json, ProbeFailure
 
 
@@ -77,6 +78,52 @@ def test_transport_reports_only_structured_status_and_never_follows_redirect(sta
         assert 'private-error-body' not in str(caught.value)
     finally:
         server.shutdown(); server.server_close(); thread.join()
+
+
+@pytest.mark.parametrize('scheme', ['http', 'https'])
+@pytest.mark.parametrize('delay', [12, 31])
+def test_probe_waits_thirty_seconds_for_delayed_response(monkeypatch, scheme, delay):
+    now = [0]
+    closed = []
+    body = json.dumps({'choices': [{'message': {'role': 'assistant', 'content': 'Hello'}}]}).encode()
+
+    class Response:
+        status = 200
+        delivered = False
+
+        def read1(self, size):
+            if self.delivered:
+                return b''
+            self.delivered = True
+            now[0] += delay
+            return body
+
+        def close(self):
+            closed.append('response')
+
+    class Connection:
+        def __init__(self, host, port, *, timeout, **kwargs):
+            assert timeout == 30
+
+        def request(self, *args):
+            pass
+
+        def getresponse(self):
+            return Response()
+
+        def close(self):
+            closed.append('connection')
+
+    monkeypatch.setattr(provider_probe.time, 'monotonic', lambda: now[0])
+    monkeypatch.setattr(provider_probe.http.client, 'HTTPConnection', Connection)
+    monkeypatch.setattr(provider_probe.http.client, 'HTTPSConnection', Connection)
+    if delay < 30:
+        assert post_json(f'{scheme}://provider.invalid/v1', {}, {}) == json.loads(body)
+    else:
+        with pytest.raises(ProbeFailure) as caught:
+            post_json(f'{scheme}://provider.invalid/v1', {}, {})
+        assert caught.value.reason == 'timeout'
+    assert closed == ['response', 'connection']
 
 
 @pytest.mark.parametrize('model,base,thinking,session', [
