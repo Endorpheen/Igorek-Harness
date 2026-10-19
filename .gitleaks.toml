@@ -23,3 +23,10 @@ condition = "AND"
 paths = ['(^|/)(factory/web_ui/static/vendor|android/app/src/main/assets/terminal)/xterm\.js$']
 regexTarget = "match"
 regexes = ['t\.FourKeyMap=t\.TwoKeyMap=void ']
+
+[[allowlists]]
+description = "Synthetic receipt-fixture idempotency key; not an authorization credential"
+condition = "AND"
+paths = ['(^|/)desktop/tests/error-diagnostics\.test\.cjs$', '(^|/)tests/test_mobile_bridge_server\.py$']
+regexTarget = "secret"
+regexes = ['^fixture-operation-123$']
