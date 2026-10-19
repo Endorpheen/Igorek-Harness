@@ -18,6 +18,10 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 
 import android.content.Context
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -1050,10 +1054,14 @@ fun SessionScreen(
 
 /** Single-error card: text and time of occurrence to determine if it is recent or old. */
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 private fun NotificationCard(entry: NotificationEntry) {
+    val clipboard=LocalClipboardManager.current
     Surface(
+        modifier=Modifier.combinedClickable(onClick={},onLongClickLabel=uiText("Скопировать диагностику","Copy diagnostics"),
+            onLongClick={clipboard.setText(AnnotatedString(Bridge.diagnosticSnapshot()))}),
         shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.errorContainer,
+        color = if(entry.state=="recovered")MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.errorContainer,
     ) {
         Column(
             Modifier.fillMaxWidth().padding(12.dp),
@@ -1069,20 +1077,27 @@ private fun NotificationCard(entry: NotificationEntry) {
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.78f),
             )
+            entry.diagnostic?.let { error ->
+                Text(error.code+" · "+entry.id.take(8)+(error.httpRequestId.takeIf { it.isNotBlank() }?.let { "\n"+it } ?: ""),style=MaterialTheme.typography.labelSmall)
+            }
         }
     }
 }
 
 @Composable
 private fun notificationStamp(entry: NotificationEntry): String {
-    val last = notificationTimeText(entry.lastSeen)
-    if (entry.count <= 1) return last
-    val repeats = uiText("повторов: ${entry.count}", "occurrences: ${entry.count}")
+    val last = notificationTimeText(if(entry.state=="recovered")entry.recoveredAt ?: entry.lastSeen else entry.lastSeen)
+    val status=if(entry.recoveryProof=="operation_confirmed")uiText("Доставка подтверждена","Delivery confirmed") else if(entry.state=="recovered")uiText("Восстановлено","Recovered") else if(entry.diagnostic?.outcome=="unknown")uiText("Результат не подтверждён","Outcome unconfirmed") else ""
+    val attempt=entry.diagnostic?.let { error -> if(error.attempt>1 || error.nextRetryAt!=null)
+        uiText(" · попытка ${error.attempt}"," · attempt ${error.attempt}")+(error.nextRetryAt?.let { uiText(" · следующая "," · next ")+notificationTimeText(it) } ?: "") else "" }.orEmpty()
+    val stamp=(if(status.isNotBlank())status+" · " else "")+last+attempt
+    if (entry.count <= 1) return stamp
+    val repeats = uiText("событий: ${entry.count}", "events: ${entry.count}")
     val first = notificationTimeText(entry.firstSeen)
     return if (first.isBlank() || first == last) {
-        "$last · $repeats"
+        "$stamp · $repeats"
     } else {
-        uiText("$last · $repeats · первое $first", "$last · $repeats · first $first")
+        uiText("$stamp · $repeats · первое $first", "$stamp · $repeats · first $first")
     }
 }
 

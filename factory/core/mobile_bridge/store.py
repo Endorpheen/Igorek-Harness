@@ -92,6 +92,8 @@ def ensure_mobile_schema(conn: sqlite3.Connection) -> None:
     """Creates bridge tables if they do not exist. Idempotent."""
     for statement in MOBILE_SCHEMA_STATEMENTS:
         conn.execute(statement)
+    from ..schema import _ensure_columns
+    _ensure_columns(conn, 'mobile_requests', [('receipt_json', "TEXT NOT NULL DEFAULT '{}'" )])
 
 
 def _digest(pepper: bytes, value: str) -> str:
@@ -512,6 +514,7 @@ class MobileStore:
         session_id: str | None = None,
         task_id: str | None = None,
         now: int | None = None,
+        receipt: dict[str, Any] | None = None,
     ) -> None:
         key = str(request_key or "").strip()
         if not key:
@@ -519,9 +522,9 @@ class MobileStore:
         current = int(time.time() if now is None else now)
         with open_db(self.db_path) as conn:
             conn.execute(
-                "INSERT OR REPLACE INTO mobile_requests (request_key, kind, session_id, task_id, created_at) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (key, str(kind), session_id or None, task_id or None, current),
+                "INSERT OR REPLACE INTO mobile_requests (request_key, kind, session_id, task_id, created_at, receipt_json) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (key, str(kind), session_id or None, task_id or None, current, json.dumps({k:v for k,v in (receipt or {}).items() if k in {'task_id','message_id','session_id','status','steered','duplicate'}})),
             )
 
     def lookup_request(self, request_key: str) -> dict[str, Any] | None:
@@ -530,7 +533,7 @@ class MobileStore:
             return None
         with open_db(self.db_path) as conn:
             row = conn.execute(
-                "SELECT request_key, kind, session_id, task_id, created_at FROM mobile_requests WHERE request_key = ?",
+                "SELECT request_key, kind, session_id, task_id, created_at, receipt_json FROM mobile_requests WHERE request_key = ?",
                 (key,),
             ).fetchone()
         if row is None:
@@ -541,5 +544,6 @@ class MobileStore:
             "session_id": row[2],
             "task_id": row[3],
             "created_at": int(row[4] or 0),
+            "receipt": json.loads(row[5] or '{}'),
         }
 

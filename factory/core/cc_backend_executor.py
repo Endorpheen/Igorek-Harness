@@ -118,6 +118,14 @@ def _is_transient_network_error(error: str, *, error_code: str | None = None,
                                 error_diagnostics: dict | None = None) -> bool:
     """Return True only for transport failures that are safe to retry."""
     if error_code is not None:
+        from .diagnostics import CODES
+        if isinstance(error_code, str) and error_code in CODES:
+            return CODES[error_code]['retryable']
+        if error_code == 'responses_failed':
+            details = error_diagnostics or {}
+            if details.get('provider_error_code') in {'insufficient_quota','invalid_api_key','invalid_token','access_denied','context_length_exceeded'}:
+                return False
+            return details.get('http_status') in {429, 500, 502, 503, 504, 529}
         if error_code == 'responses_tls':
             details = error_diagnostics or {}
             kind, reason = details.get('tls_error_type'), details.get('tls_reason')
@@ -2508,10 +2516,12 @@ def execute_cc_backend_task(
             log_fn(f"[cc-backend] Round {round_num + 1}: POST {url}")
 
             network_retry_count = 0
+            recovery_started = time.monotonic()
             while True:
+                request_timeout_s = timeout_s if network_retry_count == 0 else min(timeout_s, max(1, 30-(time.monotonic()-recovery_started)))
                 if is_openai_api:
                     body, lat_ms = _http_post_streaming_openai(
-                        url, payload, headers, timeout_s,
+                        url, payload, headers, request_timeout_s,
                         log_fn=log_fn,
                         trace_dir=artifact_workdir,
                         round_num=round_num,
@@ -2521,7 +2531,7 @@ def execute_cc_backend_task(
                         ),
                     )
                 else:
-                    body, lat_ms = _http_post(url, payload, headers, timeout_s)
+                    body, lat_ms = _http_post(url, payload, headers, request_timeout_s)
                 if isinstance(body, dict) and body.get("__interrupted__"):
                     log_fn("[cc-backend] Interrupt requested mid-stream, stopping.")
                     append_cc_backend_trace(
@@ -2588,9 +2598,16 @@ def execute_cc_backend_task(
                     or network_retry_count >= MAX_TRANSIENT_NETWORK_RETRIES
                 ):
                     break
-                retry_delay_s = TRANSIENT_NETWORK_RETRY_DELAYS_S[
-                    min(network_retry_count, len(TRANSIENT_NETWORK_RETRY_DELAYS_S) - 1)
-                ]
+                from .diagnostics import model_observation, retry_decision
+                diagnostic = model_observation(body, profile=profile, model=model, session_id=current_session or '', task_id=task_id or '')
+                # Preserve explicitly supported legacy text-only transports while migrating their producers.
+                if diagnostic['code'] in {'INTERNAL.UNEXPECTED', 'ERROR.UNKNOWN'}:
+                    diagnostic['code'] = 'NET.TRANSPORT_FAILURE'
+                decision = retry_decision(diagnostic, attempt=network_retry_count+1,
+                    elapsed_s=time.monotonic()-recovery_started, replay_safe=True)
+                if not decision['retry']:
+                    break
+                retry_delay_s = decision['delay_ms']/1000
                 network_retry_count += 1
                 log_fn(
                     f"[cc-backend] transient network error, retry "
@@ -2607,12 +2624,18 @@ def execute_cc_backend_task(
                         "delay_ms": int(retry_delay_s * 1000),
                         "error": network_error,
                         "error_diagnostics": model_failure_diagnostics(body),
+                        "diagnostic": {**diagnostic, 'attempt': network_retry_count+1, 'next_retry_at_ms': decision['next_retry_at_ms']},
                     },
                 )
                 time.sleep(retry_delay_s)
             if is_openai_api and isinstance(body, dict) and not body.get("error"):
                 body = _openai_response_to_anthropic(body, valid_tool_names)
+            if network_retry_count and isinstance(body, dict) and not body.get('error'):
+                append_cc_backend_trace(artifact_workdir, {'kind': CcTraceEvent.NETWORK_RECOVERED,
+                    'diagnostic': diagnostic, 'attempt': network_retry_count+1, 'proof': 'operation_completed'})
             if isinstance(body, dict) and body.get("error"):
+                from .diagnostics import model_observation
+                diagnostic = model_observation(body, profile=profile, model=model, session_id=current_session or '', task_id=task_id or '')
                 http_error = str(body.get("error") or "HTTP error")
                 if _is_prompt_too_long_error(str(body.get("error") or "")):
                     if _maybe_apply_reactive_compaction(
@@ -2627,6 +2650,7 @@ def execute_cc_backend_task(
                         "status": "fail",
                         "reason": "http_error",
                         "error_diagnostics":model_failure_diagnostics(body),
+                        "diagnostic": diagnostic,
                         "round": round_num + 1,
                         "error": http_error,
                         "output_preview": http_error,
@@ -2636,6 +2660,7 @@ def execute_cc_backend_task(
                     "status": "fail",
                     "failure_reason": "http_error",
                     "failure_details": http_error,
+                    "diagnostic": diagnostic,
                     "output_text": body.get("error", "HTTP error"),
                     "usage": _current_usage(),
                     "tool_calls_count": tool_calls_count,
@@ -4143,16 +4168,23 @@ def _http_post(
 ) -> tuple[dict, int]:
     """Send HTTP POST and return (response_body_dict, latency_ms)."""
     from .openai_responses import is_responses_url, post as responses_post
+    from .diagnostics import transport_failure, safe_text
     if is_responses_url(url):
         return responses_post(url, payload, headers, timeout_s)
     if use_curl:
-        return _http_post_curl(url, payload, headers, timeout_s)
+        try:
+            return _http_post_curl(url, payload, headers, timeout_s)
+        except subprocess.TimeoutExpired:
+            error = TimeoutError('HTTP transport deadline exceeded')
+            return {'error': str(error), **transport_failure(error)}, 0
     start = time.time()
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(url, data=data, headers=headers, method="POST")
     try:
         with urllib.request.urlopen(req, timeout=timeout_s) as resp:
             body = json.loads(resp.read().decode("utf-8"))
+            if not isinstance(body, dict):
+                raise json.JSONDecodeError('Expected response object', '', 0)
     except urllib.error.HTTPError as exc:
         error_body = ""
         try:
@@ -4160,13 +4192,13 @@ def _http_post(
         except Exception:
             pass
         lat = int((time.time() - start) * 1000)
-        return {"error": f"HTTP {exc.code}: {error_body}"}, lat
+        return {"error": f"HTTP {exc.code}: {safe_text(error_body)}", **transport_failure(status=exc.code, phase='http_body', request_id=exc.headers.get('x-request-id','') if exc.headers else '', retry_after=exc.headers.get('retry-after') if exc.headers else None)}, lat
     except http.client.RemoteDisconnected as exc:
         lat = int((time.time() - start) * 1000)
-        return {"error": f"transport:remote_disconnected: {exc}"}, lat
+        return {"error": f"transport:remote_disconnected: {safe_text(exc)}", **transport_failure(exc)}, lat
     except Exception as exc:
         lat = int((time.time() - start) * 1000)
-        return {"error": str(exc)}, lat
+        return {"error": safe_text(exc), **transport_failure(exc)}, lat
     lat = int((time.time() - start) * 1000)
     return body, lat
 
@@ -4190,6 +4222,7 @@ def _http_post_streaming_openai(
     Uses http.client directly for per-read socket timeout control.
     """
     from .openai_responses import is_responses_url, post as responses_post
+    from .diagnostics import transport_failure, safe_text, observation
     if is_responses_url(url):
         return responses_post(url, payload, headers, timeout_s, trace_dir=trace_dir,
             round_num=round_num, parent_task_id=parent_task_id, cancel_check=cancel_check, log_fn=log_fn)
@@ -4216,7 +4249,7 @@ def _http_post_streaming_openai(
         if resp.status >= 400:
             error_body = resp.read().decode("utf-8", errors="replace")[:500]
             lat = int((time.time() - start) * 1000)
-            return {"error": f"HTTP {resp.status}: {error_body}"}, lat
+            return {"error": f"HTTP {resp.status}: {safe_text(error_body)}", **transport_failure(status=resp.status, phase='http_body', request_id=resp.getheader('x-request-id',''), retry_after=resp.getheader('retry-after'))}, lat
         # Set per-read timeout so we don't hang forever on slow/stalled streams,
         # and keep a handle on the raw socket so cancellation can ``shutdown`` it
         # and unblock a blocked ``readline()``. NB: http.client stores it as
@@ -4234,13 +4267,13 @@ def _http_post_streaming_openai(
         if conn:
             try: conn.close()
             except Exception: pass
-        return {"error": f"transport:remote_disconnected: {exc}"}, lat
+        return {"error": f"transport:remote_disconnected: {safe_text(exc)}", **transport_failure(exc)}, lat
     except Exception as exc:
         lat = int((time.time() - start) * 1000)
         if conn:
             try: conn.close()
             except Exception: pass
-        return {"error": str(exc)}, lat
+        return {"error": safe_text(exc), **transport_failure(exc)}, lat
 
     content_parts: list[str] = []
     reasoning_parts: list[str] = []
@@ -4417,6 +4450,10 @@ def _http_post_streaming_openai(
                     current_event_lines = []
             else:
                 current_event_lines.append(line)
+    except Exception as error:
+        if not interrupted:
+            return {'error': 'Response stream interrupted before completion.', 'error_code': 'STREAM.INTERRUPTED',
+                    'diagnostic': observation('STREAM.INTERRUPTED', component='model', operation='model_round', endpoint_role='runtime_to_provider', phase='sse_read')}, int((time.time()-start)*1000)
     finally:
         monitor_stop.set()
         try:
@@ -4444,6 +4481,9 @@ def _http_post_streaming_openai(
             sse_event_count += 1
 
     full_text = "".join(content_parts)
+    if not got_done and not last_finish_reason:
+        return {'error': 'Response stream ended without a terminal event; partial tool calls were not executed.',
+                'error_code': 'STREAM.INTERRUPTED', 'diagnostic': observation('STREAM.INTERRUPTED', component='model', operation='model_round', endpoint_role='runtime_to_provider', phase='response_terminal')}, int((time.time()-start)*1000)
     if log_fn:
         log_fn(
             f"[cc-backend] stream done: events={sse_event_count} "
@@ -4516,6 +4556,16 @@ def _http_post_curl(
         body = json.loads(resp_body)
     except json.JSONDecodeError:
         body = {"error": f"HTTP {status}: {resp_body[:500]}"}
+    from .diagnostics import safe_text, transport_failure, observation
+    if status >= 400:
+        message = body.get('error', '') if isinstance(body, dict) else ''
+        body = {'error': f'HTTP {status}: {safe_text(message)}', **transport_failure(status=status, phase='http_body')}
+    elif getattr(result, 'returncode', 0):
+        codes = {6:'NET.DNS_FAILURE',7:'NET.CONNECTION_REFUSED',28:'NET.READ_TIMEOUT',35:'TLS.PROTOCOL_FAILURE',60:'TLS.CERTIFICATE_REJECTED'}
+        code = codes.get(result.returncode,'NET.TRANSPORT_FAILURE')
+        body = {'error': 'HTTP transport failed.', 'error_code':code, 'diagnostic':observation(code,component='model',operation='model_round',endpoint_role='runtime_to_provider')}
+    elif not isinstance(body, dict) or status < 200 or ('error' in body and status < 400):
+        body = {'error': 'Unexpected provider response.', 'error_code':'PROTOCOL.INVALID_RESPONSE'}
     lat = int((time.time() - start) * 1000)
     return body, lat
 

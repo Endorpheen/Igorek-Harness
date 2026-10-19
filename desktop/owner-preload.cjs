@@ -21,6 +21,9 @@ contextBridge.exposeInMainWorld('IgorekNotifications', Object.freeze({
   add: value => ipcRenderer.invoke('igorek:notifications', 'add', value),
   read: () => ipcRenderer.invoke('igorek:notifications', 'read'),
   clear: () => ipcRenderer.invoke('igorek:notifications', 'clear'),
+  recover: value => ipcRenderer.invoke('igorek:notifications', 'recover', value),
+  confirm: value => ipcRenderer.invoke('igorek:notifications', 'confirm', value),
+  snapshot: () => ipcRenderer.invoke('igorek:notifications', 'snapshot'),
   onChange: callback => { ipcRenderer.on('igorek:notifications-changed', (_, items) => callback(items)); },
 }));
 ipcRenderer.on('igorek:owner-panel', (_, panel) => {

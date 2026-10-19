@@ -30,7 +30,7 @@ async function run() {
   const calls = [];
   const navigationHints = [];
   const navigationPreload = path.join(root, 'navigation-preload.cjs');
-  fs.writeFileSync(navigationPreload, "const {contextBridge,ipcRenderer}=require('electron'); contextBridge.exposeInMainWorld('IgorekDesktop',{navigation:(action,id)=>ipcRenderer.invoke('igorek:ui-navigation',action,id)});contextBridge.exposeInMainWorld('IgorekWindow',{menu:async()=>{},control:async()=>{}});");
+  fs.writeFileSync(navigationPreload, "const {contextBridge,ipcRenderer}=require('electron'); contextBridge.exposeInMainWorld('IgorekDesktop',{navigation:(action,id)=>ipcRenderer.invoke('igorek:ui-navigation',action,id)});contextBridge.exposeInMainWorld('IgorekWindow',{menu:async()=>{},control:async()=>{}});contextBridge.exposeInMainWorld('IgorekNotifications',{list:()=>ipcRenderer.invoke('igorek:notifications','list'),read:()=>ipcRenderer.invoke('igorek:notifications','read'),clear:()=>ipcRenderer.invoke('igorek:notifications','clear'),onChange:callback=>ipcRenderer.on('igorek:notifications-changed',(_,items)=>callback(items))});");
 
   // OwnedRuntime reads these host paths explicitly; give every one a synthetic root.
   process.env.HOME = path.join(root, 'host');
@@ -206,7 +206,14 @@ print(json.dumps({'files':True}))`;
     stage('running_worker_does_not_complete_first_result');
     ipcMain.handle('igorek:owner-vault', (_, action, fields) => runtime.requestOwner(action, fields));
     ipcMain.handle('igorek:completion-sound', () => ({ enabled: false, background: false }));
-    ipcMain.handle('igorek:notifications', () => []);
+    const {NotificationStore}=require(path.join(appRoot,'notifications.cjs'));
+    const errorContract=require(path.join(appRoot,'error-diagnostics.js'));
+    const notificationStore=new NotificationStore(path.join(root,'diagnostic-notifications.json'));
+    ipcMain.handle('igorek:notifications', (_,action) => {
+      const items=action==='read'?notificationStore.read():action==='clear'?notificationStore.clear():notificationStore.snapshot();
+      for(const target of BrowserWindow.getAllWindows())if(!target.isDestroyed())target.webContents.send('igorek:notifications-changed',items);
+      return items;
+    });
     ipcMain.handle('igorek:release-info', () => ({ version: config.factoryVersion, changes: [] }));
     ipcMain.handle('igorek:browser-control-settings', () => ({ manual: false }));
     const navigation = require(path.join(appRoot, 'ui-navigation.cjs'));
@@ -294,6 +301,26 @@ print(json.dumps({'files':True}))`;
     await until(()=>chat.webContents.executeJavaScript("state.workspaceView==='main'"),'Home navigation failed');
     assert.equal(await chat.webContents.executeJavaScript("document.getElementById('igorek-window-bar').getBoundingClientRect().height"),36);
     report.app_history='passed';
+    await chat.webContents.executeJavaScript(fs.readFileSync(path.join(appRoot,'notification-ui.js'),'utf8'));
+    const diagnostic=errorContract.observation('NET.CONNECTION_RESET',{owner:'native-fixture',component:'web',operation:'read',endpoint_role:'web_to_bridge'});
+    notificationStore.add({source:'Native diagnostic fixture',level:'error',detail:'Fixture transport interruption',diagnostic});
+    await clickNative(chat,'#igorek-notifications-button');
+    await until(()=>chat.webContents.executeJavaScript("document.querySelectorAll('.igorek-notification-row').length===1"),'Native diagnostic notification missing');
+    await clickNative(chat,'.igorek-notification-row summary');
+    await until(()=>chat.webContents.executeJavaScript("document.querySelector('.igorek-notification-detail').textContent.includes('NET.CONNECTION_RESET')"),'Native diagnostic code missing');
+    await clickNative(chat,'.igorek-notification-actions button');
+    await until(()=>notificationStore.snapshot()[0].read,'Native acknowledgment did not persist');
+    assert.notEqual(notificationStore.snapshot()[0].state,'recovered');
+    notificationStore.recover({owner:'other-fixture',stable_ms:6000});
+    assert.notEqual(notificationStore.snapshot()[0].state,'recovered');
+    notificationStore.recover({owner:'native-fixture',stable_ms:6000});
+    chat.webContents.send('igorek:notifications-changed',notificationStore.snapshot());
+    await until(()=>chat.webContents.executeJavaScript("document.querySelector('.igorek-notification-detail').textContent.includes('Восстановлено')"),'Native owned recovery did not render');
+    fs.writeFileSync(path.join(output,'diagnostic-notification.png'),(await chat.webContents.capturePage()).toPNG());
+    await clickNative(chat,'#igorek-notifications-panel header button');
+    assert.ok(!JSON.stringify(notificationStore.report()).includes('Fixture transport interruption'));
+    stage('typed_diagnostics_native_notification_and_owned_recovery');
+
     const sourcesSession=await api('/api/sessions',{profile:'qa-first-task',cwd:path.join(dataDir,'workspace'),idempotency_key:'qa-sources-session'});
     const sourcesRoute='/api/sessions/'+sourcesSession.session_id;
     await chat.webContents.executeJavaScript('selectSession('+JSON.stringify(sourcesSession.session_id)+')');

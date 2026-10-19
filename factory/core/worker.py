@@ -604,6 +604,7 @@ def _isolation_failure_result(result: dict[str, Any], *, task_id: str) -> dict[s
         "status": status,
         "error": _isolation_failure_error(result),
         "failure_reason": str(result.get("failure_reason") or ""),
+        **({'diagnostic': result['diagnostic']} if isinstance(result.get('diagnostic'), dict) else {}),
         "usage": usage
         if isinstance(usage, dict)
         else {"prompt": 0, "completion": 0, "lat_ms_p50": 0},
@@ -1846,6 +1847,11 @@ class Worker:
         status = stored_result.get("status", "fail")
         if status not in ["ok", "fail", "retry", "waiting_approval", "cancelled"]:
             status = "ok" if stored_result.get("output") else "fail"
+        if status == 'fail' and not isinstance(stored_result.get('diagnostic'), dict):
+            from .diagnostics import observation
+            stored_result['diagnostic'] = observation('ERROR.UNKNOWN', component='worker', operation='task',
+                endpoint_role='runtime_to_provider', owner='task:'+task_id, task_id=task_id,
+                profile=str(getattr(self, 'profile', '') or ''), model=str(getattr(self, 'model', '') or ''))
 
         # Prepare update
         output_payload = stored_result.get("output")
@@ -1885,6 +1891,7 @@ class Worker:
             (isinstance(usage_ext, dict) and usage_ext)
             or (isinstance(codex_tool_events, list) and codex_tool_events)
             or infra_failure
+            or isinstance(stored_result.get('diagnostic'), dict)
         ):
             cur.execute("SELECT metadata FROM tasks WHERE task_id = ?", (task_id,))
             row = cur.fetchone()
@@ -1903,6 +1910,11 @@ class Worker:
             if infra_failure:
                 metadata_payload["infra_failure"] = True
                 metadata_payload["failure_reason"] = failure_reason
+            if isinstance(stored_result.get('diagnostic'), dict):
+                from .diagnostics import sanitize_observation
+                metadata_payload['diagnostic'] = sanitize_observation(stored_result['diagnostic'])
+                if failure_reason:
+                    metadata_payload['diagnostic_failure_reason'] = failure_reason
             update_data["metadata"] = json.dumps(metadata_payload, ensure_ascii=False)
 
         # Update query
@@ -2422,6 +2434,10 @@ class Worker:
             "task_id": task_id,
             "status": result["status"],
             "output": {"text": result["output_text"]},
+            **({'error': str(result.get('failure_details') or result.get('error') or result.get('output_text') or ''),
+                'failure_reason': str(result.get('failure_reason') or ''),
+                **({'diagnostic': result['diagnostic']} if isinstance(result.get('diagnostic'),dict) else {})}
+               if result.get('status')=='fail' else {}),
             "usage": cc_usage,
             "usage_ext": usage_ext if usage_ext else None,
             "cost_usd": cost_usd,

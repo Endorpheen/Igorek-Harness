@@ -21,9 +21,10 @@ def truncate_for_log(value: Any, max_text: int = 400) -> Any:
 
 
 def log_jsonl(path: Path, payload: dict[str, Any]) -> None:
+    from factory.core.diagnostics import safe_log_value
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(payload, ensure_ascii=False) + "\n")
+        f.write(json.dumps(safe_log_value(payload), ensure_ascii=False) + "\n")
 
 
 def log_anthropic_request(log_path: Path, payload: dict[str, Any]) -> None:

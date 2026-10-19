@@ -137,6 +137,14 @@ class TraceEventReducer:
 
     def apply(self, event: dict[str, Any]) -> None:
         kind = str(event.get("kind") or "")
+        if kind in {CcTraceEvent.NETWORK_RETRY, CcTraceEvent.NETWORK_RECOVERED}:
+            diagnostic = event.get('diagnostic') or {}
+            attempt = diagnostic.get('attempt') or (int(event.get('attempt') or 0)+1)
+            text = f"Повтор запроса модели · попытка {attempt}" if kind == CcTraceEvent.NETWORK_RETRY else 'Запрос модели восстановлен'
+            self.widget.committed_cells.append(TextCell(text))
+            self.dirty = True
+            self.widget.request_redraw()
+            return
         if kind == CcTraceEvent.MODEL_ROUND_RESPONSE:
             self._flush_completed_exploration()
             text = _normalized_text(str(event.get("text_preview") or ""))
@@ -362,6 +370,12 @@ class TraceEventReducer:
                     error_text = output
                 else:
                     error_text = reason
+                if isinstance(event.get('diagnostic'), dict) and event['diagnostic'].get('code'):
+                    from ..diagnostics import CODES, sanitize_observation, safe_text
+                    diagnostic = sanitize_observation(event['diagnostic'])
+                    error_text = CODES[diagnostic['code']]['ru']+'\n'+safe_text(error_text, 1000)+'\nКод: '+diagnostic['code']
+                    if diagnostic.get('provider_request_id'):
+                        error_text += '\nЗапрос: '+diagnostic['provider_request_id']
                 self.widget.committed_cells.append(ErrorCell(error_text))
                 self.dirty = True
         self._was_streaming = False

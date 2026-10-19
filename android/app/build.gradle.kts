@@ -35,6 +35,7 @@ val syncVoiceMarkdownRenderer = tasks.register<Sync>("syncVoiceMarkdownRenderer"
 tasks.named("preBuild") { dependsOn(syncVoiceMarkdownRenderer) }
 
 android {
+    sourceSets.getByName("test").resources.srcDir(rootProject.file("../tests/fixtures/diagnostics"))
     sourceSets.getByName("main").assets.directories.add(voiceMarkdownAssets.get().asFile.path)
     sourceSets.getByName("test").resources.directories.add(tlsTestResources.get().asFile.path)
     namespace = "ru.igorek.remote"
@@ -45,8 +46,8 @@ android {
         minSdk = 26
         targetSdk = 34
         testInstrumentationRunner = providers.gradleProperty("igorekTestRunner").orElse("ru.igorek.remote.VoiceCallInstrumentation").get()
-        versionCode = 107
-        versionName = "0.1.106"
+        versionCode = 108
+        versionName = "0.1.107"
     }
 
     buildTypes {

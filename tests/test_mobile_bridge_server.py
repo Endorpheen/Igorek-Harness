@@ -68,6 +68,47 @@ class ServerTestCase(unittest.TestCase):
 
 
 class AuthFlowTest(ServerTestCase):
+    def test_receipt_lookup_is_read_only_scoped_and_requires_authentication(self):
+        token=self._pair();key='fixture-operation-123'
+        self.bridge.store.remember_request(key,kind='message',session_id=self.session_id,task_id='fixture-task',
+            receipt={'task_id':'fixture-task','message_id':'fixture-message','status':'queued','steered':True,'text':'must not persist'})
+        denied,_=self._request('GET',f'{API_PREFIX}/operations/{key}')
+        self.assertEqual(denied,401)
+        status,body=self._request('GET',f'{API_PREFIX}/operations/{key}?session_id={self.session_id}',token=token)
+        self.assertEqual(status,200,body);self.assertTrue(body['recorded'])
+        self.assertEqual(body['receipt']['message_id'],'fixture-message')
+        self.assertNotIn('must not persist',json.dumps(body))
+        _,missing=self._request('GET',f'{API_PREFIX}/operations/{key}?session_id=other',token=token)
+        self.assertEqual(missing,{'recorded':False,'status':'unknown'})
+
+    def test_unexpected_error_is_visible_without_exposing_its_message(self):
+        token=self._pair()
+        with patch.object(self.bridge.service,'sessions_overview',side_effect=RuntimeError('token=fixture-private')) as call:
+            status,body=self._request('GET',f'{API_PREFIX}/sessions',token=token)
+        call.assert_called_once()
+        self.assertEqual(status,500,body)
+        self.assertEqual(body['diagnostic']['code'],'INTERNAL.UNEXPECTED')
+        self.assertNotIn('fixture-private',json.dumps(body))
+        self.assertNotIn('fixture-private',json.dumps(self.bridge.diagnostics.snapshot()))
+
+    def test_error_correlation_and_authenticated_safe_diagnostics(self):
+        token=self._pair()
+        connection=http.client.HTTPConnection('127.0.0.1',self.port,timeout=10)
+        operation='client_fixture_12345'
+        connection.request('GET',f'{API_PREFIX}/not-a-route',headers={'Authorization':f'Bearer {token}','X-Client-Operation-Id':operation})
+        response=connection.getresponse();body=json.loads(response.read());connection.close()
+        self.assertEqual(response.status,404)
+        self.assertEqual(body['client_operation_id'],operation)
+        self.assertEqual(body['http_request_id'],response.getheader('x-request-id'))
+        self.assertEqual(body['diagnostic']['code'],'HTTP.REQUEST_REJECTED')
+        denied,_=self._request('GET',f'{API_PREFIX}/diagnostics')
+        self.assertEqual(denied,401)
+        status,snapshot=self._request('GET',f'{API_PREFIX}/diagnostics',token=token)
+        self.assertEqual(status,200,snapshot)
+        self.assertIn('health',snapshot)
+        self.assertIn('trace_health',snapshot)
+        self.assertNotIn(token,json.dumps(snapshot))
+
     def test_pair_start_rechecks_issuer_after_pending_body(self):
         from factory.core.mobile_bridge.server import MobileRequestHandler
         token = self._pair()

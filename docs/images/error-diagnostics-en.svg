@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1660" viewBox="0 0 1440 1660" role="img"><title>Igorek Harness · Error diagnostics · en</title><rect width="1440" height="1660" fill="#101b17"/>
+<text x="55" y="56" font-family="DejaVu Sans,sans-serif" font-size="22" font-weight="700" fill="#a7d76b">IGOREK HARNESS</text>
+<text x="55" y="124" font-family="DejaVu Sans,sans-serif" font-size="42" font-weight="700" fill="#f0f7ef">Error diagnostics</text>
+<text x="55" y="171" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="400" fill="#d5e4da">Desktop · Web · Android · Python runtime</text>
+<rect x="35" y="215" width="1370" height="405" rx="18" fill="#1e3027" stroke="#3c5847" stroke-width="2"/>
+<text x="65" y="269" font-family="DejaVu Sans,sans-serif" font-size="29" font-weight="700" fill="#e6c481">BEFORE · Separate error contracts</text>
+<rect x="65" y="310" width="380" height="124" rx="18" fill="#263e30" stroke="#3c5847" stroke-width="2"/>
+<text x="85" y="349" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#bfee78">Transport and model</text>
+<text x="85" y="386" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#d5e4da">Some errors already typed</text>
+<text x="85" y="413" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#d5e4da">Separate retry mechanisms</text>
+<rect x="530" y="310" width="380" height="124" rx="18" fill="#263e30" stroke="#3c5847" stroke-width="2"/>
+<text x="550" y="349" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#bfee78">Component boundaries</text>
+<text x="550" y="386" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#d5e4da">Some diagnostic fields lost</text>
+<text x="550" y="413" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#d5e4da">Different message grouping</text>
+<rect x="995" y="310" width="380" height="124" rx="18" fill="#263e30" stroke="#3c5847" stroke-width="2"/>
+<text x="1015" y="349" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#bfee78">Notifications</text>
+<text x="1015" y="386" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#d5e4da">Text and repeat count</text>
+<text x="1015" y="413" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#d5e4da">Inconsistent recovery meaning</text>
+<polyline points="445,372 530,372" fill="none" stroke="#a7d76b" stroke-width="3"/>
+<polygon points="530,372 518.5914266954252,378.2325320018546 518.5914266954252,365.7674679981454" fill="#a7d76b"/>
+<polyline points="910,372 995,372" fill="none" stroke="#a7d76b" stroke-width="3"/>
+<polygon points="995,372 983.5914266954252,378.2325320018546 983.5914266954252,365.7674679981454" fill="#a7d76b"/>
+<text x="65" y="502" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="400" fill="#d5e4da">Observations, retry attempts and separate outages are easy to confuse.</text>
+<text x="65" y="550" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="400" fill="#d5e4da">An uncertain write outcome requires a separate admission check.</text>
+<rect x="35" y="655" width="1370" height="875" rx="18" fill="#1e3027" stroke="#3c5847" stroke-width="2"/>
+<text x="65" y="710" font-family="DejaVu Sans,sans-serif" font-size="29" font-weight="700" fill="#bfee78">AFTER · Shared contract, local ownership</text>
+<rect x="530" y="754" width="380" height="124" rx="18" fill="#263e30" stroke="#3c5847" stroke-width="2"/>
+<text x="550" y="793" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#bfee78">Shared catalogue</text>
+<text x="550" y="830" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#d5e4da">Codes · categories · actions</text>
+<text x="550" y="857" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#d5e4da">Python + generated JS / Kotlin</text>
+<rect x="65" y="946" width="380" height="124" rx="18" fill="#263e30" stroke="#3c5847" stroke-width="2"/>
+<text x="85" y="985" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#bfee78">Error observation</text>
+<text x="85" y="1022" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#d5e4da">Code · phase · profile / model</text>
+<text x="85" y="1049" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#d5e4da">Request / operation / task IDs</text>
+<rect x="530" y="946" width="380" height="124" rx="18" fill="#263e30" stroke="#3c5847" stroke-width="2"/>
+<text x="550" y="985" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#bfee78">Local incident journal</text>
+<text x="550" y="1022" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#d5e4da">Incident ≠ attempt ≠ outage</text>
+<text x="550" y="1049" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#d5e4da">100 incidents · 8 recent events</text>
+<rect x="995" y="946" width="380" height="124" rx="18" fill="#263e30" stroke="#3c5847" stroke-width="2"/>
+<text x="1015" y="985" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#bfee78">Existing UI</text>
+<text x="1015" y="1022" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#d5e4da">State and safe snapshot</text>
+<text x="1015" y="1049" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#d5e4da">Acknowledged ≠ recovered</text>
+<polyline points="720,878 720,946" fill="none" stroke="#a7d76b" stroke-width="3"/>
+<polygon points="720,946 713.7674679981453,934.5914266954252 726.2325320018547,934.5914266954252" fill="#a7d76b"/>
+<polyline points="530,816 255,816 255,946" fill="none" stroke="#a7d76b" stroke-width="3"/>
+<polygon points="255,946 248.76746799814535,934.5914266954252 261.2325320018546,934.5914266954252" fill="#a7d76b"/>
+<polyline points="445,1008 530,1008" fill="none" stroke="#a7d76b" stroke-width="3"/>
+<polygon points="530,1008 518.5914266954252,1014.2325320018547 518.5914266954252,1001.7674679981453" fill="#a7d76b"/>
+<polyline points="910,1008 995,1008" fill="none" stroke="#a7d76b" stroke-width="3"/>
+<polygon points="995,1008 983.5914266954252,1014.2325320018547 983.5914266954252,1001.7674679981453" fill="#a7d76b"/>
+<rect x="65" y="1160" width="380" height="124" rx="18" fill="#263e30" stroke="#3c5847" stroke-width="2"/>
+<text x="85" y="1199" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#bfee78">Connection owner</text>
+<text x="85" y="1236" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#d5e4da">Retries: budget and backoff</text>
+<text x="85" y="1263" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#d5e4da">Stable readiness of its own path</text>
+<rect x="530" y="1160" width="380" height="124" rx="18" fill="#263e30" stroke="#3c5847" stroke-width="2"/>
+<text x="550" y="1199" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#bfee78">Unknown write outcome</text>
+<text x="550" y="1236" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#d5e4da">Read receipt with the same key</text>
+<text x="550" y="1263" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#d5e4da">No second message submission</text>
+<rect x="995" y="1160" width="380" height="124" rx="18" fill="#263e30" stroke="#3c5847" stroke-width="2"/>
+<text x="1015" y="1199" font-family="DejaVu Sans,sans-serif" font-size="24" font-weight="700" fill="#bfee78">Admission receipt</text>
+<text x="1015" y="1236" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#d5e4da">Accepted or still unknown</text>
+<text x="1015" y="1263" font-family="DejaVu Sans,sans-serif" font-size="19" font-weight="400" fill="#d5e4da">Accepted ≠ task completed</text>
+<polyline points="255,1160 255,1110 720,1110 720,1070" fill="none" stroke="#a7d76b" stroke-width="3"/>
+<polygon points="720,1070 726.2325320018547,1081.408573304575 713.7674679981453,1081.408573304575" fill="#a7d76b"/>
+<polyline points="910,1222 995,1222" fill="none" stroke="#a7d76b" stroke-width="3"/>
+<polygon points="995,1222 983.5914266954252,1228.2325320018547 983.5914266954252,1215.7674679981453" fill="#a7d76b"/>
+<text x="65" y="1371" font-family="DejaVu Sans,sans-serif" font-size="23" font-weight="700" fill="#f0f7ef">No automatic model/key changes; the observer never stops tasks.</text>
+<text x="65" y="1421" font-family="DejaVu Sans,sans-serif" font-size="23" font-weight="400" fill="#d5e4da">Snapshots: allowlisted metadata; no prompts, secrets or tool arguments.</text>
+<text x="65" y="1469" font-family="DejaVu Sans,sans-serif" font-size="23" font-weight="400" fill="#d5e4da">Sandboxing, owner approvals and project execution retain their rules.</text>
+<text x="55" y="1595" font-family="DejaVu Sans,sans-serif" font-size="21" font-weight="400" fill="#91ad9b">RU / EN · Editable SVG and PNG · Synthetic tests ≠ physical acceptance</text>
+</svg>

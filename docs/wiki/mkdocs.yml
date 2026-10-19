@@ -68,5 +68,5 @@ extra_css:
   - assets/wiki.css
 extra:
   generator: false
-  documentation_version: '0.2.12'
-copyright: 'Igorek Harness · Documentation for 0.2.12 · English / Русский'
+  documentation_version: '0.2.13'
+copyright: 'Igorek Harness · Documentation for 0.2.13 · English / Русский'

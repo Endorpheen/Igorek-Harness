@@ -2,6 +2,7 @@
 *.txt
 *.csv
 *.json
+!config/error-catalog.json
 !web_ui/static/navigation.json
 *.html
 *.md

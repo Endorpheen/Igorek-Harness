@@ -424,6 +424,16 @@ class OffModeBaselineTest(WorkerSeamHarness):
         self.assertEqual(result["cost_usd"], 0.0)
         self.assertEqual(result["approval_blocked_tools"], [])
 
+    def test_failed_model_result_retains_failure_identity_and_details(self) -> None:
+        from factory.core.diagnostics import observation
+        diagnostic=observation('NET.READ_TIMEOUT',component='model',operation='model_round',endpoint_role='runtime_to_provider',profile='fixture',model='org/model')
+        with self.seam_env(isolation_env='off'):
+            self.executor.side_effect=lambda **kwargs:{**EXECUTOR_RESULT,'status':'fail','failure_reason':'http_error','failure_details':'fixture timeout','diagnostic':diagnostic}
+            result=self.run_worker()
+        self.assertEqual(result['error'],'fixture timeout')
+        self.assertEqual(result['failure_reason'],'http_error')
+        self.assertEqual(result['diagnostic'],diagnostic)
+
 
 class KvmModeDispatchTest(WorkerSeamHarness):
     def test_injected_desktop_manager_routes_to_guest_with_global_mode_off(self):

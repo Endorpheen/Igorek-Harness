@@ -1900,6 +1900,17 @@ class MobileService:
                 self.activate_profile(profile)
             return self._send_message(session_id, text, **kwargs)
 
+    def operation_receipt(self, key: str, session_id: str = '') -> dict:
+        with self._approval_lock:
+            record = self.store.lookup_request(key) or self.store.lookup_request('session:'+key)
+            if not record or (session_id and record.get('session_id') != session_id):
+                return {'recorded': False, 'status': 'unknown'}
+            if record.get('session_id'):
+                self.get_session(record['session_id'])
+            return {'recorded': True, 'status': 'accepted', 'kind': record['kind'],
+                    'session_id': record.get('session_id') or '', 'task_id': record.get('task_id') or '',
+                    'receipt': record.get('receipt') or {}}
+
     def _send_message(
         self,
         session_id: str,
@@ -1921,7 +1932,7 @@ class MobileService:
         if key:
             existing = self.store.lookup_request(key)
             if existing and existing.get("task_id"):
-                return {"task_id": existing["task_id"], "status": "queued", "duplicate": True}
+                return {**existing.get('receipt', {}), "task_id": existing["task_id"], "status": "queued", "duplicate": True}
 
         path = _session_path(session_id)
         meta = _read_session_meta(path) or {}
@@ -2026,7 +2037,8 @@ class MobileService:
             )
             if key:
                 self.store.remember_request(
-                    key, kind="message", session_id=session_id, task_id=active_task_id
+                    key, kind="message", session_id=session_id, task_id=active_task_id,
+                    receipt={'task_id':active_task_id,'message_id':message_id,'status':'queued','steered':True}
                 )
             self.store.append_event(
                 kind="task.message_added",
@@ -2094,7 +2106,8 @@ class MobileService:
             extra=task_id_extra,
         )
         if key:
-            self.store.remember_request(key, kind="message", session_id=session_id, task_id=task_id)
+            self.store.remember_request(key, kind="message", session_id=session_id, task_id=task_id,
+                receipt={'task_id':task_id,'message_id':message_id,'status':'queued','steered':False})
         self.store.append_event(
             kind="task.submitted",
             payload={

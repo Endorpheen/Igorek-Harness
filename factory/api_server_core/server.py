@@ -3242,7 +3242,8 @@ def _error_payload(message: str, *, error_type: str) -> dict[str, Any]:
     }
 
 
-def _with_request_id(payload: dict[str, Any], request_id: str) -> dict[str, Any]:
+def _with_request_id(payload: dict[str, Any], request_id: str, status: int | None = None) -> dict[str, Any]:
+    from factory.core.diagnostics import classify_error, observation
     normalized = dict(payload)
     normalized["type"] = "error"
     error = normalized.get("error")
@@ -3250,6 +3251,8 @@ def _with_request_id(payload: dict[str, Any], request_id: str) -> dict[str, Any]
         error = {"type": "api_error", "message": "Request failed"}
         normalized["error"] = error
     normalized["request_id"] = request_id
+    normalized['diagnostic'] = observation(classify_error(status=status), component='inference-api', operation='request',
+        endpoint_role='runtime_to_provider', owner='inference-api', delivery='rejected', http_status=status, http_request_id=request_id)
     return normalized
 
 
@@ -3271,6 +3274,7 @@ async def request_lifecycle_middleware(request: Request, call_next):
             response = JSONResponse(status_code=status, content=_with_request_id(
                 _error_payload(message, error_type='authentication_error'),
                 request.state.request_id,
+                status,
             ))
             response.headers['x-request-id'] = request.state.request_id
             return response
@@ -3281,6 +3285,7 @@ async def request_lifecycle_middleware(request: Request, call_next):
             content=_with_request_id(
                 _error_payload("Loading model", error_type="api_error"),
                 request.state.request_id,
+                503,
             ),
         )
         response.headers["x-request-id"] = request.state.request_id
@@ -3311,20 +3316,22 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
     return JSONResponse(
         status_code=exc.status_code,
-        content=_with_request_id(payload, _request_id(request)),
+        content=_with_request_id(payload, _request_id(request), exc.status_code),
+        headers={key:value for key,value in (exc.headers or {}).items() if key.lower() in {'retry-after','www-authenticate'}},
     )
 
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
-    print(f"[{_request_id(request)}] unhandled exception: {exc}")
-    print(traceback.format_exc())
+    from factory.core.diagnostics import safe_text
+    print(f"[{_request_id(request)}] unhandled exception: {safe_text(exc)}")
+    print(safe_text(traceback.format_exc(), 16000))
     payload = _error_payload(
         "Internal Server Error",
         error_type="api_error",
     )
     return JSONResponse(
-        status_code=500, content=_with_request_id(payload, _request_id(request))
+        status_code=500, content=_with_request_id(payload, _request_id(request), 500)
     )
 
 

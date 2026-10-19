@@ -1,15 +1,35 @@
 {
-  "versionName": "0.1.106",
-  "versionCode": 107,
+  "versionName": "0.1.107",
+  "versionCode": 108,
   "changes": [
     {
       "ru": {
-        "title": "Совместимые обновления зависимостей",
-        "text": "Обновлены Kotlin, Compose, сетевые библиотеки и инструменты сборки. Время кадра браузера учитывает изменение языка системы."
+        "title": "Понятные ошибки соединения",
+        "text": "Коды ошибок, отдельные состояния инцидента и восстановления, ограниченные повторы безопасных запросов."
       },
       "en": {
-        "title": "Compatible dependency updates",
-        "text": "Updated Kotlin, Compose, networking libraries and build tools. Browser frame timestamps observe system locale changes."
+        "title": "Clear connection diagnostics",
+        "text": "Error codes, separate incident and recovery states, and bounded retries for safe reads."
+      }
+    },
+    {
+      "ru": {
+        "title": "Проверка принятия сообщения",
+        "text": "Если ответ потерян, приложение проверяет квитанцию, не отправляя сообщение повторно."
+      },
+      "en": {
+        "title": "Message admission checks",
+        "text": "After a lost response, the app checks the admission receipt without sending the message again."
+      }
+    },
+    {
+      "ru": {
+        "title": "Локальная диагностика",
+        "text": "Удерживайте уведомление для копирования безопасного снимка. История сохраняется в зашифрованных настройках."
+      },
+      "en": {
+        "title": "Local diagnostics",
+        "text": "Long-press a notification to copy a safe snapshot. History is retained in encrypted preferences."
       }
     }
   ]

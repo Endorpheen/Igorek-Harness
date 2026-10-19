@@ -166,6 +166,8 @@ def normalize_trace_event(
         )
 
     if kind == CcTraceEvent.TASK_FINISH:
+        from ..diagnostics import sanitize_observation
+        from ..cc_backend_trace import model_failure_diagnostics
         blocked = event.get("approval_blocked_tools")
         return _frame(
             "task.finish",
@@ -178,6 +180,8 @@ def normalize_trace_event(
                 "tool_calls_count": int(event.get("tool_calls_count") or 0),
                 "output_preview": _clip(event.get("output_preview"), _MAX_PREVIEW_CHARS),
                 "approval_blocked_count": len(blocked) if isinstance(blocked, list) else 0,
+                "error_diagnostics": model_failure_diagnostics(event.get('error_diagnostics')),
+                "diagnostic": sanitize_observation(event.get('diagnostic')),
             },
         )
 
@@ -596,6 +600,9 @@ class TraceJournaler:
                         "task_id": task_id,
                         "error_message": clipped_error,
                     }
+                    if isinstance(metadata.get('diagnostic'), dict):
+                        from ..diagnostics import sanitize_observation
+                        payload['diagnostic'] = sanitize_observation(metadata['diagnostic'])
                     seq = self.store.append_event(
                         kind="task.error",
                         payload=payload,
