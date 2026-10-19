@@ -422,6 +422,35 @@ class BridgeClient(
         }
     }
 
+    fun downloadUploadPreview(sessionId: String, file: UploadAttachmentDto): ByteArray {
+        if (!sessionId.matches(Regex("[A-Za-z0-9_-]{1,160}")) || !file.uploadId.matches(Regex("[0-9a-f]{32}")) ||
+            !file.isImage || file.size !in 1..8388608L) throw IOException("Image preview is unavailable")
+        val request = requestBuilder("/sessions/$sessionId/uploads/${file.uploadId}").get().build()
+        http.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) throw BridgeException(response.code,
+                AppLocale.text("Изображение недоступно", "Image is unavailable"))
+            val body = response.body ?: throw IOException("Empty image response")
+            if (body.contentLength() != file.size ||
+                response.header("Content-Type")?.startsWith("image/", ignoreCase = true) != true) {
+                throw IOException("Invalid image response")
+            }
+            val output = java.io.ByteArrayOutputStream()
+            body.byteStream().use { input ->
+                val buffer = ByteArray(16384)
+                var received = 0L
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    received += count
+                    if (received > file.size) throw IOException("Image exceeds declared size")
+                    output.write(buffer, 0, count)
+                }
+                if (received != file.size) throw IOException("Incomplete image response")
+            }
+            return output.toByteArray()
+        }
+    }
+
     fun createSession(profile: String, cwd: String, key: String): SessionDetail {
         val body = json.encodeToString(CreateSessionRequest.serializer(), CreateSessionRequest(profile, cwd, key, activateProfile = true))
         return execute(requestBuilder("/sessions").post(body.toRequestBody(JSON_MEDIA)).build()) { parse(it) }

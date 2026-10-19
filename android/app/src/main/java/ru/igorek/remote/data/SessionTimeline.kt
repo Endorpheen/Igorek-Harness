@@ -40,6 +40,15 @@ private fun JsonObject.outputFiles(): List<AttachmentDto> = arr("files").orEmpty
     AttachmentDto(id, name, size, file.str("mime_type").ifBlank { "application/octet-stream" })
 }
 
+private fun JsonObject.uploadAttachments(): List<UploadAttachmentDto> = arr("attachments").orEmpty().mapNotNull { value ->
+    val file = value as? JsonObject ?: return@mapNotNull null
+    val id = file.str("upload_id")
+    val name = file.str("name")
+    val size = (file["size"] as? JsonPrimitive)?.longOrNull ?: 0
+    if (!id.matches(Regex("[0-9a-f]{32}")) || name.isBlank() || size !in 0..52428800L) return@mapNotNull null
+    UploadAttachmentDto(id, name, size, file.str("mime_type"), file.str("kind"))
+}
+
 private fun formatToolInput(name: String, input: JsonObject): String {
     val command = input.str("command")
     if (command.isNotEmpty()) return command
@@ -139,6 +148,12 @@ class SessionTimeline(val sessionId: String) {
                     items.addAll(0, seed.snapshot().filter { candidate -> items.none { it.id == candidate.id } })
                 }
                 messages.forEachIndexed { index, message ->
+                    if (message.role == "user" && message.attachments.isNotEmpty()) {
+                        val id = message.historyId.ifEmpty { message.taskId?.let { userMessageItemId(it, message.messageId.orEmpty()) } ?: "hist-user-$index" }
+                        val existing = items.indexOfFirst { it.id == id }
+                        val current = items.getOrNull(existing) as? TimelineItem.UserText
+                        if (current != null) items[existing] = current.copy(attachments = message.attachments)
+                    }
                     if (message.role != "assistant" || message.messageId.isNullOrBlank() || message.historyId.isNotEmpty()) return@forEachIndexed
                     val row = TimelineItem.AssistantText(assistantMessageItemId(message.messageId), message.text, files = message.files)
                     val existing = items.indexOfFirst { it.id == row.id }
@@ -169,6 +184,7 @@ class SessionTimeline(val sessionId: String) {
                         queued = message.queued,
                         taskId = message.taskId.orEmpty(),
                         messageId = message.messageId.orEmpty(),
+                        attachments = message.attachments,
                     )
                     "assistant" -> items += TimelineItem.AssistantText(
                         message.historyId.ifEmpty { message.messageId?.takeIf { it.isNotBlank() }?.let(::assistantMessageItemId) ?: "hist-assistant-$index" },
@@ -225,7 +241,8 @@ class SessionTimeline(val sessionId: String) {
 
                     "task.submitted" -> {
                     val text = payload.str("text")
-                    if (text.isNotEmpty()) {
+                    val attachments = payload.uploadAttachments()
+                    if (text.isNotEmpty() || attachments.isNotEmpty()) {
                         upsertLive(
                             TimelineItem.UserText(
                                 userMessageItemId(payload.str("task_id"), payload.str("message_id")),
@@ -233,6 +250,7 @@ class SessionTimeline(val sessionId: String) {
                                 payload.strList("selected_skills"),
                                 taskId = payload.str("task_id"),
                                 messageId = payload.str("message_id"),
+                                attachments = attachments,
                             )
                         )
                     }
@@ -242,7 +260,8 @@ class SessionTimeline(val sessionId: String) {
                 // includes its message ID.
                 "task.message_added" -> {
                     val text = payload.str("text")
-                    if (text.isNotEmpty()) {
+                    val attachments = payload.uploadAttachments()
+                    if (text.isNotEmpty() || attachments.isNotEmpty()) {
                         upsertLive(
                             TimelineItem.UserText(
                                 userMessageItemId(payload.str("task_id"), payload.str("message_id")),
@@ -251,6 +270,7 @@ class SessionTimeline(val sessionId: String) {
                                 queued = true,
                                 taskId = payload.str("task_id"),
                                 messageId = payload.str("message_id"),
+                                attachments = attachments,
                             )
                         )
                     }
@@ -679,7 +699,11 @@ class SessionTimeline(val sessionId: String) {
 
     private fun upsertLive(item: TimelineItem) {
         val index = items.indexOfFirst { it.id == item.id }
-        if (index >= 0) items[index] = item else items += item
+        val previous = items.getOrNull(index) as? TimelineItem.UserText
+        val merged = if (item is TimelineItem.UserText && item.attachments.isEmpty() && previous != null) {
+            item.copy(attachments = previous.attachments)
+        } else item
+        if (index >= 0) items[index] = merged else items += merged
     }
 
     private fun remove(id: String) {

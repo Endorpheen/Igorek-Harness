@@ -589,6 +589,7 @@ class MobileService:
         identifier = str(session_id or "").strip()
         if not identifier:
             return []
+        generation = str((_read_session_meta(_session_path(identifier)) or {}).get('profile_generation') or '')
         with open_db(get_db_path()) as conn:
             rows = conn.execute(
                 "SELECT metadata FROM tasks WHERE json_valid(metadata) "
@@ -601,6 +602,8 @@ class MobileService:
         seen: set[str] = set()
         for row in rows:
             metadata = _loads(row[0], {})
+            if not isinstance(metadata, dict) or str(metadata.get('profile_generation') or '') != generation:
+                continue
             raw_rules = metadata.get("approved_session_rules") if isinstance(metadata, dict) else None
             if not isinstance(raw_rules, list):
                 continue
@@ -914,6 +917,30 @@ class MobileService:
             active_only=active_only,
             archived_only=archived_only,
         )["sessions"]
+
+    def switch_session_profile(self, session_id: str, profile: str) -> dict[str, Any]:
+        """Activate a verified profile and retain the idle chat and its history."""
+        if not isinstance(profile, str) or not profile or self.profile_control is None:
+            raise MobileInvalid('Переключение профиля недоступно.')
+        with self._approval_lock, self._session_lock:
+            path = _session_path(session_id)
+            if not path.is_file():
+                raise MobileNotFound(f'session not found: {session_id}')
+            meta = _read_session_meta(path) or {}
+            if meta.get('agent_session') or meta.get('demo'):
+                raise MobileInvalid('Для этой сессии переключение профиля недоступно.')
+            if self._active_task_id_for_session(session_id):
+                raise MobileConflict('Дождитесь завершения текущей задачи перед переключением профиля.')
+            catalog = self.profile_control('catalog', '')
+            selected = next((p for p in catalog.get('profiles', []) if p.get('name') == profile), None)
+            if selected is None or not catalog.get('can_switch'):
+                raise MobileInvalid('Профиль не проверен, хранилище заблокировано или подключение недоступно.')
+            self.activate_profile(profile)
+            self._require_available_profile(profile)
+            if profile != meta.get('profile'):
+                update_session_meta(path, {'profile': profile, 'model': selected.get('model', ''),
+                    'provider': '', 'profile_generation': uuid.uuid4().hex})
+            return self.get_session(session_id)
 
     def update_session(
         self,
@@ -1972,6 +1999,8 @@ class MobileService:
             "structured_session_history": True,
             "session_user_message": task_message,
         }
+        if meta.get('profile_generation'):
+            metadata['profile_generation'] = meta['profile_generation']
         if desktop_ui:
             metadata['desktop_ui'] = True
             metadata['platform'] = 'desktop'

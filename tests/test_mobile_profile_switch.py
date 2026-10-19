@@ -131,6 +131,75 @@ def test_legacy_standalone_bridge_remains_compatible_with_the_new_client_flag(tm
     assert service.create_session(profile='cc-local-8081', cwd=str(tmp_path), activate_profile=True)['session_id']
 
 
+def test_composer_switch_keeps_the_same_chat_and_routes_the_next_task(setup):
+    _, service, agent, _, workdir = setup
+    chat = service.create_session(profile='cloud', cwd=str(workdir))
+    sid = chat['session_id']
+    service.update_session(sid, title='Retained title', pinned=True)
+    task = service.send_message(sid, 'Retained user message')
+    with sqlite3.connect(get_db_path()) as connection:
+        connection.execute("UPDATE tasks SET status='ok' WHERE task_id=?", (task['task_id'],))
+    before = service.get_session(sid)
+    changed = service.switch_session_profile(sid, 'local')
+    assert changed['session_id'] == sid and agent.active == 'local'
+    assert changed['meta']['profile'] == 'local' and changed['meta']['model'] == 'local-model'
+    assert changed['meta']['title'] == 'Retained title' and changed['meta']['pinned']
+    assert changed['meta']['cwd'] == str(workdir)
+    assert changed['messages'] == before['messages']
+    next_task = service.send_message(sid, 'Use the selected profile')
+    with sqlite3.connect(get_db_path()) as connection:
+        row = connection.execute('SELECT profile,metadata FROM tasks WHERE task_id=?', (next_task['task_id'],)).fetchone()
+    assert row[0] == 'local'
+    assert json.loads(row[1])['profile_generation'] == changed['meta']['profile_generation']
+
+
+@pytest.mark.parametrize('status', ['queued', 'processing', 'waiting_approval', 'waiting_user_input', 'cancelling'])
+def test_composer_switch_refuses_busy_chat_without_changing_route(setup, status):
+    _, service, agent, _, workdir = setup
+    chat = service.create_session(profile='cloud', cwd=str(workdir))
+    task = service.send_message(chat['session_id'], 'Keep running')
+    with sqlite3.connect(get_db_path()) as connection:
+        connection.execute('UPDATE tasks SET status=? WHERE task_id=?', (status, task['task_id']))
+    with pytest.raises(MobileConflict):
+        service.switch_session_profile(chat['session_id'], 'local')
+    assert agent.starts == []
+    assert service.get_session(chat['session_id'])['meta']['profile'] == 'cloud'
+
+
+def test_composer_switch_does_not_reuse_old_tool_permissions_even_after_switching_back(setup):
+    _, service, _, _, workdir = setup
+    sid = service.create_session(profile='cloud', cwd=str(workdir))['session_id']
+    task = service.send_message(sid, 'Old task')
+    with sqlite3.connect(get_db_path()) as connection:
+        metadata = json.loads(connection.execute('SELECT metadata FROM tasks WHERE task_id=?', (task['task_id'],)).fetchone()[0])
+        metadata['approved_session_rules'] = [{'tool': 'Bash', 'fixture': 'old-route'}]
+        connection.execute("UPDATE tasks SET status='ok',metadata=? WHERE task_id=?", (json.dumps(metadata), task['task_id']))
+    assert service._approved_session_rules_for_session(sid)
+    first = service.switch_session_profile(sid, 'local')['meta']['profile_generation']
+    assert service._approved_session_rules_for_session(sid) == []
+    assert service.switch_session_profile(sid, 'local')['meta']['profile_generation'] == first
+    assert service.switch_session_profile(sid, 'cloud')['meta']['profile_generation'] != first
+    assert service._approved_session_rules_for_session(sid) == []
+
+
+@pytest.mark.parametrize('profile', ['draft', 'unknown', '../local', '', None])
+def test_composer_switch_refuses_unverified_and_invalid_profiles(setup, profile):
+    _, service, agent, _, workdir = setup
+    sid = service.create_session(profile='cloud', cwd=str(workdir))['session_id']
+    with pytest.raises(MobileInvalid):
+        service.switch_session_profile(sid, profile)
+    assert agent.starts == [] and service.get_session(sid)['meta']['profile'] == 'cloud'
+
+
+def test_composer_switch_refuses_locked_vault_without_changing_chat(setup):
+    owner, service, agent, _, workdir = setup
+    sid = service.create_session(profile='cloud', cwd=str(workdir))['session_id']
+    owner.service.lock()
+    with pytest.raises(MobileInvalid):
+        service.switch_session_profile(sid, 'local')
+    assert agent.starts == [] and service.get_session(sid)['meta']['profile'] == 'cloud'
+
+
 def test_http_authentication_and_revocation_gate_profile_activation(setup):
     owner, service, agent, _, workdir = setup
     bridge = MobileBridge(config=BridgeConfig(profile='cloud', workdir=str(workdir)))
@@ -152,10 +221,18 @@ def test_http_authentication_and_revocation_gate_profile_activation(setup):
         status, paired = request('POST', '/pair/complete', {'code': code, 'name': 'Fixture phone'})
         assert status == 201
         owner.interface_locked = True
-        assert request('POST', '/sessions', payload, paired['token'])[0] == 201
+        status, session = request('POST', '/sessions', payload, paired['token'])
+        assert status == 201
         assert agent.active == 'local' and owner.interface_locked
+        switch = '/sessions/' + session['session_id'] + '/profile'
+        assert request('POST', switch, {'profile': 'cloud'})[0] == 401
+        assert request('POST', switch, {'profile': 'cloud', 'extra': True}, paired['token'])[0] == 400
+        status, switched = request('POST', switch, {'profile': 'cloud'}, paired['token'])
+        assert status == 200 and switched['session_id'] == session['session_id']
+        assert switched['meta']['profile'] == 'cloud' and agent.active == 'cloud'
         bridge.revoke_device(paired['device_id'])
         assert request('POST', '/sessions', {**payload, 'profile': 'cloud'}, paired['token'])[0] == 401
-        assert agent.starts == ['local']
+        assert request('POST', switch, {'profile': 'local'}, paired['token'])[0] == 401
+        assert agent.starts == ['local', 'cloud']
     finally:
         server.shutdown(); server.server_close(); thread.join(3)

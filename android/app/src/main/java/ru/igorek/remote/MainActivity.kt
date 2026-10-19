@@ -50,11 +50,13 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         VoiceCalls.activityVisible = true
+        Bridge.setActivityVisible(true)
         if (intent?.action == VoiceCallService.OPEN) VoiceCalls.show()
     }
 
     override fun onStop() {
         VoiceCalls.activityVisible = false
+        Bridge.setActivityVisible(false)
         super.onStop()
     }
 

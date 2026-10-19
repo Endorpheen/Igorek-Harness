@@ -83,6 +83,7 @@ _STATIC_TYPES = {
     "mcp-task.js": "text/javascript; charset=utf-8",
     "plugins.js": "text/javascript; charset=utf-8",
     "session-agent.js": "text/javascript; charset=utf-8",
+    "composer-profiles.js": "text/javascript; charset=utf-8",
     "changes.js": "text/javascript; charset=utf-8",
     "voice.js": "text/javascript; charset=utf-8",
     "render.js": "text/javascript; charset=utf-8",
@@ -963,6 +964,15 @@ class _Handler(BaseHTTPRequestHandler):
                 self._json(400, {"error": "Некорректный идентификатор сессии"})
                 return
             quoted = urllib.parse.quote(session_id, safe="")
+            if len(parts) == 4 and parts[3] == 'profile' and method == 'POST':
+                body = self._body()
+                if body is None:
+                    return
+                if set(body) != {'profile'} or not isinstance(body['profile'], str) or not _PROFILE_NAME.fullmatch(body['profile']):
+                    self._json(400, {'error': 'Некорректный профиль'})
+                    return
+                self._proxy(method, f'/sessions/{quoted}/profile', body)
+                return
             if len(parts) == 4 and parts[3] == "terminal" and method == "POST":
                 self._terminal_ticket(session_id)
                 return

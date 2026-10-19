@@ -107,6 +107,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Native Windows acceptance failed' }
           & uv run --no-sync python desktop/packaging/check-native-report.py $env:IGOREK_TEST_OUTPUT
           if ($LASTEXITCODE -ne 0) { throw 'Native report is incomplete' }
+          $env:IGOREK_TEST_PYTHON = Join-Path $env:GITHUB_WORKSPACE '.venv/Scripts/python.exe'
+          $env:IGOREK_TEST_OUTPUT = Join-Path $env:GITHUB_WORKSPACE 'test-results/composer-windows'
+          & ./desktop/node_modules/.bin/electron.cmd desktop/tests/native/composer-profiles.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'Native composer profile acceptance failed' }
           $process = Start-Process -FilePath $installer[0].FullName -ArgumentList @('/S', "/D=$install") -Wait -PassThru
           if ($process.ExitCode -ne 0) { throw 'Reinstallation failed' }
           $env:IGOREK_UPDATE_INSTALL = $install
@@ -226,6 +230,7 @@ jobs:
             ${{ runner.temp }}/igorek-dist/*.deb
             ${{ runner.temp }}/igorek-dist/*.AppImage
             test-results/native-windows/summary.json
+            test-results/composer-windows/summary.json
             test-results/native-windows-diagnostics/summary.json
             test-results/native-windows-diagnostics/thread-stacks.log
             test-results/platform-*-coverage.json

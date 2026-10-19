@@ -10,7 +10,7 @@ import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class BridgeDownloadTest {
-    private fun serve(body: ByteArray, status: Int = 200, block: (BridgeClient, MutableList<String>) -> Unit) {
+    private fun serve(body: ByteArray, status: Int = 200, contentType: String? = null, block: (BridgeClient, MutableList<String>) -> Unit) {
         val server = BridgeTlsFixture.server(1)
         val requests = java.util.Collections.synchronizedList(mutableListOf<String>())
         val worker = Thread {
@@ -26,7 +26,8 @@ class BridgeDownloadTest {
                 }
                 requests.add("$path|$authorization")
                 socket.getOutputStream().use { output ->
-                    output.write("HTTP/1.1 $status OK\r\nContent-Length: ${body.size}\r\nConnection: close\r\n\r\n".toByteArray())
+                    val type = contentType?.let { "Content-Type: $it\r\n" }.orEmpty()
+                    output.write("HTTP/1.1 $status OK\r\nContent-Length: ${body.size}\r\n${type}Connection: close\r\n\r\n".toByteArray())
                     output.write(body)
                 }
             }
@@ -49,6 +50,30 @@ class BridgeDownloadTest {
             assertArrayEquals(bytes, output.toByteArray())
             assertEquals(bytes.size.toLong(), progress)
             assertEquals("/mobile/v1/sessions/session-1/files/file-id|Bearer test-token", requests.single())
+        }
+    }
+
+    @Test fun `uploaded image preview uses the authenticated upload route`() {
+        val bytes = byteArrayOf(1, 2, 3, 4)
+        serve(bytes, contentType = "image/png") { client, requests ->
+            assertArrayEquals(bytes, client.downloadUploadPreview("session-1", UploadAttachmentDto("a".repeat(32), "photo.png", 4, "image/png")))
+            assertEquals("/mobile/v1/sessions/session-1/uploads/${"a".repeat(32)}|Bearer test-token", requests.single())
+        }
+    }
+
+    @Test fun `preview rejects changed content size and non image responses`() {
+        for (type in listOf("image/png", "text/html")) serve(byteArrayOf(1, 2), contentType = type) { client, _ ->
+            assertThrows(IOException::class.java) {
+                client.downloadUploadPreview("session-1", UploadAttachmentDto("a".repeat(32), "photo.png", if (type == "image/png") 3 else 2, "image/png"))
+            }
+        }
+    }
+
+    @Test fun `preview rejects unsafe paths and oversized images before network access`() {
+        val client = BridgeClient("https://127.0.0.1:9", "test-token")
+        for (file in listOf(UploadAttachmentDto("../secret", "photo.png", 10, "image/png"),
+            UploadAttachmentDto("a".repeat(32), "photo.png", 8388609, "image/png"))) {
+            assertThrows(IOException::class.java) { client.downloadUploadPreview("session-1", file) }
         }
     }
 

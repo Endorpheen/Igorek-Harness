@@ -465,12 +465,15 @@ fun TimelineRow(
             Column(Modifier.fillMaxWidth().padding(start = 12.dp, top = 7.dp, end = 5.dp, bottom = 7.dp)) {
                 Row(Modifier.fillMaxWidth()) {
                     Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
-                    SelectionContainer(Modifier.padding(start = 8.dp).weight(1f)) {
-                        Text(item.text, style = MaterialTheme.typography.bodyMedium)
+                    if (item.displayText.isNotBlank()) {
+                        SelectionContainer(Modifier.padding(start = 8.dp).weight(1f)) {
+                            Text(item.displayText, style = MaterialTheme.typography.bodyMedium)
+                        }
+                        CopyButton(item.displayText)
                     }
-                    CopyButton(item.text)
                 }
                 UserSkillBadges(item.skills)
+                MessageUploadAttachments(sessionId, item.attachments)
                 if (item.queued || item.delivered) {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(start = 26.dp, top = 2.dp),

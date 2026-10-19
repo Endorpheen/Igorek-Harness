@@ -1,65 +1,35 @@
 {
-  "versionName": "0.1.110",
-  "versionCode": 111,
+  "versionName": "0.1.112",
+  "versionCode": 113,
   "changes": [
     {
       "ru": {
-        "title": "Подтверждение копирования диагностики",
-        "text": "После удержания карточки ошибки появляется сообщение: «Диагностика скопирована в буфер обмена»."
+        "title": "Миниатюры перед отправкой",
+        "text": "Прикреплённые изображения видны прямо в поле ввода. Кнопка удаления остаётся рядом с миниатюрой."
       },
       "en": {
-        "title": "Diagnostic copy confirmation",
-        "text": "Long-pressing an error card now displays a confirmation that diagnostics were copied to the clipboard."
+        "title": "Previews before sending",
+        "text": "Attached images appear inside the composer, with a remove button beside each thumbnail."
       }
     },
     {
       "ru": {
-        "title": "Понятное сообщение об ошибке связи",
-        "text": "Если причина сбоя неизвестна, уведомление теперь прямо говорит: «Причину сбоя определить не удалось»."
+        "title": "Картинки сохраняются в чате",
+        "text": "После отправки миниатюры остаются в сообщении и восстанавливаются при повторном открытии чата. Дублирующая строка «вложения» скрыта, имя файла остаётся под миниатюрой."
       },
       "en": {
-        "title": "Clearer connection error wording",
-        "text": "The Russian connection error message now clearly states when the cause of the failure could not be determined."
+        "title": "Images remain in chat",
+        "text": "After sending, thumbnails remain in the message and return when the chat is reopened. The duplicate attachment label is hidden; the filename remains below the thumbnail."
       }
     },
     {
       "ru": {
-        "title": "Исправлено открытие уведомлений",
-        "text": "Отдельные сбои с одинаковым текстом больше не конфликтуют в списке. История и прочтённость сохраняются."
+        "title": "Спокойное возвращение в приложение",
+        "text": "Короткий тайм-аут потока событий после сворачивания сохраняется в диагностике без лишнего уведомления. Если связь не восстановилась за 15 секунд после возврата, сбой показывается. Остальные ошибки сохраняют прежние уведомления."
       },
       "en": {
-        "title": "Fixed opening notifications",
-        "text": "Separate incidents with identical text no longer conflict in the list. History and read status are preserved."
-      }
-    },
-    {
-      "ru": {
-        "title": "Добровольная отправка диагностики",
-        "text": "В центре уведомлений можно просмотреть безопасный отчёт и передать JSON-файл через системное меню."
-      },
-      "en": {
-        "title": "Voluntary diagnostic reports",
-        "text": "Review a safe report in the notification center and share its JSON file through the system sharesheet."
-      }
-    },
-    {
-      "ru": {
-        "title": "Поддержка Игорька",
-        "text": "Получатель — igorek-dot@tutamail.com. Выберите почтовое приложение, проверьте адрес и подтвердите отправку в нём."
-      },
-      "en": {
-        "title": "Igorek support",
-        "text": "Recipient: igorek-dot@tutamail.com. Choose an email app, check the address and confirm sending there."
-      }
-    },
-    {
-      "ru": {
-        "title": "Отправка под вашим контролем",
-        "text": "Приложение не отправляет письма автоматически. Отмена сохраняет данные локально; прежнее копирование доступно."
-      },
-      "en": {
-        "title": "You control sharing",
-        "text": "The app does not send email automatically. Cancellation keeps data local; existing diagnostic copying remains available."
+        "title": "Quieter return to the app",
+        "text": "Brief event-stream timeouts after backgrounding stay in diagnostics without an extra alert. An outage still active 15 seconds after returning becomes visible. Other errors keep their existing notifications."
       }
     }
   ]

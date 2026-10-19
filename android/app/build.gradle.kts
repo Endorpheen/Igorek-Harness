@@ -46,8 +46,8 @@ android {
         minSdk = 26
         targetSdk = 34
         testInstrumentationRunner = providers.gradleProperty("igorekTestRunner").orElse("ru.igorek.remote.VoiceCallInstrumentation").get()
-        versionCode = 111
-        versionName = "0.1.110"
+        versionCode = 113
+        versionName = "0.1.112"
     }
 
     buildTypes {
