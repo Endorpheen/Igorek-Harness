@@ -4171,7 +4171,7 @@ async function sendMessage(event) {
   const text = ui.message.value.trim();
   if (text === '/demo' && state.attachments.length) { toast(t('demo.separate')); return; }
   if (state.session?.meta?.agent_session) return;
-  if ((!text && !state.attachments.length) || !state.selected || state.sending) return;
+  if ((!text && !state.attachments.length) || !state.selected || state.sending || window.IgorekComposerProfiles?.busy(state.selected)) return;
   state.sending = true;
   ui.send.disabled = true;
   const sessionId = state.selected;
@@ -8415,6 +8415,7 @@ let workspaceSurfaceObserver = null;
 let workspaceDownloadsView=null;
 let workspaceChatTimer = 0;
 let workspaceChatGeneration = 0;
+let workspaceChatProfileChanged = null;
 let workspaceTabDrag=null;
 let workspaceTabSkipClick=false;
 function workspaceBrowserCall(operation, fields = {}) {
@@ -8754,7 +8755,7 @@ function buildWorkspaceChat(host, tab) {
   const attach=element('button','attach-button','+'),fileInput=element('input');attach.type='button';attach.title=t('composer.attach_aria');attach.setAttribute('aria-label',attach.title);fileInput.type='file';fileInput.multiple=true;fileInput.hidden=true;
   const modes=element('div','mode-toggle');modes.setAttribute('role','group');modes.setAttribute('aria-label',t('composer.mode_aria'));
   const plan=element('button','mode-button',t('composer.mode_plan')),execute=element('button','mode-button',t('composer.mode_execute'));plan.type=execute.type='button';modes.append(plan,execute);left.append(attach,fileInput,modes,createComposerAccessButton());
-  const meta=element('div','composer-meta'),chip=element('span','composer-model'),send=element('button','send-button workspace-chat-send'),stop=element('button','stop-button');meta.append(chip);
+  const meta=element('div','composer-meta'),chip=element('button','composer-model'),send=element('button','send-button workspace-chat-send'),stop=element('button','stop-button');meta.append(chip);
   send.type='submit';send.title=t('composer.send_aria');send.setAttribute('aria-label',send.title);send.append(element('span','',t('composer.send')),element('b','','↑'));
   stop.type='button';stop.append(element('span','',t('composer.stop')),element('b','','■'));stop.hidden=true;
   actions.append(meta,stop,send);bottom.append(left,actions);form.append(attachments,row,note,bottom);status.setAttribute('role','status');wrap.append(status,form,element('div','composer-caption',t('composer.caption')));host.append(head,messages,wrap);
@@ -8764,11 +8765,17 @@ function buildWorkspaceChat(host, tab) {
   const valid=()=>workspaceChatGeneration===generation&&state.panel.open&&state.panel.workspace.active===tab;
   const resize=()=>{input.style.height='auto';input.style.height=Math.min(input.scrollHeight,170)+'px';};
   const sync=()=>{
-    send.disabled=sending||!tab.session||!snapshot?.meta?.profile||Boolean(snapshot?.meta?.agent_session)||(!input.value.trim()&&!tab.attachments.length);
+    send.disabled=sending||window.IgorekComposerProfiles?.busy(tab.session)||!tab.session||!snapshot?.meta?.profile||Boolean(snapshot?.meta?.agent_session)||(!input.value.trim()&&!tab.attachments.length);
     picker.disabled=sending||Boolean(tab.reviewPR);attach.disabled=sending;fileInput.disabled=sending;
     plan.disabled=execute.disabled=sending;stop.hidden=!snapshot?.running_task_id;form.hidden=Boolean(snapshot?.meta?.agent_session);
     form.classList.toggle('plan-mode',Boolean(tab.planMode));plan.classList.toggle('active',Boolean(tab.planMode));execute.classList.toggle('active',!tab.planMode);plan.setAttribute('aria-pressed',String(Boolean(tab.planMode)));execute.setAttribute('aria-pressed',String(!tab.planMode));note.hidden=!tab.planMode;note.textContent=t('composer.mode_plan_note');
   };
+  window.IgorekComposerProfiles?.attach(chip,{
+    api,sessionId:()=>tab.session,profile:()=>snapshot?.meta?.profile,
+    busy:()=>sending||Boolean(snapshot?.running_task_id)||!valid()||Boolean(snapshot?.meta?.agent_session)||Boolean(snapshot?.meta?.demo),
+    changing:()=>{if(valid())sync();},
+    changed:()=>{},
+  });
   const renderFiles=()=>{
     attachments.replaceChildren();attachments.hidden=!tab.attachments.length;
     for(const item of tab.attachments){
@@ -8815,6 +8822,9 @@ function buildWorkspaceChat(host, tab) {
     let cursor=timeline.firstChild;for(const node of ordered){if(node===cursor)cursor=cursor.nextSibling;else timeline.insertBefore(node,cursor);}while(cursor){const next=cursor.nextSibling;cursor.remove();cursor=next;}for(const id of nodes.keys())if(!retained.has(id))nodes.delete(id);
     indicator.hidden=!data.running_task_id;if(pinned)messages.scrollTop=messages.scrollHeight;sync();
   };
+  workspaceChatProfileChanged=data=>{
+    if(valid()&&tab.session===data?.session_id){sessionGeneration++;snapshot=data;draw(data);loadSessions().catch(()=>{});}
+  };
   const load=async()=>{
     if(!valid())return;if(loading){pending=true;return;}clearTimeout(workspaceChatTimer);
     const id=tab.session,epoch=sessionGeneration;
@@ -8827,7 +8837,7 @@ function buildWorkspaceChat(host, tab) {
   picker.addEventListener('change',()=>{tab.session=picker.value;tab.title=picker.selectedOptions[0]?.textContent;tab.draft='';input.value='';sessionGeneration++;snapshot=null;nodes.clear();timeline.replaceChildren();context.replaceChildren();chip.replaceChildren();indicator.hidden=true;releaseWorkspaceChatAttachments(tab);renderFiles();renderWorkspaceTabs();load();});
   stop.addEventListener('click',async()=>{const id=tab.session;stop.disabled=true;try{await api('/api/sessions/'+encode(id)+'/cancel',{method:'POST',body:JSON.stringify({mode:'cancel'})});if(valid()&&tab.session===id)load();}catch(error){if(valid())status.textContent=error.message;}finally{stop.disabled=false;}});
   form.addEventListener('submit',async event=>{
-    event.preventDefault();const id=tab.session,text=input.value.trim(),files=tab.attachments.slice(),planMode=Boolean(tab.planMode);if(!id||send.disabled||snapshot?.meta?.agent_session)return;
+    event.preventDefault();const id=tab.session,text=input.value.trim(),files=tab.attachments.slice(),planMode=Boolean(tab.planMode);if(!id||send.disabled||window.IgorekComposerProfiles?.busy(id)||snapshot?.meta?.agent_session)return;
     sending=true;renderFiles();
     try{
       if(window.IgorekAgent&&!(await window.IgorekAgent.ensureProfile(snapshot?.meta?.profile)))return;
@@ -8912,6 +8922,19 @@ window.IgorekSummary = window.IgorekSessionSummary.mount({
 });
 new ResizeObserver(()=>{ui.conversation.style.setProperty('--summary-composer-height',ui.composer.parentElement.getBoundingClientRect().height+'px');}).observe(ui.composer.parentElement);
 ui.composer.addEventListener("submit", sendMessage);
+window.IgorekComposerProfiles?.attach(ui.composerModel,{
+  api,sessionId:()=>state.selected,profile:()=>state.session?.meta?.profile,
+  busy:()=>state.sending||state.activeTasks.size>0||Boolean(state.session?.meta?.agent_session)||Boolean(state.session?.meta?.demo),
+  changing:()=>{ui.send.disabled=state.sending||window.IgorekComposerProfiles.busy(state.selected);},
+  changed:()=>{},
+});
+window.addEventListener('igorek-profile-changed',event=>{
+  const data=event.detail;workspaceChatProfileChanged?.(data);
+  if(!data?.session_id||state.selected!==data.session_id)return;
+  state.session=data;state.mentions.skillsTracked.clear();closeMentionMenu();
+  state.quota={profile:data.meta?.profile||'',provider:'',status:'idle',data:null,fetchedAt:0};
+  renderContext(data);renderPlanSection();loadSessions().catch(()=>{});loadOpenCodeUsage().catch(()=>{});
+});
 document.getElementById('demo-start')?.addEventListener('click', () => {
   if (!state.selected || state.sending || ui.message.value.trim() || state.attachments.length) return;
   ui.message.value = '/demo';

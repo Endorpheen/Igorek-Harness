@@ -21,10 +21,11 @@ data class NotificationEntry(
     val diagnostic: ErrorObservation? = null,
     val events: List<ErrorObservation> = emptyList(),
     val recoveryProof: String = "",
+    val quiet: Boolean = false,
 )
 
 internal fun unreadNotificationCount(entries: List<NotificationEntry>): Int =
-    entries.count { !it.read }
+    visibleNotifications(entries).count { !it.read }
 
 /** How many cards we keep in the list to prevent it from growing infinitely. */
 internal const val NOTIFICATION_LIMIT = 50
@@ -41,6 +42,7 @@ internal fun mergeNotification(
     kind: String,
     at: Long,
     diagnostic: ErrorObservation? = null,
+    quiet: Boolean = false,
 ): List<NotificationEntry> {
     val message = text.trim()
     if (message.isEmpty()) return entries
@@ -49,18 +51,22 @@ internal fun mergeNotification(
     val index = entries.indexOfFirst { if(safe==null) it.diagnostic==null && it.text == message else
         it.state!="recovered" && it.diagnostic?.let(::diagnosticFingerprint)==diagnosticFingerprint(safe) }
     if (index < 0) {
-        val appended = entries + NotificationEntry(message, kind, at, at, diagnostic=safe,state=nextState,events=safe?.let { listOf(it) } ?: emptyList())
+        val appended = entries + NotificationEntry(message, kind, at, at, diagnostic=safe,state=nextState,events=safe?.let { listOf(it) } ?: emptyList(),quiet=quiet)
         return if (appended.size > NOTIFICATION_LIMIT) {
-            appended.takeLast(NOTIFICATION_LIMIT)
+            val overflow = appended.size - NOTIFICATION_LIMIT
+            val quietIndexes = appended.indices.filter { appended[it].quiet && isBackgroundEventTimeout(appended[it].diagnostic) }
+                .take(overflow).toSet()
+            appended.filterIndexed { index, _ -> index !in quietIndexes }.takeLast(NOTIFICATION_LIMIT)
         } else {
             appended
         }
     }
     val existing = entries[index]
-    if(safe!=null && (safe.eventId==existing.diagnostic?.eventId || existing.events.any { it.eventId==safe.eventId }))return entries.toMutableList().also { it[index]=existing.copy(text=message) }
+    if(safe!=null && (safe.eventId==existing.diagnostic?.eventId || existing.events.any { it.eventId==safe.eventId }))return entries.toMutableList().also { it[index]=existing.copy(text=message,quiet=existing.quiet && quiet) }
     val updated = entries.toMutableList()
     updated[index] = existing.copy(
         kind = kind.ifEmpty { existing.kind },
+        quiet = existing.quiet && quiet,
         lastSeen = at,
         count = (existing.count.toLong() + 1).coerceAtMost(1000000000).toInt(),
         diagnostic = safe ?: existing.diagnostic,

@@ -146,12 +146,17 @@ jobs:
           IGOREK_TEST_OUTPUT="$PWD/test-results/native-linux" \
             xvfb-run -a "$RUNNER_TEMP/igorek-native-snapshot/igorek-desktop/electron/electron" \
               desktop/tests/native/first-run.cjs
+          IGOREK_TEST_OUTPUT="$PWD/test-results/composer-linux" \
+            xvfb-run -a "$RUNNER_TEMP/igorek-native-snapshot/igorek-desktop/electron/electron" \
+              desktop/tests/native/composer-profiles.cjs
       - name: Keep the sanitized acceptance report
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: native-linux-acceptance
-          path: test-results/native-linux/summary.json
+          path: |
+            test-results/native-linux/summary.json
+            test-results/composer-linux/summary.json
           if-no-files-found: warn
           retention-days: 7
 

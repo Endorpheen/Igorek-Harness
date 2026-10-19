@@ -181,6 +181,45 @@ object Bridge {
     private var notificationWriteFailures = 0
     private var httpReadySince = 0L
     private var streamReadyJob: Job? = null
+    @Volatile private var activityVisible = true
+    private var resumedAt = -1L
+    private var backgroundTimeoutJob: Job? = null
+
+    fun setActivityVisible(visible: Boolean) {
+        synchronized(errorLock) {
+            if (activityVisible == visible) return
+            activityVisible = visible
+            backgroundTimeoutJob?.cancel()
+            backgroundTimeoutJob = null
+            if (visible) {
+                resumedAt = SystemClock.elapsedRealtime()
+                val owner = prefs?.baseUrl?.let { "bridge-events:" + connectionScope(it) } ?: return
+                scheduleBackgroundTimeoutPromotion(owner)
+            }
+        }
+    }
+
+    private fun scheduleBackgroundTimeoutPromotion(owner: String) {
+        if (!activityVisible || backgroundTimeoutJob?.isActive == true) return
+        val active = client ?: return
+        val wait = (BACKGROUND_EVENT_GRACE_MS - (SystemClock.elapsedRealtime() - resumedAt)).coerceAtLeast(0)
+        backgroundTimeoutJob = scope.launch {
+            delay(wait)
+            synchronized(errorLock) {
+                if (!activityVisible || client !== active) return@synchronized
+                val updated = promoteBackgroundTimeouts(_notifications.value, owner)
+                if (updated == _notifications.value) return@synchronized
+                _notifications.value = updated
+                val error = updated.lastOrNull { !it.quiet && it.state != "recovered" && it.diagnostic?.owner == owner }?.diagnostic
+                if (error != null && (lastDiagnostic == null || lastDiagnostic?.owner == owner)) {
+                    lastDiagnostic = error
+                    lastErrorKind = BridgeErrorKind.CONNECTION
+                    _lastError.value = errorMessage(error)
+                }
+                persistNotifications()
+            }
+        }
+    }
 
     private val _savedConnections = MutableStateFlow<List<SavedConnection>>(emptyList())
     val savedConnections = _savedConnections.asStateFlow()
@@ -450,6 +489,8 @@ object Bridge {
     }
 
     private fun clearConnectionState() {
+        backgroundTimeoutJob?.cancel()
+        backgroundTimeoutJob = null
         stopStream()
         sessionGeneration.incrementAndGet()
         selectedSessionId = null
@@ -1178,6 +1219,7 @@ object Bridge {
         text: String,
         uploadIds: List<String> = emptyList(),
         attachmentNames: List<String> = emptyList(),
+        uploadedAttachments: List<UploadAttachmentDto> = emptyList(),
         skillIds: List<String> = emptyList(),
         onDone: (Throwable?) -> Unit,
     ) {
@@ -1207,7 +1249,7 @@ object Bridge {
                 .onSuccess { response ->
                     pendingMessages.remove(messageKey, key)
                     persistPendingOperations()
-                    val attachmentLine = if (attachmentNames.isEmpty()) ""
+                    val attachmentLine = if (attachmentNames.isEmpty() || uploadedAttachments.isNotEmpty()) ""
                     else AppLocale.text(
                         "[вложения: ${attachmentNames.joinToString(", ")}]",
                         "[attachments: ${attachmentNames.joinToString(", ")}]",
@@ -1226,6 +1268,7 @@ object Bridge {
                             queued = response.steered,
                             taskId = response.taskId,
                             messageId = response.messageId,
+                            attachments = uploadedAttachments,
                         ),
                     )
                     refreshSessions()
@@ -1319,6 +1362,10 @@ object Bridge {
             }
         }
     }
+
+    fun downloadUploadPreview(sessionId: String, file: UploadAttachmentDto): ByteArray =
+        (client ?: throw IOException(AppLocale.text("Нет подключения к серверу", "No server connection")))
+            .downloadUploadPreview(sessionId, file)
 
     private fun addLocal(sessionId: String, item: TimelineItem) {
         val accumulator = synchronized(timelineLock) { timelines.getOrPut(sessionId) { SessionTimeline(sessionId) } }
@@ -1752,6 +1799,18 @@ object Bridge {
     private fun recordDiagnostic(error: ErrorObservation) {
         val safe=sanitizeDiagnostic(error)
         if(safe.code=="OPERATION.CANCELLED")return
+        synchronized(errorLock) {
+            val age = if (resumedAt < 0) Long.MAX_VALUE else SystemClock.elapsedRealtime() - resumedAt
+            val alreadyVisible = _notifications.value.any { !it.quiet && it.state != "recovered" &&
+                it.diagnostic?.let(::diagnosticFingerprint) == diagnosticFingerprint(safe) }
+            if (shouldQuietBackgroundTimeout(safe, activityVisible, age) && !alreadyVisible) {
+                _notifications.value = mergeNotification(_notifications.value, errorMessage(safe),
+                    BridgeErrorKind.CONNECTION.name, System.currentTimeMillis(), safe, quiet = true)
+                persistNotifications()
+                scheduleBackgroundTimeoutPromotion(safe.owner)
+                return
+            }
+        }
         setLastError(errorMessage(safe),if(safe.code.startsWith("NET.") || safe.code.startsWith("TLS.") || safe.code.startsWith("STREAM."))BridgeErrorKind.CONNECTION else BridgeErrorKind.OPERATION,safe)
     }
 

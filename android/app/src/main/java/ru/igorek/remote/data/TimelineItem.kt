@@ -12,7 +12,20 @@ sealed interface TimelineItem {
         val messageId: String = "",
         val prioritized: Boolean = false,
         val delivered: Boolean = false,
-    ) : TimelineItem
+        val attachments: List<UploadAttachmentDto> = emptyList(),
+    ) : TimelineItem {
+        val displayText: String
+            get() {
+                if (attachments.isEmpty()) return text
+                val names = attachments.joinToString(", ") { it.name }
+                for (label in listOf("вложения", "attachments")) {
+                    val marker = "[$label: $names]"
+                    if (text == marker) return ""
+                    if (text.endsWith("\n\n$marker")) return text.removeSuffix("\n\n$marker")
+                }
+                return text
+            }
+    }
 
     data class AssistantText(
         override val id: String,

@@ -2329,6 +2329,25 @@ body.panel-resizing {
   background:var(--mint)
 }
 
+button.composer-model { cursor:pointer; }
+button.composer-model:hover,button.composer-model[aria-expanded="true"] { border-color:var(--mint); }
+button.composer-model:focus-visible { outline:2px solid var(--mint);outline-offset:3px; }
+.composer-profile-menu { position:fixed;z-index:1200;box-sizing:border-box;overflow-y:auto;padding:14px;
+  border:1px solid var(--line);border-radius:14px;background:var(--panel,#171a1c);color:var(--text,#e5e7eb);
+  box-shadow:0 14px 50px #0008;font:13px var(--sans,sans-serif); }
+.composer-profile-note,.composer-profile-status { margin:8px 0;color:var(--muted);font-size:12px; }
+.composer-profile-status:empty { display:none; }
+.composer-profile-status[role="alert"] { color:#ffb4a4; }
+.composer-profile-list { display:flex;flex-direction:column;gap:5px; }
+.composer-profile-option { display:flex;flex-wrap:wrap;align-items:center;gap:5px 10px;text-align:left;
+  border:1px solid transparent;border-radius:8px;padding:10px;background:transparent;color:inherit;cursor:pointer; }
+.composer-profile-option:hover,.composer-profile-option:focus-visible { background:#ffffff09;border-color:var(--line);outline:none; }
+.composer-profile-option[aria-checked="true"] { border-color:var(--mint); }
+.composer-profile-option:disabled { cursor:wait;opacity:.55; }
+.composer-profile-label { font-weight:600; }
+.composer-profile-model { color:var(--lime);overflow-wrap:anywhere;font:11px var(--mono); }
+.composer-profile-option small { color:var(--muted);font-size:10px; }
+
 .composer-model-profile {
   min-width:0;
   overflow:hidden;

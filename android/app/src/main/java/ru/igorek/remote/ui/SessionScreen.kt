@@ -327,7 +327,7 @@ fun SessionScreen(
             )
         }
     }
-    val notificationEntries = (bridgeNotifications + localNotifications).sortedByDescending { it.lastSeen }
+    val notificationEntries = ru.igorek.remote.data.visibleNotifications(bridgeNotifications + localNotifications).sortedByDescending { it.lastSeen }
     val notificationCount = unreadNotificationCount(notificationEntries)
     fun markAllNotificationsRead() {
         Bridge.markNotificationsRead()
@@ -646,21 +646,6 @@ fun SessionScreen(
                                 }
                             }
                         }
-                        if (pending.isNotEmpty()) {
-                            Row(
-                                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                pending.forEach { item ->
-                                    AssistChip(
-                                        onClick = { if (!sending) pending = pending.filterNot { it.id == item.id } },
-                                        label = { Text(item.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                                        trailingIcon = { Icon(Icons.Default.Close, contentDescription = uiText("Убрать", "Remove")) },
-                                    )
-                                }
-                            }
-                        }
                         if (selectedSkillIds.isNotEmpty()) {
                             Row(
                                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
@@ -722,6 +707,22 @@ fun SessionScreen(
                             border = BorderStroke(1.dp, if (composerFocused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
                         ) {
                             Column(Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
+                                if (pending.isNotEmpty()) {
+                                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(6.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        pending.forEach { item ->
+                                            if (item.mimeType.startsWith("image/")) {
+                                                PendingImagePreview(item.bytes, item.name, !sending) {
+                                                    pending = pending.filterNot { it.id == item.id }
+                                                }
+                                            } else {
+                                                AssistChip(onClick = { if (!sending) pending = pending.filterNot { it.id == item.id } },
+                                                    label = { Text(item.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                                    trailingIcon = { Icon(Icons.Default.Close, contentDescription = uiText("Убрать", "Remove")) })
+                                            }
+                                        }
+                                    }
+                                }
                                 BasicTextField(
                                     value = draft,
                                     onValueChange = { draft = it },
@@ -862,6 +863,9 @@ fun SessionScreen(
                                                         break
                                                     }
                                                     uploadIds += uploadId
+                                                    if (item.mimeType.startsWith("image/")) withContext(Dispatchers.IO) {
+                                                        runCatching { storeUploadPreview(context, Bridge.serverUrl.value, sessionId, uploadId, item.bytes) }
+                                                    }
                                                 }
                                                 if (failure != null) {
                                                     sending = false
@@ -876,6 +880,10 @@ fun SessionScreen(
                                                     text = text,
                                                     uploadIds = uploadIds,
                                                     attachmentNames = outgoingAttachments.map { it.name },
+                                                    uploadedAttachments = outgoingAttachments.zip(uploadIds).map { (item, id) ->
+                                                        ru.igorek.remote.data.UploadAttachmentDto(id, item.name, item.bytes.size.toLong(), item.mimeType,
+                                                            if (item.mimeType.startsWith("image/")) "image" else "file")
+                                                    },
                                                     skillIds = outgoingSkills,
                                                 ) { error ->
                                                     sending = false

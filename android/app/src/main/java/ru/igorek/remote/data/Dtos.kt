@@ -248,6 +248,7 @@ data class MessageDto(
     @SerialName("tool_input") val toolInput: JsonElement = JsonObject(emptyMap()),
     @SerialName("tool_output") val toolOutput: String = "",
     @SerialName("tool_status") val toolStatus: String = "done",
+    val attachments: List<UploadAttachmentDto> = emptyList(),
 )
 
 @Serializable
@@ -402,6 +403,17 @@ data class SandboxSettingsResponse(
 
 @Serializable
 data class EventsResponse(val events: List<BridgeEvent> = emptyList())
+
+@Serializable
+data class UploadAttachmentDto(
+    @SerialName("upload_id") val uploadId: String,
+    val name: String,
+    val size: Long = 0,
+    @SerialName("mime_type") val mimeType: String = "application/octet-stream",
+    val kind: String = "file",
+) {
+    val isImage: Boolean get() = mimeType.startsWith("image/") || kind == "image"
+}
 
 @Serializable
 data class AttachmentDto(

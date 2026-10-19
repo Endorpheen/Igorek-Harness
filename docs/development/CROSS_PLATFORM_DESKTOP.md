@@ -100,3 +100,7 @@ Candidates are unsigned until a publisher identity and signing pipeline exist.
 Stable release publication must collect accepted Linux/Windows artifacts from
 the same source revision, their checksums and signing/provenance records. Current hosted results are recorded in [TestLOG.md](TestLOG.md); a configured
 workflow alone is not evidence of a successful run.
+
+### Composer profile selection
+
+The profile/model badge is a keyboard-accessible button on both chat surfaces. Its menu lists verified connections from the owner-managed profile catalogue. Selecting one activates its worker and updates the idle chat through the authenticated profile endpoint; it retains the session ID, transcript, workspace, draft and attachments. Busy tasks prevent switching. Each real profile change rotates the session approval generation so earlier tool grants do not carry over, including when returning to a previously selected profile. The menu reports startup failures and ignores stale replies after navigation.
