@@ -40,7 +40,11 @@ time.sleep(30)
     assert proof['environment']['HOME'].startswith(str(output))
     child = Path('/proc') / str(proof['child']) / 'stat'
     for _ in range(50):
-        if not child.exists() or child.read_text().split()[2] == 'Z':
+        try:
+            state = child.read_text().split()[2]
+        except (FileNotFoundError, ProcessLookupError):
+            break
+        if state == 'Z':
             break
         time.sleep(0.02)
     else:

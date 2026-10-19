@@ -37,6 +37,18 @@ def test_snapshot_preserves_dirty_and_untracked_files_without_sharing_git(projec
     assert (project / 'code.py').read_text() == 'dirty\n'
 
 
+def test_private_snapshot_disables_background_maintenance_without_changing_source_config(project, tmp_path):
+    snapshots.git(project, 'config', 'maintenance.auto', 'true')
+    snapshots.git(project, 'config', 'gc.auto', '1')
+    folder = tmp_path / 'task'
+    workspace = snapshots.prepare(str(project), folder)
+    assert snapshots.git(workspace, 'config', '--get', 'maintenance.auto').strip() == b'false'
+    assert snapshots.git(workspace, 'config', '--get', 'gc.auto').strip() == b'0'
+    assert snapshots.git(folder, '--git-dir=baseline.git', 'config', '--get', 'maintenance.auto').strip() == b'false'
+    assert snapshots.git(project, 'config', '--get', 'maintenance.auto').strip() == b'true'
+    assert snapshots.git(project, 'config', '--get', 'gc.auto').strip() == b'1'
+
+
 def test_apply_preserves_unrelated_work_and_detects_same_file_conflict(project, tmp_path):
     folder = tmp_path / 'task'
     workspace = snapshots.prepare(str(project), folder)
