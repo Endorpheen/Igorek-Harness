@@ -20,6 +20,8 @@ Existing notifications show codes, references, state and known attempt informati
 
 Use the existing diagnostic-copy action on desktop/web. On Android, long-press a notification to copy the local safe snapshot. The snapshot contains bounded metadata, recent observations and diagnostic-writer health, without raw prompts, tool input, tokens or private connection addresses. No automatic diagnostic upload is configured.
 
+Long-pressing any Android card copies the overall retained diagnostic snapshot, not just that card; a short message confirms copying to the clipboard. The notification-center send icon also prepares an overall report. Selecting an individual incident is not currently supported.
+
 ## Data flow
 
 ```mermaid

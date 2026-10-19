@@ -11,6 +11,7 @@ import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.CompositionLocalProvider
@@ -23,6 +24,7 @@ import ru.igorek.remote.ui.IgorekTheme
 import ru.igorek.remote.ui.LocalAppLanguage
 import ru.igorek.remote.ui.SessionScreen
 import java.io.File
+import java.util.concurrent.CopyOnWriteArrayList
 
 class NotificationsInstrumentation : Instrumentation() {
     override fun onCreate(arguments: Bundle?) { super.onCreate(arguments); start() }
@@ -48,7 +50,7 @@ class NotificationsInstrumentation : Instrumentation() {
         error("Timed out: $label")
     }
 
-    private fun tap(label: String) {
+    private fun tap(label: String, holdMs: Long = 60) {
         waitFor(label) { find(label) != null }
         waitForIdleSync()
         Thread.sleep(150)
@@ -57,7 +59,7 @@ class NotificationsInstrumentation : Instrumentation() {
         val down = MotionEvent.obtain(time, time, MotionEvent.ACTION_DOWN,
             box.centerX().toFloat(), box.centerY().toFloat(), 0)
         check(uiAutomation.injectInputEvent(down, true)); down.recycle()
-        Thread.sleep(60)
+        Thread.sleep(holdMs)
         val up = MotionEvent.obtain(time, SystemClock.uptimeMillis(), MotionEvent.ACTION_UP,
             box.centerX().toFloat(), box.centerY().toFloat(), 0)
         check(uiAutomation.injectInputEvent(up, true)); up.recycle()
@@ -108,6 +110,25 @@ class NotificationsInstrumentation : Instrumentation() {
                     image.compress(Bitmap.CompressFormat.PNG, 100, it)
                 }; image.recycle()
             }
+            val feedback = CopyOnWriteArrayList<String>()
+            uiAutomation.setOnAccessibilityEventListener { event ->
+                if (event.eventType == AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED) {
+                    feedback.addAll(event.text.map { it.toString() })
+                }
+            }
+            tap(repeatedText, holdMs = 850)
+            waitFor("visible diagnostic copy confirmation") {
+                feedback.any { it.contains("Diagnostics copied to clipboard") } ||
+                    find("Diagnostics copied to clipboard") != null
+            }
+            var copied = ""
+            runOnMainSync {
+                val clipboard = targetContext.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                    as android.content.ClipboardManager
+                copied = clipboard.primaryClip?.getItemAt(0)?.text?.toString().orEmpty()
+            }
+            check(copied.contains("recovered-incident") && copied.contains("new-incident"))
+            uiAutomation.setOnAccessibilityEventListener(null)
             tap("Mark read")
             waitFor("acknowledged incidents") { notifications.value.all { it.read } }
             check(notifications.value.first().state == "recovered")
@@ -124,7 +145,7 @@ class NotificationsInstrumentation : Instrumentation() {
             waitFor("cleared notification list") { notifications.value.isEmpty() }
             waitForIdleSync()
             sendStatus(0, Bundle().apply { putString("stream",
-                "NOTIFICATIONS_PASS: repeated-text incidents open, acknowledge, reopen, preview, cancel and clear\n") })
+                "NOTIFICATIONS_PASS: repeated-text incidents open, long-press copies with visible confirmation, acknowledge, reopen, preview, cancel and clear\n") })
             finish(Activity.RESULT_OK, Bundle())
         } catch (error: Throwable) {
             val folder = targetContext.getExternalFilesDir("notifications-qa")!!; folder.mkdirs()

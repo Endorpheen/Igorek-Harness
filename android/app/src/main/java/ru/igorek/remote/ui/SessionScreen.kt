@@ -18,6 +18,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 
 import android.content.Context
+import android.widget.Toast
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -1065,9 +1066,14 @@ fun SessionScreen(
 @OptIn(ExperimentalFoundationApi::class)
 private fun NotificationCard(entry: NotificationEntry) {
     val clipboard=LocalClipboardManager.current
+    val context = LocalContext.current
+    val copiedMessage = uiText("Диагностика скопирована в буфер обмена", "Diagnostics copied to clipboard")
     Surface(
         modifier=Modifier.combinedClickable(onClick={},onLongClickLabel=uiText("Скопировать диагностику","Copy diagnostics"),
-            onLongClick={clipboard.setText(AnnotatedString(Bridge.diagnosticSnapshot()))}),
+            onLongClick={
+                clipboard.setText(AnnotatedString(Bridge.diagnosticSnapshot()))
+                Toast.makeText(context, copiedMessage, Toast.LENGTH_SHORT).show()
+            }),
         shape = RoundedCornerShape(12.dp),
         color = if(entry.state=="recovered")MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.errorContainer,
     ) {

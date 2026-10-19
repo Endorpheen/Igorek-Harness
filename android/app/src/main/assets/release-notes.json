@@ -1,7 +1,27 @@
 {
-  "versionName": "0.1.109",
-  "versionCode": 110,
+  "versionName": "0.1.110",
+  "versionCode": 111,
   "changes": [
+    {
+      "ru": {
+        "title": "Подтверждение копирования диагностики",
+        "text": "После удержания карточки ошибки появляется сообщение: «Диагностика скопирована в буфер обмена»."
+      },
+      "en": {
+        "title": "Diagnostic copy confirmation",
+        "text": "Long-pressing an error card now displays a confirmation that diagnostics were copied to the clipboard."
+      }
+    },
+    {
+      "ru": {
+        "title": "Понятное сообщение об ошибке связи",
+        "text": "Если причина сбоя неизвестна, уведомление теперь прямо говорит: «Причину сбоя определить не удалось»."
+      },
+      "en": {
+        "title": "Clearer connection error wording",
+        "text": "The Russian connection error message now clearly states when the cause of the failure could not be determined."
+      }
+    },
     {
       "ru": {
         "title": "Исправлено открытие уведомлений",
