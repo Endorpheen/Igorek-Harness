@@ -74,6 +74,7 @@ contextBridge.exposeInMainWorld('igorekVault', {
   chooseWorkspace: () => invoke('igorek:owner-workspace', 'choose'),
   openWorkspaceSession: () => invoke('igorek:owner-workspace', 'open-session'),
   returnToChat: () => invoke('igorek:owner-return-to-chat'),
+  openOpenCode: () => invoke('igorek:owner-open-opencode'),
   mobile: (action,fields={}) => invoke('igorek:owner-vault',action,fields),
   dataLocations: () => invoke('igorek:owner-locations'),
   changePassword: (current, new_password) => invoke('igorek:owner-vault', 'change_password', { current, new_password }),

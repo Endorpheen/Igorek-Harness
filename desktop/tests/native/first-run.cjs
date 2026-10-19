@@ -195,6 +195,10 @@ print(json.dumps({'files':True}))`;
     stage('packaged_file_tools_and_workspace_scope');
     assert.equal((await owner('status')).state, 'not_initialized');
     await owner('create', { password: 'fixture-password' });
+    await require('./onboarding-entry.cjs').verifyOnboardingEntry({
+      runtime, config, dataDir, appRoot, root, output, BrowserWindow, ipcMain, clickNative, until,
+    });
+    stage('model_setup_can_be_deferred_for_opencode');
     const saved = await owner('save_profile', { name: 'qa-first-task', model: 'fixture-model',
       base_url: 'http://127.0.0.1:' + server.address().port + '/v1', api_format: 'openai', api_key: 'fixture-only-key' });
     const identity = saved.saved_profile.credential_id;
@@ -252,8 +256,6 @@ print(json.dumps({'files':True}))`;
       try { valid = request.hostname === '127.0.0.1' && new X509Certificate(request.certificate.data).fingerprint256 === fingerprint; } catch {}
       callback(valid ? 0 : -3);
     });
-    await loadNativeChat();
-    await api('/api/pair', { code: config.pairingCode });
     await loadNativeChat();
     const session = await api('/api/sessions', { profile: 'qa-first-task', cwd: path.join(dataDir, 'workspace'), idempotency_key: 'qa-session' });
     const route = '/api/sessions/' + session.session_id;

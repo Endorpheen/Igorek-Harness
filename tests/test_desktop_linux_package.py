@@ -245,6 +245,37 @@ class FakeDialogs:
         self.authenticated = True
 
 
+def test_menu_icon_tracks_updates_and_rollback(source, tmp_path):
+    prefix, data_home = tmp_path / 'installed', tmp_path / 'menu'
+    package.build(source, tmp_path / 'first')
+    first = installer.install(tmp_path / 'first/igorek-desktop', prefix)['current']
+    entry = gui.register_menu(prefix, data_home)
+    first_icon = prefix / 'active/current/app/assets/igorek.png'
+    assert 'Icon=' + str(first_icon) + '\n' in entry.read_text()
+    original_icon = first_icon.read_bytes()
+    original_entry = entry.read_text()
+    assert 'Exec="' + str(prefix / 'active/current/install-gui.sh') + '"' in original_entry
+    (source / 'desktop/assets/igorek.png').write_bytes(b'updated-icon-fixture')
+    package.build(source, tmp_path / 'second')
+    second = installer.install(tmp_path / 'second/igorek-desktop', prefix)['current']
+    assert second != first
+    assert first_icon.read_bytes() != original_icon
+    assert entry.read_text() == original_entry
+    assert 'Exec="' + str(prefix / 'igorek') + '"\n' in entry.read_text()
+    installer.rollback(prefix)
+    assert entry.read_text() == original_entry
+    assert 'Icon=' + str(first_icon) + '\n' in entry.read_text()
+    assert first_icon.read_bytes() == original_icon
+
+
+def test_menu_keeps_stable_svg_fallback_for_legacy_snapshot(tmp_path):
+    prefix = tmp_path / 'installed'
+    current = prefix / 'active/current'
+    current.mkdir(parents=True)
+    (current / 'igorek.svg').write_text('<svg/>')
+    assert 'Icon=' + str(current / 'igorek.svg') + '\n' in gui.menu_content(prefix, tmp_path, current)
+
+
 def test_graphical_install_and_menu_entry(source, tmp_path, monkeypatch):
     import subprocess
     package.build(source, tmp_path / 'snapshot'); root = tmp_path / 'snapshot/igorek-desktop'
@@ -304,7 +335,9 @@ def test_graphical_rollback_keeps_management_for_older_snapshot(source, tmp_path
     dialogs = FakeDialogs('rollback')
     assert gui.run(second, prefix, tmp_path / 'menu', dialogs) == 0
     content = (tmp_path / 'menu/applications/igorek-desktop.desktop').read_text()
-    assert str(prefix / 'releases' / new_id / 'install-gui.sh') in content
+    management = prefix / 'active/previous/install-gui.sh'
+    assert str(management) in content
+    assert management.resolve() == prefix / 'releases' / new_id / 'install-gui.sh'
     assert gui.installer.state(prefix)['current'] == manifest['build_id']
 
 

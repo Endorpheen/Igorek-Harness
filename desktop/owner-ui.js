@@ -210,6 +210,12 @@ const errors = {
   profile_exists: 'Профиль с таким именем уже сохранён. Выберите другое имя; прежние настройки и ключ не менялись.',
 };
 function renderOnboarding() {
+  const canContinue = state === 'unlocked' && !interfaceLocked;
+  el('onboarding-alternatives').hidden = !canContinue;
+  for (const id of ['onboarding-later', 'onboarding-opencode']) {
+    el(id).dataset.unavailable = String(!canContinue);
+    el(id).disabled = !canContinue || el('refresh').disabled;
+  }
   el('execution-save').dataset.unavailable = String(state !== 'unlocked' || agent.running || imageRunning);
   el('execution-save').disabled = el('execution-save').dataset.unavailable === 'true' || el('refresh').disabled;
   el('execution-mode').disabled = state !== 'unlocked' || agent.running || imageRunning;
@@ -260,6 +266,18 @@ function renderOnboarding() {
 el('onboarding-profile').addEventListener('change', () => {
   onboardingRevision += 1;
   selectedProfileId = el('onboarding-profile').value; renderOnboarding();
+});
+el('onboarding-later').addEventListener('click', () => {
+  if (state === 'unlocked' && !interfaceLocked && !el('refresh').disabled) el('return-to-chat').click();
+});
+el('onboarding-opencode').addEventListener('click', async () => {
+  if (state !== 'unlocked' || interfaceLocked || el('refresh').disabled) return;
+  cancelProfileEdit(); clearPasswordFields();
+  el('onboarding-opencode').disabled = true;
+  el('error').textContent = '';
+  try { await window.igorekVault.openOpenCode(); }
+  catch { el('error').textContent = 'Не удалось открыть OpenCode. Повторите переход из основного окна.'; }
+  finally { renderOnboarding(); }
 });
 async function refreshOnboardingProgress() {
   if (state !== 'unlocked' || interfaceLocked || activePanel !== 'start' || document.hidden

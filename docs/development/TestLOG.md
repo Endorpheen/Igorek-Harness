@@ -1,3 +1,9 @@
+## 2026-10-19 — First-run model deferral and Linux launcher, 0.2.15 preparation
+
+- Added explicit model-later and OpenCode entries after Vault unlock, with no primary-model/worker/first-task prerequisite. The owner IPC retains exact main-frame, current-window, origin and Vault/interface-lock guards. The native tour now requires a first-run OpenCode entry with no saved profile or worker and a real settings/main-window transition.
+- Linux menu metadata retains the active-generation path for the octopus PNG and management action, including update/rollback and the legacy SVG/management fallback. The existing installation launcher remains the application entry.
+- Targeted checks passed: 98 desktop contracts and 93 Python provider/installer/package regressions. Initial fixture assertions were corrected to exercise mutable window identity and logical active-generation paths; the legacy management fallback still resolves to the expected retained snapshot. An earlier temporary-filesystem quota failure was infrastructure-only; the complete targeted Python selection passed with isolated workspace temporary data. Full locked suites, native acceptance and final packages are pending at this entry.
+
 ## 2026-10-19 — Model connection-check timeout
 
 - Increased the HTTP/HTTPS socket timeout and response-read deadline from 10 to 30 seconds. Added four delayed-response regressions covering both transports, accepting a 12-second response and retaining the timeout after 30 seconds.

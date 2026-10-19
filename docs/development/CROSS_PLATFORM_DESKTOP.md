@@ -8,6 +8,17 @@ acceptance and publisher signing remain stable-release gates.
 
 ## Platform contracts
 
+After creating or unlocking Vault, first-run setup offers **Set up the model
+later** and **Open OpenCode**. Neither action requires a saved primary model,
+a successful API check, a running worker or a completed first task. OpenCode
+keeps its own provider configuration. Deferring setup does not mark the primary
+model guide complete; Vault and interface-lock checks still apply.
+
+The Linux menu entry uses the installation launcher and the octopus PNG through
+the active-generation path. Its management action also follows the active
+generation, so updates and rollback do not leave an entry pinned to an older
+release directory. Legacy snapshots retain a stable SVG fallback.
+
 | Contract | Linux | Windows preview |
 | --- | --- | --- |
 | Vault ownership | Kernel `flock` lease | Exclusive file handle, released on process exit |

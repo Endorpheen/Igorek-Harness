@@ -32,11 +32,16 @@ def desktop_exec(path: Path):
 
 
 def menu_content(prefix: Path, data_home: Path, management_root: Path):
+    icon = prefix / 'active/current/app/assets/igorek.png'
+    if not icon.is_file():
+        icon = prefix / 'active/current/igorek.svg'
+    if not icon.is_file():
+        raise ValueError('Installed snapshot has no application icon')
     return '\n'.join([
         '[Desktop Entry]', 'Type=Application', 'Name=Игорёк',
         'Comment=Агентная рабочая среда', 'Terminal=false', 'Categories=Development;',
         'Exec=' + desktop_exec(prefix / 'igorek'),
-        'Icon=' + desktop_string(str(prefix / 'active/current/igorek.svg')),
+        'Icon=' + desktop_string(str(icon)),
         'StartupWMClass=igorek-desktop',
         'X-Igorek-Installer=1', 'X-Igorek-InstallRoot=' + desktop_string(str(prefix)),
         'Actions=Manage;', '', '[Desktop Action Manage]', 'Name=Установка и откат',
@@ -50,7 +55,7 @@ def register_menu(prefix: Path, data_home: Path):
     installed = installer.state(prefix)
     if not installed['current']:
         raise ValueError('No installed snapshot')
-    candidates = [prefix / 'releases' / build_id for build_id in [installed['current'], installed['previous']] if build_id]
+    candidates = [prefix / 'active' / name for name in ['current', 'previous'] if installed[name]]
     management_root = next((root for root in candidates if (root / 'install-gui.sh').is_file()), None)
     if management_root is None:
         raise ValueError('Installed snapshots have no graphical installer')

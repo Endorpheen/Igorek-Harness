@@ -1,6 +1,6 @@
 const { app, BrowserWindow, WebContentsView, session: electronSession, Notification, dialog, Menu, shell, ipcMain, nativeTheme, contentTracing } = require('electron');
 const { pathToFileURL } = require('node:url');
-const { isOwnerFrame, shouldRefreshProfiles, ownedDataLocations } = require('./owner-policy.cjs');
+const { isOwnerFrame, shouldRefreshProfiles, ownedDataLocations, ownerOpenCodeHandler } = require('./owner-policy.cjs');
 const { installedImage } = require('./installed-image.cjs');
 const { updateDialog } = require('./release-updates-ui.cjs');
 const { createUpdatePresentation } = require('./release-progress.cjs');
@@ -337,6 +337,11 @@ ipcMain.handle('igorek:owner-return-to-chat', event => {
   window.focus();
   return true;
 });
+ipcMain.handle('igorek:owner-open-opencode', ownerOpenCodeHandler({
+  owner: () => ownerWindow, main: () => window, ownerUrl, origin: () => config?.origin, sameOrigin,
+  available: () => Boolean(managed && runtime && opencodeService && opencodeWorkspace),
+  requestStatus: () => runtime.requestOwner('status'),
+}));
 
 ipcMain.handle('igorek:browser-control-settings', async (event,value) => {
   if(!isOwnerFrame(event,ownerWindow?.webContents,ownerUrl)||!workspaceBrowser)throw Error('Доступ запрещён.');
