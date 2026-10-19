@@ -81,7 +81,8 @@ class MobileUiInstrumentation : Instrumentation() {
             val codec = Json { ignoreUnknownKeys = true }
             val message = codec.decodeFromString<MessageDto>("""{"role":"user","text":"Fixture image message","task_id":"task","message_id":"message","attachments":[{"upload_id":"$upload","name":"fixture.png","size":${bytes.size},"mime_type":"image/png","kind":"image"}]}""")
             storeUploadPreview(targetContext, Bridge.serverUrl.value, "chat-image-fixture", upload, bytes)
-            val timeline = SessionTimeline("chat-image-fixture"); timeline.seedFromHistory(listOf(message))
+            val timeline = SessionTimeline("chat-image-fixture")
+            timeline.seedFromHistory(listOf(message.copy(text = "Fixture image message\n\n[attachments: fixture.png]")))
             val sent = timeline.snapshot().filterIsInstance<TimelineItem.UserText>().single()
             val showDraft = mutableStateOf(true)
             fun renderImages() = runOnMainSync {
@@ -97,6 +98,8 @@ class MobileUiInstrumentation : Instrumentation() {
             }
             renderImages()
             waitFor("two decoded thumbnails") { nodes("Thumbnail: fixture.png").size == 2 }
+            check(nodes("Fixture image message").isNotEmpty())
+            check(nodes("Fixture image message\n\n[attachments: fixture.png]").isEmpty())
             uiAutomation.takeScreenshot()!!.let { image ->
                 val pixels = image.copy(Bitmap.Config.ARGB_8888, false)
                 var colored = 0
