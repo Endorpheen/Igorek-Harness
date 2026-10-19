@@ -25,7 +25,7 @@ async function verifyOnboardingEntry({ runtime, config, dataDir, appRoot, root, 
     settings = new BrowserWindow({ show: true, width: 1280, height: 900,
       webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, preload: path.join(appRoot, 'owner-preload.cjs') } });
     await settings.loadURL(ownerUrl);
-    await until(() => settings.webContents.executeJavaScript("document.getElementById('onboarding-steps').children.length===5"), 'Onboarding guide did not load');
+    await until(() => settings.webContents.executeJavaScript("document.getElementById('onboarding-steps').children.length===5&&!document.getElementById('refresh').disabled"), 'Onboarding guide did not finish loading');
   };
   try {
     handle('igorek:owner-vault', (event, action, fields) => {

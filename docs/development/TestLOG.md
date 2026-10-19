@@ -2,6 +2,8 @@
 
 - Android 0.1.112 (113) removes the redundant generated attachment line when structured attachments provide thumbnails/filenames. Exact matching Russian and English legacy suffixes are hidden in restored messages without rewriting stored text; messages without metadata and unrelated prose retain their fallback text. Added regressions for image-only messages, both languages, multiple filenames and preservation of unrelated text.
 - Added the same native composer/profile acceptance to hosted Linux and Windows checks. Existing complete Python, desktop and native Android results are recorded below; final release checks, protected merge and package acceptance are pending.
+- The first hosted Windows native run stopped at the existing onboarding-unlock fixture; its unchanged diagnostic rerun completed all 12 stages. The fixture previously waited only for rendered guide rows, while the initial status action could still clear the password field before re-enabling controls. It now also waits for the status action to re-enable the refresh control before entering the fixture password. Product logic and timeouts remain unchanged; assertions remain enabled and final CI is repeated.
+
 
 ## 2026-10-19 — Composer profile selection and Android attachment/reconnect fixes
 
