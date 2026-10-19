@@ -30,7 +30,7 @@ async function run() {
   const calls = [];
   const navigationHints = [];
   const navigationPreload = path.join(root, 'navigation-preload.cjs');
-  fs.writeFileSync(navigationPreload, "const {contextBridge,ipcRenderer}=require('electron'); contextBridge.exposeInMainWorld('IgorekDesktop',{navigation:(action,id)=>ipcRenderer.invoke('igorek:ui-navigation',action,id)});contextBridge.exposeInMainWorld('IgorekWindow',{menu:async()=>{},control:async()=>{}});contextBridge.exposeInMainWorld('IgorekNotifications',{support:value=>ipcRenderer.invoke('igorek:diagnostic-support',value),list:()=>ipcRenderer.invoke('igorek:notifications','list'),read:()=>ipcRenderer.invoke('igorek:notifications','read'),clear:()=>ipcRenderer.invoke('igorek:notifications','clear'),onChange:callback=>ipcRenderer.on('igorek:notifications-changed',(_,items)=>callback(items))});");
+  fs.writeFileSync(navigationPreload, "const {contextBridge,ipcRenderer}=require('electron'); contextBridge.exposeInMainWorld('IgorekDesktop',{navigation:(action,id)=>ipcRenderer.invoke('igorek:ui-navigation',action,id)});contextBridge.exposeInMainWorld('IgorekWindow',{menu:async()=>{},control:async()=>{}});contextBridge.exposeInMainWorld('IgorekNotifications',{support:value=>ipcRenderer.invoke('igorek:diagnostic-support',value),snapshot:()=>ipcRenderer.invoke('igorek:notifications','snapshot'),list:()=>ipcRenderer.invoke('igorek:notifications','list'),read:()=>ipcRenderer.invoke('igorek:notifications','read'),clear:()=>ipcRenderer.invoke('igorek:notifications','clear'),onChange:callback=>ipcRenderer.on('igorek:notifications-changed',(_,items)=>callback(items))});");
 
   // OwnedRuntime reads these host paths explicitly; give every one a synthetic root.
   process.env.HOME = path.join(root, 'host');
@@ -218,6 +218,7 @@ print(json.dumps({'files':True}))`;
         chooseFile:async()=>({filePath:supportFile}),openComposer:async url=>{supportComposer=url;},isActive:()=>diagnosticSupport.previewIsOpen(chat.webContents,value.report?.report_id)});
     });
     ipcMain.handle('igorek:notifications', (_,action) => {
+      if(action==='snapshot')return notificationStore.report();
       const items=action==='read'?notificationStore.read():action==='clear'?notificationStore.clear():notificationStore.snapshot();
       for(const target of BrowserWindow.getAllWindows())if(!target.isDestroyed())target.webContents.send('igorek:notifications-changed',items);
       return items;
@@ -333,6 +334,8 @@ print(json.dumps({'files':True}))`;
     await clickNative(chat,'#igorek-notification-support');
     await until(()=>chat.webContents.executeJavaScript("Boolean(document.getElementById('igorek-diagnostic-support')?.open)&&!document.getElementById('diagnostic-support-save').disabled"),'Diagnostic report preview did not reopen');
     const reviewedReport=await chat.webContents.executeJavaScript("JSON.parse(document.querySelector('.diagnostic-support-preview').textContent)");
+    assert.equal(reviewedReport.local.available,true);
+    assert.ok(reviewedReport.local.incidents.some(item=>item.error.owner==='native-fixture' && item.error.code==='NET.CONNECTION_RESET'));
     assert.ok(!JSON.stringify(reviewedReport).includes('Fixture transport interruption'));
     fs.writeFileSync(path.join(output,'diagnostic-support-preview.png'),(await chat.webContents.capturePage()).toPNG());
     await clickNative(chat,'#diagnostic-support-save');
