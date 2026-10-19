@@ -15,7 +15,7 @@ import time
 from urllib.parse import urlsplit, urlunsplit
 from uuid import uuid4
 
-CATALOG = json.loads((Path(__file__).resolve().parents[1] / 'config/error-catalog.json').read_text())
+CATALOG = json.loads((Path(__file__).resolve().parents[1] / 'config/error-catalog.json').read_text(encoding='utf-8'))
 CODES = CATALOG['codes']
 _ID = re.compile(r'[A-Za-z0-9_.:-]{1,160}')
 _FIELDS = {'event_id', 'code', 'component', 'operation', 'endpoint_role', 'owner', 'phase', 'delivery',
@@ -226,7 +226,7 @@ class IncidentJournal:
         try:
             if self.path.stat().st_size > 524288:
                 raise ValueError('Journal too large')
-            data = json.loads(self.path.read_text())
+            data = json.loads(self.path.read_text(encoding='utf-8'))
             self.items = [x for x in data.get('incidents', []) if isinstance(x, dict) and isinstance(x.get('incident_id'), str)][-self.limit:]
             for item in self.items:
                 item['error'] = sanitize_observation(item.get('error'))

@@ -9,7 +9,7 @@ from factory.core.diagnostics import classify_error, observation, retry_decision
 
 class ErrorDiagnosticsTest(unittest.TestCase):
     def test_shared_native_and_http_classification(self):
-        cases = json.loads(Path('tests/fixtures/diagnostics/classification.json').read_text())
+        cases = json.loads(Path('tests/fixtures/diagnostics/classification.json').read_text(encoding='utf-8'))
         for case in cases:
             with self.subTest(case=case):
                 self.assertEqual(classify_error(**case['input']), case['code'])
@@ -70,7 +70,25 @@ class ErrorDiagnosticsTest(unittest.TestCase):
     def test_generated_client_catalogues_are_current(self):
         from tools.generate_error_contract import outputs, ROOT
         for name, expected in outputs().items():
-            self.assertEqual((ROOT/name).read_text(), expected, name)
+            self.assertEqual((ROOT/name).read_text(encoding='utf-8'), expected, name)
+
+    def test_catalogue_and_generator_ignore_a_non_utf8_platform_default(self):
+        import runpy
+        from unittest.mock import patch
+        from factory.core.diagnostics import CATALOG
+        from tools.generate_error_contract import outputs
+
+        original = Path.read_text
+
+        def legacy_default(path, *args, **kwargs):
+            kwargs.setdefault('encoding', 'cp1252')
+            return original(path, *args, **kwargs)
+
+        expected = outputs()
+        with patch.object(Path, 'read_text', legacy_default):
+            loaded = runpy.run_path('factory/core/diagnostics.py')
+            self.assertEqual(loaded['CATALOG'], CATALOG)
+            self.assertEqual(outputs(), expected)
 
     def test_diagnostic_sanitization_preserves_semantic_booleans_and_counters(self):
         original={'is_secret':False,'token_count':17,'authorization':'Bearer fixture-private','input':'token=fixture-private'}
