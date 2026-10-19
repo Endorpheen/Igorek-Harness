@@ -11,6 +11,39 @@ SITE = Path(__file__).resolve().parent
 REPOSITORY = 'https://github.com/Endorpheen/Igorek-Harness'
 
 
+def citation_parts(label):
+    match = re.fullmatch(r'(?:non-cited:\s*)?`?([.\w/-]+)(?::([\d,\s-]+))?`?', label)
+    if not match:
+        return None
+    path, ranges = match.groups()
+    if '/' not in path and path not in {'AGENTS.md', 'README.md', 'README.ru.md', 'pyproject.toml', 'uv.lock', '.gitignore', '.gitleaks.toml', '.gitattributes'}:
+        return None
+    numbers = list(map(int, re.findall(r'\d+', ranges or '')))
+    return path, min(numbers) if numbers else None, max(numbers) if len(numbers) > 1 else None
+
+
+def normalize_citations(text):
+    text = re.sub(r'\[`([^`\]\n]+)`?\]\(\)', lambda m: '[' + m[1] + ']()' if citation_parts(m[1]) else m[0], text)
+    def inline(match, allow_path=False):
+        body = match[1]
+        label = body.removesuffix('()')
+        if citation_parts(label) and (allow_path or re.search(r':\d', label)):
+            return '[' + label + ']()'
+        entries = re.split(r',\s*(?=\[)', body)
+        if all(re.fullmatch(r'\[([^\]]+)\](?:\(\))?', entry) and citation_parts(re.fullmatch(r'\[([^\]]+)\](?:\(\))?', entry)[1]) for entry in entries):
+            return body
+        return match[0]
+    lines = []
+    for line in text.splitlines(keepends=True):
+        source_line = bool(re.match(r'^\s*[*_]?(?:Sources?|Источники):', line))
+        lines.append(re.sub(r'`([^`\n]+)`', lambda m: inline(m, source_line), line))
+    text = ''.join(lines)
+    def bare(match):
+        return match[0] + '()' if citation_parts(match[1]) and re.search(r':\d', match[1]) else match[0]
+    parts = re.split(r'(`[^`\n]+`)', text)
+    return ''.join(part if part.startswith('`') else re.sub(r'(?<!!)\[([^\]\n]+)\](?!\()', bare, part) for part in parts)
+
+
 def mermaid_source(source):
     source = re.sub(r'(?<=[\[({])""', '"', source)
     source = re.sub(r'""(?=[\])}])', '"', source)
@@ -102,12 +135,9 @@ def on_page_markdown(markdown, page, config, files):
     def link(match):
         label, target = match.group(1), match.group(2)
         if not target:
-            citation = re.fullmatch(r'(?:non-cited:\s*)?`?([.\w/-]+)(?::([\d,\s-]+))?`?', label)
+            citation = citation_parts(label)
             if citation:
-                path, ranges = citation.groups()
-                if '/' in path or path in {'AGENTS.md', 'README.md', 'README.ru.md', 'pyproject.toml', 'uv.lock', '.gitignore', '.gitleaks.toml', '.gitattributes'}:
-                    numbers = list(map(int, re.findall(r'\d+', ranges or '')))
-                    return '[' + label + '](' + source_link(path, min(numbers) if numbers else None, max(numbers) if len(numbers) > 1 else None) + ')'
+                return '[' + label.strip('`') + '](' + source_link(*citation) + ')'
             return match.group(0)
         if re.fullmatch(r'#[0-9]+(?:\.[0-9]+)*', target):
             destination = next(base.rglob(target[1:] + '-*.md'), None)
@@ -131,6 +161,7 @@ def on_page_markdown(markdown, page, config, files):
             body, _, closing = body.rpartition('```')
             part = first + '\n' + mermaid_source(body) + '\n```' + closing
         elif not part.startswith('```'):
-            part = re.sub(r'(?<!!)\[([^\]]+)\]\(([^)]*)\)', link, part)
+            inline_parts = re.split(r'(`[^`\n]+`)', normalize_citations(part))
+            part = ''.join(piece if piece.startswith('`') else re.sub(r'(?<!!)\[([^\]]+)\]\(([^)]*)\)', link, piece) for piece in inline_parts)
         result.append(part)
     return ''.join(result)

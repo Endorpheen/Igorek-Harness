@@ -1,3 +1,8 @@
+## 2026-10-19 — Clickable Wiki source citations
+
+- Reproduced exported source references rendered as inline code, including entire backtick-wrapped links, missing destinations, grouped citations, plain file/line references and unmatched label backticks. Normalize only presentation during the Wiki build; imported page bytes and source-commit provenance remain unchanged. Literal fenced examples, mixed inline examples and existing external links remain intact.
+- Eleven documentation regressions passed, including the reported Electron overview in English and Russian. Strict local build and completeness/link checks passed: 75 HTML pages, 5,864 local targets and 1,692 source links. The build checker now rejects source citations rendered as unlinked inline code. Hosted checks and published-page acceptance are pending. No application logic, version or installation changes.
+
 ## 2026-10-19 — Bilingual Wiki preparation
 
 - Imported all 36 technical pages and 87 original Mermaid diagrams per language from the English/Russian exports, preserving original page bytes. Excluded personal export wrappers and raw service JSON. Added paired current-behavior notes for 0.2.12, clearly retaining obsolete copy/transfer descriptions as historical reference, and two current architecture diagrams.

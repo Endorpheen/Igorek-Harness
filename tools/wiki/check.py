@@ -46,8 +46,13 @@ def check(site):
                 errors.append('Private marker detected (value omitted): ' + str(path.relative_to(root)))
     html = {p.resolve(): BeautifulSoup(p.read_text(), 'html.parser') for p in site.rglob('*.html')}
     checked = 0
+    source_links = 0
     for path, soup in html.items():
         page_url = BASE + path.relative_to(site.resolve()).as_posix()
+        for code in soup.find_all('code'):
+            if not code.find_parent(['pre', 'a']) and re.search(r'[.\w/-]+:[0-9]+(?:-[0-9]+)?', code.get_text()):
+                errors.append(str(path.relative_to(site)) + ': source citation rendered as literal code: ' + code.get_text()[:120])
+        source_links += sum(bool(re.match(r'https://github\.com/Endorpheen/Igorek-Harness/blob/[^/]+/.+#L\d+', a.get('href', ''))) for a in soup.find_all('a'))
         for tag, attribute in [('a', 'href'), ('img', 'src'), ('script', 'src'), ('link', 'href')]:
             for item in soup.find_all(tag):
                 target = item.get(attribute)
@@ -77,7 +82,7 @@ def check(site):
     indexes = list(site.rglob('search_index.json'))
     if not indexes or not any('OpenCode' in p.read_text() for p in indexes):
         errors.append('Search index missing technical content')
-    result = {'languages': counts, 'html_pages': len(html), 'local_links_checked': checked,
+    result = {'languages': counts, 'html_pages': len(html), 'local_links_checked': checked, 'source_links': source_links,
               'search_indexes': len(indexes), 'errors': errors}
     return result
 
