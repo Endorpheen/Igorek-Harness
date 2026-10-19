@@ -13,6 +13,8 @@
   close.type = 'button'; close.setAttribute('aria-label', 'Закрыть уведомления'); header.append(title, close);
   const actions = make('div', 'igorek-notification-actions'), read = make('button', '', 'Прочитать все'), clear = make('button', '', 'Очистить');
   read.type = clear.type = 'button'; actions.append(read, clear);
+  const support = make('button', '', 'Отправить диагностику'); support.type='button'; support.id='igorek-notification-support';
+  support.addEventListener('click',()=>window.IgorekDiagnosticSupport?.open()); actions.append(support);
   const list = make('div', 'igorek-notification-list'); panel.append(header, actions, list); document.body.append(panel);
   let items = [], expanded = new Set();
   const update = values => {

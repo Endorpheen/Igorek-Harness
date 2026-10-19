@@ -63,6 +63,8 @@ from .websocket import (
 _COOKIE = "__Host-igorek-device"
 _STATIC = Path(__file__).with_name("static")
 _STATIC_TYPES = {
+    "diagnostic-support.js": "text/javascript; charset=utf-8",
+    "diagnostic-support.css": "text/css; charset=utf-8",
     "error-catalog.js": "text/javascript; charset=utf-8",
     "error-diagnostics.js": "text/javascript; charset=utf-8",
     "completion-sound.js": "text/javascript; charset=utf-8",

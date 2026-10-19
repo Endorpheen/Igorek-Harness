@@ -218,5 +218,6 @@ window.IgorekErrorCatalog = {
       "ru": "Причина ошибки не определена. Доступны диагностические сведения.",
       "en": "The failure cause is unknown. Diagnostic details are available."
     }
-  }
+  },
+  "support_email": "igorek-dot@tutamail.com"
 };

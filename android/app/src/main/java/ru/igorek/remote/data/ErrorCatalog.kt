@@ -4,6 +4,7 @@ package ru.igorek.remote.data
 internal data class ErrorDefinition(val category: String, val action: String, val severity: String, val retryable: Boolean, val ru: String, val en: String)
 internal object ErrorCatalog {
     const val schemaVersion = 1
+    const val supportEmail = "igorek-dot@tutamail.com"
     const val stableAfterMs = 5000L
     val codes = mapOf(
         "NET.DNS_FAILURE" to ErrorDefinition("network", "retry", "error", true, "Не удалось определить адрес сервера.", "Could not resolve the server address."),

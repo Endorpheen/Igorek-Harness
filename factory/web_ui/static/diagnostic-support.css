@@ -1,0 +1,9 @@
+.diagnostic-support-dialog { box-sizing:border-box; width:min(820px,calc(100vw - 32px)); max-height:calc(100dvh - 40px); overflow:auto; border:1px solid var(--line2); border-radius:16px; padding:24px; background:var(--panel); color:var(--text); font:14px var(--font); }
+.diagnostic-support-dialog::backdrop { background:#0009; }
+.diagnostic-support-dialog h2 { margin:0 0 16px; font-size:21px; }
+.diagnostic-support-dialog p { line-height:1.6; overflow-wrap:anywhere; }
+.diagnostic-support-preview { box-sizing:border-box; max-height:40dvh; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; padding:14px; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--text); font:12px/1.6 var(--mono); }
+.diagnostic-support-actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:18px; }
+.diagnostic-support-actions a { text-decoration:none; }
+.diagnostic-support-actions [hidden] { display:none; }
+@media(max-width:550px) { .diagnostic-support-dialog { padding:18px; } .diagnostic-support-actions>* { flex:1 1 auto; text-align:center; } }

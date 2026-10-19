@@ -687,6 +687,7 @@ const I18N = {
     "dashboard.logs_title": "Журналы systemd-сервисов",
     "dashboard.agents_title": "Импорт сессий OpenCode, Codex и Claude Code",
     "dashboard.copy": "Скопировать сведения",
+    "dashboard.send": "Отправить диагностику",
     "dashboard.copied": "Сведения скопированы",
     "dashboard.clipboard_unavailable": "Буфер обмена недоступен",
     "dashboard.diag_version": "Игорёк web · версия {v}",
@@ -1339,6 +1340,7 @@ const I18N = {
     "dashboard.logs_title": "Systemd service logs",
     "dashboard.agents_title": "Import sessions from OpenCode, Codex and Claude Code",
     "dashboard.copy": "Copy diagnostics",
+    "dashboard.send": "Send diagnostics",
     "dashboard.copied": "Diagnostics copied",
     "dashboard.clipboard_unavailable": "Clipboard unavailable",
     "dashboard.diag_version": "Igorek web · version {v}",
@@ -5451,7 +5453,9 @@ function renderDashboard() {
   refresh.type = "button";
   refresh.disabled = Boolean(model.busy);
   refresh.addEventListener("click", () => loadDashboard().catch((error) => toast(error.message, "error")));
-  actions.append(refresh);
+  const support=element("button","secondary-button",t("dashboard.send"));support.type="button";
+  support.addEventListener("click",()=>window.IgorekDiagnosticSupport?.open());
+  actions.append(refresh,support);
   if (paired) {
     const logsButton = element("button", "secondary-button", t("sidebar.logs"));
     logsButton.type = "button";
@@ -5478,6 +5482,18 @@ function renderDashboard() {
   fragment.append(actions);
   ui.dashboardBody.replaceChildren(fragment);
 }
+async function collectDiagnosticSupport() {
+  const local=window.IgorekNotifications ? await window.IgorekNotifications.snapshot?.().catch(()=>null) : localDiagnosticJournal?.snapshot();
+  let server=null;
+  try {
+    const response=await fetch('/api/diagnostics',{credentials:'same-origin',signal:AbortSignal.timeout(2500)});
+    if(response.ok)server=await response.json();
+  }catch{}
+  const release=await window.IgorekDesktop?.releaseInfo?.().catch(()=>null);
+  const report=window.IgorekDiagnosticSupport.createReport({local,server},{version:release?.version || server?.version,surface:'web'});
+  return window.IgorekNotifications?.support ? window.IgorekNotifications.support({action:'prepare',report}) : report;
+}
+window.IgorekDiagnosticSupport?.configure({collect:collectDiagnosticSupport});
 async function copyDiagnostics(model) {
   const about = model.about || {};
   const lines = [

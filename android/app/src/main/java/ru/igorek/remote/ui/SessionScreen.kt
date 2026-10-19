@@ -294,6 +294,7 @@ fun SessionScreen(
         onDispose { if (selectedMcp != null || mcpRows.isNotEmpty()) disconnectMcp(); mcpLifecycle.removeObserver(observer) }
     }
     var notificationsOpen by remember { mutableStateOf(false) }
+    var diagnosticSupportOpen by remember { mutableStateOf(false) }
     // Error notifications persist in the Bridge (survive screen disappearance), while
     // local notifications pertain to current screen attachments. Each entry has a timestamp.
     val bridgeNotifications by Bridge.notifications.collectAsState()
@@ -961,10 +962,17 @@ fun SessionScreen(
         }
     }
 
+    if (diagnosticSupportOpen) DiagnosticSupportDialog { diagnosticSupportOpen=false;notificationsOpen=true }
+
     if (notificationsOpen) {
         AlertDialog(
             onDismissRequest = { closeNotificationCenter() },
-            title = { Text(uiText("Уведомления", "Notifications")) },
+            title = { Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
+                Text(uiText("Уведомления", "Notifications"))
+                IconButton(onClick={notificationsOpen=false;diagnosticSupportOpen=true}) {
+                    Icon(Icons.AutoMirrored.Filled.Send,contentDescription=uiText("Отправить диагностику", "Send diagnostics"))
+                }
+            } },
             text = {
                 LazyColumn(
                     Modifier.heightIn(max = 420.dp),

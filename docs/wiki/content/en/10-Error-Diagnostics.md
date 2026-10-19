@@ -38,3 +38,17 @@ The canonical [contract](https://github.com/Endorpheen/Igorek-Harness/blob/main/
 ## Acceptance boundaries
 
 Python, Node and Android tests exercise deterministic faults, receipt matching, redaction, storage failure and retry limits. Android also uses a pinned local TLS transport fixture. Physical VPN transitions and physical Windows 11 acceptance require separate testing; synthetic tests do not prove them. An unspecified browser transport error does not identify the VPN as its cause.
+
+## Send a report to support voluntarily
+
+The support address is **igorek-dot@tutamail.com**. Nothing is uploaded automatically. Use **Send diagnostics** inside the existing notification center or diagnostics/dashboard, review the report and recipient, and then choose whether to continue. Existing copying remains available.
+
+- **Linux / Windows:** choose a new JSON filename in the Save dialog. Igorek opens an email draft; attach the saved file and describe the problem. If there is no configured email app, the file remains saved for manual sending.
+- **Web:** request the JSON download, then use the displayed email link and attach the saved file yourself.
+- **Android:** open the notification center and choose its diagnostics action. Review the local report, then choose **Share report**. Select an email app in the system sharesheet, check the recipient and confirm sending there. Other share targets may ignore the recipient hint.
+
+Reports contain version/platform references, typed error codes and operation IDs, profile/model identity, bounded incident history and writer health. Raw conversation text, tool arguments, keys, private endpoint URLs and local file paths are excluded. The maximum file size is 512 KiB; omitted history is marked. A disconnected backend does not prevent exporting local observations. Cancelling the preview does not send a report.
+
+Opening the email app or sharesheet is **not delivery confirmation**. Igorek does not log in to the support mailbox or send mail on your behalf. Actual email delivery and physical mail-app/Tuta behavior are not covered by synthetic tests.
+
+![Voluntary diagnostics: before and after](https://raw.githubusercontent.com/Endorpheen/Igorek-Harness/main/docs/images/diagnostic-support-en.png)

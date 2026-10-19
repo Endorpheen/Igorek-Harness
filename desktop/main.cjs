@@ -96,6 +96,17 @@ ipcMain.handle('igorek:notifications', (event, action, value) => {
   return items;
 });
 
+ipcMain.handle('igorek:diagnostic-support', async (event, value) => {
+  const target=trustedChromeWindow(event);
+  const support=require('./diagnostic-support.cjs');
+  if(value?.action==='prepare')return support.createReport(value.report,{version:require('./package.json').version,surface:process.platform});
+  if(value?.action!=='save')throw new Error('Invalid diagnostic support action');
+  return support.saveAndCompose(value,{
+    version:require('./package.json').version,surface:process.platform,documents:app.getPath('documents'),
+    chooseFile:options=>dialog.showSaveDialog(target,options),openComposer:url=>shell.openExternal(url),
+    isActive:async()=>{try{return trustedChromeWindow(event)===target && await support.previewIsOpen(event.sender,value.report?.report_id);}catch{return false;}},
+  });
+});
 function installWindowChrome(target, urlCheck) {
   const contents = target.webContents;
   completionSound.attach(target, urlCheck);
