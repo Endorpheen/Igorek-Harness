@@ -1,3 +1,11 @@
+## 2026-10-21 — Preserve upstream MCP tool failures
+
+- The full Python 3.13 CI failure exposed an actual bridge defect: official grep.app responded over HTTP 200 with `result.isError=true`, but the local stdio wrapper discarded that flag and prepended a success/results header.
+- Captured the public upstream response as a fixture. The unchanged bridge failed two new integration regressions before the fix; success/URL-contract and HTTP-error compatibility cases passed. The fix preserves the structural error flag, never classifies by response wording, and leaves the existing live test/assertions/availability handling unchanged.
+- Targeted result after the fix: five deterministic regressions passed; the original live module passed its three protocol cases and retained its existing upstream-unavailable skip. The observed official MCP transport was HTTP 200 with `result.isError=true`; no inner service HTTP status is asserted.
+- Added five deterministic HTTP-upstream → Node stdio regressions for the captured error, empty errors, normal results, successful text mentioning an error, and HTTP 429. Hosted live availability is reported separately from deterministic correctness.
+- Hosted Linux/Windows artifacts now retain the new search settings native acceptance summaries.
+
 ## 2026-10-21 — Desktop search and mobile notification-only errors
 
 - Desktop/Python 0.2.17 adds owner-configured Tavily, Exa and Serper search. Keys are checked before saving in Desktop Vault, remain outside model profiles and shell environments, and can be reused when switching services. Serper advertises search only; KVM has no new credential bridge.

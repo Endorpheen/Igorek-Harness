@@ -62,3 +62,7 @@ Opening the email app or sharesheet is **not delivery confirmation**. Igorek doe
 ## Android error presentation
 
 System and task failure messages are displayed only in the notification center. Chats, session lists and operation dialogs do not repeat them inline. The bell is also available outside a chat, including the connection screen. Connection state, approval requests and ordinary task progress remain in their existing places. Quiet background event-stream timeouts retain their existing visibility policy and remain available in diagnostics.
+
+### MCP tool failures
+
+Upstream MCP tool results marked `isError=true` retain that status in the grep.app stdio bridge. Failure text is not prefixed with a claim that real search results were returned. The live service can still reject requests; this is reported as unavailable, not as a successful search.

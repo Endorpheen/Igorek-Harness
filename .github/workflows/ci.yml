@@ -162,6 +162,7 @@ jobs:
           path: |
             test-results/native-linux/summary.json
             test-results/composer-linux/summary.json
+            test-results/search-linux/summary.json
           if-no-files-found: warn
           retention-days: 7
 
