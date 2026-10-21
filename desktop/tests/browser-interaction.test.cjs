@@ -94,3 +94,37 @@ test('Global Escape and Tab work without clicking an obscured or missing target'
  assert.equal(validInteraction({action:'press',key:'Enter'}),false);
  assert.equal(validInteraction({action:'press',key:'Escape',target:'forged'}),false);
 });
+
+
+test('Drag accepts a bounded normalized path and rejects malformed or unbounded input',()=>{
+ const points=[{x:.1,y:.2},{x:.8,y:.9}];
+ assert.ok(validInteraction({action:'drag',target,points,duration_ms:1000}));
+ for(const bad of [[],[points[0]],Array(129).fill(points[0]),[{x:0,y:0},{x:2,y:1}],[{x:NaN,y:0},points[1]],[{x:true,y:0},points[1]],[{x:0,y:0,script:'no'},points[1]]])assert.equal(validInteraction({action:'drag',target,points:bad}),false);
+ for(const duration_ms of [0,3001,NaN,1.5,'500'])assert.equal(validInteraction({action:'drag',target,points,duration_ms}),false);
+ assert.equal(validInteraction({action:'drag',target,points,button:'right'}),false);
+});
+
+test('Drag holds the left button across intermediate points and releases it after failure',async()=>{
+ const inspected={url:'https://www.google.com/search',points:[{x:20,y:30},{x:80,y:90}]};
+ const fields={action:'drag',target,points:[{x:.1,y:.1},{x:.8,y:.8}],duration_ms:100};
+ const f=fixture(inspected);
+ assert.equal((await f.interaction.run(fields)).performed,true);
+ assert.equal(f.events[0].type,'mouseMove');assert.equal(f.events[1].type,'mouseDown');
+ const moves=f.events.slice(2,-1);assert.ok(moves.length>=16);
+ assert.ok(moves.every(e=>e.type==='mouseMove'&&e.modifiers.includes('leftButtonDown')));
+ assert.deepEqual([f.events.at(-1).type,f.events.at(-1).x,f.events.at(-1).y],['mouseUp',80,90]);
+ const broken=fixture(inspected);const emit=broken.interaction.contents().sendInputEvent;
+ broken.interaction.contents().sendInputEvent=e=>{if(e.type==='mouseMove'&&e.modifiers)throw Error('input failed');emit(e);};
+ await assert.rejects(broken.interaction.run(fields),/input failed/);
+ assert.equal(broken.events.at(-1).type,'mouseUp');
+ for(const error of ['stale_target','protected_input','target_obscured']){
+  const blocked=fixture({error});assert.equal((await blocked.interaction.run(fields)).error,error);assert.equal(blocked.events.length,0);
+ }
+});
+
+test('Cross-frame mouse motion preserves the held-button bit in Chromium dispatch',async()=>{
+ const commands=[];const wc={debugger:{isAttached:()=>true,sendCommand:async(name,payload)=>commands.push({name,payload})}};
+ const interaction=new BrowserInteraction(()=>wc,()=>true,async()=>{});
+ await interaction.mouse(wc,{type:'mouseMove',x:30,y:40,button:'left',buttons:1},true);
+ assert.equal(commands[0].payload.type,'mouseMoved');assert.equal(commands[0].payload.buttons,1);
+});

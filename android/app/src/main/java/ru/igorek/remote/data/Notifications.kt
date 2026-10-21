@@ -47,6 +47,14 @@ internal fun mergeNotification(
     val message = text.trim()
     if (message.isEmpty()) return entries
     val safe = diagnostic?.let(::sanitizeDiagnostic)
+    if (safe != null && safe.eventId.isNotBlank()) {
+        val known = entries.indexOfFirst { it.diagnostic?.eventId == safe.eventId || it.events.any { event -> event.eventId == safe.eventId } }
+        if (known >= 0) {
+            val existing = entries[known]
+            if (existing.state == "recovered") return entries
+            return entries.toMutableList().also { it[known] = existing.copy(text = message, quiet = existing.quiet && quiet) }
+        }
+    }
     val nextState=if(safe==null)"observed" else if(safe.outcome=="unknown" || ErrorCatalog.codes[safe.code]?.retryable==false)"needs_owner" else if(safe.nextRetryAt!=null)"recovering" else "observed"
     val index = entries.indexOfFirst { if(safe==null) it.diagnostic==null && it.text == message else
         it.state!="recovered" && it.diagnostic?.let(::diagnosticFingerprint)==diagnosticFingerprint(safe) }

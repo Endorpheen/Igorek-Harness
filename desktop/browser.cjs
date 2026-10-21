@@ -418,7 +418,7 @@ class DesktopBrowser {
   agent(fields) {
     if (!fields || typeof fields !== 'object' || Array.isArray(fields)) return Promise.resolve({ error: 'invalid_request' });
     const { action } = fields;
-    const interact=['click','hover','fill','press','select','check','scroll_element'].includes(action);
+    const interact=['click','hover','fill','press','select','check','scroll_element','drag'].includes(action);
     const reading=validReading(fields);
     if(action==='elements'){if(Object.keys(fields).some(key=>!['action','query','url'].includes(key))||typeof(fields.query??'')!=='string'||(fields.query||'').length>200)return Promise.resolve({error:'invalid_request'});}
     if(action!=='elements'&&!reading&&(interact?!validInteraction(fields):(!['status', 'open', 'read', 'scroll', 'post', 'collect', 'result'].includes(action)

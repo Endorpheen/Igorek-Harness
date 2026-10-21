@@ -55,7 +55,7 @@ def model_failure_diagnostics(body) -> dict:
 
 def browser_tool_diagnostics(tool_input,result_text) -> dict:
     result = {}
-    actions={'status','open','read','scroll','post','collect','result','elements','click','hover','fill','press','select','check','scroll_element','wait','read_post','comments','close_menu','screenshot'}
+    actions={'status','open','read','scroll','post','collect','result','elements','click','hover','fill','press','select','check','scroll_element','drag','wait','read_post','comments','close_menu','screenshot'}
     if isinstance(tool_input,dict) and isinstance(tool_input.get('action'),str) and tool_input['action'] in actions:result['action']=tool_input['action']
     target=tool_input.get('target') if isinstance(tool_input,dict) else None
     if isinstance(target,str) and re.fullmatch(r'r-[a-f0-9]{32}-\d{1,6}',target):result['target_ref']=target

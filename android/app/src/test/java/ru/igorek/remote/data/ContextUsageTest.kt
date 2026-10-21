@@ -32,4 +32,14 @@ class ContextUsageTest {
         timeline.apply(response)
         assertEquals(ContextUsage(100000, 20000), timeline.contextSnapshot())
     }
+    @Test fun localServerWindowOverridesStaleTaskWindow() {
+        val usage = ContextUsage(window = 128000, lastInput = 32000)
+        assertEquals(64000L, usage.effectiveWindow(64000))
+        assertEquals(50, usage.usedPercent(usage.effectiveWindow(64000)))
+        assertEquals(25, usage.usedPercent(usage.effectiveWindow(128000)))
+        assertEquals(128000L, usage.effectiveWindow(null))
+        assertEquals(128000L, usage.effectiveWindow(0))
+        assertNull(ContextUsage().usedPercent(ContextUsage().effectiveWindow(64000)))
+        assertNull(ContextUsage().effectiveWindow(null))
+    }
 }

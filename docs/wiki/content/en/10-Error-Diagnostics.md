@@ -16,13 +16,21 @@ A lost response to sending a message leaves the outcome unknown. The client chec
 
 ## What can I see?
 
-On Android, recovered incidents disappear automatically from the notification list and bell count, including incidents saved before the update. They remain in the bounded diagnostic report; the report action is available even when the list is empty. Unresolved incidents remain visible.
+On Android, recovered incidents disappear automatically from the notification list and bell count, including incidents saved before the update. Recent recoveries remain in a grouped overview; its action is available even when the list is empty. Unresolved incidents remain visible.
 
 Existing notifications show codes, references, state and known attempt information. Reading a notification does not mark the connection recovered. Diagnostic activity distinguishes recent progress, waiting for your answer, long-running work and unconfirmed progress; the observer cannot stop work. The current model/profile identity remains attached to its original failure.
 
-Use the existing diagnostic-copy action on desktop/web. On Android, long-press a notification to copy the local safe snapshot. The snapshot contains bounded metadata, recent observations and diagnostic-writer health, without raw prompts, tool input, tokens or private connection addresses. No automatic diagnostic upload is configured.
+Use the existing diagnostic-copy action on desktop/web. On Android, long-press a notification to copy only that incident as readable, structured JSON. The snapshot contains bounded metadata, recent observations and diagnostic-writer health, without raw prompts, tool input, tokens or private connection addresses. No automatic diagnostic upload is configured.
 
-Long-pressing any Android card copies the overall retained diagnostic snapshot, not just that card; a short message confirms copying to the clipboard. The notification-center send icon also prepares an overall report. Selecting an individual incident is not currently supported.
+Android 0.1.117 (118): a card long-press copies one incident, at most 8 KiB, with a plain-language explanation, state, UTC times, correlation IDs and up to four earlier events. The latest event is stored once; earlier events contain only differing fields (null means absent in that earlier event). Empty fields are omitted and missing references are never invented. A short confirmation explicitly says that only this incident was copied.
+
+The separate **Overall diagnostic report** action previews a report of at most 32 KiB. It includes up to ten unresolved incidents, prioritizes unknown outcomes and incidents needing attention, and groups recovered incidents from the last 24 hours by typed error/component/endpoint/status/native type. Groups contain occurrence counts and first/last times rather than repeated full events. At most twelve groups are included; omitted details/events/groups and excluded older recoveries are counted. The local journal still retains at most 50 incidents and eight observations per incident. **Copy overall report** copies the exact preview; sharing remains a separate explicit action.
+
+### Historical events and read state on Android
+
+Android 0.1.118 (119): opening a saved chat or switching between sessions does not create new failure observations. Notification admission occurs at the live-event boundary, after stream replay and processed-sequence checks. Known event IDs cannot reopen recovered incidents. Task failures without typed diagnostics are reported as an unknown task error, not an invented internal display failure. The update removes only legacy notification copies whose structural origin is timeline presentation; original chat/task history and genuine model/transport diagnostics remain.
+
+**Mark read** acknowledges the notification and removes it from the unread count. It does not assert that a failed task succeeded or that a connection recovered. Read state survives navigation and history restoration. **Clear** removes retained notifications; reopening old history or replaying its events does not recreate them. A genuinely new failure still appears. Input/attachment errors use the same persistent journal as other notifications, so the overall report and bell refer to the same entries.
 
 ## Data flow
 
@@ -53,7 +61,7 @@ The support address is **igorek-dot@tutamail.com**. Nothing is uploaded automati
 - **Web:** request the JSON download, then use the displayed email link and attach the saved file yourself.
 - **Android:** open the notification center and choose its diagnostics action. Review the local report, then choose **Share report**. Select an email app in the system sharesheet, check the recipient and confirm sending there. Other share targets may ignore the recipient hint.
 
-Reports contain version/platform references, typed error codes and operation IDs, profile/model identity, bounded incident history and writer health. Raw conversation text, tool arguments, keys, private endpoint URLs and local file paths are excluded. The maximum file size is 512 KiB; omitted history is marked. A disconnected backend does not prevent exporting local observations. Cancelling the preview does not send a report.
+Reports contain version/platform references, typed error codes and operation IDs, profile/model identity, bounded incident history and writer health. Raw conversation text, tool arguments, keys, private endpoint URLs and local file paths are excluded. Desktop/web support files remain limited to 512 KiB. Android overall reports are limited to 32 KiB and selected-incident copies to 8 KiB; omitted history is marked. A disconnected backend does not prevent exporting local observations. Cancelling the preview does not send a report.
 
 Opening the email app or sharesheet is **not delivery confirmation**. Igorek does not log in to the support mailbox or send mail on your behalf. Actual email delivery and physical mail-app/Tuta behavior are not covered by synthetic tests.
 

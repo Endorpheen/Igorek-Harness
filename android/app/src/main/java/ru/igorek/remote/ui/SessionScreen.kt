@@ -114,7 +114,6 @@ import ru.igorek.remote.data.Bridge
 import ru.igorek.remote.data.AppLocale
 import ru.igorek.remote.data.SecuritySettingsResponse
 import ru.igorek.remote.data.NotificationEntry
-import ru.igorek.remote.data.mergeNotification
 import ru.igorek.remote.data.unreadNotificationCount
 import ru.igorek.remote.data.TimelineItem
 import ru.igorek.remote.data.securityBadgeVisible
@@ -254,11 +253,6 @@ fun SessionScreen(
         mcpRows = rows
     }
     val completeTimeline = mergeMcpChatRows(regularTimeline, mcpRows)
-    LaunchedEffect(sessionId, completeTimeline) {
-        completeTimeline.forEach { item ->
-            ru.igorek.remote.data.notificationFailureText(item)?.let { Bridge.reportUiError(it, "timeline:$sessionId:${item.id}") }
-        }
-    }
     val timeline = completeTimeline.filter { ru.igorek.remote.data.notificationFailureText(it) == null }
     val approvals by Bridge.approvals.collectAsState()
     val agentTree by Bridge.agentSessions.collectAsState()
@@ -303,17 +297,14 @@ fun SessionScreen(
     }
     var notificationsOpen by remember { mutableStateOf(false) }
     var diagnosticSupportOpen by remember { mutableStateOf(false) }
-    // Error notifications persist in the Bridge (survive screen disappearance), while
-    // local notifications pertain to current screen attachments. Each entry has a timestamp.
     val bridgeNotifications by Bridge.notifications.collectAsState()
-    var localNotifications by remember(sessionId) { mutableStateOf<List<NotificationEntry>>(emptyList()) }
     var changesOpen by remember { mutableStateOf(false) }
     var checkpointsOpen by remember(sessionId) { mutableStateOf(false) }
     var reviewTab by remember(sessionId) { mutableStateOf(SessionReviewTab.Versions) }
     var diffPath by remember { mutableStateOf<String?>(null) }
     var pending by remember { mutableStateOf<List<PendingAttachment>>(emptyList()) }
     var selectedSkillIds by rememberSaveable(sessionId) { mutableStateOf<List<String>>(emptyList()) }
-    var attachError by remember { mutableStateOf<String?>(null) }
+    var attachError by remember(sessionId) { mutableStateOf<String?>(null) }
     var busyApproval by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -326,19 +317,14 @@ fun SessionScreen(
     LaunchedEffect(sessionId, attachError) {
         val text = attachError?.trim().orEmpty()
         if (text.isNotEmpty()) {
-            localNotifications = mergeNotification(
-                localNotifications,
-                text,
-                kind = "LOCAL",
-                at = System.currentTimeMillis(),
-            )
+            Bridge.reportUiError(text, "session-input:$sessionId")
+            attachError = null
         }
     }
-    val notificationEntries = ru.igorek.remote.data.visibleNotifications(bridgeNotifications + localNotifications).sortedByDescending { it.lastSeen }
+    val notificationEntries = ru.igorek.remote.data.visibleNotifications(bridgeNotifications).sortedByDescending { it.lastSeen }
     val notificationCount = unreadNotificationCount(notificationEntries)
     fun markAllNotificationsRead() {
         Bridge.markNotificationsRead()
-        localNotifications = localNotifications.map { it.copy(read = true) }
     }
     fun closeNotificationCenter() {
         markAllNotificationsRead()
@@ -828,6 +814,9 @@ fun SessionScreen(
                                                 draft = ""; mcpRunning = true; attachError = null
                                                 mcpJob = scope.launch {
                                                     fun replaceMcpStatus(item: TimelineItem) {
+                                                        ru.igorek.remote.data.notificationFailureText(item)?.let {
+                                                            Bridge.reportUiError(it, "mcp:$sessionId:${item.id}")
+                                                        }
                                                         updateMcpRows(mcpRows.map { if (it.item.id == statusId) it.copy(item = item, inProgress = item is TimelineItem.Status && item.level != "error") else it })
                                                     }
                                                     try {
@@ -983,7 +972,7 @@ fun SessionScreen(
 
     if (notificationsOpen) {
         NotificationCenterDialog(notificationEntries, ::closeNotificationCenter, ::markAllNotificationsRead,
-            onClear = { Bridge.clearNotifications(); localNotifications = emptyList() },
+            onClear = Bridge::clearNotifications,
             onSupport = { notificationsOpen = false; diagnosticSupportOpen = true })
     }
 
@@ -1015,11 +1004,11 @@ fun SessionScreen(
 internal fun NotificationCard(entry: NotificationEntry) {
     val clipboard=LocalClipboardManager.current
     val context = LocalContext.current
-    val copiedMessage = uiText("Диагностика скопирована в буфер обмена", "Diagnostics copied to clipboard")
+    val copiedMessage = uiText("Скопирован только этот инцидент", "Only this incident was copied")
     Surface(
-        modifier=Modifier.combinedClickable(onClick={},onLongClickLabel=uiText("Скопировать диагностику","Copy diagnostics"),
+        modifier=Modifier.combinedClickable(onClick={},onLongClickLabel=uiText("Скопировать этот инцидент","Copy this incident"),
             onLongClick={
-                clipboard.setText(AnnotatedString(Bridge.diagnosticSnapshot()))
+                clipboard.setText(AnnotatedString(ru.igorek.remote.data.incidentDiagnosticReport(entry, ru.igorek.remote.BuildConfig.VERSION_NAME)))
                 Toast.makeText(context, copiedMessage, Toast.LENGTH_SHORT).show()
             }),
         shape = RoundedCornerShape(12.dp),
@@ -1052,7 +1041,7 @@ private fun notificationStamp(entry: NotificationEntry): String {
     val status=if(entry.recoveryProof=="operation_confirmed")uiText("Доставка подтверждена","Delivery confirmed") else if(entry.state=="recovered")uiText("Восстановлено","Recovered") else if(entry.diagnostic?.outcome=="unknown")uiText("Результат не подтверждён","Outcome unconfirmed") else ""
     val attempt=entry.diagnostic?.let { error -> if(error.attempt>1 || error.nextRetryAt!=null)
         uiText(" · попытка ${error.attempt}"," · attempt ${error.attempt}")+(error.nextRetryAt?.let { uiText(" · следующая "," · next ")+notificationTimeText(it) } ?: "") else "" }.orEmpty()
-    val stamp=(if(status.isNotBlank())status+" · " else "")+last+attempt
+    val stamp=(if (entry.read) uiText("Прочитано · ", "Read · ") else "")+(if(status.isNotBlank())status+" · " else "")+last+attempt
     if (entry.count <= 1) return stamp
     val repeats = uiText("событий: ${entry.count}", "events: ${entry.count}")
     val first = notificationTimeText(entry.firstSeen)

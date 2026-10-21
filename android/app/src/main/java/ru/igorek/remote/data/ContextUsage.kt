@@ -6,6 +6,9 @@ import kotlinx.serialization.json.longOrNull
 import kotlin.math.roundToInt
 
 data class ContextUsage(val window: Long? = null, val lastInput: Long? = null) {
+    fun effectiveWindow(reportedWindow: Long?): Long? =
+        reportedWindow?.takeIf { it > 0 } ?: window?.takeIf { it > 0 }
+
     fun usedPercent(limit: Long?): Int? = if (limit != null && limit > 0 && lastInput != null)
         (lastInput.toDouble() / limit * 100).roundToInt() else null
 

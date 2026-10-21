@@ -24,7 +24,7 @@ AlertDialog(
             title = { Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
                 Text(uiText("Уведомления", "Notifications"))
                 IconButton(onClick={onSupport()}) {
-                    Icon(Icons.AutoMirrored.Filled.Send,contentDescription=uiText("Отправить диагностику", "Send diagnostics"))
+                    Icon(Icons.AutoMirrored.Filled.Send,contentDescription=uiText("Общий диагностический отчёт", "Overall diagnostic report"))
                 }
             } },
             text = {
@@ -32,6 +32,10 @@ AlertDialog(
                     Modifier.heightIn(max = 420.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
+                    if (entries.isNotEmpty()) item {
+                        Text(uiText("Зажмите карточку, чтобы скопировать только этот инцидент.",
+                            "Long-press a card to copy only that incident."), style = MaterialTheme.typography.bodySmall)
+                    }
                     if (entries.isEmpty()) {
                         item { Text(uiText("Нет активных уведомлений об ошибках", "No active error notifications")) }
                     } else {

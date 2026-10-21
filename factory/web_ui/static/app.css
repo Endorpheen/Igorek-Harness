@@ -2139,6 +2139,7 @@ body.panel-resizing {
 
 .composer-bottom {
   display:flex;
+  flex-wrap:wrap;
   align-items:center;
   justify-content:space-between;
   gap:8px;
@@ -2147,6 +2148,8 @@ body.panel-resizing {
 
 .composer-left {
   display:flex;
+  flex:0 1 auto;
+  flex-wrap:wrap;
   align-items:center;
   gap:6px;
   min-width:0
@@ -2154,8 +2157,15 @@ body.panel-resizing {
 
 .composer-actions {
   display:flex;
+  flex:1 1 260px;
+  flex-wrap:wrap;
   align-items:center;
+  justify-content:flex-end;
   gap:6px
+}
+
+.composer-actions > button,.composer-left > button {
+  flex-shrink:0
 }
 
 .mode-toggle {
@@ -2297,7 +2307,10 @@ body.panel-resizing {
 
 .composer-meta {
   display:inline-flex;
+  flex:1 1 150px;
   align-items:center;
+  min-width:0;
+  max-width:100%;
   margin:0
 }
 
@@ -2307,6 +2320,8 @@ body.panel-resizing {
 
 .composer-model {
   display:inline-flex;
+  box-sizing:border-box;
+  min-width:0;
   align-items:center;
   gap:6px;
   max-width:100%;

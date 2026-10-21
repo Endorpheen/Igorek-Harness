@@ -23,6 +23,9 @@ import ru.igorek.remote.data.NotificationEntry
 import ru.igorek.remote.ui.IgorekTheme
 import ru.igorek.remote.ui.LocalAppLanguage
 import ru.igorek.remote.ui.SessionScreen
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonPrimitive
 import java.io.File
 import java.util.concurrent.CopyOnWriteArrayList
 
@@ -77,13 +80,14 @@ class NotificationsInstrumentation : Instrumentation() {
             waitForIdleSync()
             val repeatedText = "Notification regression fixture"
             val error = ErrorObservation(code = "NET.CONNECTION_RESET", owner = "notification-fixture")
+            val at = System.currentTimeMillis()
             val entries = listOf(
-                NotificationEntry("Recovered notification fixture", "CONNECTION", firstSeen = 100, lastSeen = 100,
-                    id = "recovered-incident", state = "recovered", recoveredAt = 200,
+                NotificationEntry("Recovered notification fixture", "CONNECTION", firstSeen = at - 20000, lastSeen = at - 10000,
+                    id = "recovered-incident", state = "recovered", recoveredAt = at - 5000,
                     diagnostic = error, events = listOf(error)),
-                NotificationEntry(repeatedText, "CONNECTION", firstSeen = 300, lastSeen = 300,
+                NotificationEntry(repeatedText, "CONNECTION", firstSeen = at - 1000, lastSeen = at - 1000,
                     id = "new-incident", diagnostic = error.copy(eventId = "next-outage")),
-                NotificationEntry(repeatedText, "CONNECTION", firstSeen = 300, lastSeen = 300,
+                NotificationEntry(repeatedText, "CONNECTION", firstSeen = at - 1000, lastSeen = at - 1000,
                     id = "other-incident", diagnostic = error.copy(owner = "other-fixture", eventId = "other-outage")),
             )
             @Suppress("UNCHECKED_CAST")
@@ -121,8 +125,8 @@ class NotificationsInstrumentation : Instrumentation() {
             }
             tap(repeatedText, holdMs = 850)
             waitFor("visible diagnostic copy confirmation") {
-                feedback.any { it.contains("Diagnostics copied to clipboard") } ||
-                    find("Diagnostics copied to clipboard") != null
+                feedback.any { it.contains("Only this incident was copied") } ||
+                    find("Only this incident was copied") != null
             }
             var copied = ""
             runOnMainSync {
@@ -130,7 +134,11 @@ class NotificationsInstrumentation : Instrumentation() {
                     as android.content.ClipboardManager
                 copied = clipboard.primaryClip?.getItemAt(0)?.text?.toString().orEmpty()
             }
-            check(copied.contains("recovered-incident") && copied.contains("new-incident"))
+            val selected = kotlinx.serialization.json.Json.parseToJsonElement(copied).toString()
+            check(selected.contains("other-incident") != selected.contains("new-incident"))
+            check(!selected.contains("recovered-incident"))
+            check(copied.toByteArray(Charsets.UTF_8).size <= 8192)
+            File(folder, "selected-incident.json").writeText(copied)
             uiAutomation.setOnAccessibilityEventListener(null)
             tap("Mark read")
             waitFor("acknowledged incidents") { notifications.value.all { it.read } }
@@ -139,8 +147,22 @@ class NotificationsInstrumentation : Instrumentation() {
             tap("Close")
             waitFor("closed dialog") { find("Mark read") == null }
             tap("Notifications")
-            tap("Send diagnostics")
+            tap("Overall diagnostic report")
             waitFor("support preview") { find("Share report") != null }
+            tap("Copy overall report")
+            var overall = ""
+            runOnMainSync {
+                val clipboard = targetContext.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                overall = clipboard.primaryClip?.getItemAt(0)?.text?.toString().orEmpty()
+            }
+            check(overall.contains("new-incident") && overall.contains("other-incident"))
+            check(!overall.contains("recovered-incident"))
+            val groups = kotlinx.serialization.json.Json.parseToJsonElement(overall).jsonObject.getValue("groups").jsonArray
+            check(groups.any { it.jsonObject.getValue("state").jsonPrimitive.content == "recovered" })
+            check(overall.contains("overview") && overall.toByteArray(Charsets.UTF_8).size <= 32768)
+            File(folder, "overall-report.json").writeText(overall)
+            uiAutomation.takeScreenshot()?.let { image -> File(folder, "overall-preview.png").outputStream().use {
+                image.compress(Bitmap.CompressFormat.PNG, 100, it) }; image.recycle() }
             tap("Close")
             waitFor("return to notifications") { find("Mark read") != null }
             check(notifications.value.size == 3)
@@ -155,7 +177,7 @@ class NotificationsInstrumentation : Instrumentation() {
             waitFor("cleared notification list") { notifications.value.isEmpty() }
             waitForIdleSync()
             sendStatus(0, Bundle().apply { putString("stream",
-                "NOTIFICATIONS_PASS: repeated-text incidents open, long-press copies with visible confirmation, acknowledge, reopen, preview, cancel and clear\n") })
+                "NOTIFICATIONS_PASS: selected-only clipboard, separate bounded overview clipboard/preview, repeated-text identities, acknowledge, reopen, cancel and clear\n") })
             finish(Activity.RESULT_OK, Bundle())
         } catch (error: Throwable) {
             val folder = targetContext.getExternalFilesDir("notifications-qa")!!; folder.mkdirs()

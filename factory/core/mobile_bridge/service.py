@@ -1624,10 +1624,10 @@ class MobileService:
                 base = Path(meta.get("cwd") or self.workdir).expanduser().resolve()
                 task_id = str(entry.get("workspace_task_id") or entry.get("task_id") or "")
                 message["files"] = [info for info, _ in collect_files(base, message["text"], entry.get("output_files") or [], task_id)][:10]
-        from ...web_ui.server import _model_context_window, _profile_model
+        from ...web_ui.server import _profile_context_window, _profile_model
         context_model = _profile_model(str(meta.get("profile") or "")) or str(meta.get("model") or "")
         return {
-            "context_window": _model_context_window(context_model),
+            "context_window": _profile_context_window(str(meta.get("profile") or ""), context_model),
             "model": context_model,
             "session_id": session_id,
             "isolation": self._isolation_status_value(str(meta.get("profile") or "")),

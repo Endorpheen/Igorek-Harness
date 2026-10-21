@@ -25,9 +25,9 @@ def take_browser_image(result_text):
 
 SCHEMA = {
     "name": "desktop_browser",
-    "description": "Постоянный браузер Игорька внутри desktop. read/open/post возвращают посты, текст и элементы интерфейса с ref и состоянием. elements с query ищет любые кнопки, меню, поля и переключатели по видимому названию/роли/data-testid. click нажимает элемент (button left/right/double, необязательные offset_x/offset_y 0..1 внутри элемента), hover раскрывает меню, fill заполняет обычное поле/contenteditable, press отправляет клавишу, select выбирает option по value или точной надписи, check устанавливает checkbox/switch/toggle, scroll_element прокручивает область. ref берётся из последнего результата; stale_target требует перечитать страницу. wait ждёт ready/post/menu/element/idle (timeout_ms до 15000); elements с url ограничивает поиск выбранным постом. read_post url читает полный доступный текст порциями offset/limit и раскрывает Показать ещё; next_offset продолжает текст. comments url/cursor/limit читает следующие публикации ветки с явной relation; unknown нельзя выдавать за ответ. close_menu закрывает меню через Escape и проверяет результат; press Escape можно без target. screenshot сохраняет текущий кадр и возвращает изображение для просмотра. Реакции posts.reactions: true/false/null (неизвестно). Пароли/2FA вводит владелец. performed означает отправку ввода; результат проверяй по новому состоянию элементов. scroll прокручивает страницу, collect/result читают ленту. status показывает браузер.",
+    "description": "Постоянный браузер Игорька внутри desktop. read/open/post возвращают посты, текст и элементы интерфейса с ref и состоянием. elements с query ищет любые кнопки, меню, поля и переключатели по видимому названию/роли/data-testid. click нажимает элемент (button left/right/double, необязательные offset_x/offset_y 0..1 внутри элемента), hover раскрывает меню, fill заполняет обычное поле/contenteditable, press отправляет клавишу, select выбирает option по value или точной надписи, check устанавливает checkbox/switch/toggle, scroll_element прокручивает область. drag рисует или перетаскивает внутри выбранного элемента: target из elements.ref, points — от 2 до 128 точек {x,y} с координатами 0..1 относительно элемента; первая точка — нажатие левой кнопки, следующие — движение с зажатой кнопкой, в конце — отпускание. duration_ms 100..3000, по умолчанию 500. Для эллипса на canvas выбери инструмент фигуры и передай две противоположные точки. Для свободной линии передай её путь. После drag проверь результат через screenshot. ref берётся из последнего результата; stale_target требует перечитать страницу. wait ждёт ready/post/menu/element/idle (timeout_ms до 15000); elements с url ограничивает поиск выбранным постом. read_post url читает полный доступный текст порциями offset/limit и раскрывает Показать ещё; next_offset продолжает текст. comments url/cursor/limit читает следующие публикации ветки с явной relation; unknown нельзя выдавать за ответ. close_menu закрывает меню через Escape и проверяет результат; press Escape можно без target. screenshot сохраняет текущий кадр и возвращает изображение для просмотра. Реакции posts.reactions: true/false/null (неизвестно). Пароли/2FA вводит владелец. performed означает отправку ввода; результат проверяй по новому состоянию элементов. scroll прокручивает страницу, collect/result читают ленту. status показывает браузер.",
     "input_schema": {"type": "object", "properties": {
-        "action": {"type": "string", "enum": ["status", "open", "read", "scroll", "post", "collect", "result", "click", "hover", "fill", "press", "select", "check", "scroll_element", "elements", "wait", "read_post", "comments", "close_menu", "screenshot"]},
+        "action": {"type": "string", "enum": ["status", "open", "read", "scroll", "post", "collect", "result", "click", "hover", "fill", "press", "select", "check", "scroll_element", "drag", "elements", "wait", "read_post", "comments", "close_menu", "screenshot"]},
         "url": {"type": "string", "description": "HTTPS URL для open; URL публикации X/Twitter для post."},
         "target": {"type":"string","description":"Точный elements.ref из последнего результата браузера."},
         "text": {"type":"string","description":"Текст для fill, максимум 16000 символов."},
@@ -42,6 +42,8 @@ SCHEMA = {
         "checked": {"type":"boolean"},
         "direction": {"type":"string","enum":["up","down","left","right"]},
         "button": {"type":"string","enum":["left","right","double"]},
+        "points": {"type":"array","minItems":2,"maxItems":128,"items":{"type":"object","properties":{"x":{"type":"number","minimum":0,"maximum":1},"y":{"type":"number","minimum":0,"maximum":1}},"required":["x","y"],"additionalProperties":False}},
+        "duration_ms": {"type":"integer","minimum":100,"maximum":3000},
         "offset_x": {"type":"number","minimum":0,"maximum":1},
         "offset_y": {"type":"number","minimum":0,"maximum":1},
     }, "required": ["action"], "additionalProperties": False},
@@ -68,10 +70,10 @@ class DesktopBrowserPipe:
         action = fields.get("action")
         expected = {"action", "url"} if action == "post" or (action == "open" and "url" in fields) else {"action"}
         interactions = {'click': set(), 'hover': set(), 'fill': {'text'}, 'press': {'key'},
-                        'select': {'value'}, 'check': {'checked'}, 'scroll_element': {'direction'}}
+                        'select': {'value'}, 'check': {'checked'}, 'scroll_element': {'direction'}, 'drag': {'points'}}
         if action in interactions:
             expected = {'action'} | interactions[action] | (set() if action == 'press' else {'target'})
-        optional = {'button', 'offset_x', 'offset_y'} if action == 'click' else {'target'} if action == 'press' else {'query', 'url'} if action == 'elements' else set()
+        optional = {'button', 'offset_x', 'offset_y'} if action == 'click' else {'target'} if action == 'press' else {'query', 'url'} if action == 'elements' else {'duration_ms'} if action == 'drag' else set()
         reading = {'wait': ({'action'}, {'condition','query','url','timeout_ms'}), 'read_post': ({'action','url'}, {'offset','limit'}), 'comments': ({'action','url'}, {'cursor','limit'}), 'close_menu': ({'action'}, set()), 'screenshot': ({'action'}, set())}
         if action in reading:
             expected, optional = reading[action]
@@ -95,12 +97,19 @@ class DesktopBrowserPipe:
         if 'direction' in fields and fields['direction'] not in ('up', 'down', 'left', 'right'):
             return json.dumps({'error': 'invalid_request'})
         import math
+        if action == 'drag':
+            points = fields.get('points')
+            if not isinstance(points, list) or not 2 <= len(points) <= 128 or any(
+                not isinstance(point, dict) or set(point) != {'x', 'y'} or any(
+                    type(point[key]) not in (int, float) or not math.isfinite(point[key]) or not 0 <= point[key] <= 1
+                    for key in ('x', 'y')) for point in points):
+                return json.dumps({'error': 'invalid_request'})
         for name in ('offset_x', 'offset_y'):
             if name in fields and (type(fields[name]) not in (int, float) or not math.isfinite(fields[name]) or not 0 <= fields[name] <= 1):
                 return json.dumps({'error': 'invalid_request'})
         if action == 'press' and 'target' not in fields and fields.get('key') not in ('Escape','Tab','Shift+Tab'):
             return json.dumps({'error':'invalid_request'})
-        for key, minimum, maximum in (('timeout_ms',100,15000),('offset',0,1000000),('limit',1,20 if action=='comments' else 6000)):
+        for key, minimum, maximum in (('duration_ms',100,3000),('timeout_ms',100,15000),('offset',0,1000000),('limit',1,20 if action=='comments' else 6000)):
             if key in fields and (type(fields[key]) is not int or not minimum <= fields[key] <= maximum):
                 return json.dumps({'error':'invalid_request'})
         if 'condition' in fields and fields['condition'] not in ('ready','post','menu','element','idle'):
