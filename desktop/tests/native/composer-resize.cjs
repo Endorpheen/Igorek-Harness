@@ -6,7 +6,10 @@ app.setPath('userData',path.join(root,'electron'));
 let window;
 async function run(){
   const repo=path.resolve(__dirname,'../../..');
-  await app.whenReady();window=new BrowserWindow({show:true,width:1200,height:850,webPreferences:{sandbox:true,contextIsolation:true,nodeIntegration:false}});
+  await app.whenReady();
+  const [width,height]=(process.env.IGOREK_TEST_VIEWPORT||'1200x850').split('x').map(Number);
+  assert.ok(Number.isFinite(width)&&Number.isFinite(height)&&width>=900&&height>=600);
+  window=new BrowserWindow({show:true,width,height,webPreferences:{sandbox:true,contextIsolation:true,nodeIntegration:false}});
   const html=fs.readFileSync(path.join(repo,'factory/web_ui/static/index.html'),'utf8');
   const start=html.indexOf('<div class="composer-wrap">'),end=html.indexOf('<div class="composer-caption">',start);
   assert.ok(start>0&&end>start);
@@ -32,7 +35,7 @@ async function run(){
     for(const node of clone.querySelectorAll('[id]'))node.removeAttribute('id');
     clone.removeAttribute('id');
     const side=document.createElement('section');side.id='resize-side-fixture';side.className='workspace-special';
-    side.style.cssText='position:fixed;right:0;top:36px;bottom:0;background:#171a1c;container-type:inline-size';
+    side.style.cssText='position:fixed;right:0;top:36px;bottom:auto;height:auto;background:#171a1c;container-type:inline-size';
     const sideWrap=document.createElement('div');sideWrap.className='composer-wrap workspace-chat-composer-wrap';sideWrap.append(clone);side.append(sideWrap);document.body.append(side);
     window.__resizeSide=side;
   `);
@@ -62,7 +65,7 @@ async function run(){
           }
           for(const button of form.querySelectorAll('.send-button,.stop-button'))if(visible(button)){
             const b=rect(button),point=document.elementFromPoint(b.left+b.width/2,b.top+b.height/2);
-            if(!button.contains(point))failures.push({kind:'covered',button:button.className});
+            if(!button.contains(point))failures.push({kind:'covered',button:button.className,coveredBy:point?.className,viewport:{width:innerWidth,height:innerHeight},rect:b});
           }
         }
         return {width:chat.getBoundingClientRect().width,busy,failures,draft:document.querySelector('#message-input').value};
