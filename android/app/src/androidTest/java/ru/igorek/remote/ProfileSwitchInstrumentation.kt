@@ -86,6 +86,8 @@ class ProfileSwitchInstrumentation : Instrumentation() {
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as ComponentActivity
             output = File(targetContext.getExternalFilesDir(null), "profile-switch-qa").apply { mkdirs() }
             val sid = checkNotNull(fixture.getString("session"))
+            val localModel = fixture.getString("local_model") ?: "local-fixture-model"
+            val localLabel = fixture.getString("local_label") ?: "local-fixture-model"
             val client = BridgeClient(checkNotNull(fixture.getString("url")), checkNotNull(fixture.getString("token")),
                 checkNotNull(fixture.getString("fingerprint")))
             val initial = client.sessions()
@@ -104,10 +106,11 @@ class ProfileSwitchInstrumentation : Instrumentation() {
             waitFor("original chat history") { find("Retained fixture response") != null }
             setDraft("Retained draft")
             tap("Choose executor profile")
-            waitFor("verified local model") { find("local-fixture-model") != null }
+            waitFor("verified local model") { find(localLabel) != null }
+            if (localModel != localLabel) check(find(localModel) == null)
             uiAutomation.takeScreenshot()?.let { image -> File(output, "profile-menu.png").outputStream().use {
                 image.compress(Bitmap.CompressFormat.PNG, 100, it) }; image.recycle() }
-            tap("local-fixture-model")
+            tap(localLabel)
             waitFor("same chat switched to local") {
                 Bridge.sessionDetail.value?.meta?.get("profile")?.jsonPrimitive?.content == "local" &&
                     !Bridge.profileSwitching.value && find("Selected") == null
@@ -115,12 +118,14 @@ class ProfileSwitchInstrumentation : Instrumentation() {
             check(Bridge.sessionDetail.value?.sessionId == sid)
             check(editor()?.text?.toString() == "Retained draft")
             check(find("Retained fixture response") != null)
-            check(find("local-fixture-model") != null)
+            check(find(localLabel) != null)
+            check(client.session(sid).model == localModel)
+            if (localModel != localLabel) check(find(localModel) == null)
             tap("Choose executor profile")
             tap("cloud-fixture-model")
             waitFor("switch back to cloud") { Bridge.sessionDetail.value?.meta?.get("profile")?.jsonPrimitive?.content == "cloud" && !Bridge.profileSwitching.value && find("Selected") == null }
             tap("Choose executor profile")
-            tap("local-fixture-model")
+            tap(localLabel)
             waitFor("second local selection") { Bridge.sessionDetail.value?.meta?.get("profile")?.jsonPrimitive?.content == "local" && !Bridge.profileSwitching.value && find("Selected") == null }
             check(editor()?.text?.toString() == "Retained draft")
             uiAutomation.takeScreenshot()?.let { image -> File(output, "same-chat-local.png").outputStream().use {

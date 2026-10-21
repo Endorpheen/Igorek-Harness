@@ -1,12 +1,14 @@
 const { randomUUID } = require('node:crypto');
 const WORLD=999;
 const KEYS=new Set(['Enter','Space','Tab','Shift+Tab','Escape','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Home','End','PageUp','PageDown','Backspace','Delete']);
-const SHAPES={click:['action','target'],hover:['action','target'],fill:['action','target','text'],press:['action','key'],select:['action','target','value'],check:['action','target','checked'],scroll_element:['action','target','direction']};
+const SHAPES={click:['action','target'],hover:['action','target'],fill:['action','target','text'],press:['action','key'],select:['action','target','value'],check:['action','target','checked'],scroll_element:['action','target','direction'],drag:['action','target','points']};
 function validInteraction(fields){
  if(!fields||!Object.hasOwn(SHAPES,fields.action))return false;
- const allowed=[...SHAPES[fields.action],...(fields.action==='click'?['button','offset_x','offset_y']:fields.action==='press'?['target']:[])];
+ const allowed=[...SHAPES[fields.action],...(fields.action==='click'?['button','offset_x','offset_y']:fields.action==='press'?['target']:fields.action==='drag'?['duration_ms']:[])];
  if(Object.keys(fields).some(k=>!allowed.includes(k))||SHAPES[fields.action].some(k=>!Object.hasOwn(fields,k)))return false;
  if(fields.action!=='press'||'target'in fields){if(typeof fields.target!=='string'||!/^r-[a-f0-9]{32}-\d{1,4}$/.test(fields.target))return false;}else if(!['Escape','Tab','Shift+Tab'].includes(fields.key))return false;
+ if(fields.action==='drag'&&(!Array.isArray(fields.points)||fields.points.length<2||fields.points.length>128||fields.points.some(p=>!p||typeof p!=='object'||Array.isArray(p)||Object.keys(p).sort().join(',')!=='x,y'||['x','y'].some(k=>typeof p[k]!=='number'||!Number.isFinite(p[k])||p[k]<0||p[k]>1))))return false;
+ if('duration_ms'in fields&&(!Number.isInteger(fields.duration_ms)||fields.duration_ms<100||fields.duration_ms>3000))return false;
  if(fields.action==='fill'&&(typeof fields.text!=='string'||fields.text.length>16000))return false;
  if(fields.action==='select'&&(typeof fields.value!=='string'||fields.value.length>1024))return false;
  if(fields.action==='check'&&typeof fields.checked!=='boolean')return false;
@@ -65,6 +67,11 @@ const TARGET=(ref,action,fields={})=>`(()=>{${HELPERS}
  node.scrollIntoView({block:'center',inline:'center',behavior:'instant'});
  const r=node.getBoundingClientRect(),x=r.left+r.width*${fields.offset_x??0.5},y=r.top+r.height*${fields.offset_y??0.5},top=hit(x,y);
  if(!top||!node.contains(top))return {error:'target_obscured'};
+ if(action==='drag'){
+  const points=${JSON.stringify(fields.points||[])}.map(p=>({x:Math.round(r.left+Math.max(0,r.width-1)*p.x),y:Math.round(r.top+Math.max(0,r.height-1)*p.y)}));
+  if(points.some(p=>p.x<0||p.y<0||p.x>=innerWidth||p.y>=innerHeight||!node.contains(hit(p.x,p.y))))return {error:'target_obscured'};
+  return {url:destination(node),points};
+ }
  node.focus();
  if(action==='fill'){if(node.isContentEditable){const selection=getSelection(),range=document.createRange();range.selectNodeContents(node);selection.removeAllRanges();selection.addRange(range);}else node.select?.();}
  if(action==='select'){const option=Array.from(node.options).find(o=>!o.disabled&&(o.value===${JSON.stringify(fields.value||'')}||o.text===${JSON.stringify(fields.value||'')}));if(!option)return {error:'option_not_found'};if(${JSON.stringify(fields._perform_select===true)}){const setter=Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set;setter.call(node,option.value);node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));}}
@@ -94,10 +101,11 @@ class BrowserInteraction{
   }return point;
  }
  async mouse(wc,event,crossFrame){
-  if(!crossFrame||!wc.debugger){wc.sendInputEvent(event);return;}
+  if(!crossFrame||!wc.debugger){const {buttons,...nativeEvent}=event;wc.sendInputEvent(nativeEvent);return;}
   if(!wc.debugger.isAttached())wc.debugger.attach('1.3');
   const type={mouseMove:'mouseMoved',mouseDown:'mousePressed',mouseUp:'mouseReleased',mouseWheel:'mouseWheel'}[event.type];
   const params={type,x:event.x,y:event.y};
+  if(Number.isInteger(event.buttons))params.buttons=event.buttons;
   if(event.button)params.button=event.button;if(event.clickCount)params.clickCount=event.clickCount;
   if(event.type==='mouseWheel'){params.deltaX=-event.deltaX;params.deltaY=-event.deltaY;}
   await wc.debugger.sendCommand('Input.dispatchMouseEvent',params);
@@ -111,11 +119,31 @@ class BrowserInteraction{
   await wc.debugger.sendCommand('Input.dispatchKeyEvent',{...event,type:'keyDown',...([' ','Enter'].includes(name)?{text:name==='Enter'?'\r':' '}:{})});
   await wc.debugger.sendCommand('Input.dispatchKeyEvent',{...event,type:'keyUp'});
  }
+ async drag(wc,entry,target,fields){
+  const source=target.points,steps=Math.max(1,Math.ceil(16/(source.length-1))),points=[];
+  for(let i=1;i<source.length;i++)for(let n=0;n<steps;n++)points.push({x:Math.round(source[i-1].x+(source[i].x-source[i-1].x)*n/steps),y:Math.round(source[i-1].y+(source[i].y-source[i-1].y)*n/steps)});
+  points.push(source.at(-1));
+  const translated=[];
+  for(const point of points){const value=await this.parentPoint(entry.frame,point);if(value.error)return value;translated.push(value);}
+  const crossFrame=!!entry.frame&&entry.frame!==wc.mainFrame;
+  let last=translated[0];wc.focus();
+  await this.mouse(wc,{type:'mouseMove',x:last.x,y:last.y},crossFrame);
+  try{
+   await this.mouse(wc,{type:'mouseDown',x:last.x,y:last.y,button:'left',buttons:1,clickCount:1},crossFrame);
+   for(const point of translated.slice(1)){
+    await this.sleep((fields.duration_ms??500)/(translated.length-1));last=point;
+    await this.mouse(wc,{type:'mouseMove',x:point.x,y:point.y,button:'left',buttons:1,modifiers:['leftButtonDown']},crossFrame);
+   }
+  }finally{if(!wc.isDestroyed?.())await this.mouse(wc,{type:'mouseUp',x:last.x,y:last.y,button:'left',buttons:0,clickCount:1},crossFrame);}
+  await this.sleep(100);
+  return {performed:true,action:'drag',points:source.length};
+ }
  async run(fields){
   if(!validInteraction(fields))return {error:'invalid_request'};
   const wc=this.contents();if(fields.action==='press'&&!fields.target){wc.focus();await this.press(wc,fields.key,!!wc.debugger);await this.sleep(300);return {performed:true,action:'press'};}const entry=this.targets.get(fields.target);if(!entry||entry.wc!==wc)return {error:'stale_target'};
   const target=await this.evaluate(TARGET(fields.target,fields.action,fields),entry.frame);if(target.error)return target;
   if(!this.allowUrl(target.url)&&!(['about:blank','about:srcdoc'].includes(target.url)&&this.allowUrl(wc.getURL())))return {error:'invalid_url'};
+  if(fields.action==='drag')return this.drag(wc,entry,target,fields);
   const point=await this.parentPoint(entry.frame,target);if(point.error)return point;wc.focus();const crossFrame=!!entry.frame&&entry.frame!==wc.mainFrame;
   if(fields.action==='select'){const value=await this.evaluate(TARGET(fields.target,'select',{...fields,_perform_select:true}),entry.frame);if(value.error)return value;}
   else if(fields.action==='fill'){if(crossFrame&&wc.debugger){if(!wc.debugger.isAttached())wc.debugger.attach('1.3');await wc.debugger.sendCommand('Input.insertText',{text:fields.text});}else await wc.insertText(fields.text);}

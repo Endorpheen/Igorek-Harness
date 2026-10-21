@@ -65,7 +65,7 @@ internal fun SessionProfilePicker(sessionId: String, profile: String, model: Str
                 Column(Modifier.weight(1f)) {
                     Text(if (switching) uiText("Переключение…", "Switching…") else
                         profile.ifBlank { uiText("Профиль", "Profile") }, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    if (model.isNotBlank()) Text(model, style = MaterialTheme.typography.labelSmall,
+                    if (model.isNotBlank()) Text(modelDisplayName(model), style = MaterialTheme.typography.labelSmall,
                         maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 Icon(Icons.Default.ArrowDropDown, contentDescription = null)
@@ -87,8 +87,9 @@ internal fun SessionProfilePicker(sessionId: String, profile: String, model: Str
             options?.switchableProfiles.orEmpty().forEach { choice ->
                 DropdownMenuItem(text = {
                     Column {
-                        Text(choice.name)
-                        if (choice.model.isNotBlank()) Text(choice.model, style = MaterialTheme.typography.bodySmall)
+                        Text(choice.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        if (choice.model.isNotBlank()) Text(modelDisplayName(choice.model),
+                            style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
                 }, trailingIcon = { if (choice.name == profile) Icon(Icons.Default.Check,
                     contentDescription = uiText("Выбран", "Selected")) }, enabled = !busy && !switching,

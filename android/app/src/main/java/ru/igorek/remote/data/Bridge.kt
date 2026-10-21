@@ -1648,19 +1648,12 @@ object Bridge {
     private fun handleEvent(event: BridgeEvent) {
         val store = prefs
         val seq = event.seq
+        val observeNotification = shouldObserveNotificationEvent(event, replayThrough, store?.lastSeq ?: 0L)
         if (event.kind == "stream.ready") {
             replayThrough = (event.payload["replay_through"] as? JsonPrimitive)?.longOrNull ?: 0L
             _connection.value = "online"
             selectedSessionId?.let { sessionId ->
                 if (_sessionCheckpoints.value != null) refreshSessionCheckpoints(sessionId)
-            }
-        }
-
-        if(event.kind in setOf("network.retry","network.recovered","task.finish","task.error")) {
-            val error=event.payload["diagnostic"]?.let { runCatching { diagnosticJson.decodeFromString<ErrorObservation>(it.toString()) }.getOrNull() }
-            if(error!=null) {
-                if(event.kind=="network.recovered")recoverDiagnostic(error.owner,0,operationCompleted=true)
-                else if(event.kind in setOf("network.retry","task.error") || event.payload.str("status")=="fail")recordDiagnostic(error)
             }
         }
 
@@ -1679,7 +1672,14 @@ object Bridge {
         }
         if (store != null && seq != null && seq > store.lastSeq) store.lastSeq = seq
         if (shouldForwardVoiceEvent(event, replayThrough)) voiceEvents.tryEmit(event)
-        if (seq != null && seq <= replayThrough) return
+        if (!observeNotification || seq != null && seq <= replayThrough) return
+
+        if (event.kind == "network.recovered") {
+            event.payload["diagnostic"]?.let { value ->
+                runCatching { diagnosticJson.decodeFromString<ErrorObservation>(value.toString()) }.getOrNull()
+                    ?.let { recoverDiagnostic(it.owner, 0, operationCompleted = true) }
+            }
+        } else notificationEventFailure(event, _notifications.value)?.let(::recordDiagnostic)
 
 
         if (event.kind.startsWith("subagent.")) selectedSessionId?.let { refreshAgentSessions(it) }
@@ -1890,7 +1890,7 @@ object Bridge {
     private fun loadNotificationHistory() {
         synchronized(errorLock) {
             _notifications.value=runCatching { diagnosticJson.decodeFromString<List<NotificationEntry>>(prefs?.notificationHistory ?: "[]")
-                .takeLast(NOTIFICATION_LIMIT).map { it.copy(text=safeDiagnosticText(it.text),diagnostic=it.diagnostic?.let(::sanitizeDiagnostic),events=it.events.takeLast(8).map(::sanitizeDiagnostic),count=it.count.coerceIn(1,1000000000)) } }.getOrDefault(emptyList())
+                .takeLast(NOTIFICATION_LIMIT).map { it.copy(text=safeDiagnosticText(it.text),diagnostic=it.diagnostic?.let(::sanitizeDiagnostic),events=it.events.takeLast(8).map(::sanitizeDiagnostic),count=it.count.coerceIn(1,1000000000)) }.filterNot(::isTimelinePresentationNotification) }.getOrDefault(emptyList())
             pendingMessages.clear()
             runCatching { diagnosticJson.decodeFromString<Map<String,String>>(prefs?.pendingOperationKeys ?: "{}") }.getOrDefault(emptyMap()).entries.toList().takeLast(20).forEach { (hash,key) ->
                 if(hash.matches(Regex("[a-f0-9]{24}")) && key.matches(Regex("[A-Za-z0-9_-]{8,160}")))pendingMessages[hash]=key

@@ -188,6 +188,58 @@ jobs:
       - name: Test and build without release signing credentials
         working-directory: android
         run: ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug
+      - name: Verify the local context card on a disposable Android device
+        timeout-minutes: 10
+        env:
+          ANDROID_USER_HOME: ${{ runner.temp }}/igorek-context-android
+        run: |
+          set -euo pipefail
+          mkdir -p test-results/android-context
+          test -c /dev/kvm
+          sudo chown "$USER" /dev/kvm
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "system-images;android-34;google_apis;x86_64"
+          echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd --force \
+            --name igorek-context --package 'system-images;android-34;google_apis;x86_64' --device pixel_4
+          export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
+          "$ANDROID_HOME/emulator/emulator" -avd igorek-context -port 5554 -accel on \
+            -gpu swiftshader_indirect -no-window -no-audio -no-snapshot -no-boot-anim \
+            -memory 2560 -cores 2 > test-results/android-context/emulator.log 2>&1 &
+          emulator_pid=$!
+          trap 'kill "$emulator_pid" 2>/dev/null || true' EXIT
+          adb="$ANDROID_HOME/platform-tools/adb"
+          ready=false
+          for attempt in $(seq 1 150); do
+            if [ "$("$adb" -s emulator-5554 shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = 1 ]; then ready=true; break; fi
+            sleep 2
+          done
+          test "$ready" = true
+          (cd android && ./gradlew --no-daemon -PigorekTestRunner=ru.igorek.remote.ContextUsageInstrumentation assembleDebug assembleDebugAndroidTest)
+          python3 - <<'PYSIGN'
+          import hashlib, os, re, ssl, subprocess
+          from pathlib import Path
+          signer = Path(os.environ['ANDROID_HOME']) / 'build-tools/36.0.0/apksigner'
+          def fingerprint(path):
+              result = subprocess.check_output([str(signer), 'verify', '--print-certs', '--print-certs-pem', path], text=True)
+              certificate = re.search(r'-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----', result, re.S)
+              assert certificate is not None, result
+              return hashlib.sha256(ssl.PEM_cert_to_DER_cert(certificate.group())).hexdigest()
+          assert fingerprint('android/app/build/outputs/apk/debug/app-debug.apk') == fingerprint('android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk')
+          PYSIGN
+          "$adb" -s emulator-5554 install -r android/app/build/outputs/apk/debug/app-debug.apk
+          "$adb" -s emulator-5554 install -r android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+          "$adb" -s emulator-5554 shell settings put system screen_off_timeout 1800000
+          "$adb" -s emulator-5554 shell input keyevent KEYCODE_WAKEUP
+          "$adb" -s emulator-5554 shell wm dismiss-keyguard
+          "$adb" -s emulator-5554 shell input keyevent 82
+          "$adb" -s emulator-5554 shell am instrument -w \
+            ru.igorek.remote.test/ru.igorek.remote.ContextUsageInstrumentation \
+            > test-results/android-context/instrumentation.log
+          "$adb" -s emulator-5554 pull /sdcard/Android/data/ru.igorek.remote/files/context-usage-qa test-results/android-context/ || true
+          python3 - <<'PYTEST'
+          from pathlib import Path
+          text = Path('test-results/android-context/instrumentation.log').read_text()
+          assert 'PASS context usage' in text, text
+          PYTEST
       - name: Keep test reports
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -196,6 +248,7 @@ jobs:
           path: |
             android/app/build/test-results/**/*.xml
             android/app/build/reports/lint-results-debug.xml
+            test-results/android-context/
           if-no-files-found: warn
           retention-days: 7
 

@@ -36,7 +36,7 @@ class DiagnosticSupportTest {
         assertTrue(draft.json.toByteArray(Charsets.UTF_8).size<=DIAGNOSTIC_REPORT_MAX_BYTES)
         val report=Json.parseToJsonElement(draft.json).jsonObject
         assertTrue(report.getValue("truncated").jsonPrimitive.boolean)
-        assertEquals(100,report.getValue("local").jsonObject.getValue("incidents").jsonArray.size)
+        assertEquals(REPORT_DETAIL_LIMIT,report.getValue("local").jsonObject.getValue("incidents").jsonArray.size)
     }
     @Test fun missingSourceReferencesAreNotManufactured() {
         val snapshot="""{"incidents":[{"error":{"code":"NET.CONNECTION_RESET"}}]}"""

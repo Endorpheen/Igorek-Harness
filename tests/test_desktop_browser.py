@@ -151,3 +151,30 @@ def test_native_read_button_creates_an_ordinary_session_with_the_existing_worker
         assert len(sent) == 1
     finally:
         owner.close()
+
+
+def test_drag_schema_pipe_and_trace_accept_only_bounded_element_paths():
+    from factory.core.desktop_browser import SCHEMA
+    from factory.core.cc_backend_trace import browser_tool_diagnostics
+    sent = []
+    client = DesktopBrowserPipe(lambda _: None, lambda _: True)
+    client.request = lambda fields, profile: sent.append(fields) or '{"performed":true}'
+    fields = {'action': 'drag', 'target': 'r-' + 'a' * 32 + '-0',
+              'points': [{'x': .1, 'y': .2}, {'x': .8, 'y': .9}], 'duration_ms': 500}
+    assert json.loads(client.call(fields)) == {'performed': True}
+    assert sent == [fields]
+    assert 'drag' in SCHEMA['input_schema']['properties']['action']['enum']
+    assert SCHEMA['input_schema']['properties']['points']['maxItems'] == 128
+    for points in [[], [fields['points'][0]], fields['points'] * 65,
+                   [{'x': True, 'y': 0}, {'x': 1, 'y': 1}],
+                   [{'x': float('nan'), 'y': 0}, {'x': 1, 'y': 1}],
+                   [{'x': 0, 'y': 0, 'extra': 1}, {'x': 1, 'y': 1}],
+                   [{'x': 0, 'y': 0}, {'x': 2, 'y': 1}]]:
+        assert json.loads(client.call(fields | {'points': points})) == {'error': 'invalid_request'}
+    for duration in [0, 3001, True, 1.5, '500']:
+        assert json.loads(client.call(fields | {'duration_ms': duration})) == {'error': 'invalid_request'}
+    assert len(sent) == 1
+    trace = browser_tool_diagnostics(fields, '{"performed":true}')
+    assert trace['action'] == 'drag'
+    assert 'points' not in trace
+    client.close()

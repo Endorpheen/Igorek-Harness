@@ -489,7 +489,7 @@ fun SessionsScreen(onOpen: (String) -> Unit, onMenu: () -> Unit) {
                 )
                 createOptions.profileCatalog.firstOrNull { it.name == profile }?.let { choice ->
                     Text(
-                        (if (choice.local) uiText("Локально", "Local") else uiText("Облако", "Cloud")) + " · " + choice.model,
+                        (if (choice.local) uiText("Локально", "Local") else uiText("Облако", "Cloud")) + " · " + modelDisplayName(choice.model),
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }

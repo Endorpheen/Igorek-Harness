@@ -26,7 +26,7 @@ Delivery is `not_sent`, `accepted`, `rejected` or `unknown`; outcome is tracked 
 
 ## Existing interfaces and diagnostics
 
-The existing notification panels show a stable code/reference, incident state, first/last observation, count and known retry information. There is no additional permanent diagnostics panel. Desktop/web's existing diagnostic-copy action includes a safe snapshot; Android copies its local snapshot by long-pressing an existing notification. Localized descriptions do not determine incident identity.
+The existing notification panels show a stable code/reference, incident state, first/last observation, count and known retry information. There is no additional permanent diagnostics panel. Desktop/web's existing diagnostic-copy action includes a safe snapshot; Android copies only the selected incident by long-pressing an existing notification; its overall report is a separate action. Localized descriptions do not determine incident identity.
 
 Authenticated endpoints:
 
@@ -56,3 +56,13 @@ Android retains long-press copying and adds an action inside the existing notifi
 `composer_opened` and system sharing mean handoff, not delivery. Neither the application nor a model claims that an email reached the support inbox. Tests intercept the composer/chooser boundary and do not send actual mail. Physical mail-app/Tuta behavior and delivery require separate owner-driven acceptance.
 
 ![Voluntary diagnostic report flow](../images/diagnostic-support-en.png)
+
+
+## Android compact exports (0.1.117 / 118)
+
+Notification long-press exports only that incident, with an 8 KiB UTF-8 bound. The separate overview preview/copy/share path uses schema version 2 and a 32 KiB bound: at most ten unresolved details (unknown outcomes and owner attention first), twelve grouped summaries, and recovered history from the last 24 hours. Each detailed incident retains the latest observation and at most four earlier observations encoded as fields differing from that latest observation; explicit null marks a field absent in the earlier event. Correlation references, actual observation counts, UTC times, recovery proof and writer health remain available. Empty metadata and duplicate latest events are omitted. Truncation, missing detail/event/group counts and excluded older recoveries are explicit; the bounds do not mark failures recovered or alter task state. The existing bounded journal and internal schema-1 snapshot remain available to local diagnostic code; desktop/web export contracts are unchanged.
+
+
+## Android notification admission (0.1.118 / 119)
+
+Timeline rendering is passive: history loading and session navigation never admit diagnostic observations. The bridge observes failures only after the stream's replay boundary and persisted processed-sequence guard. A known nonempty event ID cannot resurrect its recovered incident. Typed source diagnostics retain their identity; legacy live task failures use ERROR.UNKNOWN with task/session/source references rather than INTERNAL.UNEXPECTED presentation errors. Terminal task events do not duplicate an existing diagnostic for that same task. Explicit user-input/MCP failures enter the same persistent journal at the operation boundary. On restoration, only legacy local_ui/display/presentation records with ui:timeline: owners are removed; original task history and genuine typed incidents remain. Acknowledgment does not assert recovery, and replay/navigation after clearing does not recreate past events.

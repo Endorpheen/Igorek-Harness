@@ -9,6 +9,12 @@ from factory.core.cc_backend_executor import (
 
 
 class CcBackendContextWindowTest(unittest.TestCase):
+    def setUp(self):
+        from unittest.mock import patch
+        metadata = patch('factory.core.local_model_context.local_model_context_window', return_value=None)
+        metadata.start()
+        self.addCleanup(metadata.stop)
+
     def test_context_error_formats_preserve_cloud_and_local_recovery(self):
         for error in (
             'HTTP 400: {"error":{"type":"exceed_context_size_error"}}',

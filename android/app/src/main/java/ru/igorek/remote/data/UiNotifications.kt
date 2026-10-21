@@ -3,6 +3,7 @@ package ru.igorek.remote.data
 import java.util.UUID
 
 internal fun mergeUiNotification(entries: List<NotificationEntry>, message: String, owner: String, at: Long): List<NotificationEntry> {
+    if (owner.startsWith("timeline:")) return entries
     val text = safeDiagnosticText(message.trim())
     if (text.isBlank() || entries.any { it.diagnostic != null && it.diagnostic.endpointRole != "local_ui" && it.text == text }) return entries
     val eventId = UUID.nameUUIDFromBytes((owner + "\u0000" + text).toByteArray(Charsets.UTF_8)).toString()

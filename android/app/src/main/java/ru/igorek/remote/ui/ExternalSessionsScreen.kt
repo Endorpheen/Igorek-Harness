@@ -315,7 +315,7 @@ private fun ExternalSessionCard(session: ExternalSessionSummary, onClick: () -> 
                 )
             }
             val metadata = listOfNotNull(
-                session.model.takeIf { it.isNotBlank() },
+                session.model.takeIf { it.isNotBlank() }?.let(::modelDisplayName),
                 session.agent.takeIf { it.isNotBlank() },
                 session.messageCount.takeIf { it > 0 }?.let {
                     uiText("$it сообщений", "$it messages")
@@ -413,7 +413,7 @@ private fun ExternalSessionDetailView(
                                 Text(detail.cwd, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
                             }
                             val metadata = listOfNotNull(
-                                detail.model.takeIf { it.isNotBlank() },
+                                detail.model.takeIf { it.isNotBlank() }?.let(::modelDisplayName),
                                 detail.agent.takeIf { it.isNotBlank() },
                                 externalDate(detail.updatedAt).takeIf { it.isNotBlank() },
                             ).joinToString(" · ")

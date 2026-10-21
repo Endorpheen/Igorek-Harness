@@ -370,6 +370,23 @@ def _model_context_window(model: str) -> int | None:
     return int(found) if found else None
 
 
+
+def _profile_context_window(profile: str, model: str) -> int | None:
+    """Prefer the live configured limit over a catalogue's training maximum."""
+    name = str(profile or '').strip()
+    if name and _PROFILE_NAME.fullmatch(name):
+        try:
+            config = json.loads(get_profile_path(name).read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            config = {}
+        if isinstance(config, dict):
+            from ..core.local_model_context import is_loopback_model_url, local_model_context_window
+            base = config.get('base_url')
+            if isinstance(base, str) and is_loopback_model_url(base):
+                return local_model_context_window(base)
+    return _model_context_window(model)
+
+
 def _parse_systemctl_show(output: str) -> dict[str, dict[str, str]]:
     """Parsing `systemctl show` for multiple units (blocks separated by an empty line)."""
     units: dict[str, dict[str, str]] = {}
@@ -1766,7 +1783,7 @@ class _Handler(BaseHTTPRequestHandler):
         model = _profile_model(profile) or passed
         self._json(
             200,
-            {"profile": profile, "model": model, "context_window": _model_context_window(model)},
+            {"profile": profile, "model": model, "context_window": _profile_context_window(profile, model)},
         )
 
     def _provider_usage(self, raw_query: str) -> None:

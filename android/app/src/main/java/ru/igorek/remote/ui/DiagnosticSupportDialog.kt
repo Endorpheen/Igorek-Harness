@@ -1,6 +1,9 @@
 package ru.igorek.remote.ui
 
 import android.content.ClipData
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import android.content.Context
 import android.content.Intent
 import androidx.core.content.FileProvider
@@ -60,6 +63,7 @@ private fun createSupportIntent(context: Context, draft: DiagnosticSupportDraft)
 @Composable
 internal fun DiagnosticSupportDialog(onDismiss: () -> Unit) {
     val context=LocalContext.current
+    val clipboard=LocalClipboardManager.current
     val scope=rememberCoroutineScope()
     val prepared by produceState<Result<DiagnosticSupportDraft>?>(null) {
         value=withContext(Dispatchers.Default) { runCatching { prepareDiagnosticSupport(Bridge.diagnosticSnapshot(),BuildConfig.VERSION_NAME) } }
@@ -68,15 +72,19 @@ internal fun DiagnosticSupportDialog(onDismiss: () -> Unit) {
     val lines=remember(draft) { draft?.json?.lines().orEmpty() }
     var busy by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("") }
-    val chooser=AppLocale.text("Отправить диагностику","Send diagnostics")
+    val chooser=AppLocale.text("Общий диагностический отчёт","Overall diagnostic report")
     AlertDialog(
         onDismissRequest=onDismiss,
         title={Text(chooser)},
         text={Column(Modifier.heightIn(max=440.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(10.dp)) {
             SelectionContainer { Text(AppLocale.text("Получатель: ","Recipient: ")+ErrorCatalog.supportEmail) }
             Text(AppLocale.text(
-                "Проверьте отчёт. В нём версии, коды ошибок, идентификаторы, профили и модели. Переписка, ключи и аргументы инструментов не включаются.",
-                "Review the report. It includes versions, error codes, identifiers, profiles and models. Conversation text, credentials and tool arguments are excluded."))
+                "Общий отчёт: до 10 активных инцидентов и сводка восстановленных за последние сутки. Не более 32 КиБ. Пропуски отмечены. Переписка, ключи и аргументы инструментов не включаются.",
+                "Overall report: up to 10 active incidents and grouped recoveries from the last 24 hours. At most 32 KiB. Omissions are marked. Conversation text, credentials and tool arguments are excluded."))
+            if (draft != null) TextButton(onClick = {
+                clipboard.setText(AnnotatedString(draft.json))
+                Toast.makeText(context, AppLocale.text("Скопирован общий отчёт", "Overall report copied"), Toast.LENGTH_SHORT).show()
+            }) { Text(AppLocale.text("Скопировать общий отчёт", "Copy overall report")) }
             Text(AppLocale.text(
                 "Выберите почтовое приложение, проверьте получателя и подтвердите отправку в нём. Само приложение письма не отправляет.",
                 "Choose an email app, check the recipient and confirm sending there. Igorek does not send the email itself."))

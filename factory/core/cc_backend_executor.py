@@ -861,7 +861,11 @@ def _resolve_backend_context_window(
     fallback: int,
     use_curl: bool = False,
 ) -> tuple[int, str]:
-    # Always try models cache first regardless of transport format
+    # Local runtime limits take precedence over catalogue training maxima.
+    from .local_model_context import local_model_context_window
+    local_window = local_model_context_window(base_url)
+    if local_window is not None:
+        return local_window, "/props"
     cached = _context_window_from_models_cache(model)
     if cached:
         return cached, "models_cache"

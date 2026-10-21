@@ -499,7 +499,7 @@ private fun SessionStatusCard(
 private fun ContextSection() {
     val usage by Bridge.contextUsage.collectAsState()
     val detail by Bridge.sessionDetail.collectAsState()
-    val window = usage.window ?: detail?.contextWindow
+    val window = usage.effectiveWindow(detail?.contextWindow)
     val percent = usage.usedPercent(window)
     val locale = if (LocalAppLanguage.current == AppLanguage.Russian) java.util.Locale.forLanguageTag("ru") else java.util.Locale.US
     val formatter = java.text.NumberFormat.getIntegerInstance(locale)

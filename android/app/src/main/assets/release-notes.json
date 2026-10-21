@@ -1,45 +1,25 @@
 {
-  "versionName": "0.1.115",
-  "versionCode": 116,
+  "versionName": "0.1.119",
+  "versionCode": 120,
   "changes": [
     {
       "ru": {
-        "title": "Выбор исполнителя прямо в чате",
-        "text": "Нажмите на профиль возле поля сообщения и выберите другой проверенный профиль или модель, не создавая новый чат. Переписка, черновик и вложения сохраняются."
+        "title": "Контекст локальной модели",
+        "text": "В карточке состояния показывается размер окна, настроенный на локальном сервере, и заполненность по последнему запросу."
       },
       "en": {
-        "title": "Choose the executor inside a chat",
-        "text": "Tap the profile beside the message field and choose another verified profile or model without creating a new chat. History, draft and attachments are retained."
+        "title": "Local model context",
+        "text": "The status card shows the context configured on the local server and occupancy based on the last model request."
       }
     },
     {
       "ru": {
-        "title": "Безопасное переключение",
-        "text": "Отправка и смена профиля не выполняются одновременно. Во время текущей задачи переключение заблокировано; если подключение его не поддерживает, приложение сообщит об этом."
+        "title": "Актуальный размер окна",
+        "text": "Сведения от сервера имеют приоритет над старым событием задачи. При отсутствии токенов не показывается выдуманный процент."
       },
       "en": {
-        "title": "Safe profile switching",
-        "text": "Sending and profile switching cannot run simultaneously. Switching is blocked during the current task; the app explains when the connection does not support it."
-      }
-    },
-    {
-      "ru": {
-        "title": "Ошибки только в уведомлениях",
-        "text": "Системные ошибки и причины сбоев задач доступны в центре уведомлений. Они больше не появляются отдельными строками и карточками в чатах, списках и диалогах."
-      },
-      "en": {
-        "title": "Errors stay in notifications",
-        "text": "System errors and task failure details are available in the notification center instead of inline messages and cards in chats, lists and dialogs."
-      }
-    },
-    {
-      "ru": {
-        "title": "Медиа без счётчиков строк",
-        "text": "Видео, аудио и изображения показываются как медиафайлы. Старые ошибочные счётчики строк исключаются из итогов и текстового сравнения."
-      },
-      "en": {
-        "title": "Media without line counters",
-        "text": "Videos, audio and images are shown as media files. Legacy incorrect line counters are excluded from totals and text comparisons."
+        "title": "Current context size",
+        "text": "Server metadata takes precedence over an older task event. Missing token data does not produce a guessed percentage."
       }
     }
   ]

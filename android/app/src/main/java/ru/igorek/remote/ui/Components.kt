@@ -162,7 +162,6 @@ private fun approvalDecisionLabel(decision: String): String = when (decision.low
 fun ToolCallCard(item: TimelineItem.ToolCall, modifier: Modifier = Modifier) {
     val failure = ru.igorek.remote.data.notificationFailureText(item)
     if (failure != null) {
-        ErrorNotificationEffect(failure, "timeline:${item.id}")
         return
     }
 
@@ -463,7 +462,6 @@ fun TimelineRow(
 ) {
     val failure = ru.igorek.remote.data.notificationFailureText(item)
     if (failure != null) {
-        ErrorNotificationEffect(failure, "timeline:${item.id}")
         return
     }
     when (item) {
