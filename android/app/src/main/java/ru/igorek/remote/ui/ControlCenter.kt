@@ -342,6 +342,7 @@ internal fun ControlTopBar(
     connection: String? = null,
     work: WorkPhase = WorkPhase.Idle,
     compactStatus: Boolean = false,
+    showNotifications: Boolean = true,
     onMenu: () -> Unit,
     actions: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {},
 ) {
@@ -392,7 +393,7 @@ internal fun ControlTopBar(
                     Icon(Icons.Default.Menu, contentDescription = uiText("Открыть меню", "Open menu"))
                 }
             },
-            actions = actions,
+            actions = { if (showNotifications) NotificationCenterButton(); actions() },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
         )
         if (work != WorkPhase.Idle) {
@@ -837,7 +838,7 @@ internal fun SettingsScreen(onMenu: () -> Unit, onMachines: () -> Unit) {
                             Text(uiText("Добавить\nподключение", "Add\nconnection"), modifier = Modifier.weight(1f))
                         }
                     }
-                    connectionError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                    connectionError?.let { ErrorNotificationEffect(it, "ControlCenter") }
                     HorizontalDivider(Modifier.padding(vertical = 6.dp), color = MaterialTheme.colorScheme.outline)
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -891,7 +892,7 @@ internal fun SettingsScreen(onMenu: () -> Unit, onMachines: () -> Unit) {
                         else MaterialTheme.colorScheme.error,
                     )
                     approvalError?.let {
-                        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                        ErrorNotificationEffect(it, "ControlCenter")
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (approvalsEnabled) {
@@ -993,7 +994,7 @@ internal fun SettingsScreen(onMenu: () -> Unit, onMachines: () -> Unit) {
                         else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     (securityError ?: securityRefreshError)?.let {
-                        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                        ErrorNotificationEffect(it, "ControlCenter")
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         securityLevelOptions(securitySettings).forEach { level ->
@@ -1071,7 +1072,7 @@ internal fun SettingsScreen(onMenu: () -> Unit, onMachines: () -> Unit) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     (sandboxError ?: sandboxRefreshError)?.let {
-                        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                        ErrorNotificationEffect(it, "ControlCenter")
                     }
                 }
             }
@@ -1333,7 +1334,7 @@ internal fun ProfileScreen(onMenu: () -> Unit, onOpenSession: (String) -> Unit) 
                     else Icon(Icons.Default.Edit, uiText("Выбрать аватарку", "Choose avatar"), tint = MaterialTheme.colorScheme.primary)
                 }
             }
-            error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+            error?.let { ErrorNotificationEffect(it, "ControlCenter") }
         })
     }
 }

@@ -56,7 +56,13 @@ internal fun SessionChangesReviewPanel(sessionId: String, onDismiss: () -> Unit,
         file = null; fileError = null
         val path = selected ?: return@LaunchedEffect
         val review = data ?: return@LaunchedEffect
-        if (review.files.none { it.path == path }) { selected = null; return@LaunchedEffect }
+        val entry = review.files.firstOrNull { it.path == path }
+        if (entry == null) { selected = null; return@LaunchedEffect }
+        if (isNonTextReview(entry)) {
+            file = entry.copy(additions = null, deletions = null, hunks = emptyList())
+            fileLoading = false
+            return@LaunchedEffect
+        }
         fileLoading = true
         try { file = Bridge.changesReviewFile(sessionId, mode, base, untracked, path, review.revision) }
         catch (e: CancellationException) { throw e }
@@ -97,7 +103,10 @@ internal fun SessionChangesReviewPanel(sessionId: String, onDismiss: () -> Unit,
                 buildAnnotatedString {
                     append(if (review.totals.partial) uiText("Частичный итог: ", "Partial total: ") else uiText("Файлов: ", "Files: "))
                     append("${review.totals.files}  ")
-                    append(changeCounts(review.totals.additions, review.totals.deletions))
+                    if (review.files.any { !isNonTextReview(it) }) {
+                        val (additions, deletions) = reviewTextCounts(review)
+                        append(changeCounts(additions, deletions))
+                    }
                 },
                 style = MaterialTheme.typography.labelMedium,
             )
@@ -113,7 +122,7 @@ internal fun SessionChangesReviewPanel(sessionId: String, onDismiss: () -> Unit,
             if (review.omitted > 0) Text(uiText("Не показано из-за лимитов: ", "Omitted due to limits: ") + review.omitted, color = Warning, style = MaterialTheme.typography.labelSmall)
             if (review.excludedUntracked > 0) Text(uiText("Новых файлов вне Git исключено: ", "Untracked files excluded: ") + review.excludedUntracked, style = MaterialTheme.typography.labelSmall)
         }
-        error?.let { Text(it, color = Danger, style = MaterialTheme.typography.bodySmall) }
+        error?.let { ErrorNotificationEffect(it, "SessionChangesReviewPanel") }
         if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
         if (selected != null) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -123,15 +132,21 @@ internal fun SessionChangesReviewPanel(sessionId: String, onDismiss: () -> Unit,
                 TextButton(onClick = { selected = visible[index + 1].path }, enabled = index >= 0 && index < visible.lastIndex) { Text("→") }
             }
             Text(selected.orEmpty(), fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall)
-            fileError?.let { Text(it, color = Danger) }
+            fileError?.let { ErrorNotificationEffect(it, "SessionChangesReviewPanel") }
             if (fileLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
             file?.let { value ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(changeCounts(value.additions, value.deletions), Modifier.weight(1f))
-                    CopyButton(diffCopyText(value.diff()))
+                    val media = nonTextChangeLabel(value.path, value.unavailableReason)
+                    if (media != null) Text(media, Modifier.weight(1f))
+                    else {
+                        Text(changeCounts(value.additions, value.deletions), Modifier.weight(1f))
+                        CopyButton(diffCopyText(value.diff()))
+                    }
                 }
                 if (value.oldPath.isNotBlank()) Text(value.oldPath + " → " + value.path, style = MaterialTheme.typography.labelSmall)
-                if (value.source == "unavailable") Text(value.note.ifBlank { uiText("Сравнение недоступно", "Comparison unavailable") }, color = Warning)
+                if (isNonTextReview(value)) Text(uiText("Построчное сравнение не применяется к этому файлу", "Line comparison does not apply to this file"))
+                else if (value.unavailableReason == "read_error") ErrorNotificationEffect(value.note, "review-file-read")
+                else if (value.source == "unavailable") Text(value.note.ifBlank { uiText("Сравнение недоступно", "Comparison unavailable") }, color = Warning)
                 else if (value.hunks.isEmpty()) Text(uiText("Построчных изменений нет", "No line changes"))
                 if (value.truncated) Text(uiText("Показаны не все строки", "Not all lines shown"), color = Warning)
                 LazyColumn(Modifier.weight(1f)) { items(value.hunks) { DiffHunk(it) } }
@@ -157,7 +172,8 @@ internal fun SessionChangesReviewPanel(sessionId: String, onDismiss: () -> Unit,
                             Text(buildAnnotatedString {
                                 append(when (value.status) { "added" -> uiText("Добавлен", "Added"); "deleted" -> uiText("Удалён", "Deleted"); "renamed" -> uiText("Переименован", "Renamed"); else -> uiText("Изменён", "Modified") })
                                 append("  ")
-                                append(changeCounts(value.additions, value.deletions))
+                                val media = nonTextChangeLabel(value.path, value.unavailableReason)
+                                if (media != null) append(media) else append(changeCounts(value.additions, value.deletions))
                             }, style = MaterialTheme.typography.labelSmall)
                         }
                     }

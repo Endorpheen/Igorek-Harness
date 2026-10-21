@@ -16,6 +16,8 @@ A lost response to sending a message leaves the outcome unknown. The client chec
 
 ## What can I see?
 
+On Android, recovered incidents disappear automatically from the notification list and bell count, including incidents saved before the update. They remain in the bounded diagnostic report; the report action is available even when the list is empty. Unresolved incidents remain visible.
+
 Existing notifications show codes, references, state and known attempt information. Reading a notification does not mark the connection recovered. Diagnostic activity distinguishes recent progress, waiting for your answer, long-running work and unconfirmed progress; the observer cannot stop work. The current model/profile identity remains attached to its original failure.
 
 Use the existing diagnostic-copy action on desktop/web. On Android, long-press a notification to copy the local safe snapshot. The snapshot contains bounded metadata, recent observations and diagnostic-writer health, without raw prompts, tool input, tokens or private connection addresses. No automatic diagnostic upload is configured.
@@ -56,3 +58,7 @@ Reports contain version/platform references, typed error codes and operation IDs
 Opening the email app or sharesheet is **not delivery confirmation**. Igorek does not log in to the support mailbox or send mail on your behalf. Actual email delivery and physical mail-app/Tuta behavior are not covered by synthetic tests.
 
 ![Voluntary diagnostics: before and after](https://raw.githubusercontent.com/Endorpheen/Igorek-Harness/main/docs/images/diagnostic-support-en.png)
+
+## Android error presentation
+
+System and task failure messages are displayed only in the notification center. Chats, session lists and operation dialogs do not repeat them inline. The bell is also available outside a chat, including the connection screen. Connection state, approval requests and ordinary task progress remain in their existing places. Quiet background event-stream timeouts retain their existing visibility policy and remain available in diagnostics.

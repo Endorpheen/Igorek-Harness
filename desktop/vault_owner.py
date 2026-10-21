@@ -1,4 +1,5 @@
 """Restricted management protocol available only on the parent's private pipe."""
+from web_tools import SearchRequestError
 from factory.core.chatgpt_usage import UsageError
 from mobile_access import MobileAccessError
 from pathlib import Path
@@ -47,6 +48,8 @@ class OwnerVault:
         from factory.core.mcp_tasks.plugins import Plugins
         self.plugins = Plugins(root, self.lifecycle, self.private_mcp.calendar)
         self.interface_locked = False
+        from search_setup import SearchSetup
+        self.search_setup = SearchSetup(self.lifecycle, lambda: not self.interface_locked)
         self.lock_enabled = False
         try:
             self.lock_enabled = json.loads((root / "interface-security.json").read_text())["lock_enabled"] is True
@@ -115,6 +118,7 @@ class OwnerVault:
                         "delete_profile": {"credential_id", "password"}, "rename_profile": {"credential_id", "password", "new_name"}, "list_profiles": set(), "reveal_profile_key": {"credential_id", "password"}, "save_profile": {"name", "model", "base_url", "api_format", "api_key"},
                         "update_profile": {"credential_id", "name", "model", "base_url", "api_format", "api_key"},
                         "model_catalog": {"preset", "api_key", "credential_id"}, "check_profile": {"credential_id"}, "start_agent": {"credential_id"}, "stop_agent": set()}
+            expected.update({"search_status": set(), "save_search": {"provider", "api_key", "password"}})
             expected.update({"list_values": set(), "save_value": {"credential_id", "name", "kind", "value", "password"},
                              "reveal_value": {"credential_id", "password"}, "delete_value": {"credential_id", "password"},
                              "value_access": {"credential_id"},
@@ -143,7 +147,7 @@ class OwnerVault:
                     if not isinstance(value, str) or not 1 <= len(value) <= 32768:
                         raise ValueError()
                     continue
-                allow_empty = (action=='host_service' and field=='service' and request['operation']=='list') or (action=='mobile_configure' and field=='public_url') or (action == 'chatgpt_begin' and field == 'credential_id') or (action=='session_agent' and field=='profile' and request['operation']=='catalog') or (action in {"save_profile", "update_profile"} and field == "api_key") or (action == "model_catalog" and field in {"api_key", "credential_id"}) or (action == "save_value" and field == "credential_id")
+                allow_empty = (action=='host_service' and field=='service' and request['operation']=='list') or (action=='mobile_configure' and field=='public_url') or (action == 'chatgpt_begin' and field == 'credential_id') or (action=='session_agent' and field=='profile' and request['operation']=='catalog') or (action in {"save_profile", "update_profile"} and field == "api_key") or (action == "model_catalog" and field in {"api_key", "credential_id"}) or (action == "save_value" and field == "credential_id") or (action == "save_search" and field == "api_key")
                 if action == "save_value" and field == "value":
                     if not isinstance(value, str) or len(value) > 1024:
                         raise ValueError()
@@ -426,6 +430,10 @@ class OwnerVault:
                 reply["result"] = {"value_access": self.service.grant_value_access(self.root, **{key: request[key] for key in expected[action]})}
             elif action == "revoke_value_access":
                 reply["result"] = {"value_access": self.service.revoke_value_access(self.root, **{key: request[key] for key in expected[action]})}
+            elif action == "search_status":
+                reply["result"] = {"search": self.search_setup.status()}
+            elif action == "save_search":
+                reply["result"] = {"search": self.search_setup.save(request["provider"], request["api_key"], request["password"])}
             elif action == "list_values":
                 reply["result"] = {"values": self.service.list_values()}
             elif action == "save_value":
@@ -557,6 +565,8 @@ class OwnerVault:
                 reply["result"]["interface_locked"] = self.interface_locked
                 reply["result"]["interface_pin_enabled"] = self.pin_digest is not None
                 reply["result"]["interface_pin_available"] = self.pin_digest is not None and self.pin_failures < 5
+        except SearchRequestError as error:
+            reply["error"] = error.code
         except IsolationError as error:
             reply["error"] = (error.code if error.code in {
                 'desktop_socket_policy_missing', 'desktop_socket_policy_unavailable'

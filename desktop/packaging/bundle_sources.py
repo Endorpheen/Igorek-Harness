@@ -22,4 +22,4 @@ APP_FILES = (
 )
 
 
-BACKEND_FILES = ('opencode_profiles.py', 'opencode_host_services.py', 'host-service-runner.py', 'host-service-wangp.py', 'configure-host-service.py', 'mobile_access.py', 'codex_quota.py', 'chatgpt_connection.py', 'gmail_connection.py', 'private_mcp.py', 'mcp_access.py', 'backend.py', 'onboarding.py', 'runtime_logs.py', 'vault_owner.py', 'provider_setup.py', 'provider_probe.py', 'agent_runtime.py', 'isolation_readiness.py', 'image_setup.py', 'vault_egress.py', 'execution_mode.py', 'socket_bootstrap.py', 'qemu_access.py')
+BACKEND_FILES = ('opencode_profiles.py', 'opencode_host_services.py', 'host-service-runner.py', 'host-service-wangp.py', 'configure-host-service.py', 'mobile_access.py', 'codex_quota.py', 'chatgpt_connection.py', 'gmail_connection.py', 'private_mcp.py', 'mcp_access.py', 'backend.py', 'onboarding.py', 'runtime_logs.py', 'vault_owner.py', 'provider_setup.py', 'provider_probe.py', 'agent_runtime.py', 'web_tools.py', 'search_setup.py', 'isolation_readiness.py', 'image_setup.py', 'vault_egress.py', 'execution_mode.py', 'socket_bootstrap.py', 'qemu_access.py')

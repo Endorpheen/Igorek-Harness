@@ -117,7 +117,7 @@ private fun ScheduleContent(connection: SchedulesConnection?, connectionLabel: S
             }
         }
         if (connection == null) item { Text(uiText("Подключись к Игорьку, чтобы увидеть задания.", "Connect to Igorek to view scheduled tasks."), style = MaterialTheme.typography.bodyMedium) }
-        error?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) } }
+        error?.let { message -> item { ErrorNotificationEffect(message, "SchedulesPanel") } }
         if (snapshot?.available == false) item { Text(uiText("Расписания доступны при подключении к запущенному десктопному Игорьку.", "Schedules are available when connected to running desktop Igorek."), style = MaterialTheme.typography.bodyMedium) }
         if (available && snapshot?.running == false) item { Text(uiText("Планировщик остановлен. Автоматические запуски сейчас не выполняются.", "The scheduler is stopped. Automatic runs are not active."), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
         if (available && snapshot?.schedules.isNullOrEmpty()) item {
@@ -178,7 +178,7 @@ private fun ScheduleCard(row: ScheduledJobDto, enabled: Boolean, onDetails: () -
             Spacer(Modifier.height(8.dp))
             Text(scheduleRepeat(row) + " · " + row.timezone, style = MaterialTheme.typography.labelSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text(uiText("Следующий: ", "Next: ") + scheduleTimestamp(row.nextRunAt, row.timezone, language), style = MaterialTheme.typography.labelSmall)
-            if (row.lastStatus.isNotBlank()) Text(uiText("Последний: ", "Last: ") + scheduleLastStatus(row.lastStatus), style = MaterialTheme.typography.labelSmall, color = if (row.lastStatus in setOf("fail", "timeout", "dead_letter")) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
+            if (row.lastStatus.isNotBlank()) Text(uiText("Последний: ", "Last: ") + scheduleLastStatus(row.lastStatus), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -193,8 +193,8 @@ private fun scheduleRepeat(row: ScheduledJobDto): String = when (row.scheduleTyp
 @Composable
 private fun scheduleLastStatus(status: String): String = when (status) {
     "ok" -> uiText("выполнено", "completed")
-    "fail", "dead_letter" -> uiText("ошибка", "failed")
-    "timeout" -> uiText("истекло время", "timed out")
+    "fail", "dead_letter" -> uiText("завершено", "finished")
+    "timeout" -> uiText("завершено", "finished")
     "cancelled" -> uiText("отменено", "cancelled")
     "queued" -> uiText("в очереди", "queued")
     "processing" -> uiText("в работе", "running")
@@ -275,7 +275,7 @@ private fun ScheduleEditor(connection: SchedulesConnection, gate: Mutex, initial
                     }) { Icon(Icons.Default.Check, uiText("Сохранить задание", "Save scheduled task"), tint = MaterialTheme.colorScheme.primary) }
                 }
                 HorizontalDivider()
-                error?.let { Text(it, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error, maxLines = 4, overflow = TextOverflow.Ellipsis) }
+                error?.let { ErrorNotificationEffect(it, "SchedulesPanel") }
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     OutlinedTextField(name, onValueChange = { name = it.take(160) }, label = { Text(uiText("Название", "Name")) }, modifier = Modifier.fillMaxWidth(), enabled = !busy, singleLine = true)
                     OutlinedTextField(payload, onValueChange = { payload = it.take(16000) }, label = { Text(uiText("Что сделать", "Task")) }, modifier = Modifier.fillMaxWidth(), enabled = !busy, minLines = 3, maxLines = 8)

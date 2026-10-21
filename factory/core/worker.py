@@ -30,6 +30,7 @@ try:
     )
     from .agent_foundation import foundation_prompt_context
     from .cc_backend_tools import get_tool_schemas
+    from .web_tools_runtime import scoped_web_tools
 
     # Quick MCP check
     _all = get_tool_schemas()
@@ -89,6 +90,7 @@ except ImportError:  # pragma: no cover - direct script fallback
     )
     from agent_foundation import foundation_prompt_context
     from cc_backend_tools import get_tool_schemas
+    from web_tools_runtime import scoped_web_tools
     from codex_provider import expand_profile_env, resolve_codex_launch_settings
     from codex_event_parser import (
         extract_codex_final_text,
@@ -2073,7 +2075,7 @@ class Worker:
             task_metadata=task_metadata,
         )
 
-        with _temporary_env(vault_env):
+        with _temporary_env(vault_env), scoped_web_tools(getattr(self, "web_tools_provider", None)):
             # Extract raw user message from factory wrapper
             raw_message = _extract_raw_user_message(task_text)
 
@@ -2209,10 +2211,8 @@ class Worker:
                     foundation_context=foundation_context.strip(),
                     skills_text="",
                     wrapped_task_context="",
-                    web_tools_enabled={
-                        "web_search",
-                        "web_extract",
-                    }.issubset(available_tool_names),
+                    web_tools_enabled="web_search" in available_tool_names,
+                    web_extract_enabled="web_extract" in available_tool_names,
                     mcp_tool_names=mcp_tool_names or None,
                     disabled_mcp_capabilities=disabled_mcp_capabilities or None,
                     interactive_input_enabled=interactive_input_enabled,
@@ -2228,10 +2228,8 @@ class Worker:
                     foundation_context=foundation_context.strip(),
                     skills_text=skills_text.strip(),
                     wrapped_task_context=task_text if raw_message != task_text and not structured_history else "",
-                    web_tools_enabled={
-                        "web_search",
-                        "web_extract",
-                    }.issubset(available_tool_names),
+                    web_tools_enabled="web_search" in available_tool_names,
+                    web_extract_enabled="web_extract" in available_tool_names,
                     mcp_tool_names=mcp_tool_names or None,
                     disabled_mcp_capabilities=disabled_mcp_capabilities or None,
                     interactive_input_enabled=interactive_input_enabled,

@@ -195,6 +195,9 @@ print(json.dumps({'files':True}))`;
     stage('packaged_file_tools_and_workspace_scope');
     assert.equal((await owner('status')).state, 'not_initialized');
     await owner('create', { password: 'fixture-password' });
+    assert.deepEqual((await owner('search_status')).search.providers.map(item=>item.id),['tavily','exa','serper']);
+    assert.equal((await owner('save_search',{provider:'off',api_key:'',password:'fixture-password'})).search.provider,'off');
+    stage('search_settings_managed_owner_protocol');
     await require('./onboarding-entry.cjs').verifyOnboardingEntry({
       runtime, config, dataDir, appRoot, root, output, BrowserWindow, ipcMain, clickNative, until,
     });

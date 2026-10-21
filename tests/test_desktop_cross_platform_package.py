@@ -54,3 +54,15 @@ def test_staging_cannot_recurse_into_its_runtime(tmp_path):
     (runtime / 'manifest.json').write_text('{}')
     with pytest.raises(ValueError, match='inside its runtime'):
         load('stage-app').stage(runtime, runtime / 'app', 'windows-x64')
+
+
+@pytest.mark.parametrize('incomplete',[True,False])
+def test_native_search_gate_requires_real_stages_and_clean_visible_ui(tmp_path,incomplete):
+    module=load('check-native-report')
+    report={'status':'passed','stages':sorted(module.SEARCH_STAGES),
+            'pageErrors':[],'layout':{'visible':True,'overflow':False}}
+    if incomplete:report['stages'].pop()
+    (tmp_path/'summary.json').write_text(json.dumps(report))
+    if incomplete:
+        with pytest.raises(ValueError):module.verify_search(tmp_path)
+    else:assert module.verify_search(tmp_path)==report

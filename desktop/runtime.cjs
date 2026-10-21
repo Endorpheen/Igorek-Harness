@@ -5,9 +5,9 @@ const { EventEmitter } = require('node:events');
 const { randomUUID } = require('node:crypto');
 const { settings } = require('./policy.cjs');
 const OWNER_READ_ACTIONS = new Set(['status', 'readiness', 'image_status', 'execution_mode',
-  'list_profiles', 'list_values', 'value_access', 'private_mcp_status', 'host_mcp_access',
+  'list_profiles', 'list_values', 'search_status', 'value_access', 'private_mcp_status', 'host_mcp_access',
   'mcp_access', 'gmail_status', 'plugins_status', 'calendar_list']);
-const OWNER_QUEUE_ACTIONS = new Set([...OWNER_READ_ACTIONS, 'host_service', 'opencode_services',
+const OWNER_QUEUE_ACTIONS = new Set([...OWNER_READ_ACTIONS, 'save_search', 'host_service', 'opencode_services',
   'opencode_profiles', 'mobile_configure', 'mobile_start', 'mobile_status', 'mobile_stop',
   'mobile_revoke', 'quota_begin', 'quota_status', 'quota_cancel', 'quota_confirm']);
 const canonicalPath = value => process.platform === 'win32' ? realpathSync.native(value) : realpathSync(value);
@@ -157,6 +157,7 @@ class OwnedRuntime extends EventEmitter {
       generate_phrase: [], export_recovery: ['password', 'recovery_phrase'], verify_recovery: ['backup', 'recovery_phrase'],
       restore_recovery: ['backup', 'recovery_phrase', 'new_password'], model_catalog: ['preset', 'api_key', 'credential_id'], delete_profile: ['credential_id', 'password'], rename_profile: ['credential_id', 'password', 'new_name'], list_profiles: [],
       reveal_profile_key: ['credential_id', 'password'], save_profile: ['name', 'model', 'base_url', 'api_format', 'api_key'], update_profile: ['credential_id', 'name', 'model', 'base_url', 'api_format', 'api_key'], check_profile: ['credential_id'], start_agent: ['credential_id'], stop_agent: [] };
+    Object.assign(expected, {search_status: [], save_search: ['provider', 'api_key', 'password']});
     Object.assign(expected, { list_values: [], save_value: ['credential_id', 'name', 'kind', 'value', 'password'],
       reveal_value: ['credential_id', 'password'], delete_value: ['credential_id', 'password'],
       value_access: ['credential_id'], grant_value_access: ['credential_id', 'server', 'profile_id', 'env_name', 'password'],
@@ -183,7 +184,7 @@ class OwnedRuntime extends EventEmitter {
       return Promise.reject(new Error('Некорректные данные.'));
     for (const key of expected[action]) {
       const value = fields[key], maximum = key === 'backup' ? 22369624 : ['opencode_services','opencode_profiles'].includes(action) && key === 'config' ? 65536 : action === 'commit_env_import' && key === 'selection' ? 32768 : 1024;
-      const allowEmpty = (action === 'host_service' && key === 'service' && fields.operation === 'list') || (action === 'mobile_configure' && key === 'public_url') || (action === 'chatgpt_begin' && key === 'credential_id') || (action==='session_agent'&&key==='profile'&&fields.operation==='catalog') || (['save_profile', 'update_profile'].includes(action) && key === 'api_key') || (action === 'model_catalog' && ['api_key', 'credential_id'].includes(key)) || (action === 'save_value' && ['credential_id', 'value'].includes(key));
+      const allowEmpty = (action === 'host_service' && key === 'service' && fields.operation === 'list') || (action === 'mobile_configure' && key === 'public_url') || (action === 'chatgpt_begin' && key === 'credential_id') || (action==='session_agent'&&key==='profile'&&fields.operation==='catalog') || (['save_profile', 'update_profile'].includes(action) && key === 'api_key') || (action === 'model_catalog' && ['api_key', 'credential_id'].includes(key)) || (action === 'save_value' && ['credential_id', 'value'].includes(key)) || (action === 'save_search' && key === 'api_key');
       if (action === 'save_value' && key === 'value' && typeof value === 'string' && value.length <= maximum) { message[key] = value; continue; }
       if (typeof value !== 'string' || (!value.trim() && !(allowEmpty && value === '')) || value.length > maximum)
         return Promise.reject(new Error('Некорректные данные.'));
@@ -206,7 +207,7 @@ class OwnedRuntime extends EventEmitter {
     }
     return new Promise((resolveReply, reject) => {
       const finish = (callback, value) => { clearTimeout(timer); this.requests.delete(id); callback(value); queueMicrotask(() => this.drainOwnerQueue()); };
-      const timer = setTimeout(() => finish(reject, new Error('Ответ не получен. Проверьте состояние хранилища.')), ['host_service','plugin_action','calendar_connect','mobile_revoke'].includes(action) ? 90000 : action === 'check_profile' ? 130000 : ['model_catalog', 'chatgpt_models', 'chatgpt_disconnect', 'chatgpt_status','quota_begin','quota_status','quota_cancel','quota_confirm'].includes(action) ? 50000 : action === 'mobile_start' ? 30000 : 15000);
+      const timer = setTimeout(() => finish(reject, new Error('Ответ не получен. Проверьте состояние хранилища.')), ['host_service','plugin_action','calendar_connect','mobile_revoke'].includes(action) ? 90000 : ['check_profile','save_search'].includes(action) ? 130000 : ['model_catalog', 'chatgpt_models', 'chatgpt_disconnect', 'chatgpt_status','quota_begin','quota_status','quota_cancel','quota_confirm'].includes(action) ? 50000 : action === 'mobile_start' ? 30000 : 15000);
       this.requests.set(id, { resolve: value => finish(resolveReply, value), reject: error => finish(reject, error) });
       this.child.stdin.write(JSON.stringify(message) + '\n', error => {
         if (error) finish(reject, new Error('Backend недоступен.'));

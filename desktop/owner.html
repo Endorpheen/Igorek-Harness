@@ -30,6 +30,7 @@
       </div>
       <h3>Сохранённые подключения</h3><div id="secret-connections" class="settings-card-grid"></div>
       <p class="note">Действия подключения — в меню ⋮. После изменения ключей обновите копию восстановления.</p>
+      <button type="button" class="secondary" data-open-panel="search">Настроить интернет-поиск →</button>
       <h3>Другие секреты и переменные</h3>
       <p>Храните здесь значения вне профилей моделей. Все значения зашифрованы. Кнопка «Доступ» позволяет передавать запись выбранному сервису в отдельной задаче MCP через «+ → MCP» в чате.</p>
       <p class="note">Агент тоже может явно сохранить новую запись в Vault. Такие записи отмечены источником и задачей; список обновляется во время работы. Временные переменные команд автоматически не сохраняются.</p>
@@ -46,6 +47,20 @@
         <thead><tr><th scope="col">Имя</th><th scope="col">Тип</th><th scope="col">Источник</th><th scope="col" class="vault-actions-heading">Действия</th></tr></thead><tbody id="vault-values"></tbody>
       </table><p id="values-empty" class="vault-empty" hidden></p></div>
       <div class="vault-pagination"><span id="values-page-status" role="status"></span><div><button id="values-prev" type="button" class="secondary">← Назад</button><button id="values-next" type="button" class="secondary">Далее →</button></div></div>
+    </section>
+    <section id="search-settings" class="card panel" hidden aria-label="Интернет-поиск">
+      <h2>Интернет-поиск</h2>
+      <p>Выберите поисковую службу для профилей Игорька. Ключ хранится в зашифрованном хранилище и не передаётся модели или в команды.</p>
+      <form id="search-form">
+        <label>Поисковая служба<select id="search-provider"><option value="off">Выключен</option></select></label>
+        <p id="search-plan" class="note"></p>
+        <label>Ключ API<input id="search-key" type="password" maxlength="1024" autocomplete="off" placeholder="Вставьте ключ; оставьте пустым для сохранённого"></label>
+        <label>Пароль хранилища<input id="search-password" type="password" maxlength="1024" autocomplete="off" required></label>
+        <button id="search-save" type="submit">Проверить и сохранить</button>
+      </form>
+      <p id="search-status" role="status"></p>
+      <p class="note">Проверка делает один поисковый запрос и расходует лимит выбранной службы. Можно сменить службу или выключить поиск; ключи остальных служб сохранятся. После обновления настроек начните новую задачу.</p>
+      <p class="note">Сейчас встроенный поиск поддерживается в режиме «Без изоляции». Бесплатные лимиты и условия определяет поисковая служба.</p>
     </section>
     <section id="interface-lock-panel" class="card panel" hidden>
       <h2>Окно настройки заблокировано</h2>

@@ -488,3 +488,14 @@ test('a read started by a completed request cannot jump ahead of queued settings
     assert.deepEqual(sent, ['status', 'readiness', 'image_status']);
   } finally { await f.runtime.stop(); f.cleanup(); }
 });
+
+
+test('search settings pass through the real managed runtime owner contract',async()=>{
+  const f=fixture('owner');
+  try{
+    await f.runtime.start();
+    assert.ok((await f.runtime.requestOwner('search_status')).result);
+    assert.ok((await f.runtime.requestOwner('save_search',{provider:'off',api_key:'',password:'fixture-password'})).result);
+    await assert.rejects(f.runtime.requestOwner('save_search',{provider:'exa',api_key:'fixture-key',password:'fixture-password',endpoint:'https://other.invalid/'}));
+  }finally{await f.runtime.stop();rmSync(f.root,{recursive:true,force:true});}
+});

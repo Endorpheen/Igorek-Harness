@@ -11,6 +11,7 @@ internal data class ReviewFile(
     val source: String = "unavailable", val note: String = "",
     @SerialName("old_path") val oldPath: String = "",
     val hunks: List<DiffHunkDto> = emptyList(), val truncated: Boolean = false,
+    @SerialName("unavailable_reason") val unavailableReason: String = "",
 ) {
     fun diff() = FileDiffResponse(path, additions ?: 0, deletions ?: 0, source, truncated, hunks = hunks)
 }

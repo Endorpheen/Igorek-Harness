@@ -100,6 +100,7 @@ const PANELS = [
   { id: 'start', label: 'Обзор и запуск', group: 'Начало работы', sections: ['onboarding'], description: 'Подключение, рабочая папка и первый результат.', guide: ['Всё по порядку', 'Здесь можно подготовить Игорька к работе и продолжить настройку с сохранённого шага.', 'Откройте хранилище|Проверьте подключение|Выберите папку и выполните первую задачу'] },
   { id: 'vault', label: 'Хранилище', group: 'Начало работы', sections: ['vault-panel'], description: 'Откройте доступ к своим подключениям.', guide: ['Ключи под защитой', 'Пароль открывает зашифрованные ключи только в этом приложении.', 'Создайте или введите пароль|Сохраните его в менеджере паролей|При наличии копии используйте восстановление'] },
   { id: 'secrets', label: 'Ключи и переменные', group: 'Подключения', sections: ['secrets-hub'], description: 'Единое место для секретов и параметров подключений.', guide: ['Каждому сервису — свой ключ', 'Основная модель выполняет задачи, голосовая отвечает за разговор. Их подключения настраиваются отдельно.', 'Выберите назначение ключа|Сохраните и проверьте подключение|Обновите копию восстановления'] },
+  { id: 'search', label: 'Интернет-поиск', group: 'Подключения', sections: ['search-settings'], description: 'Выбор поисковой службы и сохранение ключа.', guide: ['Подключим интернет-поиск', 'Выберите службу, получите ключ в её кабинете и сохраните в хранилище.', 'Выберите поисковик|Вставьте ключ и проверьте|Начните новую задачу'] },
   { id: 'provider', label: 'Основная модель', group: 'Подключения', sections: ['provider-setup'], description: 'Подписка или API-сервис для задач в чате.', guide: ['Подключим рабочую модель', 'Профиль объединяет адрес сервиса, модель и её ключ. Сохранённый ключ не возвращается в поле ввода.', 'Войдите в ChatGPT или подключите сервис|Выберите модель|Проверьте подключение перед запуском'] },
   { id: 'mcp', label: 'Доступ MCP', group: 'Подключения', sections: ['mcp-settings'], description: 'Разрешения подключений для каждого профиля.', guide: ['Доступ под вашим контролем', 'Новые подключения закрыты до вашего решения.', 'Выберите MCP и профиль|Определите режим доступа|Подтвердите изменение паролем'] },
   { id: 'plugins', label: 'Плагины', group: 'Подключения', sections: ['plugin-settings'], description: 'Google Календарь и разрешения плагинов.', guide: ['Ваш календарь под контролем', 'Чтение разрешается профилю модели. Создание и перенос требуют вашего подтверждения в чате.', 'Нажмите «Подключить Google Календарь»|Подтвердите доступ в Google|Пользуйтесь календарём в чате'] },
@@ -148,6 +149,7 @@ function openPanel(id) {
   clearTimeout(valueRefreshTimer);
   if (activePanel === 'mcp' && id !== 'mcp') clearPrivateMcp();
   if (activePanel==='provider' && id!=='provider') closeProviderEditor();
+  if (activePanel==='search' && id!=='search') clearSearchFields();
   if (activePanel==='voice' && id!=='voice') { el('voice-editor').hidden=true; el('voice-key').value=''; }
   if (activePanel==='mcp' && id!=='mcp') { el('gmail-setup').open=false; el('mcp-access-details').open=false; el('private-mcp-details').open=false; el('gmail-password').value=''; el('mcp-password').value=''; }
   if (activePanel==='plugins' && id!=='plugins') { el('calendar-details').open=false; el('calendar-password').value=''; }
@@ -155,6 +157,7 @@ function openPanel(id) {
   if (!panel || !panelVisible(panel)) return;
   activePanel = id; renderNav();
   if(id==='mobile')loadMobileNetwork().catch(()=>{});
+  if (id === 'search') loadSearchSettings();
   if (id === 'secrets') loadValues();
   if (id === 'mcp' && (changed || !mcpAccessState || requestedMcpPlugin)) loadMcpConnections();
   if (id === 'plugins') loadCalendarStatus();
@@ -383,6 +386,8 @@ function applyState(value, locked = false) {
   el('mcp-password').value = ''; el('gmail-password').value = '';
   el('voice-setup').hidden = state !== 'unlocked';
   el('secrets-hub').hidden = state !== 'unlocked';
+  el('search-settings').hidden = state !== 'unlocked';
+  clearSearchFields();
   el('secret-connections').replaceChildren();
   el('voice-status').textContent = '';
   el('profile-list').replaceChildren(); el('profile-status').textContent = '';
@@ -1914,3 +1919,49 @@ if(window.igorekVault?.browserControl&&browserHandoff){window.igorekVault.browse
 browserHandoff.addEventListener('change',async()=>{const previous=!browserHandoff.checked;browserHandoff.disabled=true;try{const value=await window.igorekVault.browserControl({require_handoff:browserHandoff.checked});browserHandoff.checked=value.require_handoff;el('browser-handoff-status').textContent=value.require_handoff?'В браузере доступна ручная передача управления.':'Агент пользуется браузером без ручной передачи управления.';}catch(error){browserHandoff.checked=previous;el('browser-handoff-status').textContent=error.message;}finally{browserHandoff.disabled=false;}});
 
 }
+
+
+let searchProviders = [];
+let searchRequest = 0;
+function clearSearchFields() {
+  el('search-key').value = '';
+  el('search-password').value = '';
+}
+function renderSearchPlan() {
+  const provider = searchProviders.find(item => item.id === el('search-provider').value);
+  el('search-plan').textContent = provider ? provider.note + ' Кабинет: ' + provider.url + (provider.configured ? ' Ключ уже сохранён.' : ' Ключ ещё не сохранён.') : 'Поисковые запросы не отправляются.';
+}
+function renderSearchSettings(search) {
+  searchProviders = search.providers || [];
+  const select = el('search-provider'); select.replaceChildren();
+  for (const item of [{id:'off',name:'Выключен'}, ...searchProviders]) {
+    const option = document.createElement('option'); option.value=item.id; option.textContent=item.name; select.append(option);
+  }
+  select.value=search.provider || 'off'; renderSearchPlan();
+}
+async function loadSearchSettings() {
+  const request=++searchRequest;
+  if (!window.igorekVault?.searchStatus) return;
+  try {
+    const reply=await window.igorekVault.searchStatus();
+    if(request!==searchRequest || state!=='unlocked' || interfaceLocked || activePanel!=='search')return;
+    if(reply.result?.search)renderSearchSettings(reply.result.search);
+  } catch {}
+}
+el('search-provider').addEventListener('change',()=>{el('search-key').value='';renderSearchPlan();});
+window.addEventListener('blur',clearSearchFields);
+el('search-form').addEventListener('submit',async event=>{
+  event.preventDefault();
+  if(state!=='unlocked'||interfaceLocked||el('search-save').disabled)return;
+  const fields={provider:el('search-provider').value,api_key:el('search-key').value,password:el('search-password').value};
+  clearSearchFields(); const request=++searchRequest;
+  el('search-save').disabled=true;el('search-provider').disabled=true;
+  el('search-status').textContent='Проверяю подключение…';
+  try {
+    const reply=await window.igorekVault.saveSearch(fields);
+    if(request!==searchRequest||state!=='unlocked'||interfaceLocked||activePanel!=='search')return;
+    el('search-status').textContent='';
+    if(reply.result?.search){renderSearchSettings(reply.result.search);el('search-status').textContent=fields.provider==='off'?'Поиск выключен.':'Подключение проверено и сохранено.';}
+  } catch {el('search-status').textContent='';}
+  finally {el('search-save').disabled=false;el('search-provider').disabled=false;}
+});

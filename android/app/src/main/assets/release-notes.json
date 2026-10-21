@@ -1,35 +1,45 @@
 {
-  "versionName": "0.1.112",
-  "versionCode": 113,
+  "versionName": "0.1.115",
+  "versionCode": 116,
   "changes": [
     {
       "ru": {
-        "title": "Миниатюры перед отправкой",
-        "text": "Прикреплённые изображения видны прямо в поле ввода. Кнопка удаления остаётся рядом с миниатюрой."
+        "title": "Выбор исполнителя прямо в чате",
+        "text": "Нажмите на профиль возле поля сообщения и выберите другой проверенный профиль или модель, не создавая новый чат. Переписка, черновик и вложения сохраняются."
       },
       "en": {
-        "title": "Previews before sending",
-        "text": "Attached images appear inside the composer, with a remove button beside each thumbnail."
+        "title": "Choose the executor inside a chat",
+        "text": "Tap the profile beside the message field and choose another verified profile or model without creating a new chat. History, draft and attachments are retained."
       }
     },
     {
       "ru": {
-        "title": "Картинки сохраняются в чате",
-        "text": "После отправки миниатюры остаются в сообщении и восстанавливаются при повторном открытии чата. Дублирующая строка «вложения» скрыта, имя файла остаётся под миниатюрой."
+        "title": "Безопасное переключение",
+        "text": "Отправка и смена профиля не выполняются одновременно. Во время текущей задачи переключение заблокировано; если подключение его не поддерживает, приложение сообщит об этом."
       },
       "en": {
-        "title": "Images remain in chat",
-        "text": "After sending, thumbnails remain in the message and return when the chat is reopened. The duplicate attachment label is hidden; the filename remains below the thumbnail."
+        "title": "Safe profile switching",
+        "text": "Sending and profile switching cannot run simultaneously. Switching is blocked during the current task; the app explains when the connection does not support it."
       }
     },
     {
       "ru": {
-        "title": "Спокойное возвращение в приложение",
-        "text": "Короткий тайм-аут потока событий после сворачивания сохраняется в диагностике без лишнего уведомления. Если связь не восстановилась за 15 секунд после возврата, сбой показывается. Остальные ошибки сохраняют прежние уведомления."
+        "title": "Ошибки только в уведомлениях",
+        "text": "Системные ошибки и причины сбоев задач доступны в центре уведомлений. Они больше не появляются отдельными строками и карточками в чатах, списках и диалогах."
       },
       "en": {
-        "title": "Quieter return to the app",
-        "text": "Brief event-stream timeouts after backgrounding stay in diagnostics without an extra alert. An outage still active 15 seconds after returning becomes visible. Other errors keep their existing notifications."
+        "title": "Errors stay in notifications",
+        "text": "System errors and task failure details are available in the notification center instead of inline messages and cards in chats, lists and dialogs."
+      }
+    },
+    {
+      "ru": {
+        "title": "Медиа без счётчиков строк",
+        "text": "Видео, аудио и изображения показываются как медиафайлы. Старые ошибочные счётчики строк исключаются из итогов и текстового сравнения."
+      },
+      "en": {
+        "title": "Media without line counters",
+        "text": "Videos, audio and images are shown as media files. Legacy incorrect line counters are excluded from totals and text comparisons."
       }
     }
   ]

@@ -111,6 +111,11 @@ jobs:
           $env:IGOREK_TEST_OUTPUT = Join-Path $env:GITHUB_WORKSPACE 'test-results/composer-windows'
           & ./desktop/node_modules/.bin/electron.cmd desktop/tests/native/composer-profiles.cjs
           if ($LASTEXITCODE -ne 0) { throw 'Native composer profile acceptance failed' }
+          $env:IGOREK_TEST_OUTPUT = Join-Path $env:GITHUB_WORKSPACE 'test-results/search-windows'
+          & ./desktop/node_modules/.bin/electron.cmd desktop/tests/native/search-settings.cjs
+          if ($LASTEXITCODE -ne 0) { throw 'Native search settings acceptance failed' }
+          & uv run --no-sync python desktop/packaging/check-native-report.py $env:IGOREK_TEST_OUTPUT --search
+          if ($LASTEXITCODE -ne 0) { throw 'Native search report is incomplete' }
           $process = Start-Process -FilePath $installer[0].FullName -ArgumentList @('/S', "/D=$install") -Wait -PassThru
           if ($process.ExitCode -ne 0) { throw 'Reinstallation failed' }
           $env:IGOREK_UPDATE_INSTALL = $install

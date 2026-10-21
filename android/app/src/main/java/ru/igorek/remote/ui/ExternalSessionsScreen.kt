@@ -250,10 +250,9 @@ fun ExternalSessionsScreen(
                     Text(uiText("Сканируем сохранённые сессии…", "Scanning saved sessions…"))
                 }
                 visible.isEmpty() -> Text(
-                    lastError ?: uiText("Подходящих сессий не найдено.", "No matching sessions found."),
+                    uiText("Подходящих сессий не найдено.", "No matching sessions found."),
                     modifier = Modifier.padding(vertical = 20.dp),
-                    color = if (lastError != null) MaterialTheme.colorScheme.error
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 else -> Box(Modifier.fillMaxWidth().weight(1f)) {
                     LazyColumn(
@@ -398,7 +397,7 @@ private fun ExternalSessionDetailView(
                 Modifier.fillMaxSize().padding(padding).padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text(error.orEmpty(), color = MaterialTheme.colorScheme.error)
+                ErrorNotificationEffect(error, "external-history")
                 Button(onClick = onRetry) { Text(uiText("Повторить", "Retry")) }
             }
             else -> Box(Modifier.fillMaxSize().padding(padding)) {
@@ -588,8 +587,8 @@ private fun ImportExternalSessionDialog(
                     },
                     style = MaterialTheme.typography.bodySmall,
                 )
-                cwdNotice?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                cwdNotice?.let { ErrorNotificationEffect(it, "external-workdir") }
+                error?.let { ErrorNotificationEffect(it, "ExternalSessionsScreen") }
             }
         },
         confirmButton = {

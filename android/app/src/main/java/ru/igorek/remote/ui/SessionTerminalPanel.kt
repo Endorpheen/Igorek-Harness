@@ -61,7 +61,8 @@ private class TerminalSurface(private val view: WebView, private val status: (St
             }
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                 frames.received("disconnected")
-                show("Нет соединения: ${t.message.orEmpty()}")
+                Bridge.reportUiError(t.message ?: "Terminal connection failed", "terminal")
+                show("Отключён")
             }
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                 if (frames.ready) { frames.received("disconnected"); show("Отключён") }
@@ -128,7 +129,8 @@ internal fun SessionTerminalPanel(sessionId: String, onDismiss: () -> Unit, modi
                                 post { scope.launch {
                                     try { surface.connect(Bridge.terminalTicket(sessionId), rows, cols) }
                                     catch (e: kotlinx.coroutines.CancellationException) { throw e }
-                                    catch (e: Exception) { surface.show("Не удалось подключиться: ${e.message}") }
+                                    catch (e: kotlinx.coroutines.CancellationException) { throw e }
+                                    catch (e: Exception) { Bridge.reportUiError(e.message ?: "Terminal connection failed", "terminal"); surface.show("Отключён") }
                                 } }
                             }
                             @JavascriptInterface fun send(raw: String) {

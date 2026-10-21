@@ -112,9 +112,9 @@ internal fun sessionStatusLabel(session: SessionSummary, language: AppLanguage =
         status == "queued" -> pick("в очереди", "queued")
         status == "processing" || status == "retry" -> pick("работает", "running")
         status == "ok" -> pick("готово", "complete")
-        status == "fail" -> pick("ошибка", "failed")
+        status == "fail" -> pick("завершена", "finished")
         status == "dead_letter" || status == "cancelled" -> pick("остановлена", "stopped")
-        status == "timeout" -> pick("таймаут", "timed out")
+        status == "timeout" -> pick("завершена", "finished")
         status.isNotBlank() -> status
         else -> pick("готова", "ready")
     }
@@ -280,7 +280,6 @@ fun PairingScreen(onDone: () -> Unit = {}, onCancel: (() -> Unit)? = null, scanI
     var advanced by rememberSaveable { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    val lastError by Bridge.lastError.collectAsState()
     val savedConnections by Bridge.savedConnections.collectAsState()
     var scanned by remember { mutableStateOf<PairingQr?>(null) }
     val invalidQrText=uiText("Это не действующий QR-код сопряжения Игорька.", "This is not a valid Igorek pairing QR code.")
@@ -312,7 +311,7 @@ fun PairingScreen(onDone: () -> Unit = {}, onCancel: (() -> Unit)? = null, scanI
         )
     }
 
-    Scaffold(topBar = { TopAppBar(title = { Text(uiText("Подключение к Игорьку", "Connect to Igorek")) }, actions = { if (onCancel != null) TextButton(onClick = onCancel) { Text(uiText("Закрыть", "Close")) } }) }) { padding ->
+    Scaffold(topBar = { TopAppBar(title = { Text(uiText("Подключение к Игорьку", "Connect to Igorek")) }, actions = { NotificationCenterButton(); if (onCancel != null) TextButton(onClick = onCancel) { Text(uiText("Закрыть", "Close")) } }) }) { padding ->
         Column(
             Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -384,9 +383,7 @@ fun PairingScreen(onDone: () -> Unit = {}, onCancel: (() -> Unit)? = null, scanI
                 if (busy) CircularProgressIndicator(Modifier.padding(end = 8.dp))
                 Text(uiText("Подключить", "Connect"))
             }
-            (error ?: lastError)?.let {
-                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-            }
+            ErrorNotificationEffect(error, "pairing")
         }
     }
 }
@@ -398,7 +395,6 @@ fun SessionsScreen(onOpen: (String) -> Unit, onMenu: () -> Unit) {
     val archiveCandidateCount by Bridge.archiveCandidateCount.collectAsState()
     val approvals by Bridge.approvals.collectAsState()
     val connection by Bridge.connection.collectAsState()
-    val lastError by Bridge.lastError.collectAsState()
     var creating by rememberSaveable { mutableStateOf(false) }
     var createBusy by remember { mutableStateOf(false) }
     var profile by rememberSaveable { mutableStateOf("") }
@@ -438,7 +434,7 @@ fun SessionsScreen(onOpen: (String) -> Unit, onMenu: () -> Unit) {
                         )
                     )
                     archiveAllError?.let { error ->
-                        Text(error, color = MaterialTheme.colorScheme.error)
+                        ErrorNotificationEffect(error, "App")
                     }
                 }
             },
@@ -504,7 +500,7 @@ fun SessionsScreen(onOpen: (String) -> Unit, onMenu: () -> Unit) {
                     enabled = !createBusy && !createOptionsLoading,
                     onValueChange = { cwd = it },
                 )
-                createError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                createError?.let { ErrorNotificationEffect(it, "App") }
             } },
             confirmButton = { TextButton(
                 enabled = !createBusy && !createOptionsLoading && profile.isNotBlank() && cwd.isNotBlank(),
@@ -607,9 +603,6 @@ fun SessionsScreen(onOpen: (String) -> Unit, onMenu: () -> Unit) {
                     }
                 }
             }
-            lastError?.let { error ->
-                item { Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
-            }
             if (approvals.isNotEmpty()) {
                 item {
                     Text(
@@ -674,7 +667,7 @@ internal fun ServerAddressDialog(current: String, onDismiss: () -> Unit) {
                 uiText("Проверим подключение, сохранив сопряжение и сессии.", "The connection will be checked without losing pairing or sessions."),
                 style = MaterialTheme.typography.bodySmall,
             )
-            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            error?.let { ErrorNotificationEffect(it, "App") }
         } },
         confirmButton = { TextButton(enabled = !busy && address.isNotBlank(), onClick = {
             busy = true

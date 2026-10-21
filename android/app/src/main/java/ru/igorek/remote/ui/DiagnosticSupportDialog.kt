@@ -80,7 +80,10 @@ internal fun DiagnosticSupportDialog(onDismiss: () -> Unit) {
             Text(AppLocale.text(
                 "Выберите почтовое приложение, проверьте получателя и подтвердите отправку в нём. Само приложение письма не отправляет.",
                 "Choose an email app, check the recipient and confirm sending there. Igorek does not send the email itself."))
-            if(draft==null) Text(if(prepared==null)AppLocale.text("Подготовка отчёта…","Preparing report…") else AppLocale.text("Не удалось подготовить отчёт.","Could not prepare the report."))
+            if(draft==null) {
+                if(prepared==null) Text(AppLocale.text("Подготовка отчёта…","Preparing report…"))
+                else ErrorNotificationEffect(AppLocale.text("Не удалось подготовить отчёт.","Could not prepare the report."), "diagnostic-report")
+            }
             else SelectionContainer { LazyColumn(Modifier.height(220.dp)) { items(lines.size) { index -> Text(lines[index],fontFamily=FontFamily.Monospace,fontSize=11.sp) } } }
             if(status.isNotEmpty())Text(status)
         }},
@@ -94,7 +97,7 @@ internal fun DiagnosticSupportDialog(onDismiss: () -> Unit) {
                     context.startActivity(Intent.createChooser(intent,chooser))
                     status=AppLocale.text("Открыто системное окно выбора. Отправку подтверждает выбранное приложение.","System sharing opened. Confirm sending in the selected app.")
                 }catch(error:CancellationException){throw error}
-                catch(_:Exception){status=AppLocale.text("Не удалось открыть передачу отчёта. Ничего не отправлено.","Could not open sharing. Nothing was sent.")}
+                catch(_:Exception){Bridge.reportUiError(AppLocale.text("Не удалось открыть передачу отчёта. Ничего не отправлено.","Could not open sharing. Nothing was sent."), "diagnostic-sharing")}
                 finally{busy=false}
             }
         }){Text(AppLocale.text("Поделиться отчётом","Share report"))}},
