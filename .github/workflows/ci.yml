@@ -227,15 +227,19 @@ jobs:
           PYSIGN
           "$adb" -s emulator-5554 install -r android/app/build/outputs/apk/debug/app-debug.apk
           "$adb" -s emulator-5554 install -r android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+          "$adb" -s emulator-5554 shell settings put system screen_off_timeout 1800000
+          "$adb" -s emulator-5554 shell input keyevent KEYCODE_WAKEUP
+          "$adb" -s emulator-5554 shell wm dismiss-keyguard
+          "$adb" -s emulator-5554 shell input keyevent 82
           "$adb" -s emulator-5554 shell am instrument -w \
             ru.igorek.remote.test/ru.igorek.remote.ContextUsageInstrumentation \
             > test-results/android-context/instrumentation.log
+          "$adb" -s emulator-5554 pull /sdcard/Android/data/ru.igorek.remote/files/context-usage-qa test-results/android-context/ || true
           python3 - <<'PYTEST'
           from pathlib import Path
           text = Path('test-results/android-context/instrumentation.log').read_text()
           assert 'PASS context usage' in text, text
           PYTEST
-          "$adb" -s emulator-5554 pull /sdcard/Android/data/ru.igorek.remote/files/context-usage-qa test-results/android-context/
       - name: Keep test reports
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

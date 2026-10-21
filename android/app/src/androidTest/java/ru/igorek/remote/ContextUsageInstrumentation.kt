@@ -1,5 +1,6 @@
 package ru.igorek.remote
 
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.app.Activity
 import android.app.Instrumentation
 import android.content.Intent
@@ -44,9 +45,15 @@ class ContextUsageInstrumentation : Instrumentation() {
     }
 
     override fun onStart() {
+        uiAutomation.serviceInfo = uiAutomation.serviceInfo.apply {
+            flags = flags or AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
+        }
         try {
+            if (android.os.Build.VERSION.SDK_INT >= 33) uiAutomation.grantRuntimePermission(
+                targetContext.packageName, android.Manifest.permission.POST_NOTIFICATIONS)
             val activity = startActivitySync(Intent(targetContext, MainActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as ComponentActivity
+            waitForIdleSync()
             @Suppress("UNCHECKED_CAST")
             val detail = Bridge.javaClass.getDeclaredField("_sessionDetail").apply { isAccessible = true }
                 .get(Bridge) as MutableStateFlow<SessionDetail?>
@@ -90,6 +97,21 @@ class ContextUsageInstrumentation : Instrumentation() {
             File(output, "result.json").writeText("""{"status":"PASS","checks":["live_local_64k","server_changed_128k","unknown_usage","cloud_event_fallback"]}""")
             finish(Activity.RESULT_OK, Bundle().apply { putString("result", "PASS context usage") })
         } catch (error: Throwable) {
+            runCatching {
+                val output = File(targetContext.getExternalFilesDir(null), "context-usage-qa").apply { mkdirs() }
+                val text = StringBuilder("language=${Bridge.language.value} window=${Bridge.sessionDetail.value?.contextWindow} usage=${Bridge.contextUsage.value}\n")
+                fun visit(node: AccessibilityNodeInfo?, depth: Int = 0) {
+                    if (node == null || depth > 30 || text.length > 60000) return
+                    text.append(" ".repeat(depth)).append(node.className).append(" text=").append(node.text)
+                        .append(" description=").append(node.contentDescription).append(" visible=").append(node.isVisibleToUser).append('\n')
+                    for (index in 0 until node.childCount) visit(node.getChild(index), depth + 1)
+                }
+                for (window in uiAutomation.windows) visit(window.root)
+                visit(uiAutomation.rootInActiveWindow)
+                File(output, "failure-state.txt").writeText(text.toString())
+                uiAutomation.takeScreenshot()?.let { bitmap -> File(output, "failure.png").outputStream().use {
+                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }; bitmap.recycle() }
+            }
             finish(Activity.RESULT_CANCELED, Bundle().apply { putString("error", error.stackTraceToString()) })
         }
     }
