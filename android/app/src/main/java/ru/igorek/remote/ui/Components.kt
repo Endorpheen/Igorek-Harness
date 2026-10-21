@@ -160,6 +160,12 @@ private fun approvalDecisionLabel(decision: String): String = when (decision.low
 
 @Composable
 fun ToolCallCard(item: TimelineItem.ToolCall, modifier: Modifier = Modifier) {
+    val failure = ru.igorek.remote.data.notificationFailureText(item)
+    if (failure != null) {
+        ErrorNotificationEffect(failure, "timeline:${item.id}")
+        return
+    }
+
     val accent = toolAccent(item.status)
     // An active (still executing) card receives a glowing border along its perimeter.
     val running = isRunningToolStatus(item.status)
@@ -455,6 +461,11 @@ fun TimelineRow(
     onCancelMessage: (taskId: String, messageId: String) -> Unit = { _, _ -> },
     sessionId: String = "",
 ) {
+    val failure = ru.igorek.remote.data.notificationFailureText(item)
+    if (failure != null) {
+        ErrorNotificationEffect(failure, "timeline:${item.id}")
+        return
+    }
     when (item) {
         is TimelineItem.UserText -> Card(
             modifier = modifier.fillMaxWidth(),

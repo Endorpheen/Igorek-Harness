@@ -16,6 +16,7 @@ class ProfileChoicesTest {
         val value = json.decodeFromString<SessionOptionsResponse>("""{"profiles":["codexpro"],"default_profile":"codexpro"}""")
         assertEquals(listOf("codexpro"), value.selectableProfiles)
         assertFalse(value.profileSwitchSupported)
+        assertTrue(value.switchableProfiles.isEmpty())
     }
 
     @Test
@@ -24,6 +25,14 @@ class ProfileChoicesTest {
         assertEquals(listOf("codexpro", "local-lfm25-128k"), value.selectableProfiles)
         assertTrue(value.profileCatalog.last().local)
         assertTrue(value.profileSwitchSupported)
+        assertEquals(value.profileCatalog, value.switchableProfiles)
+    }
+
+    @Test fun switchingUsesOnlyTheVerifiedCatalogWhenSupported() {
+        val choices = listOf(ProfileChoice("local", "model"), ProfileChoice("local", "duplicate"), ProfileChoice(""))
+        val options = SessionOptionsResponse(profiles = listOf("legacy"), profileCatalog = choices, profileSwitchSupported = true)
+        assertEquals(listOf(ProfileChoice("local", "model")), options.switchableProfiles)
+        assertTrue(options.copy(profileSwitchSupported = false).switchableProfiles.isEmpty())
     }
 
     @Test

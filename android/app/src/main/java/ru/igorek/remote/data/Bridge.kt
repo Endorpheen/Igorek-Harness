@@ -156,6 +156,9 @@ object Bridge {
     private val timelineLock = Any()
     private val taskStartedAt = mutableMapOf<String, Long>()
     private val sessionsRefresh = Mutex()
+    private val profileRouteGate = ProfileRouteGate()
+    private val _profileSwitching = MutableStateFlow(false)
+    val profileSwitching = _profileSwitching.asStateFlow()
     private val approvalsRefresh = Mutex()
     private val filesRefresh = Mutex()
     private val changesRefresh = Mutex()
@@ -604,8 +607,46 @@ object Bridge {
         }
     }
 
+    fun switchSessionProfile(sessionId: String, profile: String, onDone: (Throwable?) -> Unit) {
+        val active = client ?: return onDone(IOException(AppLocale.text("Нет подключения к серверу", "No server connection")))
+        if (!profileRouteGate.beginSwitch()) return onDone(IOException(AppLocale.text(
+            "Дождитесь завершения отправки или переключения профиля", "Wait for sending or profile switching to finish")))
+        _profileSwitching.value = true
+        val generation = sessionGeneration.get()
+        clearLastError()
+        scope.launch {
+            val result = try {
+                val switched = runCatching { active.switchSessionProfile(sessionId, profile) }
+                    .map { detail ->
+                        check(detail.sessionId == sessionId && (detail.meta["profile"] as? JsonPrimitive)?.content == profile) {
+                            "Unexpected profile switch response"
+                        }
+                        detail
+                    }
+                if (client === active) {
+                    switched.onSuccess { detail ->
+                        val model = (detail.meta["model"] as? JsonPrimitive)?.content.orEmpty().ifBlank { detail.model }
+                        _sessions.update { entries -> entries.map { entry -> if (entry.sessionId == sessionId)
+                            entry.copy(profile = profile, model = model) else entry } }
+                        if (selectedSessionId == sessionId && sessionGeneration.get() == generation) {
+                            sessionGeneration.incrementAndGet()
+                            _sessionDetail.value = detail
+                            refreshExtensions(profile)
+                        }
+                        refreshSessions()
+                    }.onFailure { handleFailure(it) }
+                }
+                switched
+            } finally {
+                profileRouteGate.endSwitch()
+                _profileSwitching.value = false
+            }
+            withContext(Dispatchers.Main) { onDone(result.exceptionOrNull()) }
+        }
+    }
+
     fun loadSessionOptions(onDone: (SessionOptionsResponse?, Throwable?) -> Unit) {
-        val active = client ?: return
+        val active = client ?: return onDone(null, IOException(AppLocale.text("Нет подключения к серверу", "No server connection")))
         clearLastError()
         scope.launch {
             val result = runCatching { active.sessionOptions() }
@@ -1224,6 +1265,8 @@ object Bridge {
         onDone: (Throwable?) -> Unit,
     ) {
         val active = client ?: return
+        if (!profileRouteGate.beginSend()) return onDone(IOException(AppLocale.text(
+            "Дождитесь переключения профиля", "Wait for profile switching to finish")))
         clearLastError()
         val messageKey = connectionScope(diagnosticJson.encodeToString(listOf(listOf(sessionId, text), uploadIds, skillIds)))
         val key = pendingMessages.getOrPut(messageKey) { "android-${UUID.randomUUID()}" }
@@ -1275,7 +1318,7 @@ object Bridge {
                 }
                 .onFailure { handleFailure(it) }
                 .also { result -> withContext(Dispatchers.Main) { onDone(result.exceptionOrNull()) } }
-        }
+        }.invokeOnCompletion { profileRouteGate.endSend() }
     }
 
     fun sendMessageNow(sessionId: String, taskId: String, messageId: String, onDone: (Throwable?) -> Unit) {
@@ -1761,6 +1804,16 @@ object Bridge {
                 diagnostic,
             )
             persistNotifications()
+        }
+    }
+
+    internal fun reportUiError(message: String, owner: String) {
+        synchronized(errorLock) {
+            val updated = mergeUiNotification(_notifications.value, message, owner, System.currentTimeMillis())
+            if (updated != _notifications.value) {
+                _notifications.value = updated
+                persistNotifications()
+            }
         }
     }
 

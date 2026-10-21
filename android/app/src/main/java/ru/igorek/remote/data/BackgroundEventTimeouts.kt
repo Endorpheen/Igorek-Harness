@@ -12,7 +12,7 @@ internal fun shouldQuietBackgroundTimeout(error: ErrorObservation, visible: Bool
     isBackgroundEventTimeout(error) && (!visible || resumedAgoMs in 0 until BACKGROUND_EVENT_GRACE_MS)
 
 internal fun visibleNotifications(entries: List<NotificationEntry>): List<NotificationEntry> =
-    entries.filterNot { it.quiet && isBackgroundEventTimeout(it.diagnostic) }
+    entries.filterNot { it.state == "recovered" || (it.quiet && isBackgroundEventTimeout(it.diagnostic)) }
 
 internal fun promoteBackgroundTimeouts(entries: List<NotificationEntry>, owner: String): List<NotificationEntry> =
     entries.map { if (it.quiet && it.state != "recovered" && it.diagnostic?.owner == owner &&

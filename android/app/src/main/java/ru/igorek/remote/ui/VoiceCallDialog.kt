@@ -157,7 +157,7 @@ internal fun VoiceCallHost() {
                         Column(Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                             Text("Игорёк", color = Color.White, style = MaterialTheme.typography.headlineLarge)
                             Spacer(Modifier.height(24.dp))
-                            Text(call.error, color = Color(0xFFFFA3AF))
+                            ErrorNotificationEffect(call.error, "voice-call")
                             Spacer(Modifier.height(24.dp))
                             Button(onClick = { VoiceCalls.open(context, call.sessionId) }) { Text(uiText("Позвонить снова", "Call again")) }
                             TextButton(onClick = VoiceCalls::close) { Text(uiText("Закрыть", "Close")) }

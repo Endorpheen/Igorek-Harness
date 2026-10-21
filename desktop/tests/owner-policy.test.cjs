@@ -1155,3 +1155,25 @@ for(const flag of ['quitting','installingUpdate']) {
     assert.equal(result.error,'desktop_updating');assert.equal(h.calls.length,0);
   });
 }
+
+
+test('search settings clear secrets before IPC, retain saved providers and ignore late results', async()=>{
+  const ui=recoveryUiHarness();
+  ui.run("state='unlocked';interfaceLocked=false;activePanel='search';window.igorekVault={saveSearch:fields=>{globalThis.searchFields={...fields};return new Promise(resolve=>globalThis.searchDone=resolve)}};renderSearchSettings({provider:'exa',providers:[{id:'exa',name:'Exa',note:'Free fixture',configured:true,url:'https://dashboard.exa.ai/'}]})");
+  ui.element('search-provider').value='exa';ui.element('search-key').value='fixture-key';ui.element('search-password').value='fixture-password';
+  const saving=ui.element('search-form').listeners.submit({preventDefault(){}});
+  assert.equal(ui.element('search-key').value,'');assert.equal(ui.element('search-password').value,'');
+  assert.equal(ui.run('searchFields.api_key'),'fixture-key');assert.equal(ui.element('search-save').disabled,true);
+  ui.run("activePanel='provider';searchDone({result:{search:{provider:'serper',providers:[]}}})");await saving;
+  assert.equal(ui.element('search-provider').value,'exa');assert.equal(ui.element('search-save').disabled,false);
+});
+
+test('search failures remain in notifications and blur clears sensitive fields',async()=>{
+  const ui=recoveryUiHarness();
+  ui.run("state='unlocked';interfaceLocked=false;activePanel='search';window.igorekVault={saveSearch:async()=>({error:'search_auth_failed'})}");
+  ui.element('search-provider').value='exa';ui.element('search-key').value='fixture';ui.element('search-password').value='fixture-password';
+  await ui.element('search-form').listeners.submit({preventDefault(){}});
+  assert.equal(ui.element('search-status').textContent,'');
+  ui.element('search-key').value='again';ui.element('search-password').value='again';ui.windowEvents.blur();
+  assert.equal(ui.element('search-key').value,'');assert.equal(ui.element('search-password').value,'');
+});

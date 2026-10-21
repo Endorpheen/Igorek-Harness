@@ -51,7 +51,7 @@ internal fun AgentSessionsPanel(sessionId: String, onOpen: (String) -> Unit, onD
             IconButton(onClick = { Bridge.refreshAgentSessions(sessionId) }) { Icon(Icons.Default.Refresh, contentDescription = uiText("Обновить", "Refresh")) }
             IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, contentDescription = uiText("Закрыть", "Close")) }
         }
-        error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) }
+        error?.let { ErrorNotificationEffect(it, "AgentSessionsPanel") }
         LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             if (tree.sessions.isEmpty() && error == null) item { Text(uiText("Загружаем агентов…", "Loading agents…")) }
             items(orderedAgentSessions(tree.sessions), key = { it.first.sessionId }) { (node, depth) ->

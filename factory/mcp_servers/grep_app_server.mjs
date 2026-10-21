@@ -18,7 +18,7 @@
 import process from "node:process";
 
 const SERVER_NAME = "grep_app";
-const SERVER_VERSION = "0.2.0";
+const SERVER_VERSION = "0.2.1";
 const PROTOCOL_VERSION = "2024-11-05";
 const UPSTREAM_URL = (process.env.GREP_APP_MCP_URL || "").trim() || "https://mcp.grep.app";
 const UPSTREAM_TOOL = (process.env.GREP_APP_UPSTREAM_TOOL || "").trim() || "searchGitHub";
@@ -212,6 +212,12 @@ async function handleToolCall(arguments_) {
     .filter((part) => part && part.type === "text" && typeof part.text === "string")
     .map((part) => part.text)
     .join("\n\n");
+  if (message.result?.isError === true) {
+    return {
+      content: [{ type: "text", text: body.trim() || "grep.app MCP returned a tool error" }],
+      isError: true,
+    };
+  }
   const text = body.trim() ? `${HEADER}\n\n${body}` : `${HEADER}\n\nПо запросу результатов не найдено.`;
   return { content: [{ type: "text", text }] };
 }

@@ -78,11 +78,13 @@ class NotificationsInstrumentation : Instrumentation() {
             val repeatedText = "Notification regression fixture"
             val error = ErrorObservation(code = "NET.CONNECTION_RESET", owner = "notification-fixture")
             val entries = listOf(
-                NotificationEntry(repeatedText, "CONNECTION", firstSeen = 100, lastSeen = 100,
+                NotificationEntry("Recovered notification fixture", "CONNECTION", firstSeen = 100, lastSeen = 100,
                     id = "recovered-incident", state = "recovered", recoveredAt = 200,
                     diagnostic = error, events = listOf(error)),
                 NotificationEntry(repeatedText, "CONNECTION", firstSeen = 300, lastSeen = 300,
                     id = "new-incident", diagnostic = error.copy(eventId = "next-outage")),
+                NotificationEntry(repeatedText, "CONNECTION", firstSeen = 300, lastSeen = 300,
+                    id = "other-incident", diagnostic = error.copy(owner = "other-fixture", eventId = "other-outage")),
             )
             @Suppress("UNCHECKED_CAST")
             val notifications = Bridge.javaClass.getDeclaredField("_notifications").apply {
@@ -103,7 +105,8 @@ class NotificationsInstrumentation : Instrumentation() {
             tap("Notifications")
             waitFor("notification dialog") { find("Mark read") != null && find(repeatedText) != null }
             waitForIdleSync()
-            check(notifications.value.map { it.id }.toSet().size == 2)
+            check(notifications.value.map { it.id }.toSet().size == 3)
+            check(find("Recovered notification fixture") == null)
             val folder = targetContext.getExternalFilesDir("notifications-qa")!!; folder.mkdirs()
             uiAutomation.takeScreenshot()?.let { image ->
                 File(folder, "notifications.png").outputStream().use {
@@ -140,7 +143,14 @@ class NotificationsInstrumentation : Instrumentation() {
             waitFor("support preview") { find("Share report") != null }
             tap("Close")
             waitFor("return to notifications") { find("Mark read") != null }
-            check(notifications.value.size == 2)
+            check(notifications.value.size == 3)
+            runOnMainSync {
+                notifications.value = notifications.value.map { it.copy(state = "recovered", recoveredAt = 400) }
+            }
+            waitFor("recovered cards removed from open notification center") {
+                find("No active error notifications") != null && find(repeatedText) == null
+            }
+            check(Bridge.diagnosticSnapshot().contains("other-incident"))
             tap("Clear")
             waitFor("cleared notification list") { notifications.value.isEmpty() }
             waitForIdleSync()

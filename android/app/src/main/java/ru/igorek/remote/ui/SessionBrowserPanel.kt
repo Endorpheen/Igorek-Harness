@@ -158,7 +158,7 @@ internal fun SessionBrowserPanel(onDismiss: () -> Unit, modifier: Modifier = Mod
             frame?.title?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis) }
             frame?.url?.takeIf { it.isNotBlank() }?.let { Text(it, fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis) }
             if (busy && bitmap == null) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-            error?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+            error?.let { ErrorNotificationEffect(it, "SessionBrowserPanel") }
             val image = bitmap
             if (image != null) {
                 Text(if (error != null) uiText("Последний полученный кадр", "Last received frame") else if (frame?.loading == true) uiText("Страница загружается…", "Page is loading…") else uiText("Открытая вкладка десктопа", "Desktop browser tab"), style = MaterialTheme.typography.labelSmall)

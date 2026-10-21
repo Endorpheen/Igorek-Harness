@@ -253,7 +253,13 @@ fun SessionScreen(
         Bridge.saveMcpChat(sessionId, rows)
         mcpRows = rows
     }
-    val timeline = mergeMcpChatRows(regularTimeline, mcpRows)
+    val completeTimeline = mergeMcpChatRows(regularTimeline, mcpRows)
+    LaunchedEffect(sessionId, completeTimeline) {
+        completeTimeline.forEach { item ->
+            ru.igorek.remote.data.notificationFailureText(item)?.let { Bridge.reportUiError(it, "timeline:$sessionId:${item.id}") }
+        }
+    }
+    val timeline = completeTimeline.filter { ru.igorek.remote.data.notificationFailureText(it) == null }
     val approvals by Bridge.approvals.collectAsState()
     val agentTree by Bridge.agentSessions.collectAsState()
     val detail by Bridge.sessionDetail.collectAsState()
@@ -263,6 +269,7 @@ fun SessionScreen(
     val sessionChangesDiff by Bridge.sessionChangesDiff.collectAsState()
     val extensions by Bridge.extensions.collectAsState()
     val securitySettings by Bridge.securitySettings.collectAsState()
+    val switchingProfile by Bridge.profileSwitching.collectAsState()
     val listState = rememberLazyListState()
 
     var draft by rememberSaveable(sessionId) { mutableStateOf("") }
@@ -446,8 +453,11 @@ fun SessionScreen(
         confirmButton = { TextButton(onClick = { microphoneError = false }) { Text("OK") } },
     )
     var composerFocused by remember { mutableStateOf(false) }
-    var showComposerModel by remember(sessionId) { mutableStateOf(false) }
-    val profile = summary?.profile ?: (detail?.meta?.get("profile") as? JsonPrimitive)?.content.orEmpty()
+    val currentDetail = detail?.takeIf { it.sessionId == sessionId }
+    val profile = (currentDetail?.meta?.get("profile") as? JsonPrimitive)?.content ?: summary?.profile.orEmpty()
+    val composerModel = (currentDetail?.meta?.get("model") as? JsonPrimitive)?.content?.takeIf { it.isNotBlank() }
+        ?: currentDetail?.model?.takeIf { it.isNotBlank() }
+        ?: summary?.model.orEmpty()
     val isolation = summary?.isolation
         ?: detail?.takeIf { it.sessionId == sessionId }?.isolation
     val runningTaskId = if (summary != null) summary.runningTaskId
@@ -515,6 +525,7 @@ fun SessionScreen(
                     connection = connection,
                     work = work,
                     compactStatus = true,
+                    showNotifications = false,
                     onMenu = onMenu,
                     actions = {
                         if (selectedMcp != null) Surface(
@@ -776,22 +787,19 @@ fun SessionScreen(
                                             )
                                         }
                                     }
-                                    Text(
-                                        if (selectedMcp != null) {
-                                            selectedMcp!!["profile"]!!.jsonPrimitive.content
-                                        } else if (showComposerModel) {
-                                            detail?.takeIf { it.sessionId == sessionId }?.model?.takeIf { it.isNotBlank() }
-                                                ?: summary?.model?.takeIf { it.isNotBlank() }
-                                                ?: (detail?.takeIf { it.sessionId == sessionId }?.meta?.get("model") as? JsonPrimitive)?.content?.takeIf { it.isNotBlank() }
-                                                ?: uiText("Модель не указана", "Model unavailable")
-                                        } else profile,
-                                        modifier = Modifier.weight(1f).clickable { if (selectedMcp != null) { if (!mcpRunning) mcpOpen = true } else showComposerModel = !showComposerModel }.padding(horizontal = 8.dp, vertical = 12.dp),
+                                    if (selectedMcp != null) Text(
+                                        selectedMcp!!["profile"]!!.jsonPrimitive.content,
+                                        modifier = Modifier.weight(1f).clickable { if (!mcpRunning) mcpOpen = true }.padding(horizontal = 8.dp, vertical = 12.dp),
                                         style = MaterialTheme.typography.labelMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
                                         textAlign = TextAlign.End,
-                                    )
+                                    ) else SessionProfilePicker(sessionId, profile, composerModel,
+                                        busy = sending || sessionActive || streaming || sessionApprovals.isNotEmpty() || currentDetail == null ||
+                                            currentDetail.meta["agent_session"]?.jsonPrimitive?.booleanOrNull == true ||
+                                            currentDetail.meta["demo"]?.jsonPrimitive?.booleanOrNull == true,
+                                        modifier = Modifier.weight(1f))
                                     IconButton(onClick = {
                                         if (androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED) ru.igorek.remote.service.VoiceCalls.open(context, sessionId)
                                         else microphonePermission.launch(android.Manifest.permission.RECORD_AUDIO)
@@ -895,7 +903,7 @@ fun SessionScreen(
                                                 }
                                             }
                                         },
-                                        enabled = !sending && !mcpRunning && (draft.isNotBlank() || pending.isNotEmpty()),
+                                        enabled = !sending && !switchingProfile && !mcpRunning && (draft.isNotBlank() || pending.isNotEmpty()),
                                         modifier = Modifier.size(48.dp),
                                         shape = CircleShape,
                                         colors = IconButtonDefaults.filledIconButtonColors(
@@ -974,77 +982,9 @@ fun SessionScreen(
     if (diagnosticSupportOpen) DiagnosticSupportDialog { diagnosticSupportOpen=false;notificationsOpen=true }
 
     if (notificationsOpen) {
-        AlertDialog(
-            onDismissRequest = { closeNotificationCenter() },
-            title = { Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
-                Text(uiText("Уведомления", "Notifications"))
-                IconButton(onClick={notificationsOpen=false;diagnosticSupportOpen=true}) {
-                    Icon(Icons.AutoMirrored.Filled.Send,contentDescription=uiText("Отправить диагностику", "Send diagnostics"))
-                }
-            } },
-            text = {
-                LazyColumn(
-                    Modifier.heightIn(max = 420.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    if (notificationEntries.isEmpty()) {
-                        item { Text(uiText("Уведомлений об ошибках пока нет", "No error notifications yet")) }
-                    } else {
-                        items(notificationEntries, key = { it.id }) { entry ->
-                            NotificationCard(entry)
-                        }
-                    }
-                }
-            },
-            confirmButton = {
-                // Three buttons evenly divide the row; labels are centered and do not wrap:
-                // otherwise, the «Close» button will split into two lines, and the last character will drop down.
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    TextButton(
-                        onClick = { markAllNotificationsRead() },
-                        modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
-                    ) {
-                        Text(
-                            uiText("Прочитать", "Mark read"),
-                            maxLines = 1,
-                            softWrap = false,
-                            textAlign = TextAlign.Center,
-                        )
-                    }
-                    TextButton(
-                        onClick = {
-                            Bridge.clearNotifications()
-                            localNotifications = emptyList()
-                        },
-                        modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
-                    ) {
-                        Text(
-                            uiText("Очистить", "Clear"),
-                            maxLines = 1,
-                            softWrap = false,
-                            textAlign = TextAlign.Center,
-                        )
-                    }
-                    TextButton(
-                        onClick = { closeNotificationCenter() },
-                        modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp),
-                    ) {
-                        Text(
-                            uiText("Закрыть", "Close"),
-                            maxLines = 1,
-                            softWrap = false,
-                            textAlign = TextAlign.Center,
-                        )
-                    }
-                }
-            },
-        )
+        NotificationCenterDialog(notificationEntries, ::closeNotificationCenter, ::markAllNotificationsRead,
+            onClear = { Bridge.clearNotifications(); localNotifications = emptyList() },
+            onSupport = { notificationsOpen = false; diagnosticSupportOpen = true })
     }
 
     if (changesOpen) {
@@ -1072,7 +1012,7 @@ fun SessionScreen(
 /** Single-error card: text and time of occurrence to determine if it is recent or old. */
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
-private fun NotificationCard(entry: NotificationEntry) {
+internal fun NotificationCard(entry: NotificationEntry) {
     val clipboard=LocalClipboardManager.current
     val context = LocalContext.current
     val copiedMessage = uiText("Диагностика скопирована в буфер обмена", "Diagnostics copied to clipboard")

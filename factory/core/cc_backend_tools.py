@@ -122,6 +122,10 @@ TAVILY_BASE_URL = "https://api.tavily.com"
 
 
 def web_tools_available() -> bool:
+    from .web_tools_runtime import active_web_tools
+    provider = active_web_tools()
+    if provider is not None:
+        return provider.available()
     return bool(os.environ.get("TAVILY_API_KEY", "").strip())
 
 
@@ -260,6 +264,10 @@ def _get_tavily_api_key() -> str:
 
 
 def _tavily_request(endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
+    from .web_tools_runtime import active_web_tools
+    provider = active_web_tools()
+    if provider is not None:
+        return provider.request(endpoint, payload)
     api_key = _get_tavily_api_key()
     data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(
@@ -2253,6 +2261,12 @@ def _check_web_tools() -> bool:
     return web_tools_available()
 
 
+def _check_web_extract() -> bool:
+    from .web_tools_runtime import active_web_tools
+    provider = active_web_tools()
+    return web_tools_available() and (provider is None or getattr(provider, "supports_extract", lambda: True)())
+
+
 def _handle_send_apk(args, **kwargs):
     from .isolation.apk_delivery import send_apk_from_guest
     try:
@@ -2380,7 +2394,7 @@ registry.register(
     toolset="web",
     schema=WEB_EXTRACT_SCHEMA,
     handler=_handle_web_extract,
-    check_fn=_check_web_tools,
+    check_fn=_check_web_extract,
     requires_env=["TAVILY_API_KEY"],
     description="Fetch and extract content from URLs.",
 )

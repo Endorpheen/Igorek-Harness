@@ -289,3 +289,15 @@ def test_opencode_session_headers_reach_two_requests_and_a_new_session():
         assert seen == ['local-session-one', 'local-session-one', 'local-session-two']
     finally:
         server.shutdown(); server.server_close(); thread.join()
+
+
+def test_started_desktop_worker_receives_vault_backed_search_provider(setup):
+    owner, runtime, _, profile = setup
+    verify(owner, profile)
+    runtime.start(profile['credential_id'])
+    provider = FakeWorker.instances[-1].web_tools_provider
+    assert not provider.available()
+    saved = owner.lifecycle.save_value('', 'TAVILY_API_KEY', 'secret', 'test-only-search-key', 'test-password')
+    assert provider.available()
+    owner.lifecycle.delete_value(saved['credential_id'], 'test-password')
+    assert not provider.available()

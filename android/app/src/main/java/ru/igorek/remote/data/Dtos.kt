@@ -85,6 +85,8 @@ data class SessionOptionsResponse(
     @SerialName("profile_switch_supported") val profileSwitchSupported: Boolean = false,
 ) {
     val selectableProfiles: List<String> get() = (profileCatalog.map { it.name } + profiles).distinct()
+    val switchableProfiles: List<ProfileChoice> get() = if (profileSwitchSupported)
+        profileCatalog.filter { it.name.isNotBlank() }.distinctBy { it.name } else emptyList()
 }
 
 @Serializable

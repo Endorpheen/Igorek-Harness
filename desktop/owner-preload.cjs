@@ -4,12 +4,12 @@ contextBridge.exposeInMainWorld('IgorekCompletionSoundSettings', Object.freeze({
   set: enabled => ipcRenderer.invoke('igorek:completion-sound', 'set', enabled),
   onChange: callback => ipcRenderer.on('igorek:completion-sound-state', (_, value) => callback(value)),
 }));
-const notificationSource = (channel, action) => ({mobile_configure:'Адрес подключения телефона',mobile_start:'Сопряжение телефона',mobile_status:'Мобильные устройства',mobile_stop:'Мобильные устройства',mobile_revoke:'Отключение телефона',quota_begin:'Квота Codex',quota_status:'Квота Codex',quota_cancel:'Квота Codex'}[action] || ({'igorek:owner-vault':'Настройки','igorek:session-quota':'Квота Codex','igorek:session-agent':'Исполнитель','igorek:session-plugins':'Плагины','igorek:session-mcp':'Подключения MCP','igorek:session-browser':'Браузер'}[channel]) || 'Приложение');
+const notificationSource = (channel, action) => ({search_status:'Интернет-поиск',save_search:'Интернет-поиск',mobile_configure:'Адрес подключения телефона',mobile_start:'Сопряжение телефона',mobile_status:'Мобильные устройства',mobile_stop:'Мобильные устройства',mobile_revoke:'Отключение телефона',quota_begin:'Квота Codex',quota_status:'Квота Codex',quota_cancel:'Квота Codex'}[action] || ({'igorek:owner-vault':'Настройки','igorek:session-quota':'Квота Codex','igorek:session-agent':'Исполнитель','igorek:session-plugins':'Плагины','igorek:session-mcp':'Подключения MCP','igorek:session-browser':'Браузер'}[channel]) || 'Приложение');
 const invoke = async (channel, ...args) => {
   try {
     const reply = await ipcRenderer.invoke(channel, ...args);
     if (reply?.error && !(channel === 'igorek:owner-vault' && reply.error === 'operation_busy'))
-      ipcRenderer.invoke('igorek:notifications', 'add', { source: notificationSource(channel, args[0]), level: 'error', detail: String(reply.error) }).catch(() => {});
+      ipcRenderer.invoke('igorek:notifications', 'add', { source: notificationSource(channel, args[0]), level: 'error', detail: ({search_auth_failed:'Поисковая служба отклонила ключ. Проверьте ключ в настройках интернет-поиска.',search_limit_reached:'Исчерпан лимит поиска или превышена частота запросов. Проверьте кабинет поисковой службы.',search_unavailable:'Поисковая служба недоступна. Повторите проверку позже.',search_invalid_response:'Поисковая служба вернула некорректный ответ. Настройки не изменены.'}[reply.error] || String(reply.error)) }).catch(() => {});
     return reply;
   } catch (error) {
     ipcRenderer.invoke('igorek:notifications', 'add', { source: notificationSource(channel, args[0]), level: 'error', detail: String(error.message || error) }).catch(() => {});
@@ -52,6 +52,8 @@ contextBridge.exposeInMainWorld('igorekVault', {
   valueAccess: credential_id => invoke('igorek:owner-vault', 'value_access', {credential_id}),
   grantValueAccess: fields => invoke('igorek:owner-vault', 'grant_value_access', fields),
   revokeValueAccess: fields => invoke('igorek:owner-vault', 'revoke_value_access', fields),
+  searchStatus: () => invoke('igorek:owner-vault', 'search_status'),
+  saveSearch: fields => invoke('igorek:owner-vault', 'save_search', fields),
   listValues: () => invoke('igorek:owner-vault', 'list_values'),
   saveValue: fields => invoke('igorek:owner-vault', 'save_value', fields),
   revealValue: (credential_id, password) => invoke('igorek:owner-vault', 'reveal_value', { credential_id, password }),

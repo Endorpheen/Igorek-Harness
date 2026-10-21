@@ -1,3 +1,27 @@
+## 2026-10-21 — Final cross-platform release checks
+
+- Complete final Python roots: 5,017 collected, 4,983 passed, 34 existing skips, zero failures/errors, and 644 subtests. The live grep.app success path returned actual hits in this run. This result includes all five new deterministic MCP error regressions.
+- The Windows Desktop contract job exposed a transient `EPERM` while deleting its own temporary executable fixture after process exit. Added bounded `rmSync` retries for that fixture cleanup and reused the helper in the new owner-protocol test. All behavioral assertions and failure cases are unchanged; persistent cleanup failures still fail the test.
+- The search settings help now uses the exact existing execution-mode label, “На этом компьютере — без KVM”.
+
+## 2026-10-21 — Preserve upstream MCP tool failures
+
+- The full Python 3.13 CI failure exposed an actual bridge defect: official grep.app responded over HTTP 200 with `result.isError=true`, but the local stdio wrapper discarded that flag and prepended a success/results header.
+- Captured the public upstream response as a fixture. The unchanged bridge failed two new integration regressions before the fix; success/URL-contract and HTTP-error compatibility cases passed. The fix preserves the structural error flag, never classifies by response wording, and leaves the existing live test/assertions/availability handling unchanged.
+- Targeted result after the fix: five deterministic regressions passed; the original live module passed its three protocol cases and retained its existing upstream-unavailable skip. The observed official MCP transport was HTTP 200 with `result.isError=true`; no inner service HTTP status is asserted.
+- Added five deterministic HTTP-upstream → Node stdio regressions for the captured error, empty errors, normal results, successful text mentioning an error, and HTTP 429. Hosted live availability is reported separately from deterministic correctness.
+- Hosted Linux/Windows artifacts now retain the new search settings native acceptance summaries.
+
+## 2026-10-21 — Desktop search and mobile notification-only errors
+
+- Desktop/Python 0.2.17 adds owner-configured Tavily, Exa and Serper search. Keys are checked before saving in Desktop Vault, remain outside model profiles and shell environments, and can be reused when switching services. Serper advertises search only; KVM has no new credential bridge.
+- Android 0.1.115 (116) keeps task/system errors in the notification center, excludes media/binary files from text line counters, and includes the already verified same-chat profile selector.
+- Initial full Python coverage run: 4,996 collected, 4,962 passed, 34 existing skips, zero failures/errors, 644 subtests. The expanded 5,010-case run recorded one live grep.app HTTP rate-limit failure; the unchanged whole-module retry also encountered rate limiting. This is not reported as a passing or skipped test; hosted CI remains required.
+- Full-project coverage measured 47,540/79,972 statements and 13,371/28,664 branches before the final added cases. All three new search modules have 100% statement and branch coverage in the focused 49-case regression run.
+- All 397 Desktop contract tests passed. Native Linux first-task/restart and the separate real Electron search form/private IPC/Vault/tool-dispatch acceptance passed using synthetic provider responses. No production key or live paid account acceptance is claimed.
+- All 373 Android unit cases and lint passed; native Android 14/API 34 acceptance verifies the notification center and media presentation. The shipping APK is byte-identical to that accepted fixture. Physical-phone, physical Windows 11, real OAuth and KVM acceptance remain separate.
+- Added strict native search report gates to hosted Linux/Windows acceptance. Updated both Wiki languages through the provenance-preserving overlays and added editable English/Russian before/after diagrams.
+
 ## 2026-10-19 — 0.2.16 release preparation and attachment label cleanup
 
 - Android 0.1.112 (113) removes the redundant generated attachment line when structured attachments provide thumbnails/filenames. Exact matching Russian and English legacy suffixes are hidden in restored messages without rewriting stored text; messages without metadata and unrelated prose retain their fallback text. Added regressions for image-only messages, both languages, multiple filenames and preservation of unrelated text.

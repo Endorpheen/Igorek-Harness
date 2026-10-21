@@ -444,6 +444,54 @@ class VaultLifecycle:
                 return {"anthropic-version": "2023-06-01"} if api_format == "anthropic" else {}
             return {"x-api-key": secret.secret} if api_format == "anthropic" else {"Authorization": "Bearer " + secret.secret}
 
+    def web_search_runtime_headers(self, credential_id: str, config: dict):
+        return self.web_search_runtime_connection(credential_id, config)[1]
+
+    def web_search_selection(self):
+        with self._mutex:
+            vault = self._require()
+            record = vault.get_credential("desktop-value:IGOREK_SEARCH_PROVIDER")
+            if record is None:
+                return "tavily"
+            secret = vault.get_secret(record.id)
+            if record.imported_from != "desktop-value-setup" or secret.metadata.get("origin", {}).get("kind") not in {"owner", "import"}:
+                raise ValueError("Search selection must be configured by the owner")
+            if secret.secret not in {"tavily", "exa", "serper", "off"}:
+                raise ValueError("Unknown search provider")
+            return secret.secret
+
+    def web_search_runtime_connection(self, credential_id: str, config: dict):
+        """Authorize one fixed web service for the exact verified worker binding."""
+        with self._mutex:
+            vault = self._require()
+            record = vault.get_credential(credential_id)
+            if record is None or record.id != credential_id or record.imported_from != "desktop-provider-setup":
+                raise ValueError("Unknown provider profile")
+            binding = vault.get_secret(record.id).metadata
+            if binding.get("desktop_profile") != config or binding.get("connection_check", {}).get("status") != "verified":
+                raise ValueError("Provider binding changed or is not verified")
+            provider = self.web_search_selection()
+            names = {"tavily": "TAVILY_API_KEY", "exa": "EXA_API_KEY", "serper": "SERPER_API_KEY"}
+            if provider not in names:
+                raise ValueError("Desktop web search is disabled")
+            candidates = [entry for entry in vault.list_credentials()
+                if entry.service == "desktop-value:" + names[provider]
+                and entry.imported_from == "desktop-value-setup"
+                and entry.credential_type == "secret"
+                and entry.status not in {"invalid", "expired"}]
+            if not candidates:
+                raise ValueError("Desktop web search credential is not configured")
+            if len(candidates) != 1:
+                raise ValueError("Desktop web search credential is ambiguous")
+            secret = vault.get_secret(candidates[0].id)
+            if secret.metadata.get("origin", {}).get("kind") not in {"owner", "import"}:
+                raise ValueError("Web search requires an owner-configured credential")
+            key = secret.secret.strip()
+            if not key or any(ord(c) < 32 or ord(c) == 127 for c in key):
+                raise ValueError("Invalid web search credential")
+            headers = {"Authorization": "Bearer " + key} if provider == "tavily" else {"x-api-key": key}
+            return provider, headers
+
     def _chatgpt_record(self, credential_id, config=None):
         vault = self._require()
         record = vault.get_credential(credential_id)

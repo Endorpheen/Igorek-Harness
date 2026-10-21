@@ -94,16 +94,22 @@ internal fun sessionChangesVisible(changes: ChangedFilesResponse?): Boolean =
 internal fun changedFilesCount(changes: ChangedFilesResponse): Int =
     maxOf(changes.totals.files, changes.files.size)
 
-internal fun changedFilesSummary(changes: ChangedFilesResponse, language: AppLanguage = AppLocale.current): String =
-    "${changedFileCountLabel(changedFilesCount(changes), language)}  " +
-        "${additionStat(changes.totals.additions).text} ${deletionStat(changes.totals.deletions).text}"
+internal fun changedFilesSummary(changes: ChangedFilesResponse, language: AppLanguage = AppLocale.current): String {
+    val label = changedFileCountLabel(changedFilesCount(changes), language)
+    if (changes.files.isNotEmpty() && changes.files.all { nonTextChangeLabel(it.path) != null }) return label
+    val (additions, deletions) = textChangeCounts(changes)
+    return "$label  ${additionStat(additions).text} ${deletionStat(deletions).text}"
+}
 
 // Chip tag in the top bar: only +N and −M, without text indicating the number of files,
 // otherwise, on a narrow screen, the line would be truncated and look ugly.
-internal fun changedChipStats(changes: ChangedFilesResponse): List<DiffStat> = listOf(
-    additionStat(changes.totals.additions),
-    deletionStat(changes.totals.deletions),
-)
+internal fun changedChipStats(changes: ChangedFilesResponse): List<DiffStat> {
+    if (changes.files.isNotEmpty() && changes.files.all { nonTextChangeLabel(it.path) != null }) {
+        return listOf(DiffStat(changedFileCountLabel(changedFilesCount(changes)), DiffTint.Neutral))
+    }
+    val (additions, deletions) = textChangeCounts(changes)
+    return listOf(additionStat(additions), deletionStat(deletions))
+}
 
 // Tap on a file line: send the bridge a pair (session, path) and return the path,
 // which the dialog uses as the selected one. A pure function — verified by a test.
@@ -172,8 +178,11 @@ internal fun ChangedFilesSummaryList(
         ) {
             Text(changedFileCountLabel(count, language), style = MaterialTheme.typography.titleSmall)
             Spacer(Modifier.weight(1f))
-            DiffStatText(additionStat(changes.totals.additions))
-            DiffStatText(deletionStat(changes.totals.deletions))
+            if (changes.files.any { nonTextChangeLabel(it.path) == null }) {
+                val (additions, deletions) = textChangeCounts(changes)
+                DiffStatText(additionStat(additions))
+                DiffStatText(deletionStat(deletions))
+            }
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
         if (changes.files.isEmpty()) {
@@ -214,7 +223,7 @@ private fun ChangedFileRow(
     Row(
         Modifier
             .fillMaxWidth()
-            .clickable { onClick(file) }
+            .clickable(enabled = nonTextChangeLabel(file.path) == null) { onClick(file) }
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -239,7 +248,11 @@ private fun ChangedFileRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        DiffStatText(additionStat(file.additions))
-        DiffStatText(deletionStat(file.deletions))
+        val media = nonTextChangeLabel(file.path, language = language)
+        if (media != null) Text(media, style = MaterialTheme.typography.labelSmall)
+        else {
+            DiffStatText(additionStat(file.additions))
+            DiffStatText(deletionStat(file.deletions))
+        }
     }
 }

@@ -700,3 +700,31 @@ class BackendScopeDispatchTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WebSearchProviderScopeTest(WorkerSeamHarness):
+    def test_provider_spans_schema_assembly_and_executor_then_is_cleared(self):
+        from types import SimpleNamespace
+        from factory.core import cc_backend_tools
+        from factory.core.web_tools_runtime import active_web_tools
+        provider = SimpleNamespace(available=lambda: True, request=lambda *_: {"results": []})
+        self.worker.web_tools_provider = provider
+        def execute(**kwargs):
+            self.assertIs(active_web_tools(), provider)
+            self.assertTrue({"web_search", "web_extract"} <= {tool["name"] for tool in kwargs["enabled_tools"]})
+            result = cc_backend_tools.execute_tool("web_search", {"query": "fixture"}, str(self.workdir))
+            self.assertIn('"success": true', result)
+            return dict(EXECUTOR_RESULT)
+        self.executor.side_effect = execute
+        with self.seam_env(), patch.object(worker_module, "get_tool_schemas", cc_backend_tools.get_tool_schemas):
+            self.assertEqual(self.run_worker()["status"], "ok")
+        self.assertIsNone(active_web_tools())
+
+    def test_provider_is_cleared_after_executor_error(self):
+        from types import SimpleNamespace
+        from factory.core.web_tools_runtime import active_web_tools
+        self.worker.web_tools_provider = SimpleNamespace(available=lambda: True)
+        self.executor.side_effect = RuntimeError("fixture-failure")
+        with self.seam_env(), self.assertRaisesRegex(RuntimeError, "fixture-failure"):
+            self.run_worker()
+        self.assertIsNone(active_web_tools())

@@ -26,6 +26,45 @@ class NotificationsTest {
         assertEquals("observed", list.last().state)
         val restored = Json.decodeFromString<List<NotificationEntry>>(Json.encodeToString(list))
         assertEquals(list.map { it.id }, restored.map { it.id })
+        assertEquals(listOf(restored.last()), visibleNotifications(restored))
+        assertEquals(1, unreadNotificationCount(restored))
+    }
+
+    @Test
+    fun `restored recovered incidents stay in diagnostics without cards or unread badge`() {
+        val codes = listOf("STREAM.INTERRUPTED", "TLS.CONNECTION_INTERRUPTED", "NET.TRANSPORT_FAILURE",
+            "NET.READ_TIMEOUT", "NET.CONNECTION_RESET", "NET.CONNECTION_REFUSED")
+        val entries = (0 until 16).map { index ->
+            val error = ErrorObservation(code = codes[index % codes.size], owner = "fixture")
+            NotificationEntry("Recovered failure", state = "recovered", recoveredAt = 200,
+                diagnostic = error, events = listOf(error), recoveryProof = "stable_ready")
+        }
+        val codec = Json { encodeDefaults = true }
+        val restored = codec.decodeFromString<List<NotificationEntry>>(codec.encodeToString(entries))
+
+        assertTrue(visibleNotifications(restored).isEmpty())
+        assertEquals(0, unreadNotificationCount(restored))
+        assertEquals(entries, restored)
+        assertTrue(restored.all { !it.read && it.events.isNotEmpty() })
+    }
+
+    @Test
+    fun `recovery removes only resolved cards while other owners and unknown sends stay visible`() {
+        val error = ErrorObservation(code = "NET.CONNECTION_RESET", owner = "fixture")
+        var entries = mergeNotification(emptyList(), "Connection failed", "CONNECTION", 100, error)
+        entries = mergeNotification(entries, "Other connection", "CONNECTION", 100,
+            error.copy(owner = "other", eventId = "other-error"))
+        entries = mergeNotification(entries, "Send unconfirmed", "OPERATION", 100,
+            error.copy(outcome = "unknown", operation = "send", clientOperationId = "message", eventId = "send-error"))
+        entries = mergeNotification(entries, "Access rejected", "CONNECTION", 100,
+            error.copy(code = "AUTH.REJECTED", owner = "auth", eventId = "auth-error"))
+
+        assertEquals(4, unreadNotificationCount(entries))
+        val recovered = recoverNotifications(entries, "fixture", ErrorCatalog.stableAfterMs, 6000)
+        assertEquals(entries.drop(1), visibleNotifications(recovered))
+        assertEquals(3, unreadNotificationCount(recovered))
+        assertEquals(4, recovered.size)
+        assertEquals("recovered", recovered.first().state)
     }
 
     @Test

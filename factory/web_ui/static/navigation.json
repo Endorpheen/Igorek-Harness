@@ -12,6 +12,12 @@
     "description": "Primary model: select, configure, check and start a model profile."
   },
   {
+    "id": "search",
+    "kind": "settings",
+    "target": "search",
+    "description": "Internet search: choose a search service, verify its key and save it in Vault."
+  },
+  {
     "id": "voice",
     "kind": "settings",
     "target": "voice",

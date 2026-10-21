@@ -122,7 +122,7 @@ fun AttachmentCard(sessionId: String, attachment: AttachmentDto) {
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
-            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            error?.let { ErrorNotificationEffect(it, "AttachmentCard") }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),

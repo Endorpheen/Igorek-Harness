@@ -456,6 +456,14 @@ class BridgeClient(
         return execute(requestBuilder("/sessions").post(body.toRequestBody(JSON_MEDIA)).build()) { parse(it) }
     }
 
+    fun switchSessionProfile(sessionId: String, profile: String): SessionDetail {
+        require(sessionId.matches(Regex("[A-Za-z0-9_-]{1,160}")))
+        require(profile.isNotBlank())
+        val body = buildJsonObject { put("profile", profile) }.toString()
+        return execute(requestBuilder("/sessions/$sessionId/profile")
+            .post(body.toRequestBody(JSON_MEDIA)).build()) { parse(it) }
+    }
+
     fun updateSession(sessionId: String, title: String? = null, archived: Boolean? = null): JsonObject {
         val body = json.encodeToString(UpdateSessionRequest.serializer(), UpdateSessionRequest(title, archived))
         val request = requestBuilder("/sessions/$sessionId")

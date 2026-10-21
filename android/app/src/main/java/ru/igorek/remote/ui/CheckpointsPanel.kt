@@ -470,11 +470,7 @@ private fun CheckpointsErrorState(message: String, onRetry: () -> Unit) {
         Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Text(
-            message,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.error,
-        )
+        ErrorNotificationEffect(message, "checkpoints")
         TextButton(onClick = onRetry) { Text(uiText("Повторить", "Retry")) }
     }
 }
@@ -496,11 +492,7 @@ private fun CheckpointChangesDialog(
         text = {
             when {
                 error != null && changes == null -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(
-                        error,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error,
-                    )
+                    ErrorNotificationEffect(error, "checkpoints")
                     TextButton(onClick = onRetry) { Text(uiText("Повторить", "Retry")) }
                 }
                 changes == null -> Row(

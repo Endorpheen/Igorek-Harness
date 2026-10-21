@@ -115,6 +115,8 @@ class DesktopAgentRuntime:
             worker = factory(config["name"], poll_interval=1, auth_headers_provider=headers, **options)
             from factory.core.vault.agent_values import AgentValueWriter
             worker.vault_value_writer = AgentValueWriter(self.lifecycle, credential_id, config)
+            from web_tools import DesktopWebTools
+            worker.web_tools_provider = DesktopWebTools(self.lifecycle, credential_id, config, enabled=manager is None)
         except Exception:
             if manager is not None:
                 manager.close()
