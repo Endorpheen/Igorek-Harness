@@ -72,7 +72,7 @@ for line in sys.stdin:
 `);
   }
   writeFileSync(join(bundle, 'manifest.json'), JSON.stringify({ schema_version: 1, python, entry: 'backend.py' }));
-  return { root, bundle, dataDir, runtime: new OwnedRuntime({ bundle, dataDir, timeoutMs, stopTimeoutMs: 100 }), cleanup: () => rmSync(root, { recursive: true, force: true }) };
+  return { root, bundle, dataDir, runtime: new OwnedRuntime({ bundle, dataDir, timeoutMs, stopTimeoutMs: 100 }), cleanup: () => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }) };
 }
 
 test('runtime receives only isolated environment, without inherited secrets', () => {
@@ -497,5 +497,5 @@ test('search settings pass through the real managed runtime owner contract',asyn
     assert.ok((await f.runtime.requestOwner('search_status')).result);
     assert.ok((await f.runtime.requestOwner('save_search',{provider:'off',api_key:'',password:'fixture-password'})).result);
     await assert.rejects(f.runtime.requestOwner('save_search',{provider:'exa',api_key:'fixture-key',password:'fixture-password',endpoint:'https://other.invalid/'}));
-  }finally{await f.runtime.stop();rmSync(f.root,{recursive:true,force:true});}
+  }finally{await f.runtime.stop();f.cleanup();}
 });

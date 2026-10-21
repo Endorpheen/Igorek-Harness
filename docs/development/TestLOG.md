@@ -1,3 +1,9 @@
+## 2026-10-21 — Final cross-platform release checks
+
+- Complete final Python roots: 5,017 collected, 4,983 passed, 34 existing skips, zero failures/errors, and 644 subtests. The live grep.app success path returned actual hits in this run. This result includes all five new deterministic MCP error regressions.
+- The Windows Desktop contract job exposed a transient `EPERM` while deleting its own temporary executable fixture after process exit. Added bounded `rmSync` retries for that fixture cleanup and reused the helper in the new owner-protocol test. All behavioral assertions and failure cases are unchanged; persistent cleanup failures still fail the test.
+- The search settings help now uses the exact existing execution-mode label, “На этом компьютере — без KVM”.
+
 ## 2026-10-21 — Preserve upstream MCP tool failures
 
 - The full Python 3.13 CI failure exposed an actual bridge defect: official grep.app responded over HTTP 200 with `result.isError=true`, but the local stdio wrapper discarded that flag and prepended a success/results header.
