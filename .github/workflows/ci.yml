@@ -215,12 +215,14 @@ jobs:
           test "$ready" = true
           (cd android && ./gradlew --no-daemon -PigorekTestRunner=ru.igorek.remote.ContextUsageInstrumentation assembleDebug assembleDebugAndroidTest)
           python3 - <<'PYSIGN'
-          import os, re, subprocess
+          import hashlib, os, re, ssl, subprocess
           from pathlib import Path
-          signer = sorted((Path(os.environ['ANDROID_HOME']) / 'build-tools').glob('*/apksigner'))[-1]
+          signer = Path(os.environ['ANDROID_HOME']) / 'build-tools/36.0.0/apksigner'
           def fingerprint(path):
-              result = subprocess.check_output([str(signer), 'verify', '--print-certs', path], text=True)
-              return re.search(r'Signer #1 certificate SHA-256 digest: ([a-f0-9]+)', result).group(1)
+              result = subprocess.check_output([str(signer), 'verify', '--print-certs', '--print-certs-pem', path], text=True)
+              certificate = re.search(r'-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----', result, re.S)
+              assert certificate is not None, result
+              return hashlib.sha256(ssl.PEM_cert_to_DER_cert(certificate.group())).hexdigest()
           assert fingerprint('android/app/build/outputs/apk/debug/app-debug.apk') == fingerprint('android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk')
           PYSIGN
           "$adb" -s emulator-5554 install -r android/app/build/outputs/apk/debug/app-debug.apk
