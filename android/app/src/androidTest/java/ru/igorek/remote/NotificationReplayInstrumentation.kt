@@ -235,18 +235,26 @@ class NotificationReplayInstrumentation : Instrumentation() {
             waitFor("reasoning HTML code block") { find("html") != null && find(code) != null }
             waitFor("unfinished reasoning JS code block") { find("js") != null && find("const fixture = 1;") != null }
             screenshot("reasoning-code-and-task-duration.png")
+            waitForIdleSync()
+            uiAutomation.waitForIdle(500, 5000)
             val htmlBox = Rect(); find("html")!!.getBoundsInScreen(htmlBox)
             val copyNodes = mutableListOf<AccessibilityNodeInfo>()
             fun collectCopies(node: AccessibilityNodeInfo?) {
                 if (node == null) return
+                node.refresh()
                 if (node.isVisibleToUser && node.contentDescription?.toString() == "Copy") copyNodes.add(node)
                 for (index in 0 until node.childCount) collectCopies(node.getChild(index))
             }
+            for (window in uiAutomation.windows) collectCopies(window.root)
             collectCopies(uiAutomation.rootInActiveWindow)
             val copy = copyNodes.minByOrNull { node -> val box = Rect(); node.getBoundsInScreen(box); kotlin.math.abs(box.centerY() - htmlBox.centerY()) }
                 ?: error("Code copy button missing")
             val copyBox = Rect(); copy.getBoundsInScreen(copyBox)
-            check(kotlin.math.abs(copyBox.centerY() - htmlBox.centerY()) < 80)
+            check(kotlin.math.abs(copyBox.centerY() - htmlBox.centerY()) < 80) {
+                "Code copy row mismatch: label=$htmlBox candidates=" + copyNodes.joinToString { node ->
+                    val box = Rect(); node.getBoundsInScreen(box); box.toString()
+                }
+            }
             val inputTime = SystemClock.uptimeMillis()
             val down = MotionEvent.obtain(inputTime, inputTime, MotionEvent.ACTION_DOWN, copyBox.centerX().toFloat(), copyBox.centerY().toFloat(), 0)
             check(uiAutomation.injectInputEvent(down, true)); down.recycle(); Thread.sleep(60)
@@ -263,6 +271,19 @@ class NotificationReplayInstrumentation : Instrumentation() {
             finish(Activity.RESULT_OK, Bundle())
         } catch (error: Throwable) {
             val output = targetContext.getExternalFilesDir("notification-replay-qa")!!.apply { mkdirs() }
+            runCatching {
+                val tree = StringBuilder()
+                fun visit(node: AccessibilityNodeInfo?, depth: Int = 0) {
+                    if (node == null || depth > 30 || tree.length > 60000) return
+                    node.refresh()
+                    val box = Rect(); node.getBoundsInScreen(box)
+                    tree.append(" ".repeat(depth)).append(node.className).append(" text=").append(node.text)
+                        .append(" description=").append(node.contentDescription).append(" bounds=").append(box).append('\n')
+                    for (index in 0 until node.childCount) visit(node.getChild(index), depth + 1)
+                }
+                for (window in uiAutomation.windows) visit(window.root)
+                File(output, "failure-state.txt").writeText(tree.toString())
+            }
             uiAutomation.takeScreenshot()?.let { image -> File(output, "failure.png").outputStream().use {
                 image.compress(Bitmap.CompressFormat.PNG, 100, it) }; image.recycle() }
             finish(Activity.RESULT_CANCELED, Bundle().apply { putString("stream", error.stackTraceToString()) })

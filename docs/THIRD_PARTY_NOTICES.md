@@ -8,6 +8,7 @@ not replace licenses of separately distributed dependencies or third-party asset
 | xterm.js and addon-fit | `factory/web_ui/static/vendor/XTERM-LICENSE.txt`, also in Android terminal assets |
 | highlight.js | `factory/web_ui/static/vendor/HIGHLIGHT-LICENSE.txt` |
 | SheetJS | `factory/web_ui/static/vendor/XLSX-LICENSE.txt` |
+| Three.js r128, offline artifact previews | `factory/web_ui/static/vendor/THREE-LICENSE.txt` |
 | GitHub and OpenAI provider icons | `desktop/assets/GITHUB-ICON-LICENSE.txt`, `desktop/assets/OPENAI-ICON-LICENSE.txt` |
 | OpenCode integration mark | [MIT license](licenses/OPENCODE-ICON-LICENSE.txt) |
 | Microsoft Detours 4.0.1, Windows process pipe adapter | [MIT license](licenses/DETOURS-LICENSE.txt); pinned source inventory in `desktop/native/vendor/detours/SOURCE.json` |
