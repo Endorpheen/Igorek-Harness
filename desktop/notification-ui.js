@@ -16,13 +16,23 @@
   const support = make('button', '', 'Отправить диагностику'); support.type='button'; support.id='igorek-notification-support';
   support.addEventListener('click',()=>window.IgorekDiagnosticSupport?.open()); actions.append(support);
   const list = make('div', 'igorek-notification-list'); panel.append(header, actions, list); document.body.append(panel);
-  let items = [], expanded = new Set();
-  const update = values => {
+  let items = [], expanded = new Set(), rendered = null, pending = false, selecting = false, scheduled = false;
+  const hasSelection = () => {
+    const selection = window.getSelection();
+    return !panel.hidden && selection && !selection.isCollapsed && selection.rangeCount > 0 &&
+      selection.getRangeAt(0).intersectsNode(list);
+  };
+  const update = (values, force = false) => {
     items = Array.isArray(values) ? values : [];
     const unread = items.filter(item => !item.read).length;
     badge.hidden = !unread; badge.textContent = unread > 99 ? '99+' : String(unread);
     button.setAttribute('aria-label', 'Центр уведомлений' + (unread ? ' · непрочитанных: ' + unread : ''));
-    list.replaceChildren(); read.disabled = !unread; clear.disabled = !items.length;
+    read.disabled = !unread; clear.disabled = !items.length;
+    const snapshot = JSON.stringify(items);
+    if (snapshot === rendered) { pending = false; return; }
+    if (!force && !panel.hidden && (selecting || hasSelection())) { pending = true; return; }
+    pending = false; rendered = snapshot;
+    list.replaceChildren();
     if (!items.length) list.append(make('p', 'igorek-notification-empty', 'Пока нет уведомлений. Ошибки приложения и агента появятся здесь.'));
     for (const item of items) {
       const row = make('details', 'igorek-notification-row' + (item.read ? '' : ' unread'));
@@ -49,7 +59,20 @@
       row.append(summary, detail); row.addEventListener('toggle', () => row.open ? expanded.add(item.id) : expanded.delete(item.id)); list.append(row);
     }
   };
-  const hide = () => { panel.hidden = true; button.setAttribute('aria-expanded', 'false'); button.classList.remove('active'); };
+  const resume = () => {
+    if (!pending || scheduled) return;
+    scheduled = true;
+    requestAnimationFrame(() => { scheduled = false; update(items); });
+  };
+  list.addEventListener('pointerdown', event => { if (event.button === 0) selecting = true; });
+  for (const type of ['pointerup', 'pointercancel']) document.addEventListener(type, () => { selecting = false; resume(); });
+  window.addEventListener('blur', () => { selecting = false; resume(); });
+  document.addEventListener('selectionchange', resume);
+  const hide = () => {
+    panel.hidden = true; selecting = false;
+    button.setAttribute('aria-expanded', 'false'); button.classList.remove('active');
+    if (pending) update(items, true);
+  };
   button.addEventListener('click', () => {
     if (!panel.hidden) { hide(); return; }
     panel.hidden = false; button.setAttribute('aria-expanded', 'true'); button.classList.add('active');
@@ -57,7 +80,7 @@
   });
   close.addEventListener('click', () => { hide(); button.focus(); });
   document.addEventListener('keydown', event => { if (event.key === 'Escape' && !panel.hidden) { hide(); button.focus(); } });
-  read.addEventListener('click', () => bridge.read().then(update).catch(() => {}));
-  clear.addEventListener('click', () => { expanded.clear(); bridge.clear().then(update).catch(() => {}); });
+  read.addEventListener('click', () => bridge.read().then(values => update(values, true)).catch(() => {}));
+  clear.addEventListener('click', () => { expanded.clear(); bridge.clear().then(values => update(values, true)).catch(() => {}); });
   bridge.onChange(update); bridge.list().then(update).catch(() => {});
 })();

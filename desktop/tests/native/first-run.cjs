@@ -1,4 +1,4 @@
-const { app, BrowserWindow, WebContentsView, session: electronSession, ipcMain } = require('electron');
+const { app, BrowserWindow, WebContentsView, Menu, clipboard, session: electronSession, ipcMain } = require('electron');
 const assert = require('node:assert/strict');
 const { X509Certificate } = require('node:crypto');
 const fs = require('node:fs');
@@ -98,6 +98,7 @@ async function run() {
   try {
     await app.whenReady();
     report.artifact_preview = await require('./artifact-preview.cjs').verifyArtifactPreview({BrowserWindow, session:electronSession, output, python:loadBundle(bundle).python, packages:path.join(bundle,'packages')});
+    report.notification_copy = await require('./notification-copy.cjs').verifyNotificationCopy({BrowserWindow,Menu,clipboard,root,output,appRoot});
     await require('./opencode-form.cjs').verifyOpenCodeForm({BrowserWindow,bundle,clickNative,until,output});
     report.opencode_form='passed';
     if(process.platform==='win32'){
