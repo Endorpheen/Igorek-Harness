@@ -72,3 +72,7 @@ Timeline rendering is passive: history loading and session navigation never admi
 Additive observation fields `reason_code` and bounded, redacted `reason_detail` preserve an explicit source error without interpreting prose. Android tool observations additionally retain `tool_name`, `tool_use_id`, `tool_action`, `service`, a hashed `operation_key` and `source_seq`; raw arguments remain outside the incident report. Bridge frame timestamps are seconds; `observed_at_ms` remains milliseconds.
 
 A known tool incident may be enriched while reading historical events without creating another notification or changing its ID/read state. Only a later successful matching operation resolves an execution failure. Unknown outcomes stay unresolved. Rejected parameter-validation calls may resolve after the task succeeds with proof `task_completed_after_rejected_call`, which does not assert execution of the rejected call; matching successful retries use `tool_retry_succeeded`. Existing report limits and recovered-item visibility rules are unchanged.
+
+### Desktop notification selection
+
+Repeated snapshots do not rebuild an unchanged notification list. While the user selects text, background list rendering is deferred while the latest snapshot and unread badge remain current. Removing the selection applies the latest state. Explicit read/clear actions take precedence. Notification details explicitly allow text selection, preserving native context-menu Copy and Ctrl+C. This presentation behavior does not change journal contents, incident recovery or export.

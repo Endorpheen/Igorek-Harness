@@ -255,6 +255,7 @@ jobs:
             ${{ runner.temp }}/igorek-dist/*.AppImage
             test-results/native-windows/summary.json
             test-results/native-windows/artifact-*
+            test-results/native-windows/notification-copy*
             test-results/composer-windows/summary.json
             test-results/search-windows/summary.json
             test-results/native-windows-diagnostics/summary.json

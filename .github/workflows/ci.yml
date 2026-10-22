@@ -162,6 +162,7 @@ jobs:
           path: |
             test-results/native-linux/summary.json
             test-results/native-linux/artifact-*
+            test-results/native-linux/notification-copy*
             test-results/composer-linux/summary.json
             test-results/search-linux/summary.json
           if-no-files-found: warn

@@ -54,7 +54,7 @@ body.igorek-browser-resizing { cursor:col-resize;user-select:none }
 .igorek-notification-heading strong { font-weight:600;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap }
 .igorek-notification-preview { color:#9ba897;overflow:hidden;text-overflow:ellipsis;white-space:nowrap }
 .igorek-notification-row time,.igorek-notification-count { color:#8d9b88;font-size:10px;flex-shrink:0 }
-.igorek-notification-detail { white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.6 system-ui;margin:0;padding:10px 12px;border-top:1px solid #30382f;max-height:300px;overflow:auto }
+.igorek-notification-detail { user-select:text;-webkit-user-select:text;-webkit-app-region:no-drag;cursor:text;white-space:pre-wrap;overflow-wrap:anywhere;font:12px/1.6 system-ui;margin:0;padding:10px 12px;border-top:1px solid #30382f;max-height:300px;overflow:auto }
 .igorek-notification-empty { color:#9ba897;margin:16px 10px;line-height:1.6 }
 
 .rail-button svg.openai-logo { fill:currentColor; stroke:none; }
