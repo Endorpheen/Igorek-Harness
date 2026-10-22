@@ -1523,7 +1523,7 @@ class RealPocBackend:
         if not self._marker_unit_created:
             return
         run_bounded(["systemctl", "--user", "stop", f"{self._host_marker_unit}.service"], timeout_s=20.0)
-        run_bounded(["systemctl", "--user", "reset-failed"], timeout_s=20.0)
+        run_bounded(["systemctl", "--user", "reset-failed", f"{self._host_marker_unit}.service"], timeout_s=20.0)
         probe = run_bounded(
             ["systemctl", "--user", "cat", f"{self._host_marker_unit}.service"], timeout_s=20.0
         )
@@ -2949,3 +2949,25 @@ def test_real_poc_run_is_guarded_by_the_kvm_probe(tmp_path: Path) -> None:
 if __name__ == "__main__":
     _install_sigterm_cleanup()
     sys.exit(main(sys.argv[1:]))
+
+
+def test_cleanup_resets_only_its_own_host_marker_unit(monkeypatch):
+    backend = object.__new__(RealPocBackend)
+    backend._marker_unit_created = True
+    backend._host_marker_unit = "igorek-poc-fixture"
+    commands = []
+
+    def run(argv, **_kwargs):
+        commands.append(argv)
+        return subprocess.CompletedProcess(argv, 1 if "cat" in argv else 0, "", "")
+
+    monkeypatch.setattr(sys.modules[__name__], "run_bounded", run)
+    receipt = CleanupReceipt()
+    backend._reset_host_marker_unit(receipt)
+    assert commands == [
+        ["systemctl", "--user", "stop", "igorek-poc-fixture.service"],
+        ["systemctl", "--user", "reset-failed", "igorek-poc-fixture.service"],
+        ["systemctl", "--user", "cat", "igorek-poc-fixture.service"],
+    ]
+    assert not backend._marker_unit_created
+    assert not receipt.leftovers

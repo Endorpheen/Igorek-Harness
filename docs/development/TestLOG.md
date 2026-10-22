@@ -1,3 +1,10 @@
+## 2026-10-22 — Dependency and native-test follow-up (candidate)
+
+- Reviewed the dependency-only patches for Electron 44.9.0, pywinpty 3.1.0, Ruff 0.17.1, setuptools 84.0.0 and pinned GitHub Actions updates. Combined them in the feature CI branch so all required platform checks validate the final tree together. Locked synchronization succeeded in a disposable Python environment; installed owner applications and model servers were not updated or restarted.
+- Added network timeouts and bounded download retries to CI apt prerequisites after two Python jobs stopped before test execution. Test assertions and suite deadlines remain active.
+- Scoped the live KVM fixture's systemd reset to its own marker unit; a new regression verifies that unrelated failed user services cannot be reset. The targeted PoC suite passed 48 tests with its one genuine opt-in VM skip.
+- Fixed guest image construction when browser installation does not create a cache directory. Existing image/bwrap contracts passed 68 tests and 64 subtests. A separate current image was built and independently checksum-verified; this is not a claim that all live KVM/vsock checks passed. Live checks remain in progress with CPU/memory limits retained.
+
 ## 2026-10-22 — Desktop resources, image downloads, video previews and mobile pins (local candidate)
 
 - Added a draggable resource monitor, off by default, with a persisted Desktop settings toggle. CPU uses timed deltas; Linux RAM uses MemAvailable. NVIDIA metrics use a bounded, read-only query with missing-value fallback. Hidden or disabled monitoring does not poll. The monitor has no Node access, external navigation or model-generation path. System Status and Task Manager now use a compact single-column layout and a 94-by-30-pixel refresh button in native acceptance.

@@ -1174,7 +1174,10 @@ class PocLiveRunner:
         self._ledger = probe_verification.ProbeLedger()
         self._marker_proc: subprocess.Popen[str] | None = None
         self._poc = _load_poc_module()
-        request = self._poc.PocRequest(profile=profile, workspace=workspace)
+        request = self._poc.PocRequest(
+            profile=profile, workspace=workspace,
+            vsock_port=int(self._env.get("IGOREK_ISOLATION_VSOCK_PORT") or self._poc.DEFAULT_POC_VSOCK_PORT),
+        )
         self._backend = self._poc.RealPocBackend(request, env=self._env)
         self._backend.prepare()
         self._backend.start_session()
@@ -2043,3 +2046,29 @@ if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--checklist":
         raise SystemExit(main())
     unittest.main(verbosity=2)
+
+
+def test_live_runner_uses_the_configured_guest_channel_port(monkeypatch):
+    from types import SimpleNamespace
+
+    captured = {}
+
+    class Backend:
+        def __init__(self, request, **_kwargs):
+            captured.update(request.__dict__)
+        def prepare(self):
+            pass
+        def start_session(self):
+            pass
+        def cleanup(self):
+            pass
+
+    class Request:
+        def __init__(self, **kwargs):
+            self.__dict__.update(kwargs)
+
+    module = SimpleNamespace(PocRequest=Request, RealPocBackend=Backend, DEFAULT_POC_VSOCK_PORT=43011)
+    monkeypatch.setattr(sys.modules[__name__], "_load_poc_module", lambda: module)
+    runner = PocLiveRunner(profile="fixture", workspace="/tmp/fixture", env={"IGOREK_ISOLATION_VSOCK_PORT": "5005"})
+    assert captured == {"profile": "fixture", "workspace": "/tmp/fixture", "vsock_port": 5005}
+    runner.close()
