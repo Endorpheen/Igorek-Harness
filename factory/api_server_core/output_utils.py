@@ -78,8 +78,8 @@ def sanitize_output_for_mode(text: str, mode: str, *, suggestion_mode: str, tool
         if len(words) > 8:
             cleaned = " ".join(words[:8])
     elif mode == tool_result_mode:
-        cleaned = re.sub(r"(?is)^\s*Latest tool used:.*?$", "", cleaned, flags=0)
-        cleaned = re.sub(r"(?is)^\s*Tool result:.*?$", "", cleaned, flags=0)
+        cleaned = re.sub(r"(?i)^\s*Latest tool used:[^\r\n]*(?:\r?\n|$)", "", cleaned)
+        cleaned = re.sub(r"(?i)^\s*Tool result:[ \t]*(?:\r?\n)?", "", cleaned)
         cleaned = cleaned.strip()
     return cleaned
 

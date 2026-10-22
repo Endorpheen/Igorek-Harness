@@ -31,14 +31,6 @@ TOOL_VERSION = "0.1.750"
 NEW_TOOL_VERSION = "0.1.751"
 
 
-def _build_tools_absent() -> bool:
-    """True when no host image builder is installed (build path must SKIP)."""
-
-    return not any(
-        shutil.which(name) for name in ("virt-builder", "virt-customize", "debootstrap")
-    )
-
-
 class BaseImageTestCase(unittest.TestCase):
     """Common fixture: a temporary fake image and a valid manifest."""
 
@@ -336,14 +328,17 @@ class ScriptVerifyOnlyTests(BaseImageTestCase):
 class ScriptSkipWhenToolsMissingTests(BaseImageTestCase):
     """No build tooling => honest SKIP with exit 0, never a fake PASS."""
 
-    @unittest.skipUnless(
-        _build_tools_absent(),
-        "a real image builder is installed on this host",
-    )
     def test_build_path_skips_when_host_tools_are_missing(self) -> None:
+        tools = self.dir / "tools"
+        tools.mkdir()
+        dirname = shutil.which("dirname")
+        bash = shutil.which("bash")
+        self.assertIsNotNone(dirname)
+        self.assertIsNotNone(bash)
+        (tools / "dirname").symlink_to(dirname)
         proc = subprocess.run(
             [
-                "bash",
+                bash,
                 str(SCRIPT),
                 "--image",
                 str(self.dir / "build-target.qcow2"),
@@ -351,7 +346,7 @@ class ScriptSkipWhenToolsMissingTests(BaseImageTestCase):
             capture_output=True,
             text=True,
             timeout=120,
-            env={**os.environ, "IGOREK_ISOLATION_PYTHON": sys.executable},
+            env={**os.environ, "PATH": str(tools), "IGOREK_ISOLATION_PYTHON": sys.executable},
         )
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         self.assertIn("SKIP:", proc.stdout)

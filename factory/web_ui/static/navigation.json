@@ -36,6 +36,12 @@
     "description": "Browser settings: configure how control of browser tabs is granted."
   },
   {
+    "id": "resource-monitor",
+    "kind": "settings",
+    "target": "monitor",
+    "description": "Resource monitor: toggle the compact local CPU, RAM and GPU monitor."
+  },
+  {
     "id": "browser-window",
     "kind": "browser",
     "target": "browser",

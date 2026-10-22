@@ -946,6 +946,15 @@ class WebUiHttpTest(WebUiServerTestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers["Content-Type"], "text/javascript; charset=utf-8")
 
+    def test_video_preview_helper_is_local_and_loaded_before_the_app(self):
+        status, headers, data = self._request("GET", "/media-previews.js")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["Content-Type"], "text/javascript; charset=utf-8")
+        self.assertEqual(data, (_WEB_STATIC / "media-previews.js").read_bytes())
+        status, _, page = self._request("GET", "/")
+        self.assertEqual(status, 200)
+        self.assertLess(page.index(b'src="/media-previews.js"'), page.index(b'src="/app.js"'))
+
     def test_static_render_helper_is_served_locally(self):
         status, headers, data = self._request("GET", "/render.js")
 

@@ -12,6 +12,7 @@ APP_FILES = (
     'whats-new.cjs', 'whats-new-preload.cjs', 'whats-new.html', 'whats-new.css', 'whats-new.js',
     'release-progress.cjs', 'release-progress-preload.cjs', 'release-progress.html', 'release-progress.css', 'release-progress.js', 'release-install.cjs', 'release-install.py', 'links.cjs', 'about.html', 'about.css', 'about.js',
     'main.cjs', 'session-preload.cjs', 'ui-navigation.cjs', 'mcp-task.cjs', 'policy.cjs', 'runtime.cjs', 'owner-policy.cjs', 'recovery-files.cjs', 'installed-image.cjs',
+    'resource-monitor.cjs', 'resource-monitor.html', 'resource-monitor.css', 'resource-monitor-ui.js', 'resource-monitor-preload.cjs', 'resource-monitor-settings.js', 'diagnostics.css',
     'window-menu.cjs', 'window-chrome.js', 'window-chrome.css', 'diagnostics.html', 'diagnostics.js', 'diagnostics-preload.cjs',
     'owner-preload.cjs', 'owner-ui.js', 'onboarding-state.cjs', 'profile-cards.cjs', 'owner.html', 'owner.css',
     'browser.cjs', 'browser-preload.cjs', 'browser-ui.js', 'browser.html', 'browser.css',

@@ -563,6 +563,16 @@ object Bridge {
         }
     }
 
+    fun pinSession(sessionId: String, pinned: Boolean) {
+        val active = client ?: return
+        clearLastError()
+        scope.launch {
+            runCatching { active.updateSession(sessionId, pinned = pinned) }
+                .onSuccess { if (client === active) refreshSessions() }
+                .onFailure { if (client === active) handleFailure(it) }
+        }
+    }
+
     fun archiveSession(sessionId: String, archived: Boolean, onDone: (Throwable?) -> Unit) {
         val active = client ?: return
         clearLastError()

@@ -10,7 +10,6 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -157,7 +156,6 @@ def test_idle_application_returns_app_buffer_output():
     assert isinstance(output_lines, list)
 
 
-@pytest.mark.skip(reason="requires _create_idle_application to pass running_state")
 def test_idle_application_returns_none_when_prompt_toolkit_missing(monkeypatch):
     monkeypatch.setattr(_active, "Application", None)
 
@@ -333,38 +331,26 @@ def test_running_application_ctrl_v_inserts_clipboard_image_path(monkeypatch):
     assert fake_app.invalidated is True
 
 
-@pytest.mark.skip(reason="requires _create_idle_application to pass running_state")
 def test_running_application_keeps_status_in_output_not_dedicated_pane():
+    state = {"t0": 0, "preview_items": [], "show_shortcuts": True}
     app, buffer, _ = _active._create_running_application(
-        status_line=_FakeStatusLine(),
-        running_state={"t0": 0, "preview_items": [], "show_shortcuts": True},
+        status_line=_FakeStatusLine(), running_state=state,
     )
-
     container = _root_hsplit(app)
     assert isinstance(container, HSplit)
-    assert len(container.children) == 4
-
-    output_window = container.children[0]
-    separator_window = container.children[1]
-    input_window = container.children[2]
-    footer_window = container.children[3]
-
-    assert isinstance(output_window, ConditionalContainer)
-    assert isinstance(output_window.content, Window)
-    assert isinstance(separator_window, Window)
-    assert isinstance(input_window, Window)
-    assert isinstance(input_window.content, BufferControl)
-    assert input_window.content.buffer is buffer
-    assert isinstance(footer_window, Window)
-
-    # The unified layout does NOT have a dedicated status pane — status is
-    # shown through the footer and composer. The output area contains either
-    # content lines or (when show_shortcuts=True) the shortcut overlay.
-    assert "shortcuts" in str(getattr(output_window.content, "content", "")).lower() \
-        or "/ commands" in _flatten_formatted_text_from_container(output_window.content)
-    # Footer still renders the status line
-    flat_footer = _flatten_formatted_text_from_container(footer_window)
-    assert "project" in flat_footer or "/home/user" in flat_footer
+    output, working, separator, composer, footer = container.children
+    assert isinstance(output, ConditionalContainer)
+    assert isinstance(working, ConditionalContainer)
+    assert isinstance(separator, Window)
+    assert isinstance(composer, HSplit)
+    assert isinstance(footer, Window)
+    assert _find_input_window(app, buffer) in list(_iter_layout_nodes(composer))
+    assert _flatten_formatted_text_from_container(output)
+    assert "project" in _flatten_formatted_text_from_container(footer)
+    assert not working.filter()
+    state["task_active"] = True
+    assert working.filter()
+    assert "Working" in _flatten_formatted_text_from_container(working)
 
 
 def test_idle_application_has_no_dedicated_auxiliary_panes():
@@ -410,7 +396,6 @@ def test_idle_application_input_field_is_always_visible():
     assert input_window is not None, "idle input must always be visible in composer surface"
 
 
-@pytest.mark.skip(reason="requires _create_idle_application to pass running_state")
 def test_idle_application_accept_handler_resets_buffer():
     """Buffer must be reset on submit to prevent autofill (Bug 2 from previous attempt)."""
     running_state = _make_running_state()
@@ -440,7 +425,6 @@ def test_idle_application_accept_handler_rejects_empty():
     assert "submitted_text" not in running_state
 
 
-@pytest.mark.skip(reason="requires _create_idle_application to pass running_state")
 def test_idle_application_accept_handler_strips_control_chars():
     running_state = _make_running_state()
     _, buffer, _ = _active._create_idle_application(
@@ -499,7 +483,6 @@ def test_idle_application_ctrl_c_exits_with_interrupt_sentinel():
     assert fake_app.exception is None
 
 
-@pytest.mark.skip(reason="requires _create_idle_application to pass running_state")
 def test_idle_application_show_shortcuts_toggle():
     """Pressing `?` on empty buffer toggles the shortcut overlay (no text inserted)."""
     running_state = _make_running_state()
@@ -546,7 +529,6 @@ def test_idle_application_show_shortcuts_inserts_text_when_buffer_nonempty():
     assert buffer.text == "hal?", f"? on non-empty buffer must insert literal '?', got {buffer.text!r}"
 
 
-@pytest.mark.skip(reason="requires _create_idle_application to pass running_state")
 def test_idle_application_c_o_toggles_reasoning_visibility():
     running_state = {
         "reasoning_state": {
@@ -601,7 +583,6 @@ def test_idle_application_c_o_noop_when_no_reasoning():
     assert running_state["reasoning_state"]["visible"] is False
 
 
-@pytest.mark.skip(reason="requires _create_idle_application to pass running_state")
 def test_idle_application_escape_clears_shortcut_overlay():
     running_state = {
         "reasoning_state": {"visible": False, "lines": [], "expanded_lines": []},
@@ -661,7 +642,6 @@ def test_idle_application_footer_parses_ansi_statusline():
     )
 
 
-@pytest.mark.skip(reason="requires _create_idle_application to pass running_state")
 def test_idle_application_renders_last_worked_for_status():
     state = _make_running_state()
     state["last_worked_for"] = "Worked for 7m 27s"
@@ -687,7 +667,6 @@ def test_idle_application_output_height_hugs_worked_for_line():
     assert _window_height_value(output_window) == 1
 
 
-@pytest.mark.skip(reason="requires _create_idle_application to pass running_state")
 def test_idle_application_output_height_caps_long_scrollback(monkeypatch):
     monkeypatch.setattr(
         _active.shutil,
@@ -759,7 +738,6 @@ def test_idle_application_is_not_full_screen():
     )
 
 
-@pytest.mark.skip(reason="requires _create_idle_application to pass running_state")
 def test_idle_application_c_t_submits_transcript_sentinel():
     running_state = _make_running_state()
     app, buffer, _ = _active._create_idle_application(

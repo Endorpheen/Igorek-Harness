@@ -4151,11 +4151,14 @@ def _openai_response_to_anthropic(
     elif finish == "length":
         stop_reason = "max_tokens"
 
-    usage = body.get("usage", {})
-    anthropic_usage = {
-        "input_tokens": usage.get("prompt_tokens", 0),
-        "output_tokens": usage.get("completion_tokens", 0),
-    }
+    usage = body.get("usage")
+    if not isinstance(usage, dict):
+        usage = {}
+    anthropic_usage = {}
+    for source, target in (("prompt_tokens", "input_tokens"), ("completion_tokens", "output_tokens")):
+        value = usage.get(source)
+        if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+            anthropic_usage[target] = value
 
     return {
         "id": body.get("id", ""),
@@ -4233,7 +4236,9 @@ def _http_post_streaming_openai(
     from urllib.parse import urlparse
 
     start = time.time()
-    payload = {**payload, "stream": True}
+    stream_options = dict(payload.get("stream_options") or {})
+    stream_options.setdefault("include_usage", True)
+    payload = {**payload, "stream": True, "stream_options": stream_options}
     data = json.dumps(payload).encode("utf-8")
     parsed = urlparse(url)
     host = parsed.hostname

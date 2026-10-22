@@ -55,6 +55,7 @@ data class SessionSummary(
     val active: Boolean = false,
     @SerialName("active_status") val activeStatus: String = "",
     val archived: Boolean = false,
+    val pinned: Boolean = false,
     @SerialName("running_task_id") val runningTaskId: String? = null,
     @SerialName("last_task_status") val lastTaskStatus: String = "",
     @SerialName("pending_approvals") val pendingApprovals: Int = 0,
@@ -230,6 +231,7 @@ data class CreateSessionRequest(
 data class UpdateSessionRequest(
     val title: String? = null,
     val archived: Boolean? = null,
+    val pinned: Boolean? = null,
 )
 
 @Serializable

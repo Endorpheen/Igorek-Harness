@@ -45,6 +45,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 import uuid
 import xml.etree.ElementTree as ET
 from collections.abc import Callable, Mapping, Sequence
@@ -1927,9 +1928,8 @@ class LiveProbeSkipTests(unittest.TestCase):
         env = dict(os.environ)
         env[KVM_AVAILABLE_ENV] = "1"
         env.pop("IGOREK_NEGATIVE_WORKSPACE", None)
-        if live_probe_skip_reason(env) is not None:
-            self.skipTest("this host has no KVM capability; the workspace refusal is untestable here")
-        runner = default_live_runner(env)
+        with patch.object(domain_module, "kvm_unavailable_reason", return_value=None), patch.object(socket, "AF_VSOCK", 40, create=True):
+            runner = default_live_runner(env)
         outcome = run_live_probe("read_host_home", runner)
         self.assertEqual(outcome.status, STATUS_SKIP)
         self.assertIn("IGOREK_NEGATIVE_WORKSPACE", outcome.detail)
