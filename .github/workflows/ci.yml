@@ -145,7 +145,7 @@ jobs:
           IGOREK_TEST_RUNTIME="$RUNNER_TEMP/igorek-native-snapshot/igorek-desktop/app/runtime" \
           IGOREK_TEST_OUTPUT="$PWD/test-results/native-linux" \
             xvfb-run -a "$RUNNER_TEMP/igorek-native-snapshot/igorek-desktop/electron/electron" \
-              desktop/tests/native/first-run.cjs
+              --use-angle=swiftshader --enable-unsafe-swiftshader desktop/tests/native/first-run.cjs
           IGOREK_TEST_OUTPUT="$PWD/test-results/composer-linux" \
             xvfb-run -a "$RUNNER_TEMP/igorek-native-snapshot/igorek-desktop/electron/electron" \
               desktop/tests/native/composer-profiles.cjs
@@ -161,6 +161,7 @@ jobs:
           name: native-linux-acceptance
           path: |
             test-results/native-linux/summary.json
+            test-results/native-linux/artifact-*
             test-results/composer-linux/summary.json
             test-results/search-linux/summary.json
           if-no-files-found: warn
@@ -188,8 +189,8 @@ jobs:
       - name: Test and build without release signing credentials
         working-directory: android
         run: ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug
-      - name: Verify the local context card on a disposable Android device
-        timeout-minutes: 10
+      - name: Verify local context and notification recovery on a disposable Android device
+        timeout-minutes: 15
         env:
           ANDROID_USER_HOME: ${{ runner.temp }}/igorek-context-android
         run: |
@@ -240,6 +241,16 @@ jobs:
           text = Path('test-results/android-context/instrumentation.log').read_text()
           assert 'PASS context usage' in text, text
           PYTEST
+          (cd android && ./gradlew --no-daemon -PigorekTestRunner=ru.igorek.remote.NotificationReplayInstrumentation assembleDebug assembleDebugAndroidTest)
+          "$adb" -s emulator-5554 install -r android/app/build/outputs/apk/debug/app-debug.apk
+          "$adb" -s emulator-5554 install -r android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+          "$adb" -s emulator-5554 shell am force-stop ru.igorek.remote
+          mkdir -p test-results/android-notifications
+          "$adb" -s emulator-5554 shell am instrument -w \
+            ru.igorek.remote.test/ru.igorek.remote.NotificationReplayInstrumentation \
+            | tee test-results/android-notifications/instrumentation.log
+          "$adb" -s emulator-5554 pull /sdcard/Android/data/ru.igorek.remote/files/notification-replay-qa test-results/android-notifications || true
+          grep -q 'NOTIFICATION_REPLAY_PASS:' test-results/android-notifications/instrumentation.log
       - name: Keep test reports
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -249,6 +260,7 @@ jobs:
             android/app/build/test-results/**/*.xml
             android/app/build/reports/lint-results-debug.xml
             test-results/android-context/
+            test-results/android-notifications/
           if-no-files-found: warn
           retention-days: 7
 

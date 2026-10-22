@@ -1,25 +1,45 @@
 {
-  "versionName": "0.1.119",
-  "versionCode": 120,
+  "versionName": "0.1.120",
+  "versionCode": 121,
   "changes": [
     {
       "ru": {
-        "title": "Контекст локальной модели",
-        "text": "В карточке состояния показывается размер окна, настроенный на локальном сервере, и заполненность по последнему запросу."
+        "title": "Понятные причины ошибок",
+        "text": "В уведомлении указаны инструмент, сервис и конкретная причина; этот контекст сохраняется в диагностике."
       },
       "en": {
-        "title": "Local model context",
-        "text": "The status card shows the context configured on the local server and occupancy based on the last model request."
+        "title": "Specific error causes",
+        "text": "Notifications identify the tool, service and explicit cause; diagnostic reports retain that context."
       }
     },
     {
       "ru": {
-        "title": "Актуальный размер окна",
-        "text": "Сведения от сервера имеют приоритет над старым событием задачи. При отсутствии токенов не показывается выдуманный процент."
+        "title": "Только актуальные ошибки",
+        "text": "После подтверждённого восстановления инцидент исчезает из списка и счётчика. Старые записи уточняются по истории чата."
       },
       "en": {
-        "title": "Current context size",
-        "text": "Server metadata takes precedence over an older task event. Missing token data does not produce a guessed percentage."
+        "title": "Only active errors",
+        "text": "Confirmed recovery removes an incident from the list and badge. Saved incidents are reconciled with chat history."
+      }
+    },
+    {
+      "ru": {
+        "title": "Правильное время событий",
+        "text": "Исправлена путаница секунд и миллисекунд. Признаки прочтения и история диагностики сохраняются."
+      },
+      "en": {
+        "title": "Correct event times",
+        "text": "Fixed seconds being interpreted as milliseconds. Read state and diagnostic history are retained."
+      }
+    },
+    {
+      "ru": {
+        "title": "Код в размышлениях и время задач",
+        "text": "Раскрытые размышления оформляют Markdown и блоки кода. Плашка завершённой задачи показывает общую длительность, если известны время начала и завершения."
+      },
+      "en": {
+        "title": "Reasoning code and task duration",
+        "text": "Expanded reasoning renders Markdown and code blocks. Completed-task cards show elapsed time when start and finish timestamps are known."
       }
     }
   ]

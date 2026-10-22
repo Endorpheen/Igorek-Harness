@@ -20,7 +20,7 @@ CODES = CATALOG['codes']
 _ID = re.compile(r'[A-Za-z0-9_.:-]{1,160}')
 _FIELDS = {'event_id', 'code', 'component', 'operation', 'endpoint_role', 'owner', 'phase', 'delivery',
            'outcome', 'task_id', 'session_id', 'tool_use_id', 'http_request_id', 'client_operation_id',
-           'provider_request_id', 'profile', 'model', 'build', 'native_code'}
+           'provider_request_id', 'profile', 'model', 'build', 'native_code', 'reason_code'}
 
 
 def safe_text(value, limit=1000):
@@ -136,6 +136,37 @@ def transport_failure(error=None, *, status=None, phase='connect', request_id=''
     return {'error_code': code, 'diagnostic': details, 'http_status': status}
 
 
+def safe_reason_detail(value):
+    text = safe_text(value, 512)
+    return re.sub(r'\b(?:sk[-_][\w-]+|oc_sk_[\w-]+|syt_[\w-]+|gh[pousr]_[\w]+|github_pat_[\w]+)\b', '[REDACTED]', text)
+
+
+def model_error_reason(body):
+    """Preserve the provider's explicit error without interpreting its prose."""
+    raw = body.get('error')
+    nested = raw if isinstance(raw, dict) else None
+    structured_text = isinstance(raw, str) and raw.find('{') >= 0
+    if isinstance(raw, str) and len(raw) <= 16000:
+        start = raw.find('{')
+        if start >= 0:
+            try:
+                parsed = json.loads(raw[start:])
+                nested = parsed if isinstance(parsed, dict) else None
+            except ValueError:
+                pass
+    if isinstance(nested, dict) and isinstance(nested.get('error'), dict):
+        nested = nested['error']
+    reason = nested.get('message', '') if isinstance(nested, dict) else raw if isinstance(raw, str) and not structured_text else ''
+    reason = reason if isinstance(reason, str) else ''
+    nested = nested or {}
+    from .cc_backend_trace import model_failure_diagnostics
+    candidates = [body.get('provider_error_code'), nested.get('code'), nested.get('type')]
+    native = next((value for value in candidates if isinstance(value, str)), '')
+    accepted = model_failure_diagnostics({'provider_error_code': native, 'error_code': body.get('error_code')})
+    native = accepted.get('provider_error_code') or accepted.get('error_code') or ''
+    return {'reason_detail': safe_reason_detail(reason), 'reason_code': native}
+
+
 def model_observation(body, *, profile='', model='', session_id='', task_id=''):
     existing = body.get('diagnostic') if isinstance(body, dict) else None
     legacy = {'responses_network': 'NET.CONNECTION_RESET', 'responses_timeout': 'NET.READ_TIMEOUT',
@@ -153,8 +184,9 @@ def model_observation(body, *, profile='', model='', session_id='', task_id=''):
     elif body.get('error_code') == 'responses_tls' and (body.get('tls_error_type') in {'SSLEOFError', 'SSLZeroReturnError'} or body.get('tls_reason') in {'UNEXPECTED_EOF_WHILE_READING', 'TLSV1_ALERT_INTERNAL_ERROR'}):
         code = 'TLS.CONNECTION_INTERRUPTED'
     details = {k: body[k] for k in ('http_status', 'retry_after_s') if k in body}
+    details.update(model_error_reason(body))
     if isinstance(existing, dict):
-        details.update({k: existing[k] for k in ('http_status', 'retry_after_s') if k in existing})
+        details.update({k: existing[k] for k in ('http_status', 'retry_after_s', 'reason_code', 'reason_detail') if k in existing})
     return observation(code, component='model', operation='model_round', endpoint_role='runtime_to_provider',
         owner='model:'+hashlib.sha256(json.dumps([profile, model, task_id]).encode()).hexdigest()[:24], profile=profile, model=model, session_id=session_id or '', task_id=task_id or '',
         phase=str(body.get('transport_phase') or (existing or {}).get('phase') or 'unknown'),
@@ -171,7 +203,9 @@ def observation(code, *, component, operation, endpoint_role, owner='', delivery
               'delivery': delivery if delivery in {'not_sent', 'accepted', 'rejected', 'unknown'} else 'unknown',
               'outcome': 'cancelled' if code == 'OPERATION.CANCELLED' else 'unknown' if delivery in {'accepted', 'unknown'} and operation in {'create', 'write', 'send'} else 'failed'}
     for key, value in details.items():
-        if key in {'profile', 'model'} and isinstance(value, str):
+        if key == 'reason_detail' and isinstance(value, str):
+            result[key] = safe_reason_detail(value)
+        elif key in {'profile', 'model'} and isinstance(value, str):
             result[key] = value
         elif key in _FIELDS and isinstance(value, str) and len(value) <= 160 and _ID.fullmatch(value):
             result[key] = value
@@ -189,12 +223,14 @@ def sanitize_observation(value):
         item = value.get(key)
         if key in {'profile', 'model'} and isinstance(item, str) and re.fullmatch(r'[A-Za-z0-9_./:-]{1,160}', item) and '://' not in item:
             result[key] = item
-        elif isinstance(item, str) and _ID.fullmatch(item):
+        elif isinstance(item, str) and _ID.fullmatch(item) and not (key == 'reason_code' and re.match(r'^(sk[-_]|syt_|oc_sk_|gh[pousr]_|github_pat_|eyJ)', item)):
             result[key] = item
     for key in ('observed_at_ms', 'http_status', 'retry_after_s', 'attempt', 'next_retry_at_ms'):
         item = value.get(key)
         if type(item) in {int, float} and 0 <= item < 10**15:
             result[key] = item
+    if isinstance(value.get('reason_detail'), str) and value['reason_detail']:
+        result['reason_detail'] = safe_reason_detail(value['reason_detail'])
     return result
 
 

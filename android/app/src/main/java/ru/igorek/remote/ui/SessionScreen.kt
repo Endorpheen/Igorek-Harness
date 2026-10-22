@@ -1005,6 +1005,7 @@ internal fun NotificationCard(entry: NotificationEntry) {
     val clipboard=LocalClipboardManager.current
     val context = LocalContext.current
     val copiedMessage = uiText("Скопирован только этот инцидент", "Only this incident was copied")
+    val contentColor = if (entry.state == "recovered") MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onErrorContainer
     Surface(
         modifier=Modifier.combinedClickable(onClick={},onLongClickLabel=uiText("Скопировать этот инцидент","Copy this incident"),
             onLongClick={
@@ -1021,12 +1022,12 @@ internal fun NotificationCard(entry: NotificationEntry) {
             Text(
                 entry.text,
                 style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onErrorContainer,
+                color = contentColor,
             )
             Text(
                 notificationStamp(entry),
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.78f),
+                color = contentColor.copy(alpha = 0.78f),
             )
             entry.diagnostic?.let { error ->
                 Text(error.code+" · "+entry.id.take(8)+(error.httpRequestId.takeIf { it.isNotBlank() }?.let { "\n"+it } ?: ""),style=MaterialTheme.typography.labelSmall)

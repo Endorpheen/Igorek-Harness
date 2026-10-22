@@ -77,5 +77,6 @@ sealed interface TimelineItem {
         val level: String = "info",
         val details: String = "",
         val taskId: String = "",
+        val durationMs: Long? = null,
     ) : TimelineItem
 }

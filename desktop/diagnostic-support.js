@@ -71,7 +71,8 @@
     const language=(options.language || document.documentElement.lang)==='en'?'en':'ru';
     const text=(ru,en)=>language==='en'?en:ru;
     const active=document.getElementById('igorek-diagnostic-support');
-    if(active){active.focus();return;}
+    if(active?.open){active.focus();return;}
+    if(active)active.remove();
     const dialog=document.createElement('dialog');dialog.id='igorek-diagnostic-support';dialog.className='diagnostic-support-dialog';
     const make=(tag,value,cls)=>{const node=document.createElement(tag);node.textContent=value;if(cls)node.className=cls;return node;};
     const title=make('h2',text('Отправить диагностику','Send diagnostics'));title.id='igorek-diagnostic-support-title';dialog.setAttribute('aria-labelledby',title.id);

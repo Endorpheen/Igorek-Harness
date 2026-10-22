@@ -1640,6 +1640,8 @@ class MobileService:
                     "status": task["status"],
                     "created_at": task["created_at"],
                     "updated_at": task["updated_at"],
+                    "started_at": task.get("started_at"),
+                    "completed_at": task.get("completed_at"),
                     "error_message": task["error_message"],
                 }
                 for task in related[:20]

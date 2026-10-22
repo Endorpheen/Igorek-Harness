@@ -64,14 +64,18 @@ private fun normalizedIncident(item: JsonObject, language: AppLanguage): JsonObj
     val error = diagnostic(item["error"] ?: item["diagnostic"])
     val code = primitiveText(error?.get("code")) ?: "ERROR.UNKNOWN"
     val definition = ErrorCatalog.codes.getValue(code)
-    put("explanation", text(definition.ru, definition.en, language))
+    put("explanation", if (error != null) diagnosticExplanation(supportJson.decodeFromString<ErrorObservation>(error.toString()), language)
+        else text(definition.ru, definition.en, language))
     put("observations", number(item["observations"] ?: item["count"]).coerceIn(1,1000000000))
     for (key in listOf("first_seen_ms", "last_seen_ms", "recovered_at_ms")) {
         val stamp = date(item[key])
         if (stamp.isNotBlank()) put(key.removeSuffix("_ms") + "_utc", stamp)
     }
-    primitiveText(item["recovery_proof"])?.takeIf { it in setOf("stable_ready", "operation_completed", "operation_confirmed") }
-        ?.let { put("recovery_proof", it) }
+    primitiveText(item["recovery_proof"])?.takeIf { it in setOf("stable_ready", "operation_completed", "operation_confirmed", "tool_retry_succeeded", "task_completed_after_rejected_call") }
+        ?.let {
+            put("recovery_proof", it)
+            notificationRecoveryExplanation(it, language).takeIf(String::isNotBlank)?.let { message -> put("recovery_explanation", message) }
+        }
     if (error != null) put("error", error)
     val allEvents = (item["events"] as? JsonArray).orEmpty().mapNotNull(::diagnostic).distinct()
     val earlier = allEvents.filter { event ->

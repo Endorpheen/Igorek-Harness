@@ -654,7 +654,9 @@ private fun StatusCard(item: TimelineItem.Status, modifier: Modifier) {
                 horizontalArrangement = Arrangement.spacedBy(9.dp),
             ) {
                 Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp), tint = color)
-                Text(item.text, modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, color = color)
+                Text(item.text + item.durationMs?.takeIf { it >= 0 }?.let {
+                    " · " + ru.igorek.remote.data.taskDurationLabel(it, ru.igorek.remote.data.AppLocale.current)
+                }.orEmpty(), modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, color = color)
             }
             if (item.details.isNotBlank()) {
                 Text(
@@ -706,13 +708,17 @@ private fun ReasoningCard(item: TimelineItem.Reasoning, modifier: Modifier = Mod
                 CopyButton(item.text)
             }
             SelectionContainer {
-                Text(
-                    item.text,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = if (expanded) Int.MAX_VALUE else 3,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                if (expanded) {
+                    MarkdownText(item.text)
+                } else {
+                    Text(
+                        item.text,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
     }

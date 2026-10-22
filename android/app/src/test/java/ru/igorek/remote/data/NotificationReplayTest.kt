@@ -77,8 +77,8 @@ class NotificationReplayTest {
 
     @Test fun untypedTaskFailureIsUnknownRatherThanInventedInternalUiFailure() {
         val failure = notificationEventFailure(event(), emptyList())!!
-        assertEquals("ERROR.UNKNOWN", failure.code); assertEquals("task", failure.component)
-        assertEquals("bridge_to_mobile", failure.endpointRole); assertEquals(1234L, failure.observedAt)
+        assertEquals("TASK.EXECUTION_FAILED", failure.code); assertEquals("task", failure.component)
+        assertEquals("bridge_to_mobile", failure.endpointRole); assertEquals(1234000L, failure.observedAt)
         assertEquals(failure.eventId, notificationEventFailure(event(), emptyList())!!.eventId)
     }
 

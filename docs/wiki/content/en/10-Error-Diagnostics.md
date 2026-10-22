@@ -74,3 +74,11 @@ System and task failure messages are displayed only in the notification center. 
 ### MCP tool failures
 
 Upstream MCP tool results marked `isError=true` retain that status in the grep.app stdio bridge. Failure text is not prefixed with a claim that real search results were returned. The live service can still reject requests; this is reported as unavailable, not as a successful search.
+
+### Tool causes and confirmed recovery
+
+Tool failures include the tool/service/action and the explicit error code or a bounded, redacted error description. For example, `host_service → files` with `invalid_service_fields` reports invalid call fields rather than an unknown error. Model failures retain the provider's explicit reason alongside the HTTP/native classification; the client does not infer causes from message keywords.
+
+Bridge event timestamps are seconds and are converted to milliseconds once. Typed diagnostic timestamps already use milliseconds. Existing fallback observations with the old seconds-as-milliseconds encoding are corrected when loading the journal.
+
+A successful later call resolves a matching tool-operation incident. Resource-specific calls must match their inputs; rejected host-service calls use their action's relevant fields. Unconfirmed outcomes and failures of other operations stay active. Successful task completion can resolve a rejected parameter-validation call, with a distinct proof stating that the rejected call itself did not execute. Recovered incidents stay out of the list and bell count. Opening saved chat history can enrich and reconcile an existing incident, preserving its identifier/read state; it does not create notifications for old failures. The bounded diagnostic report retains the cause, state and recovery proof.

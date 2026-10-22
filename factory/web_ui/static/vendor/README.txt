@@ -35,3 +35,9 @@ Locally vendored web-client libraries (no runtime CDN requests).
 
 Do not edit vendored files manually. Version updates require a separate review
 of licenses and behavior.
+
+Three.js r128 (0.128.0), MIT; used only to resolve matching pinned artifact-preview scripts locally.
+Source: https://github.com/mrdoob/three.js/blob/r128/build/three.min.js
+SHA-256: 9274bbcec8d96168626c732b5d31c775aa8cfb7eaa0599bec0c175908a2c1ce2
+License: THREE-LICENSE.txt. The official build and matching cdnjs build were byte-identical.
+No external CDN or network permission is granted to artifact previews.

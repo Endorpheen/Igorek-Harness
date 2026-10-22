@@ -21,7 +21,15 @@
     return 'INTERNAL.UNEXPECTED';
   }
   const fields = ['component','operation','endpoint_role','owner','phase','delivery','outcome','event_id','http_request_id',
-    'client_operation_id','provider_request_id','task_id','session_id','tool_use_id','profile','model','build','native_code'];
+    'client_operation_id','provider_request_id','task_id','session_id','tool_use_id','profile','model','build','native_code','reason_code','tool_name','tool_action','service'];
+  function reasonDetail(value) {
+    if(typeof value !== 'string')return '';
+    return value.slice(0,16000)
+      .replace(/\bBearer\s+[^\s"'<>]+/gi,'Bearer [REDACTED]')
+      .replace(/(["']?(?:access_token|refresh_token|id_token|api[_-]?key|authorization|cookie|password|token|secret)["']?\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,;]+)/gi,'$1[REDACTED]')
+      .replace(/\b(?:sk[-_][\w-]+|oc_sk_[\w-]+|syt_[\w-]+|gh[pousr]_[\w]+|github_pat_[\w]+|eyJ[\w-]+\.[\w-]+\.[\w-]+)\b/g,'[REDACTED]')
+      .replace(/https?:\/\/[^\s<>"']+/g,text=>{try{const url=new URL(text);return url.origin+url.pathname;}catch{return '[URL]';}}).slice(0,512);
+  }
   function clean(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
     const code = Object.hasOwn(codes,value.code) ? value.code : 'INTERNAL.UNEXPECTED';
@@ -29,10 +37,11 @@
     const result = {schema_version:1,code,category:definition.category,severity:definition.severity,action:definition.action};
     for (const key of fields) {
       if (['profile','model'].includes(key) && typeof value[key] === 'string' && /^[A-Za-z0-9_./:-]{1,160}$/.test(value[key]) && !value[key].includes('://')) result[key]=value[key];
-      else if (id(value[key])) result[key] = value[key];
+      else if (id(value[key]) && !(key==='reason_code' && /^(sk[-_]|syt_|oc_sk_|gh[pousr]_|github_pat_|eyJ)/.test(value[key]))) result[key] = value[key];
     }
     for (const key of ['observed_at_ms','http_status','attempt','next_retry_at_ms','retry_after_s'])
       if (Number.isFinite(value[key]) && value[key] >= 0 && value[key] < 1e15) result[key] = value[key];
+    if (value.reason_detail) result.reason_detail=reasonDetail(value.reason_detail);
     return result;
   }
   function observation(code, details = {}) {
@@ -74,7 +83,12 @@
     }
     return changed;
   }
-  function message(error, language='ru') { return (codes[error?.code] || codes['INTERNAL.UNEXPECTED'])[language === 'en' ? 'en' : 'ru']; }
+  function message(error, language='ru') {
+    const value=clean(error) || {code:'INTERNAL.UNEXPECTED'},lang=language==='en'?'en':'ru';
+    const context=[value.tool_name,value.service,value.tool_action].filter(Boolean).join(' → ');
+    const reason=value.reason_detail || value.reason_code || '';
+    return [context,codes[value.code][lang],reason].filter(Boolean).join('\n');
+  }
   function retryDelay(attempt, random=Math.random()) { return Math.ceil(Math.min(10000,500*2**Math.min(Math.max(attempt-1,0),10))*(0.5+0.5*random)); }
   function confirm(items, operationId, taskId='') {
     let changed=false;

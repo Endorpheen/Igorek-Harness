@@ -49,6 +49,7 @@ from ..core.isolation.terminal_manager import (
     TerminalError,
     TerminalManager,
 )
+from .artifact_preview import MAX_PREVIEW_HTML_BYTES, prepare_html_preview
 from .terminal_endpoint import TerminalEndpoint, TerminalLog
 from ..core.isolation.terminal_vsock import RoutedTerminalBackend
 from .websocket import (
@@ -115,10 +116,11 @@ _MAX_UPLOAD_HEADER = 1024
 # CSP is inherited by srcdoc documents, which blocks their inline styles and
 # scripts; here the document gets its own sandboxed CSP instead: inline allowed,
 # opaque origin (sandbox without allow-same-origin), no network and no cookies.
-# Small self-contained HTML/SVG pages render, and cannot reach the interface.
+# Known pinned libraries are embedded locally as data scripts; no CDN is contacted.
+# HTML/SVG pages cannot reach the interface or fetch external assets.
 _PREVIEW_CSP = (
     "sandbox allow-scripts; default-src 'none'; base-uri 'none'; form-action 'none'; "
-    "style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data: blob:; "
+    "style-src 'unsafe-inline'; script-src 'unsafe-inline' data:; img-src data: blob:; "
     "font-src data:; media-src data: blob:; frame-ancestors 'self'"
 )
 _PREVIEW_CHARSET_TYPES = {"text/html", "image/svg+xml", "application/xhtml+xml", "text/plain"}
@@ -1656,8 +1658,14 @@ class _Handler(BaseHTTPRequestHandler):
             return
         with upstream:
             self.connection.settimeout(120)
-            self.send_response(upstream.status)
             content_type = upstream.headers.get("Content-Type") or "application/octet-stream"
+            prefix = b""
+            prepared = None
+            if preview and upstream.status == 200 and content_type.split(";", 1)[0].strip().lower() in {"text/html", "application/xhtml+xml"}:
+                prefix = upstream.read(MAX_PREVIEW_HTML_BYTES + 1)
+                if len(prefix) <= MAX_PREVIEW_HTML_BYTES:
+                    prepared = prepare_html_preview(prefix)
+            self.send_response(upstream.status)
             self.send_header("Content-Type", _preview_content_type(content_type) if preview else content_type)
             if preview:
                 self.send_header("Content-Disposition", "inline")
@@ -1668,7 +1676,7 @@ class _Handler(BaseHTTPRequestHandler):
             for name in ("Content-Range", "Accept-Ranges"):
                 if upstream.headers.get(name):
                     self.send_header(name, upstream.headers[name])
-            length = upstream.headers.get("Content-Length")
+            length = str(len(prepared)) if prepared is not None else upstream.headers.get("Content-Length")
             if length:
                 self.send_header("Content-Length", length)
             else:
@@ -1680,6 +1688,11 @@ class _Handler(BaseHTTPRequestHandler):
                 self._headers()
             self.end_headers()
             try:
+                if prepared is not None:
+                    self.wfile.write(prepared)
+                    return
+                if prefix:
+                    self.wfile.write(prefix)
                 while True:
                     chunk = upstream.read(65536)
                     if not chunk:

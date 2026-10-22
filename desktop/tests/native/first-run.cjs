@@ -97,6 +97,7 @@ async function run() {
   timeout.unref();
   try {
     await app.whenReady();
+    report.artifact_preview = await require('./artifact-preview.cjs').verifyArtifactPreview({BrowserWindow, session:electronSession, output, python:loadBundle(bundle).python, packages:path.join(bundle,'packages')});
     await require('./opencode-form.cjs').verifyOpenCodeForm({BrowserWindow,bundle,clickNative,until,output});
     report.opencode_form='passed';
     if(process.platform==='win32'){

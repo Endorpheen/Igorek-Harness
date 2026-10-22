@@ -82,8 +82,9 @@ class NotificationReplayInstrumentation : Instrumentation() {
             }
             if (android.os.Build.VERSION.SDK_INT >= 33) uiAutomation.grantRuntimePermission(
                 targetContext.packageName, android.Manifest.permission.POST_NOTIFICATIONS)
-            val activity = startActivitySync(Intent(targetContext, MainActivity::class.java)
+            val activity = startActivitySync(Intent(targetContext, UiAcceptanceActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as ComponentActivity
+            waitForIdleSync()
             val output = targetContext.getExternalFilesDir("notification-replay-qa")!!.apply { mkdirs() }
             @Suppress("UNCHECKED_CAST")
             val notifications = Bridge.javaClass.getDeclaredField("_notifications").apply { isAccessible = true }
@@ -164,11 +165,125 @@ class NotificationReplayInstrumentation : Instrumentation() {
             check(snapshot.contains("ui:session-input:history-a") && snapshot.contains("genuine-new-failure"))
             File(output, "journal.json").writeText(snapshot)
             tap("Notifications"); screenshot("genuine-new-errors.png")
+            tap("Close")
+            runOnMainSync { notifications.value = emptyList() }
+            fun toolEvent(seq: Long, status: String, service: String = "fixture", invalid: Boolean = false): BridgeEvent =
+                BridgeEvent(kind = "tool.result", seq = seq, ts = 1792629242L + seq - 201,
+                    taskId = "tool-fixture", sessionId = "history-a", payload = buildJsonObject {
+                        put("status", status); put("tool_name", "host_service"); put("tool_use_id", "fixture-call-$seq")
+                        put("tool_input", buildJsonObject {
+                            put("action", "files"); put("service", service); if (invalid) put("file_id", "unexpected-field")
+                        })
+                        put("result_preview", if (invalid) """{"error":"invalid_service_fields"}""" else """{"files":[]}""")
+                    })
+            val original = toolEvent(201, "error", invalid = true)
+            runOnMainSync { handle.invoke(Bridge, original) }
+            waitFor("typed tool failure") { notifications.value.singleOrNull()?.diagnostic?.reasonCode == "invalid_service_fields" }
+            val toolEntry = notifications.value.single()
+            check(toolEntry.text.contains("host_service") && toolEntry.text.contains("invalid set of fields"))
+            check(toolEntry.diagnostic!!.observedAt == 1792629242000L)
+            tap("Notifications")
+            waitFor("visible concrete cause") { find(toolEntry.text) != null }
+            screenshot("tool-cause-readable.png")
+            tap("Mark read"); tap("Close")
+            runOnMainSync { handle.invoke(Bridge, toolEvent(202, "done", service = "different")) }
+            check(notifications.value.single().state != "recovered")
+            runOnMainSync { handle.invoke(Bridge, toolEvent(203, "done")) }
+            check(notifications.value.single().state == "recovered" && unreadNotificationCount(notifications.value) == 0)
+            tap("Notifications")
+            waitFor("recovered tool hidden") { find("No active error notifications") != null }
+            screenshot("tool-recovered-hidden.png"); tap("Close")
+            val legacyError = toolEntry.diagnostic!!.copy(code = "ERROR.UNKNOWN", component = "task", observedAt = 1792629242L,
+                toolName = "", toolUseId = "", toolAction = "", service = "", reasonCode = "", operationKey = "", sourceSequence = null)
+            val legacy = toolEntry.copy(text = "Unknown old failure", state = "needs_owner", read = true,
+                diagnostic = legacyError, events = listOf(legacyError))
+            runOnMainSync {
+                (Bridge.javaClass.getDeclaredField("prefs").apply { isAccessible = true }.get(Bridge) as Prefs)
+                    .notificationHistory = kotlinx.serialization.json.Json.encodeToString(listOf(legacy))
+                load.invoke(Bridge)
+                handle.invoke(Bridge, original)
+                handle.invoke(Bridge, toolEvent(203, "done"))
+                load.invoke(Bridge)
+            }
+            check(notifications.value.single().id == legacy.id && notifications.value.single().read && notifications.value.single().state == "recovered")
+            check(notifications.value.single().diagnostic!!.reasonCode == "invalid_service_fields")
+            val report = ru.igorek.remote.data.incidentDiagnosticReport(notifications.value.single(), "fixture", AppLanguage.English)
+            check(report.contains("2026-10-22T00:34:02Z") && report.contains("tool_retry_succeeded") && !report.contains("1970-"))
+            File(output, "tool-recovery-report.json").writeText(report)
+            tap("Notifications")
+            waitFor("legacy incident stays hidden") { find("No active error notifications") != null }
+            screenshot("legacy-tool-reconciled.png")
+            tap("Close")
+            val code = "<main>fixture</main>"
+            val reasoning = "Plan with inline `code`.\n```html\n" + code + "\n```\n```js\nconst fixture = 1;"
+            val durationTimeline = ru.igorek.remote.data.SessionTimeline("history-a")
+            durationTimeline.apply(BridgeEvent(kind = "task.start", seq = 401, ts = 1792629000,
+                sessionId = "history-a", taskId = "duration-fixture"))
+            durationTimeline.apply(BridgeEvent(kind = "task.finish", seq = 402, ts = 1792629134,
+                sessionId = "history-a", taskId = "duration-fixture", payload = buildJsonObject { put("status", "ok") }))
+            runOnMainSync {
+                timeline.value = listOf(TimelineItem.Reasoning("reasoning-markdown-fixture", reasoning)) + durationTimeline.snapshot()
+                activity.setContent { androidx.compose.runtime.key("presentation-fixture") {
+                    CompositionLocalProvider(LocalAppLanguage provides AppLanguage.English) { IgorekTheme {
+                        SessionScreen("history-a", onMenu = {}, onBack = {}, onOpenSession = {})
+                    } }
+                } }
+            }
+            waitFor("completed task elapsed time") { find("Task completed · 2 min 14 s") != null }
+            check(find("html") == null)
+            tap("show all")
+            waitFor("reasoning HTML code block") { find("html") != null && find(code) != null }
+            waitFor("unfinished reasoning JS code block") { find("js") != null && find("const fixture = 1;") != null }
+            screenshot("reasoning-code-and-task-duration.png")
+            waitForIdleSync()
+            uiAutomation.waitForIdle(500, 5000)
+            val htmlBox = Rect(); find("html")!!.getBoundsInScreen(htmlBox)
+            val copyNodes = mutableListOf<AccessibilityNodeInfo>()
+            fun collectCopies(node: AccessibilityNodeInfo?) {
+                if (node == null) return
+                node.refresh()
+                if (node.isVisibleToUser && node.contentDescription?.toString() == "Copy") copyNodes.add(node)
+                for (index in 0 until node.childCount) collectCopies(node.getChild(index))
+            }
+            for (window in uiAutomation.windows) collectCopies(window.root)
+            collectCopies(uiAutomation.rootInActiveWindow)
+            val copy = copyNodes.minByOrNull { node -> val box = Rect(); node.getBoundsInScreen(box); kotlin.math.abs(box.centerY() - htmlBox.centerY()) }
+                ?: error("Code copy button missing")
+            val copyBox = Rect(); copy.getBoundsInScreen(copyBox)
+            check(kotlin.math.abs(copyBox.centerY() - htmlBox.centerY()) < 80) {
+                "Code copy row mismatch: label=$htmlBox candidates=" + copyNodes.joinToString { node ->
+                    val box = Rect(); node.getBoundsInScreen(box); box.toString()
+                }
+            }
+            val inputTime = SystemClock.uptimeMillis()
+            val down = MotionEvent.obtain(inputTime, inputTime, MotionEvent.ACTION_DOWN, copyBox.centerX().toFloat(), copyBox.centerY().toFloat(), 0)
+            check(uiAutomation.injectInputEvent(down, true)); down.recycle(); Thread.sleep(60)
+            val up = MotionEvent.obtain(inputTime, SystemClock.uptimeMillis(), MotionEvent.ACTION_UP, copyBox.centerX().toFloat(), copyBox.centerY().toFloat(), 0)
+            check(uiAutomation.injectInputEvent(up, true)); up.recycle(); waitForIdleSync()
+            runOnMainSync {
+                val clipboard = targetContext.getSystemService(android.content.ClipboardManager::class.java)
+                check(clipboard.primaryClip?.getItemAt(0)?.coerceToText(targetContext)?.toString() == code)
+            }
+            check(find("html") != null)
+
             sendStatus(0, Bundle().apply { putString("stream",
-                "NOTIFICATION_REPLAY_PASS: ten old failures remain passive across A/B switches, real live failure retained/read/restored, replay suppressed after recovery and clear, new failures visible, UI input errors share the report journal\n") })
+                "NOTIFICATION_REPLAY_PASS: ten old failures remain passive across A/B switches, real live failure retained/read/restored, replay suppressed after recovery and clear, new failures visible, UI input errors share the report journal; tool cause/time retained, matching retry hidden, legacy incident reconciled without duplicate; reasoning code rendered/copied and task elapsed time visible\n") })
             finish(Activity.RESULT_OK, Bundle())
         } catch (error: Throwable) {
             val output = targetContext.getExternalFilesDir("notification-replay-qa")!!.apply { mkdirs() }
+            runCatching {
+                val tree = StringBuilder()
+                fun visit(node: AccessibilityNodeInfo?, depth: Int = 0) {
+                    if (node == null || depth > 30 || tree.length > 60000) return
+                    node.refresh()
+                    val box = Rect(); node.getBoundsInScreen(box)
+                    tree.append(" ".repeat(depth)).append(node.className).append(" text=").append(node.text)
+                        .append(" description=").append(node.contentDescription).append(" bounds=").append(box).append('\n')
+                    for (index in 0 until node.childCount) visit(node.getChild(index), depth + 1)
+                }
+                for (window in uiAutomation.windows) visit(window.root)
+                File(output, "failure-state.txt").writeText(tree.toString())
+            }
             uiAutomation.takeScreenshot()?.let { image -> File(output, "failure.png").outputStream().use {
                 image.compress(Bitmap.CompressFormat.PNG, 100, it) }; image.recycle() }
             finish(Activity.RESULT_CANCELED, Bundle().apply { putString("stream", error.stackTraceToString()) })

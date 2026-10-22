@@ -216,6 +216,38 @@
       "retryable": false,
       "ru": "Причина ошибки не определена. Доступны диагностические сведения.",
       "en": "The failure cause is unknown. Diagnostic details are available."
+    },
+    "TOOL.INVALID_ARGUMENTS": {
+      "category": "tool",
+      "action": "check_request",
+      "severity": "error",
+      "retryable": false,
+      "ru": "Инструмент отклонил параметры вызова.",
+      "en": "The tool rejected the call parameters."
+    },
+    "TOOL.EXECUTION_FAILED": {
+      "category": "tool",
+      "action": "diagnostics",
+      "severity": "error",
+      "retryable": false,
+      "ru": "Инструмент сообщил об ошибке выполнения.",
+      "en": "The tool reported an execution failure."
+    },
+    "TASK.EXECUTION_FAILED": {
+      "category": "operation",
+      "action": "diagnostics",
+      "severity": "error",
+      "retryable": false,
+      "ru": "Задача завершилась с ошибкой.",
+      "en": "The task finished with an error."
+    },
+    "CONTEXT.COMPACTION_FAILED": {
+      "category": "operation",
+      "action": "diagnostics",
+      "severity": "error",
+      "retryable": false,
+      "ru": "Не удалось сократить контекст задачи.",
+      "en": "Task context compaction failed."
     }
   },
   "support_email": "igorek-dot@tutamail.com"

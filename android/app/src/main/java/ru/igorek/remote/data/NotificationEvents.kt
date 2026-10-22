@@ -33,8 +33,16 @@ internal fun notificationEventFailure(event: BridgeEvent, known: List<Notificati
     }) return null
     val source = listOf(event.kind, event.seq, event.ts, session, task, event.payload.toString()).joinToString("|")
     val identity = if (event.kind == "tool.result") value("tool_use_id").ifBlank { value("call_id") } else ""
-    return ErrorObservation(eventId = "event:" + connectionScope(source), observedAt = event.ts ?: System.currentTimeMillis(),
+    val fallback = ErrorObservation(eventId = "event:" + connectionScope(source), observedAt = bridgeEventTimeMillis(event.ts),
         code = "ERROR.UNKNOWN", component = "task", operation = "execute", endpointRole = "bridge_to_mobile",
         owner = "task:" + connectionScope(listOf(session, task, identity).joinToString("|")),
-        phase = event.kind.replace('.', '_'), taskId = task, sessionId = session)
+        phase = event.kind.replace('.', '_'), taskId = task, sessionId = session,
+        sourceSequence = event.seq,
+        reasonCode = value("reason").takeIf { it.matches(Regex("[A-Za-z0-9_.:-]{1,100}")) }.orEmpty(),
+        reasonDetail = value("error").ifBlank { value("message") })
+    return when (event.kind) {
+        "tool.result" -> toolFailureObservation(event, fallback)
+        "compaction.failed" -> sanitizeDiagnostic(fallback.copy(code = "CONTEXT.COMPACTION_FAILED"))
+        else -> sanitizeDiagnostic(fallback.copy(code = "TASK.EXECUTION_FAILED"))
+    }
 }

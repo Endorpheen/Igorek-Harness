@@ -144,6 +144,15 @@ class FakeSkillsManager:
 
 
 class SessionListingTest(ServiceTestCase):
+    def test_session_task_metadata_preserves_execution_boundaries(self):
+        task = create_task(text="Fixture", profile="cc-local-8081", metadata={"session": self.session_id})
+        with sqlite3.connect(get_db_path()) as conn:
+            conn.execute("UPDATE tasks SET status='ok', created_at=?, started_at=?, completed_at=? WHERE task_id=?",
+                (1792628600, 1792629000, 1792629134, task["task_id"]))
+        row = next(row for row in self.service.get_session(self.session_id)["tasks"] if row["task_id"] == task["task_id"])
+        self.assertEqual(1792629000, row["started_at"])
+        self.assertEqual(1792629134, row["completed_at"])
+
     def test_pinned_state_is_durable_and_old_pins_survive_list_limit(self):
         for index in range(55):
             self._write_session('chat-pin-'+str(index))
