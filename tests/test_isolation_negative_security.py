@@ -1173,14 +1173,20 @@ class PocLiveRunner:
         self._run_id = uuid.uuid4().hex[:10]
         self._ledger = probe_verification.ProbeLedger()
         self._marker_proc: subprocess.Popen[str] | None = None
+        self._marker_unit: str | None = None
         self._poc = _load_poc_module()
         request = self._poc.PocRequest(
             profile=profile, workspace=workspace,
+            poc_root=str(self._env.get("IGOREK_NEGATIVE_POC_ROOT") or ""),
             vsock_port=int(self._env.get("IGOREK_ISOLATION_VSOCK_PORT") or self._poc.DEFAULT_POC_VSOCK_PORT),
         )
         self._backend = self._poc.RealPocBackend(request, env=self._env)
-        self._backend.prepare()
-        self._backend.start_session()
+        try:
+            self._backend.prepare()
+            self._backend.start_session()
+        except BaseException:
+            self._backend.cleanup()
+            raise
         self._facts_cache: dict[str, Mapping[str, str]] = {}
 
     # -- runner protocol -------------------------------------------------- #
@@ -1257,7 +1263,13 @@ class PocLiveRunner:
         if plan.key in ("reach_host_systemd", "reach_host_dbus"):
             unit = f"igorek-negative-host-{self._run_id}"
             self._ensure_host_marker_unit(unit)
-            return {"host_marker_unit_present": "yes" if self._host_unit_exists(unit) else "no"}
+            facts = {"host_marker_unit_present": "yes" if self._host_unit_exists(unit) else "no"}
+            if plan.key == "reach_host_dbus":
+                inode = self._poc._bus_socket_inode()
+                if inode is None:
+                    raise LiveProbeUnavailable("host session bus inode is unavailable")
+                facts["host_bus_inode"] = str(inode)
+            return facts
         if plan.key == "create_host_transient_unit":
             unit = f"igorek-negative-guest-{self._run_id}"
             return {
@@ -1305,13 +1317,15 @@ class PocLiveRunner:
 
     def _ensure_host_marker_unit(self, unit: str) -> None:
         if self._host_unit_exists(unit):
+            self._marker_unit = unit
             return
         completed = self._run_host_command(
-            ["systemd-run", "--user", "--unit", unit, "--collect", "--wait", "--pipe", "true"],
+            ["systemd-run", "--user", "--unit", unit, "--remain-after-exit", "true"],
             what="host user systemd",
         )
-        if completed.returncode != 0 and not self._host_unit_exists(unit):
+        if completed.returncode != 0 or not self._host_unit_exists(unit):
             raise LiveProbeUnavailable(f"host user systemd unavailable: {completed.stderr.strip()}")
+        self._marker_unit = unit
 
     def _host_unit_exists(self, unit: str) -> bool:
         completed = self._run_host_command(
@@ -1336,7 +1350,7 @@ class PocLiveRunner:
 
     def _host_filesystem_count(self) -> str:
         completed = self._run_host_command(
-            ["virsh", "-c", "qemu:///session", "dumpxml", domain_name(self._backend.session_spec)],
+            ["virsh", "-c", str(self._env.get("IGOREK_ISOLATION_LIBVIRT_URI") or "qemu:///session"), "dumpxml", domain_name(self._backend.session_spec)],
             what="host libvirt dumpxml",
         )
         if completed.returncode != 0:
@@ -1353,7 +1367,14 @@ class PocLiveRunner:
             except subprocess.TimeoutExpired:
                 self._marker_proc.kill()
             self._marker_proc = None
-        self._backend.cleanup()
+        try:
+            if self._marker_unit is not None:
+                unit = f"{self._marker_unit}.service"
+                self._run_host_command(["systemctl", "--user", "stop", unit], what="host marker cleanup")
+                self._run_host_command(["systemctl", "--user", "reset-failed", unit], what="host marker cleanup")
+                self._marker_unit = None
+        finally:
+            self._backend.cleanup()
 
 
 def default_live_runner(env: Mapping[str, str] | None = None) -> LiveProbeRunner:
@@ -2069,6 +2090,54 @@ def test_live_runner_uses_the_configured_guest_channel_port(monkeypatch):
 
     module = SimpleNamespace(PocRequest=Request, RealPocBackend=Backend, DEFAULT_POC_VSOCK_PORT=43011)
     monkeypatch.setattr(sys.modules[__name__], "_load_poc_module", lambda: module)
-    runner = PocLiveRunner(profile="fixture", workspace="/tmp/fixture", env={"IGOREK_ISOLATION_VSOCK_PORT": "5005"})
-    assert captured == {"profile": "fixture", "workspace": "/tmp/fixture", "vsock_port": 5005}
+    runner = PocLiveRunner(profile="fixture", workspace="/tmp/fixture", env={"IGOREK_ISOLATION_VSOCK_PORT": "5005", "IGOREK_NEGATIVE_POC_ROOT": "/tmp/scratch-fixture"})
+    assert captured == {"profile": "fixture", "workspace": "/tmp/fixture", "poc_root": "/tmp/scratch-fixture", "vsock_port": 5005}
     runner.close()
+
+
+def test_host_marker_survives_until_scoped_cleanup():
+    from types import SimpleNamespace
+    runner = object.__new__(PocLiveRunner)
+    runner._marker_proc = None
+    runner._marker_unit = None
+    state = {"present": False, "cleaned": False}
+    commands = []
+    runner._backend = SimpleNamespace(cleanup=lambda: state.update(cleaned=True))
+    def run(argv, **_kwargs):
+        commands.append(argv)
+        if argv[0] == "systemd-run":
+            state["present"] = "--remain-after-exit" in argv and "--wait" not in argv
+        if "stop" in argv:
+            state["present"] = False
+        return subprocess.CompletedProcess(argv, 0 if "cat" not in argv or state["present"] else 1, "", "")
+    runner._run_host_command = run
+    runner._ensure_host_marker_unit("igorek-negative-host-fixture")
+    assert runner._host_unit_exists("igorek-negative-host-fixture")
+    runner.close()
+    assert not state["present"] and state["cleaned"]
+    assert [argv for argv in commands if "reset-failed" in argv] == [["systemctl", "--user", "reset-failed", "igorek-negative-host-fixture.service"]]
+
+
+def test_live_filesystem_observation_uses_the_selected_hypervisor():
+    from types import SimpleNamespace
+    runner = object.__new__(PocLiveRunner)
+    runner._env = {"IGOREK_ISOLATION_LIBVIRT_URI": "qemu:///system"}
+    runner._backend = SimpleNamespace(session_spec=SimpleNamespace(session_id="fixture"))
+    calls = []
+    def run(argv, **_kwargs):
+        calls.append(argv)
+        return subprocess.CompletedProcess(argv, 0, "<domain><filesystem/></domain>", "")
+    runner._run_host_command = run
+    assert runner._host_filesystem_count() == "1"
+    assert calls[0][2] == "qemu:///system"
+
+
+def test_dbus_observation_contains_the_actual_host_socket_identity():
+    from types import SimpleNamespace
+    runner = object.__new__(PocLiveRunner)
+    runner._run_id = "fixture"
+    runner._poc = SimpleNamespace(_bus_socket_inode=lambda: 12345)
+    runner._ensure_host_marker_unit = lambda _unit: None
+    runner._host_unit_exists = lambda _unit: True
+    facts = runner._observed_facts(SimpleNamespace(key="reach_host_dbus"))
+    assert facts == {"host_marker_unit_present": "yes", "host_bus_inode": "12345"}

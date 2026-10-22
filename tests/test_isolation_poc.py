@@ -355,6 +355,8 @@ class ApprovalEvidence:
     blocked_tools: tuple[Mapping[str, JsonValue], ...]
     host_workspace: str
     vm_stopped: bool
+    runner_closed: bool = False
+    unapproved_file_absent: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -462,11 +464,13 @@ def verdict_approval(evidence: ApprovalEvidence) -> tuple[bool, str]:
     target = str(blocked.get("target") or "")
     if not target or not target.startswith(evidence.host_workspace.rstrip("/")):
         return False, f"blocked target was not canonicalized to the host workspace: {target!r}"
-    if not evidence.vm_stopped:
-        return False, "the parked session VM was left running"
+    if not evidence.vm_stopped and not evidence.runner_closed:
+        return False, "the parked task runner was left running"
+    if not evidence.unapproved_file_absent:
+        return False, "the requested file was written before approval"
     return True, (
         f"tool={blocked.get('tool')} tool_use_id={blocked.get('tool_use_id')} "
-        f"target={target} parked_vm=torn_down"
+        f"target={target} runner=closed vm={'stopped' if evidence.vm_stopped else 'warm'}"
     )
 
 
@@ -835,7 +839,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--wait-timeout-s", type=float, default=DEFAULT_WAIT_TIMEOUT_S, help="per-step budget"
     )
-    parser.add_argument("--poc-root", default="", help="scratch dir (created by the caller)")
+    parser.add_argument("--poc-root", default=os.environ.get("IGOREK_ISOLATION_POC_ROOT", ""), help="scratch dir (created by the caller)")
     parser.add_argument(
         "--probe-only",
         action="store_true",
@@ -1232,6 +1236,7 @@ class RealPocBackend:
 
     def request_write(self) -> ApprovalEvidence:
         self._ensure_session_ready()
+        endpoint = self._manager.channel_server.session_for(SessionId(self._session_id)) if self._manager else None
         task_id = f"poc-approval-{self._token}"
         forced = forced_tool_call(
             "Write",
@@ -1258,6 +1263,8 @@ class RealPocBackend:
             blocked_tools=blocked,
             host_workspace=str(self._workspace_host),
             vm_stopped=self._session_gone(),
+            runner_closed=endpoint is not None and endpoint.closed,
+            unapproved_file_absent=not (self._workspace_host / self._write_name).exists(),
         )
 
     def approve_write(self) -> WriteEvidence:
@@ -1327,6 +1334,8 @@ class RealPocBackend:
         if thread is not None:
             thread.join(timeout=self._request.wait_timeout_s)
         result = self._live_result
+        if self._manager is not None:
+            self._manager.stop(self._session_id)
         facts = self.teardown_facts()
         return StopEvidence(
             result_status=str(result.get("status") or ""),
@@ -1488,8 +1497,7 @@ class RealPocBackend:
                 "systemd-run",
                 "--user",
                 f"--unit={self._host_marker_unit}",
-                "--wait",
-                "--pipe",
+                "--remain-after-exit",
                 "true",
             ],
             timeout_s=30.0,
@@ -2656,8 +2664,8 @@ def test_verdict_approval_requires_a_canonicalized_target() -> None:
     assert ok is False and "canonicalized" in detail
 
 
-def test_verdict_approval_fails_when_the_parked_vm_kept_running() -> None:
-    # Given: the parked session VM was not torn down
+def test_verdict_approval_fails_when_the_task_runner_kept_running() -> None:
+    # Given: a warm VM whose task runner channel was not closed
     evidence = good_approval(vm_stopped=False)
     # When/Then: the assertion fails
     ok, detail = verdict_approval(evidence)
@@ -2971,3 +2979,44 @@ def test_cleanup_resets_only_its_own_host_marker_unit(monkeypatch):
     ]
     assert not backend._marker_unit_created
     assert not receipt.leftovers
+
+
+def test_native_scratch_root_environment_uses_the_existing_cli_option(monkeypatch):
+    monkeypatch.setenv("IGOREK_ISOLATION_POC_ROOT", "/tmp/empty-fixture-scratch")
+    assert _build_parser().parse_args([]).poc_root == "/tmp/empty-fixture-scratch"
+    assert _build_parser().parse_args(["--poc-root", "/tmp/explicit-scratch"]).poc_root == "/tmp/explicit-scratch"
+
+
+def test_approval_can_keep_the_vm_warm_after_closing_the_task_runner():
+    evidence = replace(good_approval(vm_stopped=False), runner_closed=True)
+    ok, detail = verdict_approval(evidence)
+    assert ok and "vm=warm" in detail
+
+
+def test_approval_rejects_a_write_that_happened_before_consent():
+    evidence = replace(good_approval(vm_stopped=False), runner_closed=True, unapproved_file_absent=False)
+    ok, detail = verdict_approval(evidence)
+    assert not ok and "before approval" in detail
+
+
+def test_poc_stop_explicitly_ends_the_warm_session_after_task_cancel():
+    from types import SimpleNamespace
+    backend = object.__new__(RealPocBackend)
+    state = {"stopped": False}
+    calls = []
+    backend._session_id = "fixture-session"
+    backend._request = SimpleNamespace(wait_timeout_s=1)
+    backend._start_live_probe = lambda: None
+    backend._wait_for_bash_call_started = lambda **_kwargs: True
+    backend._live_cancel = threading.Event()
+    backend._live_thread = None
+    backend._live_result = {"status": "fail", "failure_reason": "canceled"}
+    def stop(session):
+        calls.append(session)
+        state["stopped"] = True
+    backend._manager = SimpleNamespace(stop=stop)
+    backend.teardown_facts = lambda: TeardownEvidence(domain_gone=state["stopped"], overlay_gone=state["stopped"], overlay_dir_empty=state["stopped"])
+    result = backend.stop_session()
+    assert backend._live_cancel.is_set()
+    assert calls == ["fixture-session"]
+    assert verdict_stop(result)[0]
