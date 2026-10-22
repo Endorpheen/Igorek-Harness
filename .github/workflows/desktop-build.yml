@@ -103,7 +103,7 @@ jobs:
           if ($process.ExitCode -ne 0) { throw 'Installer failed' }
           $env:IGOREK_TEST_RUNTIME = Join-Path $install 'resources/app/runtime'
           $env:IGOREK_TEST_OUTPUT = Join-Path $env:GITHUB_WORKSPACE 'test-results/native-windows'
-          & ./desktop/node_modules/.bin/electron.cmd desktop/tests/native/first-run.cjs
+          & ./desktop/node_modules/.bin/electron.cmd --use-angle=swiftshader --enable-unsafe-swiftshader desktop/tests/native/first-run.cjs
           if ($LASTEXITCODE -ne 0) { throw 'Native Windows acceptance failed' }
           & uv run --no-sync python desktop/packaging/check-native-report.py $env:IGOREK_TEST_OUTPUT
           if ($LASTEXITCODE -ne 0) { throw 'Native report is incomplete' }
@@ -223,7 +223,7 @@ jobs:
           '@ | & uv run --no-sync python -
           if ($LASTEXITCODE -ne 0) { throw 'Diagnostic fixture preparation failed' }
           $env:IGOREK_TEST_RUNTIME = $env:IGOREK_DIAG_RUNTIME
-          & ./desktop/node_modules/.bin/electron.cmd desktop/tests/native/first-run.cjs
+          & ./desktop/node_modules/.bin/electron.cmd --use-angle=swiftshader --enable-unsafe-swiftshader desktop/tests/native/first-run.cjs
           Write-Output 'Diagnostic clone result is separate from native package acceptance.'
       - name: Prepare the Linux Chromium sandbox for native input tests
         if: runner.os == 'Linux'
@@ -254,6 +254,7 @@ jobs:
             ${{ runner.temp }}/igorek-dist/*.deb
             ${{ runner.temp }}/igorek-dist/*.AppImage
             test-results/native-windows/summary.json
+            test-results/native-windows/artifact-*
             test-results/composer-windows/summary.json
             test-results/search-windows/summary.json
             test-results/native-windows-diagnostics/summary.json

@@ -213,9 +213,53 @@ class NotificationReplayInstrumentation : Instrumentation() {
             tap("Notifications")
             waitFor("legacy incident stays hidden") { find("No active error notifications") != null }
             screenshot("legacy-tool-reconciled.png")
+            tap("Close")
+            val code = "<main>fixture</main>"
+            val reasoning = "Plan with inline `code`.\n```html\n" + code + "\n```\n```js\nconst fixture = 1;"
+            val durationTimeline = ru.igorek.remote.data.SessionTimeline("history-a")
+            durationTimeline.apply(BridgeEvent(kind = "task.start", seq = 401, ts = 1792629000,
+                sessionId = "history-a", taskId = "duration-fixture"))
+            durationTimeline.apply(BridgeEvent(kind = "task.finish", seq = 402, ts = 1792629134,
+                sessionId = "history-a", taskId = "duration-fixture", payload = buildJsonObject { put("status", "ok") }))
+            runOnMainSync {
+                timeline.value = listOf(TimelineItem.Reasoning("reasoning-markdown-fixture", reasoning)) + durationTimeline.snapshot()
+                activity.setContent { androidx.compose.runtime.key("presentation-fixture") {
+                    CompositionLocalProvider(LocalAppLanguage provides AppLanguage.English) { IgorekTheme {
+                        SessionScreen("history-a", onMenu = {}, onBack = {}, onOpenSession = {})
+                    } }
+                } }
+            }
+            waitFor("completed task elapsed time") { find("Task completed · 2 min 14 s") != null }
+            check(find("html") == null)
+            tap("show all")
+            waitFor("reasoning HTML code block") { find("html") != null && find(code) != null }
+            waitFor("unfinished reasoning JS code block") { find("js") != null && find("const fixture = 1;") != null }
+            screenshot("reasoning-code-and-task-duration.png")
+            val htmlBox = Rect(); find("html")!!.getBoundsInScreen(htmlBox)
+            val copyNodes = mutableListOf<AccessibilityNodeInfo>()
+            fun collectCopies(node: AccessibilityNodeInfo?) {
+                if (node == null) return
+                if (node.isVisibleToUser && node.contentDescription?.toString() == "Copy") copyNodes.add(node)
+                for (index in 0 until node.childCount) collectCopies(node.getChild(index))
+            }
+            collectCopies(uiAutomation.rootInActiveWindow)
+            val copy = copyNodes.minByOrNull { node -> val box = Rect(); node.getBoundsInScreen(box); kotlin.math.abs(box.centerY() - htmlBox.centerY()) }
+                ?: error("Code copy button missing")
+            val copyBox = Rect(); copy.getBoundsInScreen(copyBox)
+            check(kotlin.math.abs(copyBox.centerY() - htmlBox.centerY()) < 80)
+            val inputTime = SystemClock.uptimeMillis()
+            val down = MotionEvent.obtain(inputTime, inputTime, MotionEvent.ACTION_DOWN, copyBox.centerX().toFloat(), copyBox.centerY().toFloat(), 0)
+            check(uiAutomation.injectInputEvent(down, true)); down.recycle(); Thread.sleep(60)
+            val up = MotionEvent.obtain(inputTime, SystemClock.uptimeMillis(), MotionEvent.ACTION_UP, copyBox.centerX().toFloat(), copyBox.centerY().toFloat(), 0)
+            check(uiAutomation.injectInputEvent(up, true)); up.recycle(); waitForIdleSync()
+            runOnMainSync {
+                val clipboard = targetContext.getSystemService(android.content.ClipboardManager::class.java)
+                check(clipboard.primaryClip?.getItemAt(0)?.coerceToText(targetContext)?.toString() == code)
+            }
+            check(find("html") != null)
 
             sendStatus(0, Bundle().apply { putString("stream",
-                "NOTIFICATION_REPLAY_PASS: ten old failures remain passive across A/B switches, real live failure retained/read/restored, replay suppressed after recovery and clear, new failures visible, UI input errors share the report journal; tool cause/time retained, matching retry hidden, legacy incident reconciled without duplicate\n") })
+                "NOTIFICATION_REPLAY_PASS: ten old failures remain passive across A/B switches, real live failure retained/read/restored, replay suppressed after recovery and clear, new failures visible, UI input errors share the report journal; tool cause/time retained, matching retry hidden, legacy incident reconciled without duplicate; reasoning code rendered/copied and task elapsed time visible\n") })
             finish(Activity.RESULT_OK, Bundle())
         } catch (error: Throwable) {
             val output = targetContext.getExternalFilesDir("notification-replay-qa")!!.apply { mkdirs() }

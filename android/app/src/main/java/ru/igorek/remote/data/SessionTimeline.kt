@@ -68,6 +68,8 @@ class SessionTimeline(val sessionId: String) {
     fun planSnapshot(): SessionPlan = synchronized(this) { plan }
     fun contextSnapshot(): ContextUsage = synchronized(this) { contextUsage }
 
+    private val taskStarts = mutableMapOf<String, Long>()
+    private val taskFinishes = mutableMapOf<String, Long>()
     private val seenEvents = mutableSetOf<Long>()
     private val resolutions = mutableMapOf<String, String>()
     private val completedRounds = mutableMapOf<String, Long>()
@@ -136,6 +138,30 @@ class SessionTimeline(val sessionId: String) {
     fun isMessageQueued(messageId: String): Boolean = synchronized(this) {
         if (messageId.isEmpty()) return false
         items.any { it is TimelineItem.UserText && it.queued && it.messageId == messageId }
+    }
+
+    private fun durationFor(taskId: String): Long? {
+        val start = taskStarts[taskId] ?: return null
+        val finish = taskFinishes[taskId] ?: return null
+        return (finish - start).takeIf { it >= 0 }
+    }
+
+    private fun updateTaskDuration(taskId: String) {
+        val duration = durationFor(taskId) ?: return
+        items.indices.forEach { index ->
+            val item = items[index] as? TimelineItem.Status ?: return@forEach
+            if (item.id == "success-$taskId") items[index] = item.copy(durationMs = duration)
+        }
+    }
+
+    fun seedTaskTimings(tasks: List<TaskBriefDto>) = synchronized(this) {
+        tasks.forEach { task ->
+            task.startedAt?.takeIf { it > 0 }?.let { taskStarts.putIfAbsent(task.taskId, bridgeEventTimeMillis(it)) }
+            if (task.status == "ok") task.completedAt?.takeIf { it > 0 }?.let {
+                taskFinishes.putIfAbsent(task.taskId, bridgeEventTimeMillis(it))
+            }
+            updateTaskDuration(task.taskId)
+        }
     }
 
     fun seedFromHistory(messages: List<MessageDto>) {
@@ -296,11 +322,18 @@ class SessionTimeline(val sessionId: String) {
                 }
 
                 "task.start" -> {
+                    if (taskKey.isNotBlank()) event.ts?.takeIf { it > 0 }?.let {
+                        taskStarts.putIfAbsent(taskKey, bridgeEventTimeMillis(it))
+                        updateTaskDuration(taskKey)
+                    }
                     if (queuedPromptTasks.remove(taskKey)) markTaskMessagesStarted(taskKey)
                 }
 
                 "task.status" -> {
                     val status = payload.str("status")
+                    if (status == "ok" && taskKey.isNotBlank()) event.ts?.takeIf { it > 0 }?.let {
+                        taskFinishes.putIfAbsent(taskKey, bridgeEventTimeMillis(it))
+                    }
                     if (taskKey in cancelledTasks && status in FINAL_STATUSES) return
                     if (status == "cancelling") {
                         upsertLive(
@@ -343,6 +376,7 @@ class SessionTimeline(val sessionId: String) {
                             taskStatusText(status),
                             level = statusLevel(status),
                             taskId = payload.str("task_id").ifEmpty { taskKey },
+                            durationMs = if (status == "ok") durationFor(taskKey) else null,
                         )
                     )
                 }
@@ -552,6 +586,9 @@ class SessionTimeline(val sessionId: String) {
                         )
                         return
                     }
+                    if (status == "ok" && taskKey.isNotBlank()) event.ts?.takeIf { it > 0 }?.let {
+                        taskFinishes[taskKey] = bridgeEventTimeMillis(it)
+                    }
                     val awaitingApproval =
                         payload.str("reason") == "approval_required" &&
                             payload.long("approval_blocked_count") > 0 &&
@@ -574,6 +611,7 @@ class SessionTimeline(val sessionId: String) {
                             level = if (awaitingApproval) "warn" else statusLevel(status),
                             details = taskErrors[taskKey].orEmpty(),
                             taskId = payload.str("task_id").ifEmpty { taskKey },
+                            durationMs = if (status == "ok") durationFor(taskKey) else null,
                         )
                     )
                 }
@@ -615,6 +653,7 @@ class SessionTimeline(val sessionId: String) {
                         finishedTasks.remove(taskKey)
                         cancelledTasks.remove(taskKey)
                         completedRounds.remove(taskKey)
+                        taskFinishes.remove(taskKey)
                         remove("approval-waiting-$taskKey")
                         if (payload.str("reason") == "pending_steer_messages") {
                             queuedPromptTasks.add(taskKey)

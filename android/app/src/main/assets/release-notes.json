@@ -31,6 +31,16 @@
         "title": "Correct event times",
         "text": "Fixed seconds being interpreted as milliseconds. Read state and diagnostic history are retained."
       }
+    },
+    {
+      "ru": {
+        "title": "Код в размышлениях и время задач",
+        "text": "Раскрытые размышления оформляют Markdown и блоки кода. Плашка завершённой задачи показывает общую длительность, если известны время начала и завершения."
+      },
+      "en": {
+        "title": "Reasoning code and task duration",
+        "text": "Expanded reasoning renders Markdown and code blocks. Completed-task cards show elapsed time when start and finish timestamps are known."
+      }
     }
   ]
 }

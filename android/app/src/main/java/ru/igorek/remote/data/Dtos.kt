@@ -259,6 +259,8 @@ data class TaskBriefDto(
     val status: String = "",
     @SerialName("created_at") val createdAt: Long = 0,
     @SerialName("updated_at") val updatedAt: Long = 0,
+    @SerialName("started_at") val startedAt: Long? = null,
+    @SerialName("completed_at") val completedAt: Long? = null,
     @SerialName("error_message") val errorMessage: String = "",
 )
 

@@ -319,7 +319,7 @@ class _FakeBridgeHandler(BaseHTTPRequestHandler):
             self.wfile.write(data)
             return
         if record["path"] == "/mobile/v1/sessions/session-123/files/file-1":
-            data = b"<html><body>artifact</body></html>"
+            data = getattr(self, "artifact_bytes", b"<html><body>artifact</body></html>")
             self.send_response(200)
             self.send_header("Content-Type", "text/html")
             self.send_header("Content-Length", str(len(data)))
@@ -1057,6 +1057,46 @@ class WebUiHttpTest(WebUiServerTestCase):
         self.assertNotIn("allow-same-origin", csp)
         self.assertEqual(headers.get("X-Frame-Options"), "SAMEORIGIN")
         self.assertNotIn("attachment", headers.get("Content-Disposition", ""))
+
+    def test_artifact_preview_keeps_external_network_and_interface_blocked(self):
+        cookie = self._pair()
+        status, headers, _ = self._request(
+            "GET", "/api/sessions/session-123/files/file-1?preview=1", cookie=cookie
+        )
+        self.assertEqual(status, 200)
+        directives = {row.split()[0]: row.split()[1:] for row in headers["Content-Security-Policy"].split(";") if row.strip()}
+        self.assertEqual(directives["script-src"], ["'unsafe-inline'", "data:"])
+        self.assertEqual(directives["sandbox"], ["allow-scripts"])
+        self.assertEqual(directives["default-src"], ["'none'"])
+        self.assertEqual(directives["form-action"], ["'none'"])
+        self.assertNotIn("connect-src", directives)
+        self.assertNotIn("allow-same-origin", directives["sandbox"])
+        self.assertNotIn("https:", headers["Content-Security-Policy"])
+        self.assertEqual(headers["Referrer-Policy"], "no-referrer")
+
+    def test_three_preview_changes_only_preview_bytes_and_updates_content_length(self):
+        cookie = self._pair()
+        source = b'<html><script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script><script>window.fixture=THREE.REVISION;</script></html>'
+        with patch.object(_FakeBridgeHandler, "artifact_bytes", source, create=True):
+            status, headers, preview = self._request("GET", "/api/sessions/session-123/files/file-1?preview=1", cookie=cookie)
+            self.assertEqual(status, 200)
+            self.assertIn(b'data:text/javascript;base64,', preview)
+            self.assertEqual(int(headers["Content-Length"]), len(preview))
+            self.assertIn(b'window.fixture=THREE.REVISION;', preview)
+            status, headers, downloaded = self._request("GET", "/api/sessions/session-123/files/file-1", cookie=cookie)
+            self.assertEqual(status, 200)
+            self.assertEqual(downloaded, source)
+            self.assertIn("attachment", headers["Content-Disposition"])
+
+    def test_oversize_html_preview_stream_keeps_all_original_bytes(self):
+        from factory.web_ui.artifact_preview import MAX_PREVIEW_HTML_BYTES
+        cookie = self._pair()
+        source = b'<html>' + b'x' * MAX_PREVIEW_HTML_BYTES + b'</html>'
+        with patch.object(_FakeBridgeHandler, "artifact_bytes", source, create=True):
+            status, headers, preview = self._request("GET", "/api/sessions/session-123/files/file-1?preview=1", cookie=cookie)
+        self.assertEqual(status, 200)
+        self.assertEqual(preview, source)
+        self.assertEqual(int(headers["Content-Length"]), len(source))
 
     def test_plain_file_download_keeps_attachment_and_interface_csp(self):
         cookie = self._pair()

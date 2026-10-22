@@ -946,6 +946,7 @@ object Bridge {
                     if (sessionGeneration.get() != generation) return@onSuccess
                     _sessionDetail.value = detail
                     accumulator.seedFromHistory(detail.messages)
+                    accumulator.seedTaskTimings(detail.tasks)
                     _timeline.value = accumulator.snapshot()
                     _contextUsage.value = accumulator.contextSnapshot()
                     _sessionPlan.value = accumulator.planSnapshot()
