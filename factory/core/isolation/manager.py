@@ -135,7 +135,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Final, Protocol, assert_never
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlunsplit
 
 from .admission import (
     ADMISSION_DIRNAME,
@@ -215,7 +215,7 @@ from .lifecycle import (
 )
 from .host_op_runtime import HostOpApprovalRuntime
 from .preflight import PreflightResult, preflight
-from .network import HOST_LOOPBACK_ALIAS
+from .network import HOST_LOOPBACK_ALIAS, is_host_loopback
 from .network_sources import HostResolver, system_resolver
 from .overlay_guard import OverlayLeaseGuard
 from .relay import TraceRelay
@@ -1418,6 +1418,18 @@ class IsolationManager:
             if secret_plan is not None
             else _payload_text(payload, "base_url")
         )
+        if secret_plan is None and egress is not None and egress.local_inference_target:
+            try:
+                parts = urlsplit(base_url)
+                host = parts.hostname or ""
+                port = parts.port if parts.port is not None else (443 if parts.scheme == "https" else 80)
+                if (parts.scheme not in {"http", "https"} or parts.username is not None
+                        or parts.password is not None or ":" in host or not is_host_loopback(host)
+                        or not 1 <= port <= 65535 or f"{host}:{port}" != egress.local_inference_target):
+                    raise ValueError("local provider URL and route do not match")
+            except ValueError as exc:
+                raise IsolationError("local_inference_route_invalid", "Local provider URL and route do not match") from exc
+            base_url = urlunsplit((parts.scheme, f"{HOST_LOOPBACK_ALIAS}:{port}", parts.path, parts.query, parts.fragment))
         mapping = self._path_mapping(vm)
         task_id = _payload_text(payload, "task_id")
         guest_artifact = guest_artifact_dir(str(vm.export["guest_path"]), task_id)

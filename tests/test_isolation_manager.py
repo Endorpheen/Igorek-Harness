@@ -589,6 +589,51 @@ class EnsureVmTest(ManagerHarness):
 
 
 class RunTaskTest(ManagerHarness):
+    def test_local_model_url_uses_the_allowed_host_alias_in_the_wire(self):
+        from factory.core.isolation.session_egress import build_session_egress
+        manager = self.build_manager()
+        vm = manager.ensure_vm(self.session())
+        for url, expected in [
+            ("http://127.0.0.1:8081/v1", "http://10.0.2.2:8081/v1"),
+            ("http://localhost/v1?fixture=1", "http://10.0.2.2:80/v1?fixture=1"),
+            ("https://127.0.0.1:8443/anthropic", "https://10.0.2.2:8443/anthropic"),
+        ]:
+            with self.subTest(url=url):
+                route = build_session_egress("fixture", base_url=url, env={},
+                    resolver=lambda _host: ("1.1.1.1",), host_addresses=())
+                wire = manager._wire_task_payload(vm, dispatch_payload(base_url=url), egress=route)
+                self.assertEqual(wire["base_url"], expected)
+                self.assertEqual(wire["egress"]["local_inference"], route.local_inference_target)
+
+    def test_disabled_local_route_and_remote_provider_keep_their_original_urls(self):
+        from factory.core.isolation.session_egress import build_session_egress
+        manager = self.build_manager()
+        vm = manager.ensure_vm(self.session())
+        for url in ("http://127.0.0.1:8081/v1", "https://api.example.com/v1"):
+            with self.subTest(url=url):
+                route = build_session_egress("fixture", base_url=url,
+                    env={"IGOREK_ISOLATION_LOCAL_INFERENCE": "off"},
+                    resolver=lambda _host: ("1.1.1.1",), host_addresses=())
+                wire = manager._wire_task_payload(vm, dispatch_payload(base_url=url), egress=route)
+                self.assertEqual(wire["base_url"], url)
+
+    def test_mismatched_local_route_cannot_retarget_the_provider(self):
+        manager = self.build_manager()
+        vm = manager.ensure_vm(self.session())
+        for url, target in [("http://127.0.0.1:8081/v1", "127.0.0.1:9000"),
+                            ("https://api.example.com/v1", "api.example.com:443"),
+                            ("http://fixture-user:fixture-password@127.0.0.1:8081/v1", "127.0.0.1:8081"),
+                            ("ftp://127.0.0.1:8081/v1", "127.0.0.1:8081"),
+                            ("http://[::1]:8081/v1", "::1:8081"),
+                            ("http://127.0.0.1:0/v1", "127.0.0.1:80"),
+                            ("http://127.0.0.1:99999/v1", "127.0.0.1:99999"),
+                            ("http://127.0.0.1:invalid/v1", "127.0.0.1:80")]:
+            with self.subTest(url=url):
+                route = SessionEgress(profile="fixture", ruleset="", local_inference_target=target)
+                with self.assertRaises(IsolationError) as caught:
+                    manager._wire_task_payload(vm, dispatch_payload(base_url=url), egress=route)
+                self.assertEqual(caught.exception.reason, "local_inference_route_invalid")
+
     def test_apk_delivery_is_scoped_in_wire_and_revoked_on_success(self):
         self._check_apk_delivery(False)
 

@@ -716,7 +716,8 @@ class RealKvmSmokeTest(unittest.TestCase):
     """Explicit smoke against a real system libvirt host and a built image."""
 
     def setUp(self) -> None:
-        reason = kvm_unavailable_reason(uri="qemu:///system")
+        self.uri = os.environ.get("IGOREK_ISOLATION_LIBVIRT_URI", "qemu:///system")
+        reason = kvm_unavailable_reason(uri=self.uri)
         if reason is not None:
             self.skipTest(f"SKIP: no system KVM ({reason})")
         self.base = Path(os.environ.get("IGOREK_ISOLATION_BASE_IMAGE", ""))
@@ -724,7 +725,7 @@ class RealKvmSmokeTest(unittest.TestCase):
             self.skipTest("SKIP: IGOREK_ISOLATION_BASE_IMAGE is not a built image")
 
     def test_real_domain_lifecycle(self) -> None:
-        connection = open_libvirt_connection("qemu:///system")
+        connection = open_libvirt_connection(self.uri)
         self.addCleanup(connection.close)
         with tempfile.TemporaryDirectory(prefix="igorek_kvm_smoke_") as tmp:
             workspace = Path(tmp) / "workspace"
@@ -737,6 +738,7 @@ class RealKvmSmokeTest(unittest.TestCase):
                 overlay_dir=resolve_overlay_dir(),
                 vcpus=1,
                 memory_mib=256,
+                disk_gib=int(os.environ.get("IGOREK_ISOLATION_SESSION_DISK_GB", "8")),
                 virtiofs_socket=virtiofs_socket_for_session(session_id),
             )
             domain = SessionDomain(connection)

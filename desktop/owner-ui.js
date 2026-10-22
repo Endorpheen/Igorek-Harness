@@ -95,6 +95,7 @@ function onboardingProfiles() {
   return savedProfiles.filter(profile => profile.config.name !== VOICE_PROFILE_NAME);
 }
 const PANELS = [
+  { id: 'monitor', label: 'Монитор ресурсов', group: 'Интерфейс', sections: ['resource-monitor-settings'], description: 'Компактные показатели компьютера рядом с вашей работой.', guide: ['Ресурсы под рукой', 'Плавающее окно показывает загрузку компьютера и доступную память. Настройка сохраняется между запусками.', 'Включите монитор|Перетащите окно в удобное место|Выключите его здесь или кнопкой ×'] },
   {id:'browser',label:'Браузер',group:'Интерфейс',sections:['browser-control-settings'],description:'Управление вкладками встроенного браузера.',guide:['Браузер для ваших задач','По умолчанию агент пользуется браузером без ручной передачи прав.','При необходимости включите ручной режим|Передавайте управление кнопкой в браузере|Входите в аккаунты самостоятельно']},
   { id: 'access', label: 'Доступ к настройкам', group: 'Защита', sections: ['interface-lock-panel'], description: 'Работа продолжается, настройки под замком.', guide: ['Можно оставить задачу работать', 'Блокировка окна закрывает административные действия, но не останавливает чат и не отзывает уже выданные ключи.', 'Введите пароль для возврата к настройкам|Либо продолжайте разговор в чате|Для полной блокировки хранилища завершите задачу'] },
   { id: 'start', label: 'Обзор и запуск', group: 'Начало работы', sections: ['onboarding'], description: 'Подключение, рабочая папка и первый результат.', guide: ['Всё по порядку', 'Здесь можно подготовить Игорька к работе и продолжить настройку с сохранённого шага.', 'Откройте хранилище|Проверьте подключение|Выберите папку и выполните первую задачу'] },
@@ -378,6 +379,7 @@ function applyState(value, locked = false) {
   clearPasswordFields();
   el('password-settings').hidden = state !== 'unlocked';
   el('completion-sound-settings').hidden = state !== 'unlocked';
+  el('resource-monitor-settings').hidden = state !== 'unlocked';
   el('password-status').textContent = '';
   el('workspace-setup').hidden = state !== 'unlocked';
   el('provider-setup').hidden = state !== 'unlocked';

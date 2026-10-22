@@ -377,6 +377,7 @@ chmod -R go-w /opt/igorek/runtime /opt/igorek/python "${IGOREK_GUEST_REPO_DIR}"
 
 # Install the pinned Chrome-for-Testing build into the disposable guest image.
 HOME="/home/${IGOREK_GUEST_USER}" agent-browser install --with-deps
+install -d -m 0700 "/home/${IGOREK_GUEST_USER}/.cache"
 chown -R "${IGOREK_GUEST_USER}:${IGOREK_GUEST_USER}" "/home/${IGOREK_GUEST_USER}/.cache"
 
 # Guest unprivileged-userns policy (bwrap needs it; the runtime probe keeps the

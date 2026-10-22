@@ -37,6 +37,7 @@ class ChatGPTWorkspace{
   async contextMenu(contents,params){
       const trusted=()=>!this.blocked&&this.attached&&contents===this.view?.webContents&&!contents.isDestroyed();
       if(!trusted()||!this.menu)return;
+      const pageURL=contents.getURL(),generation=this.generation;
       const items=[];let selected=Boolean(params.selectionText),probe=null;
       try{
         if(new URL(contents.getURL()).origin==='https://chatgpt.com'){
@@ -50,6 +51,15 @@ class ChatGPTWorkspace{
           }});
         }
       }catch{}
+      const image=params.mediaType==='image'&&params.hasImageContents===true?{srcURL:params.srcURL,hasImageContents:true}:probe?.image;
+      if(image?.hasImageContents===true&&typeof image.srcURL==='string'){
+        try{
+          const source=new URL(image.srcURL),web=source.protocol==='blob:'?new URL(source.pathname):source;
+          const allowed=(['http:','https:'].includes(web.protocol)&&!web.username&&!web.password)||(source.protocol==='data:'&&/^data:image\//i.test(image.srcURL));
+          const current=()=>trusted()&&generation===this.generation&&contents.getURL()===pageURL;
+          if(allowed&&current())items.push({label:'Сохранить изображение как…',click:()=>{if(current())contents.downloadURL(image.srcURL);}});
+        }catch{}
+      }
       if(selected)items.unshift({label:'Копировать',accelerator:'CmdOrCtrl+C',click:()=>{if(trusted())contents.copy();}});
       if(trusted()&&items.length)this.menu.buildFromTemplate(items).popup({window:this.parent});
   }

@@ -103,6 +103,13 @@
       <p class="note">После сохранения ключа обновите отдельную копию восстановления в разделе «Копии и восстановление». Проверка подключения может расходовать квоту: один короткий запрос.</p>
     </section>
 
+    <section id="resource-monitor-settings" class="card panel" hidden>
+      <h2>Монитор ресурсов</h2>
+      <label class="lock-option"><input id="resource-monitor-enabled" type="checkbox" disabled> Показывать компактный монитор</label>
+      <p id="resource-monitor-status" class="note" role="status">Читаю настройку монитора…</p>
+      <p class="note">CPU, RAM и доступные показатели GPU этого компьютера. Автообновление каждые 2 секунды; окно можно перетаскивать за заголовок. Закрытие выключает монитор.</p>
+    </section>
+
     <section id="completion-sound-settings" class="card panel" hidden>
       <h2>Звук завершения задачи</h2>
       <label class="lock-option"><input id="completion-sound-enabled" type="checkbox" disabled> Проигрывать звук, когда окно неактивно или свёрнуто</label>
@@ -464,5 +471,6 @@
 <script src="onboarding-state.cjs"></script>
 <script src="profile-cards.cjs"></script>
 <script src="completion-sound-settings.js"></script>
+<script src="resource-monitor-settings.js"></script>
 <script src="owner-ui.js"></script>
 </html>

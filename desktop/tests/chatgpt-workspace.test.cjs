@@ -99,3 +99,64 @@ test('ChatGPT right clicks open the host menu before page handlers and preserve 
  wc.executeJavaScript=async()=>({enabled:false,available:true,selected:true});wc.emit('before-mouse-event',{preventDefault(){}},{type:'mouseUp',button:'right',x:200,y:400});await new Promise(r=>setImmediate(r));assert.equal(items[0].label,'Копировать');assert.equal(items[1].label,'Осьминог здесь (прототип)');
  w.hide();wc.emit('before-mouse-event',{preventDefault(){throw Error('hidden page intercepted')}},{type:'mouseUp',button:'right',x:200,y:400});wc.url='https://example.com/';w.attached=true;wc.emit('before-mouse-event',{preventDefault(){throw Error('other site intercepted')}},{type:'mouseUp',button:'right',x:200,y:400});assert.equal(menus,2);
 });
+
+test('a loaded image opens Save Image As using the original URL and page session',async t=>{
+ const {workspace:w,parent:p}=fixture(t);let items,downloads=[];w.menu={buildFromTemplate(value){items=value;return{popup(){}}}};
+ w.unlock();await w.show(p);const wc=w.view.webContents;wc.url='https://x.com/example/status/1/photo/1';wc.downloadURL=value=>downloads.push(value);
+ const src='https://pbs.twimg.com/media/fixture?format=jpg&name=large';
+ wc.emit('context-menu',{}, {mediaType:'image',hasImageContents:true,srcURL:src,selectionText:'',x:10,y:20});await new Promise(r=>setImmediate(r));
+ const save=items?.find(item=>item.label==='Сохранить изображение как…');assert.ok(save);save.click();assert.deepEqual(downloads,[src]);assert.equal(wc.getURL(),'https://x.com/example/status/1/photo/1');
+});
+
+test('image saving remains available alongside selected-text copy',async t=>{
+ const {workspace:w,parent:p}=fixture(t);let items,copied=0,downloads=0;w.menu={buildFromTemplate(value){items=value;return{popup(){}}}};w.unlock();await w.show(p);
+ const wc=w.view.webContents;wc.url='https://example.com/photo';wc.copy=()=>copied++;wc.downloadURL=()=>downloads++;
+ await w.contextMenu(wc,{mediaType:'image',hasImageContents:true,srcURL:'https://example.com/image.png',selectionText:'Selected text'});
+ items.find(item=>item.label==='Копировать').click();items.find(item=>item.label==='Сохранить изображение как…').click();assert.equal(copied,1);assert.equal(downloads,1);
+});
+
+test('non-image and unloaded-image contexts never offer image downloads',async t=>{
+ const {workspace:w,parent:p}=fixture(t);let menus=0;w.menu={buildFromTemplate(){menus++;return{popup(){}}}};w.unlock();await w.show(p);const wc=w.view.webContents;wc.url='https://example.com/';
+ for(const params of [{mediaType:'none',hasImageContents:true,srcURL:'https://example.com/image.png'},
+  {mediaType:'image',hasImageContents:false,srcURL:'https://example.com/broken.png'},
+  {mediaType:'image',hasImageContents:true,srcURL:''}])await w.contextMenu(wc,params);
+ assert.equal(menus,0);
+});
+
+test('image saving accepts HTTP, HTTPS, image data, and web blob URLs',async t=>{
+ const {workspace:w,parent:p}=fixture(t);let items;const downloads=[];w.menu={buildFromTemplate(value){items=value;return{popup(){}}}};w.unlock();await w.show(p);const wc=w.view.webContents;wc.url='https://example.com/';wc.downloadURL=value=>downloads.push(value);
+ const urls=['http://example.com/image.png','https://example.com/image.svg?token=fixture','data:image/png;base64,Zml4dHVyZQ==','blob:https://example.com/fixture'];
+ for(const srcURL of urls){items=null;await w.contextMenu(wc,{mediaType:'image',hasImageContents:true,srcURL});const save=items?.find(item=>item.label==='Сохранить изображение как…');assert.ok(save,srcURL);save.click();}
+ assert.deepEqual(downloads,urls);
+});
+
+test('image menus reject local files, executable schemes, non-image data, and credentials',async t=>{
+ const {workspace:w,parent:p}=fixture(t);let menus=0;w.menu={buildFromTemplate(){menus++;return{popup(){}}}};w.unlock();await w.show(p);const wc=w.view.webContents;wc.url='https://example.com/';
+ for(const srcURL of ['file:///tmp/private.png','javascript:alert(1)','data:text/html,fixture','blob:file:///tmp/private','https://user:pass@example.com/image.png','not a URL'])await w.contextMenu(wc,{mediaType:'image',hasImageContents:true,srcURL});
+ assert.equal(menus,0);
+});
+
+test('an old image menu cannot download after navigation, hiding, or locking',async t=>{
+ const {workspace:w,parent:p}=fixture(t);let items,downloads=0;w.menu={buildFromTemplate(value){items=value;return{popup(){}}}};w.unlock();await w.show(p);const wc=w.view.webContents;wc.url='https://example.com/';wc.downloadURL=()=>downloads++;
+ for(const change of [()=>{wc.url='https://example.com/other';},()=>w.hide(),()=>w.lock()]){
+  w.unlock();await w.show(p);wc.url='https://example.com/';await w.contextMenu(wc,{mediaType:'image',hasImageContents:true,srcURL:'https://example.com/image.png'});
+  const save=items?.find(item=>item.label==='Сохранить изображение как…');assert.ok(save);change();save.click();
+ }
+ assert.equal(downloads,0);
+});
+
+test('ChatGPT right-click probe can save its image without losing existing menu actions',async t=>{
+ const {workspace:w,parent:p}=fixture(t);let items;const downloads=[];w.menu={buildFromTemplate(value){items=value;return{popup(){}}}};w.unlock();await w.show(p);
+ const wc=w.view.webContents;wc.url='https://chatgpt.com/';wc.getZoomFactor=()=>1;wc.executeJavaScript=async()=>({enabled:false,available:true,selected:true,image:{srcURL:'https://example.com/generated.png',hasImageContents:true}});wc.downloadURL=value=>downloads.push(value);
+ wc.emit('before-mouse-event',{preventDefault(){}},{type:'mouseUp',button:'right',x:10,y:20});await new Promise(r=>setImmediate(r));
+ assert.ok(items.find(item=>item.label==='Копировать'));assert.ok(items.find(item=>item.label==='Осьминог здесь (прототип)'));
+ const save=items.find(item=>item.label==='Сохранить изображение как…');assert.ok(save);save.click();assert.deepEqual(downloads,['https://example.com/generated.png']);
+});
+
+test('ChatGPT page probe reports only the loaded image under the pointer',()=>{
+ const {PAGE_TOOLS}=require('../chatgpt-page-tools.cjs'),vm=require('node:vm');
+ const image={currentSrc:'https://example.com/selected.png',src:'https://example.com/fallback.png',complete:true,naturalWidth:20,getBoundingClientRect:()=>({left:0,right:30,top:0,bottom:30,width:30,height:30}),closest(name){return name==='img'?this:null}};
+ const context={location:{origin:'https://chatgpt.com'},window:{addEventListener(){},getSelection:()=>null},document:{elementFromPoint:()=>image,querySelectorAll:()=>[]},innerWidth:1000,innerHeight:800,clearInterval(){}};
+ vm.runInNewContext(PAGE_TOOLS,context);assert.equal(context.window.__igorekPageTools.probe(10,20).image.srcURL,image.currentSrc);
+ image.naturalWidth=0;assert.equal(context.window.__igorekPageTools.probe(10,20).image,null);
+});

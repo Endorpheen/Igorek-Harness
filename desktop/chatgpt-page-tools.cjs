@@ -18,7 +18,11 @@ const PAGE_TOOLS=`(()=>{
     }
     return null;
   };
-  const probe=(x,y)=>({enabled:!!overlay,available:!!visualAt(x,y)||pointAllowed(x,y),selected:!!window.getSelection()?.toString()});
+  const probe=(x,y)=>{
+    const image=pointAllowed(x,y)?document.elementFromPoint(x,y)?.closest?.('img'):null;
+    return {enabled:!!overlay,available:!!visualAt(x,y)||pointAllowed(x,y),selected:!!window.getSelection()?.toString(),
+      image:image?.complete&&image.naturalWidth>0?{srcURL:image.currentSrc||image.src,hasImageContents:true}:null};
+  };
   const toggle=(x,y,image,winkImage='')=>{
     if(overlay){stop();return {enabled:false};}
     target=visualAt(x,y);if(!target){if(!pointAllowed(x,y))return {enabled:false,unavailable:true};anchor={x:x/innerWidth,bottom:innerHeight-y,size:112};}

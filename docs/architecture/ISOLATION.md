@@ -4,6 +4,14 @@ The selected execution mode determines the boundary. A prompt or an approval
 card is not a virtual machine. The default mode is `off`; unavailable isolation
 must not be reported as active isolation.
 
+## Local inference and live acceptance
+
+An enabled host-local inference rule and the serialized model URL must agree. A matching loopback endpoint is rewritten to the QEMU host alias for the guest; its configured port, path and scheme are preserved. Remote endpoints, disabled local routes and credential-proxy routes keep their existing handling. A mismatch fails before dispatch instead of silently selecting another host service.
+
+Live tests require a backend that supports the enforced CPU and memory tuning. Ubuntu 26.04 acceptance used `qemu:///system`; the available session backend rejected memory tuning. Resource caps remain mandatory. The guest disk must accommodate the base image's virtual size: the 20 GiB acceptance image was tested with a 20 GiB session disk. No operator execution setting is changed automatically by these tests.
+
+The ordinary isolated suite, native Windows contracts and opt-in host/guest KVM matrix are separate receipts. A platform skip in the ordinary Linux job is not a pass. Guest vsock functions run inside a real VM, and their host responder checks the VM's allocated CID. Synthetic provider responses exercise the complete guest tool path without depending on a paid provider or loading a language model.
+
 ## Host and guest
 
 The host owns session records, task state, Vault, approvals and durable history.

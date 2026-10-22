@@ -182,50 +182,46 @@ class MinimaxAnthropicMessagesUrlTest(unittest.TestCase):
             "https://api.minimax.io/anthropic/v1/messages",
         )
 
-    def test_executor_url_actually_works_against_minimax(self):
-        """End-to-end smoke: the constructed URL must reach MiniMax API
-        with a 2xx (auth-verified) response, not 404.
+    def test_executor_posts_minimax_messages_url_and_auth(self):
+        """Exercise the production HTTP transport without a paid provider dependency."""
+        import json
+        import threading
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-        This regression test guards the structural bug from 0.1.520
-        where `_anthropic_messages_url` returned `/anthropic/messages`
-        (no `/v1`) for `/anthropic` base_url, which MiniMax rejected
-        with HTTP 404.
-        """
-        import os
-        import urllib.error
-        import urllib.request
+        requests = []
 
-        url = cc_backend_executor._anthropic_messages_url("https://api.minimax.io/anthropic")
-        api_key = os.environ.get("MINIMAX_API_KEY")
-        if not api_key:
-            self.skipTest("MINIMAX_API_KEY not in env; set it to enable this live regression")
-        body = (
-            b'{"model":"MiniMax-M3","max_tokens":8,'
-            b'"messages":[{"role":"user","content":"ping"}]}'
-        )
-        req = urllib.request.Request(
-            url,
-            data=body,
-            headers={
-                "Content-Type": "application/json",
-                "anthropic-version": "2023-06-01",
-                "x-api-key": api_key,
-            },
-            method="POST",
-        )
-        try:
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                status = int(getattr(resp, "status", 200) or 200)
-        except urllib.error.HTTPError as exc:
-            status = int(exc.code)
-        self.assertNotEqual(
-            status, 404,
-            f"{url} returned HTTP 404 — URL construction regressed to /anthropic/messages",
-        )
-        self.assertLess(
-            status, 500,
-            f"{url} returned HTTP {status} — server-side failure",
-        )
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *_args):
+                pass
+
+            def do_POST(self):
+                payload = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                requests.append((self.path, self.headers.get("x-api-key"), self.headers.get("anthropic-version"), payload))
+                valid = self.path == "/anthropic/v1/messages" and self.headers.get("x-api-key") == "fixture-minimax-auth"
+                body = json.dumps({"content": [{"type": "text", "text": "pong"}]}).encode()
+                self.send_response(200 if valid else 404)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+        with ThreadingHTTPServer(("127.0.0.1", 0), Handler) as server:
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            try:
+                base = f"http://127.0.0.1:{server.server_port}/anthropic"
+                url = cc_backend_executor._anthropic_messages_url(base)
+                payload = {"model": "MiniMax-M3", "max_tokens": 8, "messages": [{"role": "user", "content": "ping"}]}
+                with patch.dict(os.environ, {"MINIMAX_API_KEY": "fixture-minimax-auth"}, clear=True):
+                    headers = worker._resolve_cc_backend_auth_headers({"provider": "minimax"}, api_format="anthropic")
+                response, _ = cc_backend_executor._http_post(url, payload,
+                    {**headers, "Content-Type": "application/json", "anthropic-version": "2023-06-01"}, 5)
+                self.assertEqual(response["content"][0]["text"], "pong")
+                self.assertEqual(requests, [("/anthropic/v1/messages", "fixture-minimax-auth", "2023-06-01", payload)])
+            finally:
+                server.shutdown()
+                thread.join(5)
+            self.assertFalse(thread.is_alive())
 
 
 class MinimaxCatalogTest(unittest.TestCase):

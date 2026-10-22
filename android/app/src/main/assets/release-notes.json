@@ -1,45 +1,15 @@
 {
-  "versionName": "0.1.120",
-  "versionCode": 121,
+  "versionName": "0.1.121",
+  "versionCode": 122,
   "changes": [
     {
       "ru": {
-        "title": "Понятные причины ошибок",
-        "text": "В уведомлении указаны инструмент, сервис и конкретная причина; этот контекст сохраняется в диагностике."
+        "title": "Закреплённые чаты",
+        "text": "Закрепляйте чаты долгим нажатием в списке сессий. Они отмечены булавкой, остаются наверху и синхронизируются с десктопом. Тем же меню можно открепить чат."
       },
       "en": {
-        "title": "Specific error causes",
-        "text": "Notifications identify the tool, service and explicit cause; diagnostic reports retain that context."
-      }
-    },
-    {
-      "ru": {
-        "title": "Только актуальные ошибки",
-        "text": "После подтверждённого восстановления инцидент исчезает из списка и счётчика. Старые записи уточняются по истории чата."
-      },
-      "en": {
-        "title": "Only active errors",
-        "text": "Confirmed recovery removes an incident from the list and badge. Saved incidents are reconciled with chat history."
-      }
-    },
-    {
-      "ru": {
-        "title": "Правильное время событий",
-        "text": "Исправлена путаница секунд и миллисекунд. Признаки прочтения и история диагностики сохраняются."
-      },
-      "en": {
-        "title": "Correct event times",
-        "text": "Fixed seconds being interpreted as milliseconds. Read state and diagnostic history are retained."
-      }
-    },
-    {
-      "ru": {
-        "title": "Код в размышлениях и время задач",
-        "text": "Раскрытые размышления оформляют Markdown и блоки кода. Плашка завершённой задачи показывает общую длительность, если известны время начала и завершения."
-      },
-      "en": {
-        "title": "Reasoning code and task duration",
-        "text": "Expanded reasoning renders Markdown and code blocks. Completed-task cards show elapsed time when start and finish timestamps are known."
+        "title": "Pinned chats",
+        "text": "Long-press chats in the session list to pin them. Pinned chats have a pin icon, stay at the top and sync with desktop. Use the same menu to unpin a chat."
       }
     }
   ]

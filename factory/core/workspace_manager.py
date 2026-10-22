@@ -255,13 +255,25 @@ class WorkspaceManager:
             for item in os.listdir(self.workspace_root):
                 item_path = os.path.join(self.workspace_root, item)
 
-                if os.path.isdir(item_path):
+                if os.path.isdir(item_path) and not os.path.islink(item_path):
                     # Check the time of the last modification
                     mtime = os.path.getmtime(item_path)
 
                     if mtime < cutoff_time:
                         # Verify that this is not an active task
                         task_id = item
+                        metadata_file = os.path.join(item_path, "metadata.json")
+                        if os.path.lexists(metadata_file):
+                            if os.path.islink(metadata_file) or not os.path.isfile(metadata_file):
+                                continue
+                            try:
+                                with open(metadata_file, encoding="utf-8") as handle:
+                                    metadata = json.load(handle)
+                            except (OSError, ValueError):
+                                continue
+                            task_id = metadata.get("main_task_id") if isinstance(metadata, dict) else None
+                            if not isinstance(task_id, str) or not task_id.strip() or task_id != task_id.strip():
+                                continue
 
                         with open_db(self.db_path) as conn:
                             cur = conn.cursor()

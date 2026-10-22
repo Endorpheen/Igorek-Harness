@@ -464,8 +464,8 @@ class BridgeClient(
             .post(body.toRequestBody(JSON_MEDIA)).build()) { parse(it) }
     }
 
-    fun updateSession(sessionId: String, title: String? = null, archived: Boolean? = null): JsonObject {
-        val body = json.encodeToString(UpdateSessionRequest.serializer(), UpdateSessionRequest(title, archived))
+    fun updateSession(sessionId: String, title: String? = null, archived: Boolean? = null, pinned: Boolean? = null): JsonObject {
+        val body = json.encodeToString(UpdateSessionRequest.serializer(), UpdateSessionRequest(title, archived, pinned))
         val request = requestBuilder("/sessions/$sessionId")
             .header("Content-Type", "application/json")
             .patch(body.toRequestBody(JSON_MEDIA))

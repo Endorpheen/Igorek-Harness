@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
@@ -79,6 +80,9 @@ import ru.igorek.remote.data.AppLocale
 import ru.igorek.remote.data.DeviceDto
 import ru.igorek.remote.data.SessionSummary
 import ru.igorek.remote.data.SessionOptionsResponse
+
+internal fun orderedSessions(sessions: List<SessionSummary>): List<SessionSummary> =
+    sessions.sortedWith(compareByDescending<SessionSummary> { it.pinned }.thenByDescending { it.updatedAt })
 
 internal fun chatCountLabel(count: Int, language: AppLanguage = AppLocale.current): String {
     if (language == AppLanguage.English) return "$count ${if (count == 1) "chat" else "chats"}"
@@ -612,11 +616,12 @@ fun SessionsScreen(onOpen: (String) -> Unit, onMenu: () -> Unit) {
                     )
                 }
             }
-            items(sessions, key = { it.sessionId }) { session ->
+            items(orderedSessions(sessions), key = { it.sessionId }) { session ->
                 SessionCard(
                     session = session,
                     onOpen = { onOpen(session.sessionId) },
                     onRename = { renameTarget = session },
+                    onPin = { Bridge.pinSession(session.sessionId, !session.pinned) },
                     onArchive = { Bridge.archiveSession(session.sessionId, !session.archived) {} },
                 )
             }
@@ -630,7 +635,7 @@ fun SessionsScreen(onOpen: (String) -> Unit, onMenu: () -> Unit) {
             }
             item(key = "rename-hint") {
                 Text(
-                    uiText("Долгое нажатие на чат — переименовать или убрать в архив.", "Long-press a chat to rename or archive it."),
+                    uiText("Долгое нажатие на чат — закрепить, переименовать или убрать в архив.", "Long-press a chat to pin, rename or archive it."),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -688,6 +693,7 @@ private fun SessionCard(
     session: SessionSummary,
     onOpen: () -> Unit,
     onRename: () -> Unit,
+    onPin: () -> Unit,
     onArchive: () -> Unit,
 ) {
     var menu by remember { mutableStateOf(false) }
@@ -700,7 +706,13 @@ private fun SessionCard(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         ) {
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(session.title.ifBlank { session.sessionId }, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (session.pinned) {
+                        Icon(Icons.Default.PushPin, contentDescription = uiText("Закреплённый чат", "Pinned chat"),
+                            modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                    }
+                    Text(session.title.ifBlank { session.sessionId }, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
                 if (session.mcpPreview.isNotBlank()) {
                     Text(
                         session.mcpPreview,
@@ -739,6 +751,14 @@ private fun SessionCard(
             }
         }
         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+            DropdownMenuItem(
+                text = { Text(if (session.pinned) uiText("Открепить", "Unpin") else uiText("Закрепить", "Pin")) },
+                leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) },
+                onClick = {
+                    menu = false
+                    onPin()
+                },
+            )
             DropdownMenuItem(
                 text = { Text(uiText("Переименовать", "Rename")) },
                 leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },

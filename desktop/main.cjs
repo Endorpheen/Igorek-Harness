@@ -21,6 +21,7 @@ const { OwnedRuntime, loadBundle } = require('./runtime.cjs');
 const { NotificationStore } = require('./notifications.cjs');
 const errorDiagnostics = require('./error-diagnostics.js');
 const { CompletionSound } = require('./completion-sound.cjs');
+const {ResourceSampler, ResourceMonitorSettings} = require('./resource-monitor.cjs');
 const { settings, sameOrigin, certificateMatches, allowAudio, allowClipboardWrite } = require('./policy.cjs');
 let config;
 let runtime;
@@ -71,6 +72,50 @@ app.setPath('userData', join(app.getPath('appData'), managed ? 'igorek-desktop-o
 const shortcutStore = new ShortcutStore(join(app.getPath('userData'), 'shortcuts.json'));
 const notificationStore = new NotificationStore(join(app.getPath('userData'), 'notifications.json'));
 const completionSound = new CompletionSound(join(app.getPath('userData'), 'completion-sound.json'));
+const resourceSettings = new ResourceMonitorSettings(join(app.getPath('userData'), 'resource-monitor.json'));
+let resourceWindow, resourceSampler, resourceMonitorShutdown = false;
+const resourceURL = pathToFileURL(join(__dirname, 'resource-monitor.html')).href;
+app.on('before-quit', () => { resourceMonitorShutdown = true; });
+function publishResourceMonitor() {
+  if (ownerWindow && !ownerWindow.isDestroyed() && ownerWindow.webContents.getURL() === ownerUrl)
+    ownerWindow.webContents.send('igorek:resource-monitor-state', resourceSettings.state());
+}
+function openResourceMonitor() {
+  if (resourceWindow && !resourceWindow.isDestroyed()) { resourceWindow.show(); return; }
+  const target = new BrowserWindow({icon: APP_ICON, title: 'Монитор ресурсов', width: 302, height: 434,
+    minWidth: 270, minHeight: 320, frame: false, show: false, skipTaskbar: true, parent: window,
+    autoHideMenuBar: true, backgroundColor: '#171d1a',
+    webPreferences: {preload: join(__dirname, 'resource-monitor-preload.cjs'), nodeIntegration: false, contextIsolation: true, sandbox: true}});
+  resourceWindow = target; resourceSampler = new ResourceSampler();
+  const bounds = window.getBounds(); target.setPosition(bounds.x + Math.max(0, bounds.width - 326), bounds.y + 84);
+  target.setMenu(null); target.webContents.setWindowOpenHandler(() => ({action: 'deny'}));
+  target.webContents.on('will-navigate', event => event.preventDefault());
+  target.webContents.on('will-redirect', event => event.preventDefault());
+  target.webContents.on('will-attach-webview', event => event.preventDefault());
+  target.once('ready-to-show', () => { if (resourceSettings.enabled && !target.isDestroyed()) target.showInactive(); });
+  target.on('closed', () => {
+    if (resourceWindow !== target) return;
+    resourceWindow = null; resourceSampler = null;
+    if (!resourceMonitorShutdown && window && !window.isDestroyed() && window.isVisible() && resourceSettings.enabled) {
+      resourceSettings.set(false); publishResourceMonitor();
+    }
+  });
+  target.loadURL(resourceURL).catch(() => { if (!target.isDestroyed()) target.close(); });
+}
+ipcMain.handle('igorek:resource-monitor', async (event, action, value) => {
+  const monitor = resourceWindow && !resourceWindow.isDestroyed() && event.sender === resourceWindow.webContents
+    && event.senderFrame === event.sender.mainFrame && event.senderFrame.url === resourceURL;
+  if (monitor && action === 'snapshot' && resourceSettings.enabled) return resourceWindow.isVisible() ? resourceSampler.snapshot() : null;
+  if (monitor && action === 'close') {
+    resourceSettings.set(false); resourceWindow.close(); publishResourceMonitor(); return resourceSettings.state();
+  }
+  if (!isOwnerFrame(event, ownerWindow?.webContents, ownerUrl)) throw Error('Доступ запрещён.');
+  if (action === 'read') return resourceSettings.state();
+  if (action !== 'set' || typeof value !== 'boolean') throw Error('Недопустимое действие.');
+  resourceSettings.set(value);
+  if (value) openResourceMonitor(); else resourceWindow?.close();
+  publishResourceMonitor(); return resourceSettings.state();
+});
 ipcMain.handle('igorek:completion-sound', (event, action, value) => {
   const target = trustedChromeWindow(event);
   if (action === 'read') return completionSound.state(target);
@@ -943,6 +988,7 @@ app.whenReady().then(async () => {
   nativeTheme.themeSource = 'dark';
   updateApplicationMenu();
   await openWindow();
+  if (resourceSettings.enabled) openResourceMonitor();
   await showInstallationResult({app,dialog,parent:window});
   if (managed && !quitting) {
     const reply = await runtime.requestOwner('status').catch(() => null);

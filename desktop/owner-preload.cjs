@@ -4,6 +4,11 @@ contextBridge.exposeInMainWorld('IgorekCompletionSoundSettings', Object.freeze({
   set: enabled => ipcRenderer.invoke('igorek:completion-sound', 'set', enabled),
   onChange: callback => ipcRenderer.on('igorek:completion-sound-state', (_, value) => callback(value)),
 }));
+contextBridge.exposeInMainWorld('IgorekResourceMonitorSettings', Object.freeze({
+  read: () => ipcRenderer.invoke('igorek:resource-monitor', 'read'),
+  set: enabled => ipcRenderer.invoke('igorek:resource-monitor', 'set', enabled),
+  onChange: callback => ipcRenderer.on('igorek:resource-monitor-state', (_, value) => callback(value)),
+}));
 const notificationSource = (channel, action) => ({search_status:'Интернет-поиск',save_search:'Интернет-поиск',mobile_configure:'Адрес подключения телефона',mobile_start:'Сопряжение телефона',mobile_status:'Мобильные устройства',mobile_stop:'Мобильные устройства',mobile_revoke:'Отключение телефона',quota_begin:'Квота Codex',quota_status:'Квота Codex',quota_cancel:'Квота Codex'}[action] || ({'igorek:owner-vault':'Настройки','igorek:session-quota':'Квота Codex','igorek:session-agent':'Исполнитель','igorek:session-plugins':'Плагины','igorek:session-mcp':'Подключения MCP','igorek:session-browser':'Браузер'}[channel]) || 'Приложение');
 const invoke = async (channel, ...args) => {
   try {

@@ -1247,10 +1247,8 @@ def _create_running_application(
         output_provider=output_provider,
         running_state=running_state,
     )
-    # Legacy callers expect a 3-tuple ``(app, input_buffer, output_lines)``;
-    # surface the current ``output_lines`` from chat_state for parity.
-    output_lines = list(chat_state.get("output_lines", []))
-    return app, buffer, output_lines
+    # Preserve the unified output buffer for legacy callers that append to it.
+    return app, buffer, _output_lines
 
 
 def _create_idle_application(
@@ -1270,8 +1268,7 @@ def _create_idle_application(
         status_line=status_line,
         running_state=running_state,
     )
-    output_lines = list(chat_state.get("output_lines", []))
-    return app, buffer, output_lines
+    return app, buffer, _output_lines
 
 
 def _chat_widget_frame_lines(widget: ChatWidget, *, width: int, height: int = 24) -> list[str]:

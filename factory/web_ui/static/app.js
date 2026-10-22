@@ -526,6 +526,8 @@ const I18N = {
     "plan.context_bar_aria": "Использование окна контекста: {pct}%",
     "plan.context_note": "Размер окна контекста недоступен из веб-интерфейса — показаны абсолютные значения из событий.",
     "plan.context_empty": "Данных о токенах пока нет.",
+    "plan.context_unavailable": "Нет данных",
+    "plan.context_usage_unavailable": "Нет данных о токенах последнего запроса.",
     "plan.quota_title": "Квота OpenCode",
     "plan.quota_window_5h": "5 часов",
     "plan.quota_window_week": "Неделя",
@@ -1179,6 +1181,8 @@ const I18N = {
     "plan.context_bar_aria": "Context window usage: {pct}%",
     "plan.context_note": "The context window is not exposed to the web interface — absolute numbers from events are shown.",
     "plan.context_empty": "No token data yet.",
+    "plan.context_unavailable": "Unavailable",
+    "plan.context_usage_unavailable": "Token usage for the last request is unavailable.",
     "plan.quota_title": "OpenCode quota",
     "plan.quota_window_5h": "5 hours",
     "plan.quota_window_week": "Week",
@@ -2946,7 +2950,7 @@ function renderMessage(item, context = {}) {
           const download = element('a', 'message-media-download');download.href=link.href;download.download=name;download.title=t('panel.download_file');download.setAttribute('aria-label',t('panel.download_file')+' '+name);download.append(workspaceGlyph('download'));
           header.append(logo,element('span','message-media-name',name),element('span','message-media-size',formatBytes(item.size||0)),download);
           const player = element(kind, 'message-media-player');player.controls=true;player.preload='none';player.autoplay=false;player.src=previewFileUrl(sessionId,item.id);player.setAttribute('aria-label',name);
-          if (kind === 'video') player.playsInline=true;
+          if (kind === 'video') { player.playsInline=true; window.IgorekMediaPreviews?.attachVideoPoster(player); }
           const error = element('div','side-note','Не удалось воспроизвести этот формат. Файл можно скачать.');error.hidden=true;player.addEventListener('error',()=>{error.hidden=false;});
           card.append(header,player,error);attached.append(card);
         } else attached.append(link);
@@ -6171,18 +6175,17 @@ function notePlanFromTools(tools, seq) {
   }
 }
 function usageTokens(raw) {
-  if (!raw || typeof raw !== "object") return null;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   const pick = (...names) => {
     for (const name of names) {
-      const value = Number(raw[name]);
-      if (Number.isFinite(value)) return value;
+      const value = raw[name];
+      if (typeof value === "number" && Number.isFinite(value) && value >= 0) return value;
     }
     return null;
   };
   const input = pick("input_tokens", "prompt_tokens", "prompt");
   const output = pick("output_tokens", "completion_tokens", "completion");
-  if (input === null && output === null) return null;
-  return { input: input || 0, output: output || 0 };
+  return { input, output };
 }
 function noteUsage(payload, seq) {
   const tokens = usageTokens(payload && payload.usage);
@@ -6191,8 +6194,8 @@ function noteUsage(payload, seq) {
   const order = Number(seq || 0);
   if (order && model.usageSeqs.has(order)) return;
   if (order) model.usageSeqs.add(order);
-  model.usage.input += tokens.input;
-  model.usage.output += tokens.output;
+  model.usage.input = tokens.input === null || model.usage.input === null ? null : model.usage.input + tokens.input;
+  model.usage.output = tokens.output === null || model.usage.output === null ? null : model.usage.output + tokens.output;
   model.usage.rounds += 1;
   model.usage.lastInput = tokens.input;
   const latency = Number(payload.latency_ms);
@@ -6670,13 +6673,12 @@ function buildPlanContext(usage) {
     return box;
   }
   const contextWindow = modelContextWindow();
+  const tokenCount = value => value === null ? t("plan.context_unavailable") : formatCount(value);
   const grid = element("div", "plan-context-grid");
-  grid.append(planMetric(t("plan.context_input"), formatCount(usage.input)));
-  grid.append(planMetric(t("plan.context_output"), formatCount(usage.output)));
+  grid.append(planMetric(t("plan.context_input"), tokenCount(usage.input)));
+  grid.append(planMetric(t("plan.context_output"), tokenCount(usage.output)));
   grid.append(planMetric(t("plan.context_rounds"), formatCount(usage.rounds)));
-  if (usage.lastInput !== null) {
-    grid.append(planMetric(t("plan.context_last"), formatCount(usage.lastInput)));
-  }
+  grid.append(planMetric(t("plan.context_last"), tokenCount(usage.lastInput)));
   if (contextWindow) {
     grid.append(planMetric(t("plan.context_window"), formatCount(contextWindow)));
   }
@@ -6690,6 +6692,8 @@ function buildPlanContext(usage) {
   if (contextWindow && usage.lastInput !== null) {
     box.append(buildPlanContextUsage(usage, contextWindow));
     box.append(element("p", "plan-context-note", t("plan.context_window_note")));
+  } else if (contextWindow) {
+    box.append(element("p", "plan-context-note", t("plan.context_usage_unavailable")));
   }
   if (usage.truncated) box.append(element("p", "plan-context-note", t("plan.history_truncated")));
   if (!contextWindow) box.append(element("p", "plan-context-note", t("plan.context_note")));

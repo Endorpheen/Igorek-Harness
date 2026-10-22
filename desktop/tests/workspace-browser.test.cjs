@@ -126,3 +126,14 @@ test('favorite actions require unlocked trusted window and retain bookmarks acro
  await assert.rejects(m.action({...p},'addFavorite',{url:'example.org',title:'Docs'}));const state=await m.action(p,'addFavorite',{url:'example.org',title:'Docs'});assert.equal(state.favorites.length,1);assert.equal(m.tabs.size,0);assert.equal(ses.cleared,undefined);
  const id=state.favorites[0].id;m.lock();assert.equal(m.status().favorites,undefined);m.unlock();assert.equal(new WorkspaceBrowser(options).favorites.rows[0].id,id);await m.action(p,'removeFavorite',{id});assert.equal(m.status().favorites.length,0);
 });
+
+test('saving an image from a workspace tab uses the existing download history pipeline',async t=>{
+ const {manager:m,parent:p,ses,options}=fixture(t);let items,requested='';options.menu={buildFromTemplate(value){items=value;return{popup(){}}}};
+ m.unlock();await m.action(p,'open',{id:'one',url:'https://x.com/example/status/1/photo/1'});const wc=m.tabs.get('one').view.webContents;
+ const file=path.join(options.root,'saved-image.png');fs.writeFileSync(file,'fixture');
+ const item=Object.assign(new EventEmitter(),{getFilename:()=> 'saved-image.png',getTotalBytes:()=>7,getReceivedBytes:()=>7,getSavePath:()=>file});
+ wc.downloadURL=url=>{requested=url;ses.emit('will-download',{preventDefault(){throw Error('trusted image source rejected')}},item,wc);};
+ const src='https://pbs.twimg.com/media/fixture?format=png&name=large';wc.emit('context-menu',{}, {mediaType:'image',hasImageContents:true,srcURL:src});await new Promise(r=>setImmediate(r));
+ const save=items?.find(value=>value.label==='Сохранить изображение как…');assert.ok(save);save.click();assert.equal(requested,src);
+ item.emit('done',{},'completed');const row=m.status().downloads[0];assert.equal(row.name,'saved-image.png');assert.equal(row.state,'completed');assert.equal(row.can_reveal,true);assert.equal(row.path,undefined);
+});

@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools==80.9.0"]
+requires = ["setuptools==84.0.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.uv]
@@ -42,7 +42,7 @@ dependencies = [
     "agent-client-protocol>=0.9.0,<1.0",
     "numpy",
     "qrcode==8.2",
-    "pywinpty==3.0.5 ; sys_platform == 'win32'",
+    "pywinpty==3.1.0 ; sys_platform == 'win32'",
 ]
 
 [project.scripts]
