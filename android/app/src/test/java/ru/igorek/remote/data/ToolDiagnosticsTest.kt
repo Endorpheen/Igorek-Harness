@@ -39,6 +39,7 @@ class ToolDiagnosticsTest {
         val result = reconcileNotificationEvent(first, success)
         assertEquals("recovered", result.single().state)
         assertEquals("tool_retry_succeeded", result.single().recoveryProof)
+        assertTrue(result.single().recoveredAt!! >= result.single().firstSeen)
         assertEquals(first.single().id, result.single().id); assertTrue(result.single().read)
         assertEquals(1, result.single().count)
         assertTrue(visibleNotifications(result).isEmpty()); assertEquals(0, unreadNotificationCount(result))

@@ -148,6 +148,6 @@ internal fun reconcileNotificationEvent(entries: List<NotificationEntry>, event:
             event.kind == "task.finish" && status == "ok" && error.code == "TOOL.INVALID_ARGUMENTS" && error.delivery == "rejected" -> "task_completed_after_rejected_call"
             else -> return@map entry
         }
-        entry.copy(state = "recovered", recoveredAt = time, recoveryProof = proof)
+        entry.copy(state = "recovered", recoveredAt = maxOf(time, entry.firstSeen, entry.lastSeen), recoveryProof = proof)
     }
 }
