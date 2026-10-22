@@ -33,5 +33,9 @@ internal object ErrorCatalog {
         "NET.TRANSPORT_FAILURE" to ErrorDefinition("network", "check_connection", "error", true, "Не удалось связаться с сервисом. Причину сбоя определить не удалось.", "The service could not be reached. The transport cause is unknown."),
         "TLS.CONNECTION_INTERRUPTED" to ErrorDefinition("tls", "retry", "error", true, "Защищённое соединение прервалось.", "The secure connection was interrupted."),
         "ERROR.UNKNOWN" to ErrorDefinition("unknown", "diagnostics", "error", false, "Причина ошибки не определена. Доступны диагностические сведения.", "The failure cause is unknown. Diagnostic details are available."),
+        "TOOL.INVALID_ARGUMENTS" to ErrorDefinition("tool", "check_request", "error", false, "Инструмент отклонил параметры вызова.", "The tool rejected the call parameters."),
+        "TOOL.EXECUTION_FAILED" to ErrorDefinition("tool", "diagnostics", "error", false, "Инструмент сообщил об ошибке выполнения.", "The tool reported an execution failure."),
+        "TASK.EXECUTION_FAILED" to ErrorDefinition("operation", "diagnostics", "error", false, "Задача завершилась с ошибкой.", "The task finished with an error."),
+        "CONTEXT.COMPACTION_FAILED" to ErrorDefinition("operation", "diagnostics", "error", false, "Не удалось сократить контекст задачи.", "Task context compaction failed."),
     )
 }

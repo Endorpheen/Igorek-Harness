@@ -84,6 +84,7 @@ class NotificationReplayInstrumentation : Instrumentation() {
                 targetContext.packageName, android.Manifest.permission.POST_NOTIFICATIONS)
             val activity = startActivitySync(Intent(targetContext, MainActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as ComponentActivity
+            waitForIdleSync()
             val output = targetContext.getExternalFilesDir("notification-replay-qa")!!.apply { mkdirs() }
             @Suppress("UNCHECKED_CAST")
             val notifications = Bridge.javaClass.getDeclaredField("_notifications").apply { isAccessible = true }
@@ -164,8 +165,57 @@ class NotificationReplayInstrumentation : Instrumentation() {
             check(snapshot.contains("ui:session-input:history-a") && snapshot.contains("genuine-new-failure"))
             File(output, "journal.json").writeText(snapshot)
             tap("Notifications"); screenshot("genuine-new-errors.png")
+            tap("Close")
+            runOnMainSync { notifications.value = emptyList() }
+            fun toolEvent(seq: Long, status: String, service: String = "fixture", invalid: Boolean = false): BridgeEvent =
+                BridgeEvent(kind = "tool.result", seq = seq, ts = 1792629242L + seq - 201,
+                    taskId = "tool-fixture", sessionId = "history-a", payload = buildJsonObject {
+                        put("status", status); put("tool_name", "host_service"); put("tool_use_id", "fixture-call-$seq")
+                        put("tool_input", buildJsonObject {
+                            put("action", "files"); put("service", service); if (invalid) put("file_id", "unexpected-field")
+                        })
+                        put("result_preview", if (invalid) """{"error":"invalid_service_fields"}""" else """{"files":[]}""")
+                    })
+            val original = toolEvent(201, "error", invalid = true)
+            runOnMainSync { handle.invoke(Bridge, original) }
+            waitFor("typed tool failure") { notifications.value.singleOrNull()?.diagnostic?.reasonCode == "invalid_service_fields" }
+            val toolEntry = notifications.value.single()
+            check(toolEntry.text.contains("host_service") && toolEntry.text.contains("invalid set of fields"))
+            check(toolEntry.diagnostic!!.observedAt == 1792629242000L)
+            tap("Notifications")
+            waitFor("visible concrete cause") { find(toolEntry.text) != null }
+            screenshot("tool-cause-readable.png")
+            tap("Mark read"); tap("Close")
+            runOnMainSync { handle.invoke(Bridge, toolEvent(202, "done", service = "different")) }
+            check(notifications.value.single().state != "recovered")
+            runOnMainSync { handle.invoke(Bridge, toolEvent(203, "done")) }
+            check(notifications.value.single().state == "recovered" && unreadNotificationCount(notifications.value) == 0)
+            tap("Notifications")
+            waitFor("recovered tool hidden") { find("No active error notifications") != null }
+            screenshot("tool-recovered-hidden.png"); tap("Close")
+            val legacyError = toolEntry.diagnostic!!.copy(code = "ERROR.UNKNOWN", component = "task", observedAt = 1792629242L,
+                toolName = "", toolUseId = "", toolAction = "", service = "", reasonCode = "", operationKey = "", sourceSequence = null)
+            val legacy = toolEntry.copy(text = "Unknown old failure", state = "needs_owner", read = true,
+                diagnostic = legacyError, events = listOf(legacyError))
+            runOnMainSync {
+                (Bridge.javaClass.getDeclaredField("prefs").apply { isAccessible = true }.get(Bridge) as Prefs)
+                    .notificationHistory = kotlinx.serialization.json.Json.encodeToString(listOf(legacy))
+                load.invoke(Bridge)
+                handle.invoke(Bridge, original)
+                handle.invoke(Bridge, toolEvent(203, "done"))
+                load.invoke(Bridge)
+            }
+            check(notifications.value.single().id == legacy.id && notifications.value.single().read && notifications.value.single().state == "recovered")
+            check(notifications.value.single().diagnostic!!.reasonCode == "invalid_service_fields")
+            val report = ru.igorek.remote.data.incidentDiagnosticReport(notifications.value.single(), "fixture", AppLanguage.English)
+            check(report.contains("2026-10-22T00:34:02Z") && report.contains("tool_retry_succeeded") && !report.contains("1970-"))
+            File(output, "tool-recovery-report.json").writeText(report)
+            tap("Notifications")
+            waitFor("legacy incident stays hidden") { find("No active error notifications") != null }
+            screenshot("legacy-tool-reconciled.png")
+
             sendStatus(0, Bundle().apply { putString("stream",
-                "NOTIFICATION_REPLAY_PASS: ten old failures remain passive across A/B switches, real live failure retained/read/restored, replay suppressed after recovery and clear, new failures visible, UI input errors share the report journal\n") })
+                "NOTIFICATION_REPLAY_PASS: ten old failures remain passive across A/B switches, real live failure retained/read/restored, replay suppressed after recovery and clear, new failures visible, UI input errors share the report journal; tool cause/time retained, matching retry hidden, legacy incident reconciled without duplicate\n") })
             finish(Activity.RESULT_OK, Bundle())
         } catch (error: Throwable) {
             val output = targetContext.getExternalFilesDir("notification-replay-qa")!!.apply { mkdirs() }

@@ -36,6 +36,14 @@ data class ErrorObservation(
     val model: String = "",
     @SerialName("http_status") val httpStatus: Int? = null,
     @SerialName("native_code") val nativeCode: String = "",
+    @SerialName("tool_name") val toolName: String = "",
+    @SerialName("tool_use_id") val toolUseId: String = "",
+    @SerialName("tool_action") val toolAction: String = "",
+    val service: String = "",
+    @SerialName("reason_code") val reasonCode: String = "",
+    @SerialName("reason_detail") val reasonDetail: String = "",
+    @SerialName("operation_key") val operationKey: String = "",
+    @SerialName("source_seq") val sourceSequence: Long? = null,
     val attempt: Int = 1,
     @SerialName("next_retry_at_ms") val nextRetryAt: Long? = null,
     @SerialName("retry_after_s") val retryAfter: Double? = null,
@@ -44,8 +52,7 @@ data class ErrorObservation(
 class DiagnosticIOException(val diagnostic: ErrorObservation, cause: Throwable) : IOException(errorMessage(diagnostic), cause)
 
 internal fun errorMessage(error: ErrorObservation): String {
-    val value = ErrorCatalog.codes[error.code] ?: ErrorCatalog.codes.getValue("INTERNAL.UNEXPECTED")
-    return AppLocale.text(value.ru, value.en) + if (error.outcome == "unknown") AppLocale.text(
+    return diagnosticExplanation(error, AppLocale.language.value) + if (error.outcome == "unknown") AppLocale.text(
         " Результат действия пока не подтверждён. Не отправляйте его повторно до проверки.",
         " The outcome is unconfirmed. Check it before sending again.") else ""
 }
@@ -57,6 +64,7 @@ internal fun safeDiagnosticText(text: String): String {
         val uri=java.net.URI(match.value)
         java.net.URI(uri.scheme,null,uri.host,uri.port,uri.path,null,null).toString()
     }.getOrDefault("[URL]") }
+    value=value.replace(Regex("\\b(?:sk[-_][\\w-]+|oc_sk_[\\w-]+|syt_[\\w-]+|gh[pousr]_[\\w]+|github_pat_[\\w]+|eyJ[\\w-]+\\.[\\w-]+\\.[\\w-]+)\\b"), "[REDACTED]")
     return value.take(1000)
 }
 
@@ -107,7 +115,12 @@ internal fun sanitizeDiagnostic(value: ErrorObservation): ErrorObservation {
         eventId=id(value.eventId), component=id(value.component), operation=id(value.operation), owner=id(value.owner), phase=id(value.phase),
         endpointRole=id(value.endpointRole), delivery=id(value.delivery), outcome=id(value.outcome), httpRequestId=id(value.httpRequestId),
         clientOperationId=id(value.clientOperationId), providerRequestId=id(value.providerRequestId), taskId=id(value.taskId), sessionId=id(value.sessionId),
-        profile=model(value.profile), model=model(value.model), nativeCode=id(value.nativeCode), attempt=value.attempt.coerceIn(1, 1000000),
+        profile=model(value.profile), model=model(value.model), nativeCode=id(value.nativeCode),
+        toolName=toolDiagnosticId(value.toolName), toolUseId=id(value.toolUseId), toolAction=toolDiagnosticId(value.toolAction), service=toolDiagnosticId(value.service),
+        reasonCode=id(value.reasonCode).takeUnless { it.matches(Regex("^(sk[-_]|syt_|oc_sk_|gh[pousr]_|github_pat_|eyJ).*")) }.orEmpty(),
+        reasonDetail=safeDiagnosticText(value.reasonDetail).take(512),
+        operationKey=value.operationKey.takeIf { it.matches(Regex("[a-f0-9]{24}")) }.orEmpty(),
+        sourceSequence=value.sourceSequence?.takeIf { it > 0 }, attempt=value.attempt.coerceIn(1, 1000000),
         observedAt=value.observedAt.coerceAtLeast(0),nextRetryAt=value.nextRetryAt?.coerceAtLeast(0),
         retryAfter=value.retryAfter?.takeIf { it.isFinite() && it in 0.0..900.0 })
 }

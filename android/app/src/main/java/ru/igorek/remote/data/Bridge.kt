@@ -932,6 +932,7 @@ object Bridge {
                     val events = active.sessionEvents(sessionId, afterSeq = cursor)
                     if (sessionGeneration.get() != generation) return@launch
                     events.forEach { accumulator.apply(it) }
+                    reconcileDiagnosticEvents(events)
                     _timeline.value = accumulator.snapshot()
                     _contextUsage.value = accumulator.contextSnapshot()
                     _sessionPlan.value = accumulator.planSnapshot()
@@ -1672,6 +1673,7 @@ object Bridge {
         }
         if (store != null && seq != null && seq > store.lastSeq) store.lastSeq = seq
         if (shouldForwardVoiceEvent(event, replayThrough)) voiceEvents.tryEmit(event)
+        reconcileDiagnosticEvents(listOf(event))
         if (!observeNotification || seq != null && seq <= replayThrough) return
 
         if (event.kind == "network.recovered") {
@@ -1877,6 +1879,19 @@ object Bridge {
         }
     }
 
+    private fun reconcileDiagnosticEvents(events: List<BridgeEvent>) {
+        synchronized(errorLock) {
+            val updated = events.fold(_notifications.value) { entries, event -> reconcileNotificationEvent(entries, event) }
+            if (updated == _notifications.value) return
+            _notifications.value = updated
+            persistNotifications()
+            val last = lastDiagnostic
+            if (last != null && updated.any { it.state == "recovered" && it.diagnostic?.eventId == last.eventId }) {
+                lastDiagnostic = null; lastErrorKind = null; _lastError.value = null
+            }
+        }
+    }
+
     private fun persistNotifications() {
         runCatching {
             var values=_notifications.value.takeLast(NOTIFICATION_LIMIT)
@@ -1890,7 +1905,7 @@ object Bridge {
     private fun loadNotificationHistory() {
         synchronized(errorLock) {
             _notifications.value=runCatching { diagnosticJson.decodeFromString<List<NotificationEntry>>(prefs?.notificationHistory ?: "[]")
-                .takeLast(NOTIFICATION_LIMIT).map { it.copy(text=safeDiagnosticText(it.text),diagnostic=it.diagnostic?.let(::sanitizeDiagnostic),events=it.events.takeLast(8).map(::sanitizeDiagnostic),count=it.count.coerceIn(1,1000000000)) }.filterNot(::isTimelinePresentationNotification) }.getOrDefault(emptyList())
+                .takeLast(NOTIFICATION_LIMIT).map { it.copy(text=safeDiagnosticText(it.text),diagnostic=it.diagnostic?.let(::sanitizeDiagnostic),events=it.events.takeLast(8).map(::sanitizeDiagnostic),count=it.count.coerceIn(1,1000000000)) }.filterNot(::isTimelinePresentationNotification).map(::repairLegacyNotificationTime) }.getOrDefault(emptyList())
             pendingMessages.clear()
             runCatching { diagnosticJson.decodeFromString<Map<String,String>>(prefs?.pendingOperationKeys ?: "{}") }.getOrDefault(emptyMap()).entries.toList().takeLast(20).forEach { (hash,key) ->
                 if(hash.matches(Regex("[a-f0-9]{24}")) && key.matches(Regex("[A-Za-z0-9_-]{8,160}")))pendingMessages[hash]=key
