@@ -1,3 +1,9 @@
+## 2026-10-23 — Prepare release 0.2.21
+
+The reviewed feature and dependency tree is merged as protected source bb84b7a9572a9d9904e9b2fb36b2d2d47736cef2. Its complete main CI passed Python 3.13/3.14, Desktop on Linux/Windows, native Linux, Android unit/lint/native scenarios, both package targets, publication/secret checks and Wiki publication. One unchanged-source PR retry was needed for Android emulator rendering and Windows native fixture transport; the final main runs passed. Existing receipts retain both failures and successful acceptance.
+
+This release preparation changes only Python/Desktop version metadata to 0.2.21, matching Desktop release notes and this record. Android remains the already accepted 0.1.121 (122), including persistent session pins. No test is removed, skipped or weakened. Final versioned installers, clean-source inventories, source/signature equivalence of the shipping APK, isolated update/rollback acceptance and publication readback remain release gates. Owner application and model services are not restarted.
+
 ## 2026-10-22 — Full skip audit and live KVM acceptance
 
 - Resolved all 34 original skip dispositions: 13 deterministic checks now execute in the ordinary suite, six native Windows contracts passed on the Windows runner, and all 15 opt-in KVM/vsock checks passed in their matching environments. The regular Linux suite still correctly skips the six Windows cases and fifteen external host/guest cases; these are not failures or unverified claims. Evidence retains the earlier failed reproductions and the later successful result for each affected case.
