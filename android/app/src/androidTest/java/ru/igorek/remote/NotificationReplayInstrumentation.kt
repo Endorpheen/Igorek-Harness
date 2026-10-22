@@ -82,7 +82,7 @@ class NotificationReplayInstrumentation : Instrumentation() {
             }
             if (android.os.Build.VERSION.SDK_INT >= 33) uiAutomation.grantRuntimePermission(
                 targetContext.packageName, android.Manifest.permission.POST_NOTIFICATIONS)
-            val activity = startActivitySync(Intent(targetContext, MainActivity::class.java)
+            val activity = startActivitySync(Intent(targetContext, UiAcceptanceActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as ComponentActivity
             waitForIdleSync()
             val output = targetContext.getExternalFilesDir("notification-replay-qa")!!.apply { mkdirs() }
