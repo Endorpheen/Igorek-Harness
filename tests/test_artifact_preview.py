@@ -47,7 +47,7 @@ class ArtifactPreviewTest(unittest.TestCase):
         self.assertEqual(before, source.encode())
 
     def test_plain_html_invalid_encoding_and_oversize_input_remain_unchanged(self):
-        for source in [b'<html>plain</html>', b'\xff\xfe', b'x' * (MAX_PREVIEW_HTML_BYTES + 1)]:
+        for source in [b'<html>plain</html>', b'\xff\xfe', b'<![malformed]>', b'x' * (MAX_PREVIEW_HTML_BYTES + 1)]:
             self.assertEqual(prepare_html_preview(source), source)
 
     def test_expansion_is_bounded_and_duplicate_src_is_not_reinterpreted(self):
@@ -57,3 +57,10 @@ class ArtifactPreviewTest(unittest.TestCase):
         self.assertEqual(output.count(b'https://unpkg.com'), 4)
         duplicate = '<script src="https://unpkg.com/three@0.128.0/build/three.min.js" src="https://other.invalid/a"></script>'
         self.assertEqual(prepare_html_preview(duplicate.encode()), duplicate.encode())
+
+    def test_xhtml_self_closing_script_remains_well_formed(self):
+        import xml.etree.ElementTree as ET
+        source = b'<html xmlns="http://www.w3.org/1999/xhtml"><script src="https://unpkg.com/three@0.128.0/build/three.min.js" /></html>'
+        output = prepare_html_preview(source)
+        self.assertIn(b'data:text/javascript;base64,', output)
+        ET.fromstring(output)

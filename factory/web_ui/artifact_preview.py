@@ -51,7 +51,7 @@ class _LibraryParser(HTMLParser):
         attributes = "".join(" " + key + ("=\"" + escape(_three_data_url() if key == "src" else value, quote=True) + "\"" if value is not None else "") for key, value in attrs)
         line, column = self.getpos()
         start = self.line_offsets[line - 1] + column
-        self.replacements.append((start, start + len(self.get_starttag_text()), "<script" + attributes + ">"))
+        self.replacements.append((start, start + len(self.get_starttag_text()), "<script" + attributes + ("/>" if self.get_starttag_text().endswith("/>") else ">")))
 
 
 def prepare_html_preview(data: bytes) -> bytes:
@@ -65,5 +65,5 @@ def prepare_html_preview(data: bytes) -> bytes:
         for start, end, replacement in reversed(parser.replacements):
             source = source[:start] + replacement + source[end:]
         return source.encode("utf-8")
-    except (UnicodeError, ValueError, OSError):
+    except (UnicodeError, ValueError, OSError, AssertionError):
         return data

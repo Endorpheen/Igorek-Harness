@@ -4,7 +4,7 @@ const http = require('node:http');
 const path = require('node:path');
 const {execFileSync} = require('node:child_process');
 
-async function verifyArtifactPreview({BrowserWindow, session, output, python}) {
+async function verifyArtifactPreview({BrowserWindow, session, output, python, packages}) {
   const isolated=session.fromPartition('artifact-preview-'+Date.now()),requests=[];
   const urls=['https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js','https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js','https://unpkg.com/three@0.128.0/build/three.min.js'];
   const drawing=`
@@ -21,7 +21,7 @@ async function verifyArtifactPreview({BrowserWindow, session, output, python}) {
   `;
   const documents=urls.map(url=>{
     const html='<!doctype html><body style="margin:0;background:#15252f"><script src="'+url+'"></script><script>'+drawing+'</script><script src="https://untrusted.invalid/disallowed.js"></script>';
-    return JSON.parse(execFileSync(python,['-I','-c','import json,sys; from factory.web_ui.server import _PREVIEW_CSP; from factory.web_ui.artifact_preview import prepare_html_preview; print(json.dumps(dict(csp=_PREVIEW_CSP,html=prepare_html_preview(sys.stdin.buffer.read()).decode())))'],{input:html,encoding:'utf8',maxBuffer:16*1024*1024}));
+    return JSON.parse(execFileSync(python,['-I','-c','import json,sys; sys.path[:0]=[sys.argv[1]] if sys.argv[1] else []; from factory.web_ui.server import _PREVIEW_CSP; from factory.web_ui.artifact_preview import prepare_html_preview; print(json.dumps(dict(csp=_PREVIEW_CSP,html=prepare_html_preview(sys.stdin.buffer.read()).decode())))',packages||''],{input:html,encoding:'utf8',maxBuffer:16*1024*1024}));
   });
   isolated.protocol.handle('https',request=>{requests.push(request.url);return new Response('Blocked fixture',{status:403});});
   let privateRequests=0,window;
