@@ -1,3 +1,9 @@
+## 2026-10-23 — Prepare release 0.2.22 and Android 0.1.122 (123)
+
+The user explicitly approved merging the accepted changes and publishing this release. Protected source 309b20e5ffc6749dac6a3126626ea558464de97a contains the reviewed browser/diagnostic and Read recovery changes. Its exact PR head passed Python 3.13/3.14, Desktop Linux/Windows, native Linux and Windows installer/first-task checks, Android unit/lint/disposable-device acceptance, package targets, source/secret contracts and Wiki validation. All 45 new Read cases passed in both Python versions. English/Russian before-and-after architecture diagrams are included as editable SVG and rendered PNG for release descriptions.
+
+This preparation changes version metadata and matching release notes only. Python/Desktop becomes 0.2.22. Android becomes 0.1.122 (123) because this batch includes production notification/diagnostic fixes. No tests or coverage exclusions are weakened. Final protected-main CI, clean package/source inventories, isolated install/update/rollback checks, APK source/signing verification, actual public downloads and mirrored release readback remain publication gates. Owner Desktop, gateway and model servers are not stopped or replaced.
+
 ## 2026-10-23 — Bounded Read and durable tool-result recovery
 
 Added matching English/Russian before-and-after architecture diagrams as editable SVG and release-ready PNG. The diagrams were rendered and visually inspected; no release was published.
