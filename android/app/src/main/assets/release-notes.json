@@ -1,15 +1,25 @@
 {
-  "versionName": "0.1.121",
-  "versionCode": 122,
+  "versionName": "0.1.122",
+  "versionCode": 123,
   "changes": [
     {
       "ru": {
-        "title": "Закреплённые чаты",
-        "text": "Закрепляйте чаты долгим нажатием в списке сессий. Они отмечены булавкой, остаются наверху и синхронизируются с десктопом. Тем же меню можно открепить чат."
+        "title": "Точнее диагностика инструментов",
+        "text": "Подтверждённо отклонённые вызовы браузера больше не остаются активными после успешного восстановления. Настоящие ошибки и неопределённые результаты сохраняются для проверки."
       },
       "en": {
-        "title": "Pinned chats",
-        "text": "Long-press chats in the session list to pin them. Pinned chats have a pin icon, stay at the top and sync with desktop. Use the same menu to unpin a chat."
+        "title": "More accurate tool diagnostics",
+        "text": "Confirmed rejected browser calls no longer remain active after successful recovery. Actual failures and uncertain outcomes remain available for review."
+      }
+    },
+    {
+      "ru": {
+        "title": "Понятные причины сбоев",
+        "text": "Отчёт сохраняет причины ошибок инструментов. Пустые диагностические данные больше не превращаются во внутреннюю ошибку."
+      },
+      "en": {
+        "title": "Clearer failure causes",
+        "text": "Reports retain tool failure causes. Empty diagnostic data no longer becomes an invented internal error."
       }
     }
   ]
