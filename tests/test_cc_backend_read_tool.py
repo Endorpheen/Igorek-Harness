@@ -42,7 +42,7 @@ class CcBackendReadToolTest(unittest.TestCase):
 
         self.assertEqual(result, "l1\nl2\n")
 
-    def test_unbounded_large_read_is_blocked_with_range_hint(self):
+    def test_large_read_returns_a_bounded_page_with_continuation(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "large.txt"
             path.write_text(("0123456789\n" * 6000), encoding="utf-8")
@@ -53,9 +53,10 @@ class CcBackendReadToolTest(unittest.TestCase):
                 filesystem_mode="workspace",
             )
 
-        self.assertIn("unbounded read limit", result)
-        self.assertIn("offset/limit", result)
-        self.assertLess(len(result), 300)
+        self.assertTrue(result.startswith("0123456789\n"))
+        self.assertIn("Read page truncated", result)
+        self.assertIn("offset", result)
+        self.assertLessEqual(len(result), 16_000)
 
     def test_large_read_with_range_returns_requested_chunk(self):
         with tempfile.TemporaryDirectory() as tmp:
