@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1160" viewBox="0 0 1600 1160" role="img" aria-labelledby="title desc"><title id="title">Read: a reliable path to full tool output</title><desc id="desc">Before: an archived tool result outside the project could be rejected by Read, and large readable results could be archived again. After: immutable storage and an issuance record authorize scoped recovery; bounded pages include exact continuation.</desc><defs><marker id="lime" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#bde774"/></marker><marker id="muted" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#87958e"/></marker></defs><rect width="1600" height="1160" fill="#0c1311"/><g font-family="DejaVu Sans, sans-serif">
+<text x="60" y="58" font-size="18" fill="#bde774" font-weight="600">ИГОРЁК / IGOREK · READ</text>
+<text x="60" y="120" font-size="43" fill="#edf4ed" font-weight="700">Read: a reliable path to full tool output</text>
+<text x="60" y="165" font-size="24" fill="#a6b9ad" font-weight="400">Architecture change · archived results and bounded text delivery</text>
+<rect x="60" y="210" width="700" height="790" rx="24" fill="#101a16" stroke="#34453b"/>
+<rect x="800" y="210" width="740" height="790" rx="24" fill="#101a16" stroke="#496337"/>
+<text x="92" y="255" font-size="20" fill="#edbd97" font-weight="700">BEFORE</text>
+<text x="832" y="255" font-size="20" fill="#bde774" font-weight="700">AFTER</text>
+<rect x="110" y="290" width="600" height="88" rx="18" fill="#16231d" stroke="#364b3f"/>
+<rect x="128" y="313" width="4" height="25" rx="2" fill="#d6b99f"/>
+<text x="144" y="332" font-size="24" fill="#d6b99f" font-weight="600">Large tool output</text>
+<polygon points="408.50,378.00 408.50,408.00 411.50,408.00 411.50,378.00" fill="#87958e"/>
+<polygon points="410.00,420.00 404.00,408.00 416.00,408.00" fill="#87958e"/>
+<rect x="110" y="430" width="600" height="105" rx="18" fill="#16231d" stroke="#364b3f"/>
+<rect x="128" y="453" width="4" height="25" rx="2" fill="#d6b99f"/>
+<text x="144" y="472" font-size="24" fill="#d6b99f" font-weight="600">Result file + preview</text>
+<text x="136" y="506" font-size="21" fill="#b2c2b7" font-weight="400">A runtime path is returned to the model</text>
+<polygon points="408.50,535.00 408.50,565.00 411.50,565.00 411.50,535.00" fill="#87958e"/>
+<polygon points="410.00,577.00 404.00,565.00 416.00,565.00" fill="#87958e"/>
+<rect x="110" y="587" width="600" height="88" rx="18" fill="#16231d" stroke="#364b3f"/>
+<rect x="128" y="610" width="4" height="25" rx="2" fill="#d6b99f"/>
+<text x="144" y="629" font-size="24" fill="#d6b99f" font-weight="600">Read requests the full text</text>
+<polygon points="408.50,675.00 408.50,705.00 411.50,705.00 411.50,675.00" fill="#87958e"/>
+<polygon points="410.00,717.00 404.00,705.00 416.00,705.00" fill="#87958e"/>
+<rect x="110" y="727" width="600" height="105" rx="18" fill="#16231d" stroke="#364b3f"/>
+<rect x="128" y="750" width="4" height="25" rx="2" fill="#efa38c"/>
+<text x="144" y="769" font-size="24" fill="#efa38c" font-weight="600">Outside the workspace?</text>
+<text x="136" y="803" font-size="21" fill="#b2c2b7" font-weight="400">The normal Read policy rejects the path</text>
+<rect x="110" y="879" width="600" height="88" rx="16" fill="#251f19" stroke="#72523e"/>
+<text x="132" y="913" font-size="22" fill="#edbd97" font-weight="600">Another possible loop</text>
+<text x="132" y="945" font-size="20" fill="#c5b5a6" font-weight="400">A large readable result could be saved again</text>
+<rect x="850" y="290" width="640" height="88" rx="18" fill="#16231d" stroke="#364b3f"/>
+<rect x="868" y="313" width="4" height="25" rx="2" fill="#bde774"/>
+<text x="884" y="332" font-size="24" fill="#bde774" font-weight="600">Large tool output</text>
+<polygon points="1169.65,376.54 1014.32,413.75 1015.02,416.66 1170.35,379.46" fill="#bde774"/>
+<polygon points="1003.00,418.00 1013.27,409.37 1016.07,421.04" fill="#bde774"/>
+<polygon points="1169.65,379.46 1324.98,416.66 1325.68,413.75 1170.35,376.54" fill="#bde774"/>
+<polygon points="1337.00,418.00 1323.93,421.04 1326.73,409.37" fill="#bde774"/>
+<rect x="850" y="430" width="306" height="110" rx="18" fill="#16231d" stroke="#364b3f"/>
+<rect x="868" y="453" width="4" height="25" rx="2" fill="#bde774"/>
+<text x="884" y="472" font-size="24" fill="#bde774" font-weight="600">Immutable archive</text>
+<text x="876" y="506" font-size="18" fill="#b2c2b7" font-weight="400">Keep the original bytes</text>
+<rect x="1184" y="430" width="306" height="110" rx="18" fill="#16231d" stroke="#364b3f"/>
+<rect x="1202" y="453" width="4" height="25" rx="2" fill="#84cad5"/>
+<text x="1218" y="472" font-size="24" fill="#84cad5" font-weight="600">Runtime SQLite</text>
+<text x="1210" y="506" font-size="18" fill="#b2c2b7" font-weight="400">Record who received it</text>
+<polygon points="1002.66,541.46 1157.97,577.73 1158.66,574.81 1003.34,538.54" fill="#bde774"/>
+<polygon points="1170.00,579.00 1156.95,582.11 1159.68,570.43" fill="#bde774"/>
+<polygon points="1336.66,538.54 1181.34,574.81 1182.03,577.73 1337.34,541.46" fill="#bde774"/>
+<polygon points="1170.00,579.00 1180.32,570.43 1183.05,582.11" fill="#bde774"/>
+<rect x="850" y="590" width="640" height="104" rx="18" fill="#16231d" stroke="#364b3f"/>
+<rect x="868" y="613" width="4" height="25" rx="2" fill="#bde774"/>
+<text x="884" y="632" font-size="24" fill="#bde774" font-weight="600">Check the issued result</text>
+<text x="876" y="666" font-size="21" fill="#b2c2b7" font-weight="400">Task/session + workspace + file identity</text>
+<polygon points="1168.50,694.00 1168.50,724.00 1171.50,724.00 1171.50,694.00" fill="#bde774"/>
+<polygon points="1170.00,736.00 1164.00,724.00 1176.00,724.00" fill="#bde774"/>
+<rect x="850" y="748" width="640" height="104" rx="18" fill="#16231d" stroke="#364b3f"/>
+<rect x="868" y="771" width="4" height="25" rx="2" fill="#bde774"/>
+<text x="884" y="790" font-size="24" fill="#bde774" font-weight="600">Read a bounded page</text>
+<text x="876" y="824" font-size="21" fill="#b2c2b7" font-weight="400">Continue by line offset and character cursor</text>
+<polygon points="1168.50,852.00 1168.50,882.00 1171.50,882.00 1171.50,852.00" fill="#bde774"/>
+<polygon points="1170.00,894.00 1164.00,882.00 1176.00,882.00" fill="#bde774"/>
+<rect x="850" y="906" width="640" height="65" rx="18" fill="#16231d" stroke="#364b3f"/>
+<rect x="868" y="929" width="4" height="25" rx="2" fill="#bde774"/>
+<text x="884" y="948" font-size="24" fill="#bde774" font-weight="600">Model receives text + continuation</text>
+<rect x="60" y="1030" width="1480" height="95" rx="18" fill="#17251c" stroke="#405732"/>
+<text x="84" y="1068" font-size="23" fill="#c6dfb0" font-weight="500">Issued-result access stays scoped to its task/session and workspace.</text>
+<text x="84" y="1103" font-size="22" fill="#b2c2b7" font-weight="400">Ordinary files, Write/Edit and user-selected access modes keep their existing rules.</text>
+</g></svg>

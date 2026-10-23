@@ -4,6 +4,12 @@ The output store owns archived results and their issuance records. `Read` owns
 bounded text delivery. Provider adapters receive the same ordinary tool results;
 they do not implement their own archive or permission policy.
 
+## Before and after
+
+![Before and after: archived tool-result recovery](tool-result-recovery-en.png)
+
+[Editable English SVG](tool-result-recovery-en.svg). The PNG can be embedded in release descriptions.
+
 Previously, the store could advertise a runtime path outside the project while
 workspace-mode `Read` rejected that path. Reading a large result through another
 tool could save the same text again. Oversized reads could also return only an
@@ -65,6 +71,10 @@ explicit external deletion is reported as unavailable output, not a permission
 grant or an automatic replay request.
 
 ## Русская схема
+
+![Было и стало: чтение сохранённых результатов](tool-result-recovery-ru.png)
+
+[Редактируемый SVG на русском](tool-result-recovery-ru.svg). PNG предназначен для вставки в описание релиза.
 
 ```mermaid
 flowchart LR

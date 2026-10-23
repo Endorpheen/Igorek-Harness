@@ -1,5 +1,7 @@
 ## 2026-10-23 — Bounded Read and durable tool-result recovery
 
+Added matching English/Russian before-and-after architecture diagrams as editable SVG and release-ready PNG. The diagrams were rendered and visually inspected; no release was published.
+
 Read now returns bounded text pages with exact continuation, including within a long line, instead of recursively archiving its own output. Existing zero-based offsets and explicit line limits remain compatible. Small complete files still return plain text. Pages adapt to context size and the round's shared output budget, including prepared approval batches.
 
 The output store records issued archives in the existing runtime SQLite database. Workspace-mode Read may recover an issued result for its task, or a later task in the same session and workspace, after checking the regular-file identity. This does not grant Write/Edit access or widen ordinary workspace permissions. Archives are immutable; changed, missing, foreign, unissued and symlinked files are rejected. Saving and registration must succeed before a readable path is advertised. Task/session history protects referenced archives from normal cleanup. Legacy recovery requires a matching structured spill event; aggregate-only legacy pointers without that evidence are not enrolled. EN/RU Wiki updates and the architecture document describe this behavior and its limits.
