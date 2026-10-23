@@ -4,6 +4,7 @@ const { isIP } = require('node:net');
 const { BrowserInteraction,validInteraction,compactPage } = require('./browser-interaction.cjs');
 
 const {BrowserReading,validReading} = require('./browser-reading.cjs');
+const {extractPosts} = require('./browser-posts.cjs');
 const DEFAULTS = Object.freeze({ feed_url: 'https://x.com/home', max_seconds: 600, max_posts: 100 });
 const HEADER_HEIGHT=80;
 const X_HOSTS = new Set(['x.com', 'www.x.com', 'twitter.com', 'www.twitter.com']);
@@ -54,22 +55,7 @@ const PAGE = `(() => {
     || !!document.querySelector('input[autocomplete="current-password"],input[autocomplete="username"],[data-testid="loginButton"]');
   const ready = !!document.querySelector('[data-testid="SideNav_AccountSwitcher_Button"],a[data-testid="AppTabBar_Profile_Link"]');
   const auth = challenge ? 'challenge' : login ? 'login_required' : ready ? 'ready' : 'unknown';
-  const posts = auth !== 'ready' ? [] : Array.from(document.querySelectorAll('article[data-testid="tweet"]')).slice(0,1000).flatMap(article => {
-    const link = Array.from(article.querySelectorAll('a[href]')).find(a => a.querySelector('time') && /^\\/[^/]+\\/status\\/\\d+$/.test(new URL(a.href).pathname));
-    if (!link) return [];
-    const url = new URL(link.href); url.search=''; url.hash='';
-    const state=(off,on)=>{const a=article.querySelector('[data-testid="'+off+'"]'),b=article.querySelector('[data-testid="'+on+'"]');return !!a===!!b?null:!!b;};
-    const text=article.querySelector('[data-testid="tweetText"]')?.textContent||'';
-    return [{id:url.pathname.split('/').pop(),url:url.href,
-      text:text.slice(0,200000),truncated:text.length>200000||!!article.querySelector('[data-testid="tweet-text-show-more-link"]'),reactions:{like:state('like','unlike'),repost:state('retweet','unretweet'),bookmark:state('bookmark','removeBookmark')},
-      relation:article.closest('[data-testid="placementTracking"]')?'recommendation':article.getAttribute('data-reply-to')?'reply':'unknown',reply_to:article.getAttribute('data-reply-to')||null,
-      author:(article.querySelector('[data-testid="User-Name"]')?.textContent || '').slice(0,500),
-      posted_at:article.querySelector('time')?.dateTime || '',
-      social_context:(article.querySelector('[data-testid="socialContext"]')?.textContent || '').slice(0,500),
-      links:Array.from(article.querySelectorAll('[data-testid="tweetText"] a[href]')).map(a=>a.href).slice(0,30),
-      images:Array.from(article.querySelectorAll('[data-testid="tweetPhoto"] img')).map(i=>i.currentSrc || i.src).slice(0,10),
-      has_video:!!article.querySelector('video,[data-testid="videoPlayer"]')}];
-  });
+  const posts = auth !== 'ready' ? [] : (${extractPosts.toString()})();
   return {auth,posts};
 })()`;
 

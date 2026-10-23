@@ -1,3 +1,4 @@
+const {postsScript}=require('./browser-posts.cjs');
 const {randomUUID}=require('node:crypto');
 const {join}=require('node:path');
 const {mkdirSync,writeFileSync}=require('node:fs');
@@ -29,16 +30,21 @@ class BrowserReading{
  }
  async post(f){
   const b=this.browser,id=new URL(f.url).pathname.split('/').pop();
-  let page=await b.read();if(page.paused)return page;
-  if(!(b.pagePosts||[]).some(p=>p.id===id)){page=await b.navigate(f.url);if(page.paused||page.error)return page;await this.wait({condition:'post'});}
+  let page=await b.read();if(page.paused||page.error)return page;
+  let full=(await b.evaluate(postsScript(id)))?.find?.(post=>post.id===id);
+  if(!full&&!(b.pagePosts||[]).some(p=>p.id===id)){
+   page=await b.navigate(f.url);if(page.paused||page.error)return page;await this.wait({condition:'post'});
+  }
   let expanded=false;
   const controls=await b.interaction.snapshot('',f.url);
   const more=controls.find(e=>e.test_id==='tweet-text-show-more-link');
   if(more){const r=await b.interaction.run({action:'click',target:more.ref});expanded=!r.error;await this.wait({condition:'idle',timeout_ms:3000});}
-  await b.read();const p=b.pagePosts.find(p=>p.id===id);if(!p)return {error:'post_not_found'};
-  const full=await b.evaluate(`(()=>{const article=[...document.querySelectorAll('article[data-testid="tweet"]')].find(a=>{const link=[...a.querySelectorAll('a[href]')].find(link=>link.querySelector('time'));return link&&new URL(link.href).pathname.endsWith('/status/'+${JSON.stringify(id)});});if(!article)return null;const body=article.querySelector('[data-testid="tweetText"]')?.textContent||'';return {body:body.slice(0,200000),clipped:body.length>200000,more:!!article.querySelector('[data-testid="tweet-text-show-more-link"]')};})()`);
-  const offset=f.offset||0,limit=f.limit||6000,body=full?full.body:String(p.text||''),truncated=full?full.clipped||full.more:!!p.truncated;
-  const result={auth:b.auth,post:{...p,text:body.slice(offset,offset+limit),images:p.images.slice(0,4),links:p.links.slice(0,8)},offset,next_offset:offset+limit<body.length?offset+limit:null,total_characters:body.length,character_limit:200000,text_truncated:offset+limit<body.length||truncated,expanded,elements:(await b.interaction.snapshot('',f.url)).filter(e=>e.test_id||['button','input'].includes(e.kind)).slice(0,12),coverage:'visible_dom_only'};
+  page=await b.read();if(page.paused||page.error)return page;
+  full=(await b.evaluate(postsScript(id)))?.find?.(post=>post.id===id);
+  const p=full||(b.pagePosts||[]).find(p=>p.id===id);
+  if(!p)return {error:'post_not_found',hint:'The requested post could not be identified in the rendered DOM. Inspect read/elements or screenshot; this does not prove the post is deleted.',coverage:'visible_dom_only'};
+  const offset=f.offset||0,limit=f.limit||6000,body=String(p.text||''),truncated=!!p.truncated;
+  const result={auth:b.auth,post:{...p,text:body.slice(offset,offset+limit),images:(p.images||[]).slice(0,4),links:(p.links||[]).slice(0,8)},offset,next_offset:offset+limit<body.length?offset+limit:null,total_characters:body.length,character_limit:200000,text_truncated:offset+limit<body.length||truncated,expanded,elements:(await b.interaction.snapshot('',f.url)).filter(e=>e.test_id||['button','input'].includes(e.kind)).slice(0,12),coverage:'visible_dom_only'};
   while(result.elements.length&&JSON.stringify(result).length>11000)result.elements.pop();return result;
  }
  async comments(f){

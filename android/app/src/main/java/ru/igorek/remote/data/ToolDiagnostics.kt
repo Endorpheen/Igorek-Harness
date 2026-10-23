@@ -67,14 +67,23 @@ internal fun toolFailureObservation(event: BridgeEvent, base: ErrorObservation):
     val detail = objectError?.string("message").orEmpty().ifBlank {
         if (errorText != reason) errorText else ""
     }
-    val typed = result?.get("diagnostic")?.let { value -> runCatching {
+    val typed = (result?.get("diagnostic") as? JsonObject)?.takeIf {
+        (it["code"] as? JsonPrimitive)?.contentOrNull in ErrorCatalog.codes
+    }?.let { value -> runCatching {
         Json { ignoreUnknownKeys = true }.decodeFromString<ErrorObservation>(value.toString())
     }.getOrNull() }?.takeIf { it.code in ErrorCatalog.codes }
-    val validation = typed == null && reason in invalidToolReasons
+    val browserRejection = event.payload.string("tool_name") == "desktop_browser" && when (reason) {
+        "invalid_request" -> true
+        "invalid_url" -> input?.string("action") in setOf("open", "post", "read_post", "comments", "elements", "click", "hover", "fill", "press", "select", "check", "scroll_element", "drag")
+        "stale_target" -> input?.string("action") in setOf("click", "hover", "fill", "press", "select", "check", "scroll_element", "drag")
+        else -> false
+    } && result?.let { !it.containsKey("performed") || it["performed"] == JsonPrimitive(false) } == true
+    val validation = typed?.code == "TOOL.INVALID_ARGUMENTS" || typed == null && (reason in invalidToolReasons || browserRejection)
     return sanitizeDiagnostic((typed?.copy(eventId = base.eventId, taskId = base.taskId, sessionId = base.sessionId,
         owner = typed.owner.ifBlank { base.owner }, observedAt = typed.observedAt) ?: base).copy(
         code = typed?.code ?: if (validation) "TOOL.INVALID_ARGUMENTS" else "TOOL.EXECUTION_FAILED",
         component = typed?.component ?: "tool", operation = typed?.operation ?: "execute", phase = typed?.phase ?: "tool_result",
+        endpointRole = base.endpointRole,
         toolName = toolDiagnosticId(event.payload.string("tool_name")),
         toolUseId = toolDiagnosticId(event.payload.string("tool_use_id").ifBlank { event.payload.string("call_id") }),
         toolAction = toolDiagnosticId(input?.string("action").orEmpty()),
@@ -96,6 +105,8 @@ internal fun diagnosticExplanation(error: ErrorObservation, language: AppLanguag
         "service_method_not_allowed" -> text("Запрошенный метод сервиса недоступен.", "The requested service method is not allowed.")
         "host_service_access_denied" -> text("Профилю не разрешён доступ к сервису.", "The profile is not allowed to access this service.")
         "invalid_url" -> text("Инструмент отклонил адрес страницы.", "The tool rejected the page address.")
+        "invalid_request" -> error.reasonDetail.ifBlank { text("Параметры не подходят выбранному действию. Проверь схему инструмента.", "The parameters do not match the selected action. Check the tool schema.") }
+        "stale_target" -> text("Элемент страницы изменился. Агенту нужно перечитать страницу и получить новый ref.", "The page element changed. The agent needs to read the page again and obtain a current ref.")
         else -> error.reasonDetail.ifBlank { error.reasonCode }
     }
     val detail = reason.ifBlank {

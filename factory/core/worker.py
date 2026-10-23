@@ -1849,11 +1849,22 @@ class Worker:
         status = stored_result.get("status", "fail")
         if status not in ["ok", "fail", "retry", "waiting_approval", "cancelled"]:
             status = "ok" if stored_result.get("output") else "fail"
-        if status == 'fail' and not isinstance(stored_result.get('diagnostic'), dict):
-            from .diagnostics import observation
-            stored_result['diagnostic'] = observation('ERROR.UNKNOWN', component='worker', operation='task',
-                endpoint_role='runtime_to_provider', owner='task:'+task_id, task_id=task_id,
-                profile=str(getattr(self, 'profile', '') or ''), model=str(getattr(self, 'model', '') or ''))
+        if status == 'fail':
+            from .diagnostics import CODES, observation
+            diagnostic = stored_result.get('diagnostic')
+            code = diagnostic.get('code') if isinstance(diagnostic, dict) else None
+            if not isinstance(code, str) or code not in CODES:
+                reason = stored_result.get('failure_reason')
+                reason = reason.strip() if isinstance(reason, str) else ''
+                detail = next((value.strip() for key in ('error', 'failure_details')
+                               if isinstance(value := stored_result.get(key), str) and value.strip()), '')
+                stored_result['diagnostic'] = observation(
+                    'TASK.EXECUTION_FAILED' if reason or detail else 'ERROR.UNKNOWN',
+                    component='worker', operation='task', phase='execution',
+                    endpoint_role='runtime_to_provider', owner='task:'+task_id, task_id=task_id,
+                    profile=str(getattr(self, 'profile', '') or ''), model=str(getattr(self, 'model', '') or ''),
+                    reason_code=reason, reason_detail=detail,
+                )
 
         # Prepare update
         output_payload = stored_result.get("output")

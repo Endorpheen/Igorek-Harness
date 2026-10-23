@@ -1011,6 +1011,30 @@ class WorkerErrorSurfaceTest(unittest.TestCase):
         self.assertNotIn("failure_reason", metadata)
         self.assertEqual(metadata.get("diagnostic_failure_reason"), "http_error")
 
+    def test_model_failure_keeps_its_reason_in_the_persisted_diagnostic(self) -> None:
+        for invalid in [None, {}, {"code": "unrecognized"}]:
+            with self.subTest(diagnostic=invalid):
+                task_id = create_task(text="fixture", profile="cc-failsafe")["task_id"]
+                result = {"status": "fail", "error": "Model returned only reasoning twice.",
+                          "failure_reason": "reasoning_only_response_repeated", "diagnostic": invalid}
+                with sqlite3.connect(get_db_path()) as conn:
+                    self.worker.update_task(conn, task_id, result)
+                    row = conn.execute("SELECT metadata, error_message FROM tasks WHERE task_id=?", (task_id,)).fetchone()
+                diagnostic = json.loads(row[0])["diagnostic"]
+                self.assertEqual(diagnostic["code"], "TASK.EXECUTION_FAILED")
+                self.assertEqual(diagnostic["reason_code"], "reasoning_only_response_repeated")
+                self.assertEqual(diagnostic["reason_detail"], "Model returned only reasoning twice.")
+                self.assertEqual(row[1], "Model returned only reasoning twice.")
+
+    def test_unexplained_worker_failure_does_not_invent_a_cause(self) -> None:
+        task_id = create_task(text="fixture", profile="cc-failsafe")["task_id"]
+        with sqlite3.connect(get_db_path()) as conn:
+            self.worker.update_task(conn, task_id, {"status": "fail"})
+            metadata = json.loads(conn.execute("SELECT metadata FROM tasks WHERE task_id=?", (task_id,)).fetchone()[0])
+        self.assertEqual(metadata["diagnostic"]["code"], "ERROR.UNKNOWN")
+        self.assertFalse(metadata["diagnostic"].get("reason_code"))
+        self.assertFalse(metadata["diagnostic"].get("reason_detail"))
+
     def test_missing_approval_record_retries_with_safe_recovery_context(self) -> None:
         # Given: a missing approval record followed by a valid approval request
         missing_record = {

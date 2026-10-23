@@ -25,22 +25,22 @@ def take_browser_image(result_text):
 
 SCHEMA = {
     "name": "desktop_browser",
-    "description": "Постоянный браузер Игорька внутри desktop. read/open/post возвращают посты, текст и элементы интерфейса с ref и состоянием. elements с query ищет любые кнопки, меню, поля и переключатели по видимому названию/роли/data-testid. click нажимает элемент (button left/right/double, необязательные offset_x/offset_y 0..1 внутри элемента), hover раскрывает меню, fill заполняет обычное поле/contenteditable, press отправляет клавишу, select выбирает option по value или точной надписи, check устанавливает checkbox/switch/toggle, scroll_element прокручивает область. drag рисует или перетаскивает внутри выбранного элемента: target из elements.ref, points — от 2 до 128 точек {x,y} с координатами 0..1 относительно элемента; первая точка — нажатие левой кнопки, следующие — движение с зажатой кнопкой, в конце — отпускание. duration_ms 100..3000, по умолчанию 500. Для эллипса на canvas выбери инструмент фигуры и передай две противоположные точки. Для свободной линии передай её путь. После drag проверь результат через screenshot. ref берётся из последнего результата; stale_target требует перечитать страницу. wait ждёт ready/post/menu/element/idle (timeout_ms до 15000); elements с url ограничивает поиск выбранным постом. read_post url читает полный доступный текст порциями offset/limit и раскрывает Показать ещё; next_offset продолжает текст. comments url/cursor/limit читает следующие публикации ветки с явной relation; unknown нельзя выдавать за ответ. close_menu закрывает меню через Escape и проверяет результат; press Escape можно без target. screenshot сохраняет текущий кадр и возвращает изображение для просмотра. Реакции posts.reactions: true/false/null (неизвестно). Пароли/2FA вводит владелец. performed означает отправку ввода; результат проверяй по новому состоянию элементов. scroll прокручивает страницу, collect/result читают ленту. status показывает браузер.",
+    "description": "Arguments are action-specific. status/read/scroll/collect/result: action only. open: optional url. post: url. elements: optional query/url. read_post: url, optional offset/limit. comments: url, optional cursor/limit (1..20). press: key and target; only Escape/Tab/Shift+Tab may omit target. scroll_element: target/direction. Never reuse a ref after navigation; read/elements gives current refs. Постоянный браузер Игорька внутри desktop. read/open/post возвращают посты, текст и элементы интерфейса с ref и состоянием. elements с query ищет любые кнопки, меню, поля и переключатели по видимому названию/роли/data-testid. click нажимает элемент (button left/right/double, необязательные offset_x/offset_y 0..1 внутри элемента), hover раскрывает меню, fill заполняет обычное поле/contenteditable, press отправляет клавишу, select выбирает option по value или точной надписи, check устанавливает checkbox/switch/toggle, scroll_element прокручивает область. drag рисует или перетаскивает внутри выбранного элемента: target из elements.ref, points — от 2 до 128 точек {x,y} с координатами 0..1 относительно элемента; первая точка — нажатие левой кнопки, следующие — движение с зажатой кнопкой, в конце — отпускание. duration_ms 100..3000, по умолчанию 500. Для эллипса на canvas выбери инструмент фигуры и передай две противоположные точки. Для свободной линии передай её путь. После drag проверь результат через screenshot. ref берётся из последнего результата; stale_target требует перечитать страницу. wait ждёт ready/post/menu/element/idle (timeout_ms до 15000); elements с url ограничивает поиск выбранным постом. read_post url читает полный доступный текст порциями offset/limit и раскрывает Показать ещё; next_offset продолжает текст. comments url/cursor/limit читает следующие публикации ветки с явной relation; unknown нельзя выдавать за ответ. close_menu закрывает меню через Escape и проверяет результат; press Escape можно без target. screenshot сохраняет текущий кадр и возвращает изображение для просмотра. Реакции posts.reactions: true/false/null (неизвестно). Пароли/2FA вводит владелец. performed означает отправку ввода; результат проверяй по новому состоянию элементов. scroll прокручивает страницу, collect/result читают ленту. status показывает браузер.",
     "input_schema": {"type": "object", "properties": {
         "action": {"type": "string", "enum": ["status", "open", "read", "scroll", "post", "collect", "result", "click", "hover", "fill", "press", "select", "check", "scroll_element", "drag", "elements", "wait", "read_post", "comments", "close_menu", "screenshot"]},
         "url": {"type": "string", "description": "HTTPS URL для open; URL публикации X/Twitter для post."},
         "target": {"type":"string","description":"Точный elements.ref из последнего результата браузера."},
         "text": {"type":"string","description":"Текст для fill, максимум 16000 символов."},
-        "key": {"type":"string","enum":["Enter","Space","Tab","Shift+Tab","Escape","ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Home","End","PageUp","PageDown","Backspace","Delete"]},
+        "key": {"type":"string","description":"Only press. target is required except for Escape, Tab and Shift+Tab.","enum":["Enter","Space","Tab","Shift+Tab","Escape","ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Home","End","PageUp","PageDown","Backspace","Delete"]},
         "query": {"type":"string","description":"Поиск элементов, до 200 символов."},
         "condition": {"type":"string","enum":["ready","post","menu","element","idle"]},
         "timeout_ms": {"type":"integer","minimum":100,"maximum":15000},
-        "offset": {"type":"integer","minimum":0,"maximum":1000000},
-        "limit": {"type":"integer","minimum":1,"maximum":6000},
+        "offset": {"type":"integer","minimum":0,"maximum":1000000,"description":"Only read_post; character offset returned as next_offset. read does not support pagination."},
+        "limit": {"type":"integer","minimum":1,"maximum":6000,"description":"Only read_post (characters, 1..6000) and comments (posts, 1..20). Not valid for read, collect or result."},
         "cursor": {"type":"string"},
         "value": {"type":"string","description":"Значение или точная надпись option для select."},
         "checked": {"type":"boolean"},
-        "direction": {"type":"string","enum":["up","down","left","right"]},
+        "direction": {"type":"string","enum":["up","down","left","right"],"description":"Only scroll_element, with target. scroll accepts action only and scrolls the page down."},
         "button": {"type":"string","enum":["left","right","double"]},
         "points": {"type":"array","minItems":2,"maxItems":128,"items":{"type":"object","properties":{"x":{"type":"number","minimum":0,"maximum":1},"y":{"type":"number","minimum":0,"maximum":1}},"required":["x","y"],"additionalProperties":False}},
         "duration_ms": {"type":"integer","minimum":100,"maximum":3000},
@@ -48,6 +48,63 @@ SCHEMA = {
         "offset_y": {"type":"number","minimum":0,"maximum":1},
     }, "required": ["action"], "additionalProperties": False},
 }
+
+
+_ACTION_FIELDS = {
+    **{action: (set(), set()) for action in ("status", "read", "scroll", "collect", "result", "close_menu", "screenshot")},
+    "open": (set(), {"url"}), "post": ({"url"}, set()),
+    "elements": (set(), {"query", "url"}),
+    "wait": (set(), {"condition", "query", "url", "timeout_ms"}),
+    "read_post": ({"url"}, {"offset", "limit"}), "comments": ({"url"}, {"cursor", "limit"}),
+    "click": ({"target"}, {"button", "offset_x", "offset_y"}),
+    "hover": ({"target"}, set()), "fill": ({"target", "text"}, set()),
+    "press": ({"key"}, {"target"}), "select": ({"target", "value"}, set()),
+    "check": ({"target", "checked"}, set()), "scroll_element": ({"target", "direction"}, set()),
+    "drag": ({"target", "points"}, {"duration_ms"}),
+}
+
+
+def _rejected_request(fields, detail="Invalid argument type or value.", *, reason="invalid_request"):
+    from .diagnostics import observation
+
+    action = fields.get("action") if isinstance(fields, dict) else None
+    action = action if isinstance(action, str) and action in _ACTION_FIELDS else ""
+    if reason == "stale_target":
+        hint = "The target is stale. Call read/elements again and use its current ref; do not retry the old ref."
+    elif reason == "invalid_url":
+        hint = "Use an allowed HTTPS URL. post/read_post/comments and elements.url require a canonical X/Twitter /user/status/id URL, without /history or /photo suffixes."
+    elif action:
+        required, optional = _ACTION_FIELDS[action]
+        hint = f"{action}: required fields: {', '.join(['action'] + sorted(required))}."
+        hint += f" Optional fields: {', '.join(sorted(optional))}." if optional else " No other fields are accepted."
+        if action == "press":
+            hint += " target is required except for Escape, Tab and Shift+Tab."
+        if "target" in required or action == "press":
+            hint += " Use an exact current elements.ref from read/elements."
+        if action == "scroll":
+            hint += " For directional scrolling use scroll_element with target and direction."
+    else:
+        hint = "Provide an object with a supported string action; consult the desktop_browser tool schema."
+    hint = detail + " " + hint
+    return {"error": reason, "hint": hint, "diagnostic": observation(
+        "TOOL.INVALID_ARGUMENTS", component="tool", operation="execute", endpoint_role="runtime_to_tool",
+        phase="validation", delivery="rejected", tool_name="desktop_browser", tool_action=action,
+        reason_code=reason, reason_detail=hint,
+    )}
+
+
+def _browser_feedback(fields, result):
+    if not isinstance(result, dict) or result.get("performed") or isinstance(result.get("diagnostic"), dict):
+        return result
+    reason = result.get("error")
+    action = fields.get("action")
+    if reason == "invalid_request":
+        return {**result, **_rejected_request(fields)}
+    if reason == "invalid_url":
+        return {**result, **_rejected_request(fields, "The URL was rejected before input was sent.", reason=reason)}
+    if reason == "stale_target" and action in ("click", "hover", "fill", "press", "select", "check", "scroll_element", "drag"):
+        return {**result, **_rejected_request(fields, "The target no longer identifies an eligible element; input was not sent.", reason=reason)}
+    return result
 
 
 class DesktopBrowserPipe:
@@ -66,36 +123,32 @@ class DesktopBrowserPipe:
         if self.closed or not self.allowed(profile):
             return json.dumps({"error": "desktop_browser_access_denied"})
         if not isinstance(fields, dict) or not isinstance(fields.get("action"), str):
-            return json.dumps({"error": "invalid_request"})
+            return json.dumps(_rejected_request(fields))
         action = fields.get("action")
-        expected = {"action", "url"} if action == "post" or (action == "open" and "url" in fields) else {"action"}
-        interactions = {'click': set(), 'hover': set(), 'fill': {'text'}, 'press': {'key'},
-                        'select': {'value'}, 'check': {'checked'}, 'scroll_element': {'direction'}, 'drag': {'points'}}
-        if action in interactions:
-            expected = {'action'} | interactions[action] | (set() if action == 'press' else {'target'})
-        optional = {'button', 'offset_x', 'offset_y'} if action == 'click' else {'target'} if action == 'press' else {'query', 'url'} if action == 'elements' else {'duration_ms'} if action == 'drag' else set()
-        reading = {'wait': ({'action'}, {'condition','query','url','timeout_ms'}), 'read_post': ({'action','url'}, {'offset','limit'}), 'comments': ({'action','url'}, {'cursor','limit'}), 'close_menu': ({'action'}, set()), 'screenshot': ({'action'}, set())}
-        if action in reading:
-            expected, optional = reading[action]
-        if action not in SCHEMA['input_schema']['properties']['action']['enum'] or not expected <= set(fields) or set(fields) - expected - optional:
-            return json.dumps({'error': 'invalid_request'})
+        contract = _ACTION_FIELDS.get(action)
+        if contract is None:
+            return json.dumps(_rejected_request(fields, "Unsupported action."))
+        required, optional = contract
+        if not ({"action"} | required) <= set(fields) or set(fields) - {"action"} - required - optional:
+            return json.dumps(_rejected_request(fields, "Missing or unexpected fields for this action."))
+        interactions = {"click", "hover", "fill", "press", "select", "check", "scroll_element", "drag"}
         if 'url' in fields and (not isinstance(fields['url'], str) or len(fields['url']) > 2048):
-            return json.dumps({'error': 'invalid_request'})
+            return json.dumps(_rejected_request(fields, 'url must be a string of at most 2048 characters.'))
         if action in interactions and 'target' in fields:
             import re
             if not isinstance(fields['target'], str) or re.fullmatch(r'r-[a-f0-9]{32}-\d{1,4}', fields['target']) is None:
-                return json.dumps({'error': 'invalid_request'})
+                return json.dumps(_rejected_request(fields, 'target must be the exact opaque elements.ref from the current page.'))
         for name, maximum in (('text', 16000), ('query', 200), ('value', 1024)):
             if name in fields and (not isinstance(fields[name], str) or len(fields[name]) > maximum):
-                return json.dumps({'error': 'invalid_request'})
+                return json.dumps(_rejected_request(fields, f"{name} must be a string of at most {maximum} characters."))
         if 'key' in fields and fields['key'] not in SCHEMA['input_schema']['properties']['key']['enum']:
-            return json.dumps({'error': 'invalid_request'})
+            return json.dumps(_rejected_request(fields, 'key must be one of the supported press keys in the tool schema.'))
         if 'checked' in fields and not isinstance(fields['checked'], bool):
-            return json.dumps({'error': 'invalid_request'})
+            return json.dumps(_rejected_request(fields, 'checked must be a boolean.'))
         if 'button' in fields and fields['button'] not in ('left', 'right', 'double'):
-            return json.dumps({'error': 'invalid_request'})
+            return json.dumps(_rejected_request(fields, 'button must be left, right or double.'))
         if 'direction' in fields and fields['direction'] not in ('up', 'down', 'left', 'right'):
-            return json.dumps({'error': 'invalid_request'})
+            return json.dumps(_rejected_request(fields, 'direction must be up, down, left or right.'))
         import math
         if action == 'drag':
             points = fields.get('points')
@@ -103,19 +156,19 @@ class DesktopBrowserPipe:
                 not isinstance(point, dict) or set(point) != {'x', 'y'} or any(
                     type(point[key]) not in (int, float) or not math.isfinite(point[key]) or not 0 <= point[key] <= 1
                     for key in ('x', 'y')) for point in points):
-                return json.dumps({'error': 'invalid_request'})
+                return json.dumps(_rejected_request(fields, "points must contain 2..128 x/y pairs, each a finite number between 0 and 1."))
         for name in ('offset_x', 'offset_y'):
             if name in fields and (type(fields[name]) not in (int, float) or not math.isfinite(fields[name]) or not 0 <= fields[name] <= 1):
-                return json.dumps({'error': 'invalid_request'})
+                return json.dumps(_rejected_request(fields, f"{name} must be a finite number between 0 and 1."))
         if action == 'press' and 'target' not in fields and fields.get('key') not in ('Escape','Tab','Shift+Tab'):
-            return json.dumps({'error':'invalid_request'})
+            return json.dumps(_rejected_request(fields, 'press requires target for this key.'))
         for key, minimum, maximum in (('duration_ms',100,3000),('timeout_ms',100,15000),('offset',0,1000000),('limit',1,20 if action=='comments' else 6000)):
             if key in fields and (type(fields[key]) is not int or not minimum <= fields[key] <= maximum):
-                return json.dumps({'error':'invalid_request'})
+                return json.dumps(_rejected_request(fields, f"{key} must be an integer between {minimum} and {maximum}."))
         if 'condition' in fields and fields['condition'] not in ('ready','post','menu','element','idle'):
-            return json.dumps({'error':'invalid_request'})
+            return json.dumps(_rejected_request(fields, 'condition must be ready, post, menu, element or idle.'))
         if 'cursor' in fields and (not isinstance(fields['cursor'],str) or not __import__('re').fullmatch(r'[a-f0-9-]{36}', fields['cursor'])):
-            return json.dumps({'error':'invalid_request'})
+            return json.dumps(_rejected_request(fields, 'cursor must be an unchanged cursor returned by comments.'))
         return self.request(fields,profile)
 
     def request(self,fields,profile=None,timeout=None):
@@ -133,7 +186,7 @@ class DesktopBrowserPipe:
                 return json.dumps({"error": "desktop_browser_timeout"})
             if self.closed or not self.allowed(profile):
                 return json.dumps({"error": "desktop_browser_access_denied"})
-            return json.dumps(result.get("value", {"error": "desktop_browser_unavailable"}), ensure_ascii=False)
+            return json.dumps(_browser_feedback(fields, result.get("value", {"error": "desktop_browser_unavailable"})), ensure_ascii=False)
         finally:
             with self.lock:
                 self.pending.pop(identity, None)

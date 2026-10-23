@@ -19,6 +19,8 @@ class DiagnosticSupportTest {
         assertTrue(draft.fileName.matches(Regex("igorek-diagnostics-[a-f0-9]{32}\\.json")))
         assertTrue(draft.subject.contains(draft.reportId))
         assertFalse(report.getValue("server").jsonObject.getValue("available").jsonPrimitive.boolean)
+        assertFalse(report.getValue("server").jsonObject.getValue("availability_checked").jsonPrimitive.boolean)
+        assertEquals("not_collected", report.getValue("server").jsonObject.getValue("status").jsonPrimitive.content)
     }
     @Test fun emptyOrMalformedHistoryDoesNotInventServerAvailability() {
         for (source in listOf("{}","[]","bad")) {

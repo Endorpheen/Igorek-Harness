@@ -22,7 +22,9 @@ internal fun notificationEventFailure(event: BridgeEvent, known: List<Notificati
     }
     if (!failure) return null
     val codec = Json { ignoreUnknownKeys = true }
-    val typed = event.payload["diagnostic"]?.let { runCatching { codec.decodeFromString<ErrorObservation>(it.toString()) }.getOrNull() }
+    val typed = (event.payload["diagnostic"] as? JsonObject)?.takeIf {
+        (it["code"] as? JsonPrimitive)?.contentOrNull in ErrorCatalog.codes
+    }?.let { runCatching { codec.decodeFromString<ErrorObservation>(it.toString()) }.getOrNull() }
     val task = event.taskId.orEmpty().ifBlank { value("task_id") }
     val session = event.sessionId.orEmpty()
     if (typed != null) return sanitizeDiagnostic(typed.copy(

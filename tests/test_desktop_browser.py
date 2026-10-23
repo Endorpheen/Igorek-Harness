@@ -66,7 +66,7 @@ def test_search_interactions_cross_the_same_private_pipe(fields):
     client=DesktopBrowserPipe(emit,lambda _:True)
     try:
         assert json.loads(client.call(fields))=={'performed':True}
-        assert json.loads(client.call(fields|{'target':'input[type=password]'}))=={'error':'invalid_request'}
+        assert json.loads(client.call(fields|{'target':'input[type=password]'}))['error']=='invalid_request'
     finally:
         client.close()
 
@@ -170,9 +170,9 @@ def test_drag_schema_pipe_and_trace_accept_only_bounded_element_paths():
                    [{'x': float('nan'), 'y': 0}, {'x': 1, 'y': 1}],
                    [{'x': 0, 'y': 0, 'extra': 1}, {'x': 1, 'y': 1}],
                    [{'x': 0, 'y': 0}, {'x': 2, 'y': 1}]]:
-        assert json.loads(client.call(fields | {'points': points})) == {'error': 'invalid_request'}
+        assert json.loads(client.call(fields | {'points': points}))['error'] == 'invalid_request'
     for duration in [0, 3001, True, 1.5, '500']:
-        assert json.loads(client.call(fields | {'duration_ms': duration})) == {'error': 'invalid_request'}
+        assert json.loads(client.call(fields | {'duration_ms': duration}))['error'] == 'invalid_request'
     assert len(sent) == 1
     trace = browser_tool_diagnostics(fields, '{"performed":true}')
     assert trace['action'] == 'drag'
