@@ -50,7 +50,8 @@ from .session_compaction import (
     archive_summary_history,
     read_compaction_guards,
 )
-from .tool_result_store import enforce_turn_budget, maybe_persist_tool_result
+from .tool_result_store import DEFAULT_TOOL_RESULT_STORE_CONFIG, enforce_turn_budget, maybe_persist_tool_result
+from .tool_result_access import ToolResultAccess
 from .trace_taxonomy import CcTraceEvent
 from .iteration_budget import IterationBudget
 from .tool_runtime_context import (
@@ -1594,6 +1595,10 @@ def execute_cc_backend_task(
         fallback=metadata_context_window_tokens,
         use_curl=is_openai_api,
     )
+    tool_result_access = ToolResultAccess.create(
+        workdir, artifact_workdir, task_id, current_session,
+        database=os.path.join(data_root, "database", "factory.db") if data_root else None,
+    )
     # Auto-scale output budget for reasoning models that consume output budget
     # with thinking tokens.  Default 4000 is inadequate for large-context models:
     # the model exhausts max_tokens on reasoning and has no room for tool calls.
@@ -2019,6 +2024,9 @@ def execute_cc_backend_task(
                     timeout_s=timeout_s,
                     task_id=task_id,
                     artifact_workdir=artifact_workdir,
+                    tool_result_access=tool_result_access,
+                    read_context_window_tokens=context_window_tokens,
+                    read_max_chars=max(512, DEFAULT_TOOL_RESULT_STORE_CONFIG.turn_budget_chars // (1 + len(pending_tool_calls))),
                     tool_use_id=forced_tool_id,
                     mcp_write_approval=consume_mcp_write_grant,
                     profile=profile,
@@ -2091,6 +2099,7 @@ def execute_cc_backend_task(
                     tool_name=forced_name,
                     tool_use_id=forced_tool_id,
                     workdir=artifact_workdir,
+                    access=tool_result_access,
                 )
                 session_budget.record_tool_result(
                     raw_content=str(forced_result_text),
@@ -2266,6 +2275,9 @@ def execute_cc_backend_task(
                                 tool_use_id=pending_tool_id,
                                 mcp_write_approval=consume_mcp_write_grant,
                                 artifact_workdir=artifact_workdir,
+                                tool_result_access=tool_result_access,
+                                read_context_window_tokens=context_window_tokens,
+                                read_max_chars=max(512, DEFAULT_TOOL_RESULT_STORE_CONFIG.turn_budget_chars // (1 + len(pending_tool_calls))),
                                 profile=profile,
                                 delegate_metadata=metadata,
                                 delegate_available_tools=anthropic_tools,
@@ -2313,6 +2325,7 @@ def execute_cc_backend_task(
                         tool_name=pending_name,
                         tool_use_id=pending_tool_id,
                         workdir=artifact_workdir,
+                        access=tool_result_access,
                     )
                     session_budget.record_tool_result(
                         raw_content=str(pending_result_text),
@@ -3428,6 +3441,9 @@ def execute_cc_backend_task(
                                 timeout_s=timeout_s,
                                 task_id=task_id,
                                 artifact_workdir=artifact_workdir,
+                                tool_result_access=tool_result_access,
+                                read_context_window_tokens=context_window_tokens,
+                                read_max_chars=max(512, DEFAULT_TOOL_RESULT_STORE_CONFIG.turn_budget_chars // max(1, len(tool_use_blocks))),
                                 tool_use_id=tool_use_id,
                                 mcp_write_approval=consume_mcp_write_grant,
                                 profile=profile,
@@ -3517,6 +3533,8 @@ def execute_cc_backend_task(
                     tool_name=tool_name,
                     tool_use_id=tool_use_id,
                     workdir=artifact_workdir,
+                    access=tool_result_access,
+                    already_bounded=effective_name == "Read",
                 )
                 session_budget.record_tool_result(
                     raw_content=raw_result_text,
@@ -3640,6 +3658,7 @@ def execute_cc_backend_task(
                         "type": "tool_result",
                         "tool_use_id": tool_use_id,
                         "tool_name": tool_name,
+                        "bounded": effective_name == "Read",
                         "content": result_text,
                     }
                 )
@@ -3649,7 +3668,7 @@ def execute_cc_backend_task(
                     if browser_image is not None:
                         tool_results.append(browser_image)
 
-            tool_results = enforce_turn_budget(tool_results, workdir=artifact_workdir)
+            tool_results = enforce_turn_budget(tool_results, workdir=artifact_workdir, access=tool_result_access)
 
             if schedule_confirmation:
                 log_fn("[cc-backend] Completed after create_schedule")
@@ -3673,6 +3692,7 @@ def execute_cc_backend_task(
 
             for item in tool_results:
                 item.pop("tool_name", None)
+                item.pop("bounded", None)
 
             if salvaged_from_text:
                 tool_results.append(

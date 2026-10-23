@@ -158,7 +158,9 @@ private fun compactReport(snapshot: String, version: String, language: AppLangua
         })
         put("truncated", input.size > details.size || omittedEventsForSize > 0 || groupRows.size > groups.size ||
             details.any { number(it["events_omitted"]) > 0 })
-        put("server", buildJsonObject { put("available", false) })
+        put("server", buildJsonObject {
+            put("available", false); put("availability_checked", false); put("status", "not_collected")
+        })
     })
     var encoded = encode()
     while (encoded.toByteArray(Charsets.UTF_8).size > maxBytes) {

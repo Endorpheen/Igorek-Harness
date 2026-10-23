@@ -16,7 +16,7 @@ APP_FILES = (
     'window-menu.cjs', 'window-chrome.js', 'window-chrome.css', 'diagnostics.html', 'diagnostics.js', 'diagnostics-preload.cjs',
     'owner-preload.cjs', 'owner-ui.js', 'onboarding-state.cjs', 'profile-cards.cjs', 'owner.html', 'owner.css',
     'browser.cjs', 'browser-preload.cjs', 'browser-ui.js', 'browser.html', 'browser.css',
-    'browser-interaction.cjs', 'browser-reading.cjs',
+    'browser-interaction.cjs', 'browser-reading.cjs', 'browser-posts.cjs',
     'notifications.cjs', 'notification-ui.js', 'error-catalog.json', 'error-diagnostics.js', 'diagnostic-support.js', 'diagnostic-support.cjs',
     'shortcuts.cjs', 'shortcuts-preload.cjs', 'shortcuts.html', 'shortcuts.css', 'shortcuts-ui.js',
     'github-reviews.cjs', 'github-controller.cjs', 'chatgpt-workspace.cjs', 'chatgpt-page-tools.cjs', 'chatgpt-permissions.cjs', 'workspace-browser.cjs', 'download-history.cjs',

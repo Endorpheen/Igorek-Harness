@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
 import os
+import sqlite3
 import re
 from pathlib import Path
-from .artifact_files import atomic_write_file
+from .artifact_files import atomic_write_file, open_regular_file
 
 
 PERSISTED_OUTPUT_TAG = "<persisted-output>"
@@ -19,9 +21,11 @@ class ToolResultStoreConfig:
     preview_tail_chars: int = 1_200
     turn_budget_chars: int = 40_000
 
-    def threshold_for_tool(self, tool_name: str) -> int:
+    def threshold_for_tool(self, tool_name: str) -> int | float:
         normalized = str(tool_name or "").strip()
-        if normalized in {"Bash", "Grep", "Read"}:
+        if normalized == "Read":
+            return float("inf")
+        if normalized in {"Bash", "Grep"}:
             return 8_000
         return self.default_threshold_chars
 
@@ -134,9 +138,17 @@ def _build_summary(
 
 
 def _persist_content(workdir: str, tool_use_id: str, content: str) -> str:
-    path = _persisted_output_path(workdir, tool_use_id)
-    atomic_write_file(path.absolute(), content.encode("utf-8", errors="replace"), mode=0o600, preserve_mode=False)
-    return str(path)
+    path = _persisted_output_path(workdir, tool_use_id).absolute()
+    data = content.encode("utf-8", errors="replace")
+    for candidate in (path, path.with_name(path.stem[:100] + "-" + hashlib.sha256(data).hexdigest()[:16] + ".txt")):
+        try:
+            with open_regular_file(candidate) as handle:
+                if os.fstat(handle.fileno()).st_size == len(data) and handle.read(len(data) + 1) == data:
+                    return str(candidate)
+        except FileNotFoundError:
+            atomic_write_file(candidate, data, mode=0o600, preserve_mode=False)
+            return str(candidate)
+    raise ValueError("A saved result identity was reused with different content")
 
 
 def maybe_persist_tool_result(
@@ -147,12 +159,27 @@ def maybe_persist_tool_result(
     workdir: str,
     config: ToolResultStoreConfig = DEFAULT_TOOL_RESULT_STORE_CONFIG,
     threshold: int | None = None,
+    access=None,
+    already_bounded: bool = False,
 ) -> str:
+    if already_bounded or str(tool_name).strip() == "Read":
+        return content
     effective_threshold = threshold if threshold is not None else config.threshold_for_tool(tool_name)
     if len(content) <= effective_threshold:
         return content
 
-    file_path = _persist_content(workdir, tool_use_id, content)
+    try:
+        storage = workdir
+        if access is not None:
+            if os.path.normcase(os.path.realpath(workdir)) != access.artifact_workdir:
+                raise ValueError("Result storage does not match the issuing runtime")
+            storage = access.artifact_workdir
+        file_path = _persist_content(storage, tool_use_id, content)
+        if access is not None:
+            access.register(file_path)
+    except (OSError, ValueError, sqlite3.Error):
+        return (content[:config.preview_head_chars] + "\n\n[Output truncated: the full result could not be saved for Read. "
+                "Do not assume the producing action failed or repeat it without checking its outcome.]\n\n" + content[-config.preview_tail_chars:])
     return _build_summary(content=content, tool_name=tool_name, file_path=file_path, config=config)
 
 
@@ -161,6 +188,7 @@ def enforce_turn_budget(
     *,
     workdir: str,
     config: ToolResultStoreConfig = DEFAULT_TOOL_RESULT_STORE_CONFIG,
+    access=None,
 ) -> list[dict[str, str]]:
     total = sum(len(str(item.get("content") or "")) for item in tool_results)
     if total <= config.turn_budget_chars:
@@ -169,7 +197,7 @@ def enforce_turn_budget(
     candidates = []
     for idx, item in enumerate(tool_results):
         content = str(item.get("content") or "")
-        if PERSISTED_OUTPUT_TAG in content:
+        if item.get("bounded") or item.get("tool_name") == "Read" or PERSISTED_OUTPUT_TAG in content:
             continue
         candidates.append((idx, len(content)))
 
@@ -186,6 +214,7 @@ def enforce_turn_budget(
             workdir=workdir,
             config=config,
             threshold=0,
+            access=access,
         )
         if replacement == original:
             continue

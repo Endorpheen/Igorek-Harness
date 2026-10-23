@@ -280,6 +280,9 @@ class WorkspaceManager:
                             cur.execute("SELECT status FROM tasks WHERE task_id = ?", (task_id,))
                             row = cur.fetchone()
 
+                        from .tool_result_access import has_retained_results
+                        if has_retained_results(item_path, self.db_path):
+                            continue
                         if not row or row[0] in ['ok', 'fail', 'dead_letter']:
                             print(f"[WorkspaceManager] Удаление старой папки: {item_path}")
                             shutil.rmtree(item_path)

@@ -1,0 +1,17 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Synthetic post with a quoted publication</title>
+<a data-testid="AppTabBar_Profile_Link" href="https://x.com/fixture">Profile</a>
+<article data-testid="tweet">
+  <div data-testid="User-Name">Fixture author</div>
+  <div data-testid="tweetText">The requested publication has its own body.</div>
+  <article data-testid="tweet">
+    <div data-testid="tweetText">Quoted text must not replace the parent post.</div>
+    <a href="https://x.com/quoted/status/222"><time datetime="2026-01-01T00:00:00Z">Quoted date</time></a>
+  </article>
+  <a id="own-permalink" href="https://x.com/fixture/status/111"><time datetime="2026-01-02T00:00:00Z">Publication date</time></a>
+</article>
+<article data-testid="tweet">
+  <div data-testid="tweetText">An unrelated reply.</div>
+  <a href="https://x.com/reply/status/333"><time datetime="2026-01-03T00:00:00Z">Reply date</time></a>
+</article>

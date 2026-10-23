@@ -105,9 +105,7 @@ _BLOCKED_DEVICE_PATHS = frozenset({
     "/dev/fd/2",
 })
 
-# Max characters returned by Read to protect context window
-_DEFAULT_MAX_READ_CHARS = 200_000
-_DEFAULT_MAX_UNBOUNDED_READ_CHARS = 50_000
+# User-selected broad read roots; workspace mode remains restricted.
 USER_READ_ROOTS = tuple(
     str(path)
     for path in (
@@ -469,77 +467,40 @@ def _is_blocked_device(filepath: str) -> bool:
     return False
 
 
-def _tool_read(data: dict[str, Any], workdir: str, filesystem_mode: str) -> str:
+def _tool_read(data: dict[str, Any], workdir: str, filesystem_mode: str,
+               *, tool_result_access=None, read_context_window_tokens=None, read_max_chars=None) -> str:
+    from .host_services import deny_control_path
+    from .read_paging import read_budget, read_text_page
+
     raw_path = data["file_path"]
     if _is_blocked_device(raw_path):
-        return (
-            f"Cannot read '{raw_path}': this is a device file that would "
-            "block or produce infinite output."
-        )
-    path = _validate_read_path(raw_path, workdir, filesystem_mode)
-    if not os.path.exists(path):
-        return f"File not found: {path}"
-    offset_raw = data.get("offset")
-    limit_raw = data.get("limit")
-    has_range = offset_raw is not None or limit_raw is not None
-    if has_range:
-        try:
-            offset = max(0, int(offset_raw or 0))
-        except Exception:
-            offset = 0
-        try:
-            limit = int(limit_raw) if limit_raw is not None else None
-        except Exception:
-            limit = None
+        return f"Cannot read '{raw_path}': this is a device file that would block or produce infinite output."
+    handle = None
+    try:
+        path = _validate_read_path(raw_path, workdir, filesystem_mode)
+    except ValueError:
+        candidate = os.path.abspath(os.path.join(workdir, raw_path))
+        deny_control_path(candidate)
+        if tool_result_access is not None:
+            handle = tool_result_access.open_issued(candidate)
+        if handle is None:
+            raise
+        path = candidate
     else:
-        offset, limit = 0, None
-    maximum = _DEFAULT_MAX_READ_CHARS if has_range else _DEFAULT_MAX_UNBOUNDED_READ_CHARS
-    with open_regular_file(path) as handle:
+        if not os.path.exists(path):
+            return f"File not found: {path}"
+        handle = open_regular_file(path)
+    with handle:
         guard = _readable_text_guard(path, handle.read(4096))
         if guard is not None:
             return guard
         handle.seek(0)
+        offset = max(0, int(data.get("offset") or 0))
+        limit = int(data["limit"]) if data.get("limit") is not None else None
+        cursor = data.get("cursor", 0)
         text = io.TextIOWrapper(handle, encoding="utf-8", errors="replace")
-        if not has_range:
-            content = text.read(maximum + 1)
-        else:
-            chunks, count, line_number = [], 0, 0
-            pending = ""
-            endings = ("\n", "\r", "\v", "\f", "\x1c", "\x1d", "\x1e", "\x85", "\u2028", "\u2029")
-            finished = limit is not None and limit <= 0
-            while not finished:
-                chunk = text.read(8192)
-                lines = (pending + chunk).splitlines(keepends=True)
-                pending = ""
-                if chunk and lines and not lines[-1].endswith(endings):
-                    pending = lines.pop()
-                if len(pending) > maximum:
-                    raise ValueError("Line exceeds the bounded Read limit")
-                for line in lines:
-                    if line_number >= offset:
-                        chunks.append(line)
-                        count += len(line)
-                    line_number += 1
-                    if count > maximum or (limit is not None and line_number >= offset + max(0, limit)):
-                        finished = True
-                        break
-                if not chunk:
-                    break
-            content = "".join(chunks)
-    if not has_range and len(content) > _DEFAULT_MAX_UNBOUNDED_READ_CHARS:
-        return (
-            f"Read produced {len(content):,} characters, which exceeds the "
-            f"unbounded read limit ({_DEFAULT_MAX_UNBOUNDED_READ_CHARS:,} chars). "
-            "Retry Read with offset/limit, or use Grep to narrow the relevant section."
-        )
-
-    if len(content) > _DEFAULT_MAX_READ_CHARS:
-        return (
-            f"Read produced {len(content):,} characters which exceeds "
-            f"the safety limit ({_DEFAULT_MAX_READ_CHARS:,} chars). "
-            "Use Grep to narrow the relevant section, or read a smaller range."
-        )
-    return content
+        return read_text_page(text, offset=offset, limit=limit, cursor=cursor,
+                              max_chars=read_budget(read_context_window_tokens, read_max_chars))
 
 
 def _tool_edit(
@@ -1083,9 +1044,10 @@ def _handle_write(args: dict[str, Any], **kwargs: Any) -> str:
 
 def _handle_read(args: dict[str, Any], **kwargs: Any) -> str:
     return _tool_read(
-        args,
-        workdir=kwargs["workdir"],
-        filesystem_mode=kwargs.get("filesystem_mode", "workspace"),
+        args, workdir=kwargs["workdir"], filesystem_mode=kwargs.get("filesystem_mode", "workspace"),
+        tool_result_access=kwargs.get("tool_result_access"),
+        read_context_window_tokens=kwargs.get("read_context_window_tokens"),
+        read_max_chars=kwargs.get("read_max_chars"),
     )
 
 
@@ -1338,7 +1300,7 @@ WRITE_SCHEMA: dict[str, Any] = {
 
 READ_SCHEMA: dict[str, Any] = {
     "name": "Read",
-    "description": "Reads a file from the local filesystem.",
+    "description": "Reads a bounded page of a file. Use offset/limit for lines (0-based), or cursor with offset to continue inside a long line. If a page is truncated, continue on the same file using the returned parameters; do not re-run the action that produced a saved result.",
     "input_schema": {
         "type": "object",
         "properties": {
@@ -1350,6 +1312,7 @@ READ_SCHEMA: dict[str, Any] = {
                 "type": "integer",
                 "description": "Line number to start reading from (0-indexed).",
             },
+            "cursor": {"type": "integer", "minimum": 0, "description": "Character position within the starting line; use the value returned by a truncated Read page."},
             "limit": {
                 "type": "integer",
                 "description": "Number of lines to read.",

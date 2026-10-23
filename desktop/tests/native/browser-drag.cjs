@@ -1,6 +1,8 @@
 const {app,BrowserWindow}=require('electron');
 const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const {BrowserInteraction}=require('../../browser-interaction.cjs');
+const {PAGE}=require('../../browser.cjs');
+const {BrowserReading}=require('../../browser-reading.cjs');
 const root=fs.mkdtempSync(path.join(os.tmpdir(),'igorek-browser-drag-'));
 const output=process.env.IGOREK_TEST_OUTPUT||path.join(root,'proof');fs.mkdirSync(output,{recursive:true});
 app.setPath('userData',path.join(root,'electron'));
@@ -34,6 +36,33 @@ async function run(){
   }
  }
  fs.writeFileSync(path.join(output,'canvas.png'),(await wc.capturePage()).toPNG());
+ await wc.loadFile(path.join(__dirname,'../fixtures/x-post-reading.html'));
+ const postPage=await wc.executeJavaScript(PAGE);
+ assert.deepEqual(postPage.posts.map(post=>post.id),['111','333']);
+ let navigations=0;
+ const browser={auth:'ready',pagePosts:[],view:{webContents:wc},sleep:pause,
+  evaluate:script=>wc.executeJavaScript(script),interaction:{snapshot:async()=>[]},
+  read:async()=>{const page=await wc.executeJavaScript(PAGE);browser.pagePosts=page.posts;return page;},
+  navigate:async()=>{navigations++;return browser.read();}};
+ const reader=new BrowserReading(browser),url='https://x.com/fixture/status/111';
+ const full=await reader.post({url,limit:12});
+ assert.equal(full.post.id,'111');assert.equal(full.post.text,'The requeste');
+ assert.equal(full.total_characters,'The requested publication has its own body.'.length);
+ const tail=await reader.post({url,offset:full.next_offset,limit:6000});
+ assert.equal(full.post.text+tail.post.text,'The requested publication has its own body.');
+ await wc.executeJavaScript(`document.querySelector('#own-permalink time').remove()`);
+ const withoutTime=await reader.post({url});
+ assert.equal(withoutTime.post.id,'111');assert.equal(withoutTime.post.text,'The requested publication has its own body.');
+ assert.equal(navigations,0);
+ await wc.executeJavaScript(`const quote=document.querySelector('article article');quote.outerHTML='<div role="link">'+quote.innerHTML+'</div>';`);
+ const linkedQuote=await reader.post({url});
+ assert.equal(linkedQuote.post.text,'The requested publication has its own body.');
+ await wc.executeJavaScript(`document.querySelector('[data-testid="tweetText"]').insertAdjacentHTML('beforeend','<a href="https://x.com/reference/status/444"> reference</a>')`);
+ const reference=await reader.post({url:'https://x.com/reference/status/444'});
+ assert.equal(reference.error,'post_not_found');
+ const missing=await reader.post({url:'https://x.com/quoted/status/222'});
+ assert.equal(missing.error,'post_not_found');assert.equal(missing.coverage,'visible_dom_only');
+ results.push({surface:'native DOM',scenario:'quoted-post-identity-and-missing-time',checks:10});
  fs.writeFileSync(path.join(output,'results.json'),JSON.stringify(results,null,2));
  console.log(JSON.stringify({status:'PASS',results,output}));window.destroy();
 }

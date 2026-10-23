@@ -28,3 +28,17 @@ test('Full post text is returned in continuous chunks and comment cursors are pa
  const next=await reader.comments({url,limit:1,cursor:result.cursor});assert.deepEqual(next.unclassified,['3']);
  wc.getURL=()=>url+'?changed=1';assert.equal((await reader.comments({url,cursor:next.cursor})).error,'stale_cursor');
 });
+test('A failed page read is preserved instead of being relabelled as a missing post',async()=>{
+ const error={error:'browser_closed'};
+ const reader=new BrowserReading({read:async()=>error,evaluate:async()=>assert.fail('a closed page was inspected')});
+ assert.deepEqual(await reader.post({url:'https://x.com/fixture/status/123'}),error);
+});
+test('A matching rendered post remains readable when the bounded feed index omitted it',async()=>{
+ const url='https://x.com/fixture/status/123',post={id:'123',url,text:'Rendered body',links:[],images:[]};
+ let navigations=0;
+ const browser={auth:'ready',pagePosts:[],read:async()=>({auth:'ready'}),evaluate:async()=>[post],
+  navigate:async()=>{navigations++;assert.fail('an identified post was unnecessarily reloaded');},interaction:{snapshot:async()=>[]}};
+ const result=await new BrowserReading(browser).post({url});
+ assert.equal(result.post.text,'Rendered body');assert.equal(result.post.id,'123');assert.equal(navigations,0);
+ assert.equal(result.coverage,'visible_dom_only');
+});
