@@ -1,5 +1,6 @@
 import hashlib
 import json
+import math
 import re
 from typing import Any, Callable
 
@@ -230,8 +231,18 @@ def validate_tool_input(tool: dict[str, Any], tool_input: dict[str, Any]) -> tup
             return False, f"field {key} must be string"
         if expected_type == "boolean" and not isinstance(value, bool):
             return False, f"field {key} must be boolean"
-        if expected_type == "number" and not isinstance(value, (int, float)):
+        if expected_type == "number" and (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or (isinstance(value, float) and not math.isfinite(value))
+        ):
             return False, f"field {key} must be number"
+        if expected_type == "integer" and (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or (isinstance(value, float) and not value.is_integer())
+        ):
+            return False, f"field {key} must be integer"
         if expected_type == "array" and not isinstance(value, list):
             return False, f"field {key} must be array"
         if expected_type == "object" and not isinstance(value, dict):
@@ -333,10 +344,30 @@ def normalize_tool_input(tool: dict[str, Any], tool_input: dict[str, Any]) -> di
         properties = schema.get("properties")
         if isinstance(properties, dict):
             for key, prop in properties.items():
-                if key in normalized or not isinstance(prop, dict):
+                if not isinstance(prop, dict):
                     continue
-                if "default" in prop:
+                if key not in normalized:
+                    if "default" not in prop:
+                        continue
                     normalized[key] = prop["default"]
+                expected_type = prop.get("type")
+                if expected_type not in ("number", "integer"):
+                    continue
+                value = normalized[key]
+                if isinstance(value, str):
+                    try:
+                        value = json.loads(value)
+                    except ValueError:
+                        continue
+                if isinstance(value, bool) or not isinstance(value, (int, float)):
+                    continue
+                if isinstance(value, float) and not math.isfinite(value):
+                    continue
+                if expected_type == "integer":
+                    if isinstance(value, float) and not value.is_integer():
+                        continue
+                    value = int(value)
+                normalized[key] = value
     return normalized
 
 
