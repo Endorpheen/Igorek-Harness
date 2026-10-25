@@ -2655,12 +2655,15 @@ async def _resolve_tool_turn(
                     str(last_tool_input.get("file_path", "")).strip()
                     == str(continuation_input.get("file_path", "")).strip()
                 )
-                same_offset = int(last_tool_input.get("offset", 1) or 1) == int(
-                    continuation_input.get("offset", 1) or 1
-                )
-                same_limit = int(last_tool_input.get("limit", 0) or 0) == int(
-                    continuation_input.get("limit", 0) or 0
-                )
+                try:
+                    same_offset = int(last_tool_input.get("offset", 1) or 1) == int(
+                        continuation_input.get("offset", 1) or 1
+                    )
+                    same_limit = int(last_tool_input.get("limit", 0) or 0) == int(
+                        continuation_input.get("limit", 0) or 0
+                    )
+                except (TypeError, ValueError, OverflowError):
+                    same_offset = same_limit = False
                 if same_file and same_offset and same_limit:
                     continuation_input = None
         if continuation_input is not None and "Read" in state.tool_map:

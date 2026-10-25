@@ -606,7 +606,7 @@ def _highlight_with_pygments(
     """
     if not code:
         return None
-    if len(code) > MAX_HIGHLIGHT_BYTES or code.count("\n") + 1 > MAX_HIGHLIGHT_LINES:
+    if len(code.encode("utf-8")) > MAX_HIGHLIGHT_BYTES or code.count("\n") + 1 > MAX_HIGHLIGHT_LINES:
         return None
     lex_name = find_syntax(lang)
     if lex_name is None:
@@ -641,9 +641,10 @@ def _pygments_token_to_style(tok: str) -> Style:
     themes; here we just mark bold/italic heuristically by token prefix.
     """
     s = Style()
-    s.bold = "Keyword" in tok or "Name.Class" in tok or "Name.Function" in tok
-    s.italic = "Comment" in tok or "Name.Variable" in tok
-    s.underline = "Name.Builtin" in tok
+    token_name = str(tok)
+    s.bold = "Keyword" in token_name or "Name.Class" in token_name or "Name.Function" in token_name
+    s.italic = "Comment" in token_name or "Name.Variable" in token_name
+    s.underline = "Name.Builtin" in token_name
     return s
 
 

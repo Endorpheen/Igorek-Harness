@@ -5713,3 +5713,39 @@ body.gh-review-mode #sidebar { display:none; }
 .host-service-logo svg,.host-service-control svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 
 .message-media-card{width:min(100%,560px);border:1px solid var(--line2);border-radius:12px;background:var(--panel2);padding:10px 12px;overflow:hidden}.message-media-header{display:flex;align-items:center;gap:9px;margin-bottom:8px;min-width:0}.message-media-logo{color:var(--mint);font-size:20px}.message-media-name{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}.message-media-size{font-family:var(--mono);font-size:10px;color:var(--muted);white-space:nowrap}.message-media-download{display:flex;align-items:center;justify-content:center;width:28px;height:28px;border:1px solid var(--line2);border-radius:8px;color:var(--mint);flex-shrink:0}.message-media-download svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.7}.message-media-player{display:block;width:100%;border-radius:8px}.message-media-player:is(video){max-height:360px;background:#080a0b}.message-media-card .side-note{font-size:11px;margin-top:6px}.message-attachments:has(.message-media-card){align-items:flex-start}
+
+.chart-card { width:100%; min-width:0; padding:20px; background:var(--panel); border:1px solid var(--line); border-radius:14px; margin:12px 0; color:var(--text); }
+.chart-title { margin:0 0 14px; font-size:15px; font-weight:600; overflow-wrap:anywhere; }
+.chart-desktop svg,.chart-mini-plot svg { display:block; width:100%; height:auto; }
+.chart-mobile { display:none; }
+.chart-legend { display:flex; flex-wrap:wrap; justify-content:center; gap:10px 22px; margin:8px 0 18px; color:var(--muted); font-size:12px; }
+.chart-legend-entry { display:flex; align-items:center; gap:7px; overflow-wrap:anywhere; }
+.chart-legend-entry i { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.chart-caption { color:var(--muted); font-size:12px; overflow-wrap:anywhere; line-height:1.6; }
+.chart-actions { display:flex; gap:14px; flex-wrap:wrap; margin-top:12px; }
+.chart-actions button,.chart-actions select,.chart-dialog>button { background:transparent; border:0; color:var(--muted); padding:6px 0; cursor:pointer; font-size:12px; }
+.chart-actions button:hover,.chart-data summary:hover { color:var(--lime); }
+.chart-data summary { cursor:pointer; color:var(--muted); font-size:12px; padding:5px 0; }
+.chart-data { overflow:auto; }
+.chart-data table { border-collapse:collapse; margin-top:10px; width:100%; font-size:12px; }
+.chart-data th,.chart-data td { text-align:left; padding:8px; border-bottom:1px solid var(--line); white-space:nowrap; }
+.chart-dialog { width:min(1000px,94vw); max-height:90vh; overflow:auto; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:16px; }
+.chart-dialog::backdrop { background:rgba(0,0,0,.7); }
+.chart-dialog [data-chart-expand] { display:none; }
+.chart-category { margin:0 0 22px; }
+.chart-category-name { font-size:14px; margin-bottom:12px; font-weight:500; overflow-wrap:anywhere; }
+.chart-value-row { display:flex; justify-content:space-between; gap:14px; font-size:12px; margin:9px 0 7px; }
+.chart-value-row>span:first-child { min-width:0; overflow-wrap:anywhere; }
+.chart-value { font-variant-numeric:tabular-nums; flex-shrink:0; }
+.chart-track { height:5px; border-radius:3px; background:var(--line); position:relative; }
+.chart-bar { position:absolute; height:100%; border-radius:3px; }
+@media(max-width:640px) { .chart-card { padding:16px; }.chart-desktop { display:none; }.chart-mobile { display:block; }.chart-legend { justify-content:flex-start; }.chart-actions button { min-height:44px; }.chart-value-row { font-size:13px; } }
+
+.chart-card { margin-left:38px; width:calc(100% - 38px); }
+.chart-dialog .chart-card { margin-left:0; width:100%; }
+@media(max-width:640px) { .chart-card { margin-left:0; width:100%; } }
+
+.chart-card { container-type:inline-size; }
+@container (max-width:560px) { .chart-desktop { display:none; } .chart-mobile { display:block; } .chart-legend { justify-content:flex-start; } }
+
+.chart-value { max-width:60%; overflow-wrap:anywhere; text-align:right; }

@@ -1,25 +1,15 @@
 {
-  "versionName": "0.1.123",
-  "versionCode": 124,
+  "versionName": "0.1.124",
+  "versionCode": 125,
   "changes": [
     {
       "ru": {
-        "title": "Корректное отображение таблиц",
-        "text": "Изменённые Excel-файлы обозначаются как таблицы без фиктивного подсчёта добавленных и удалённых строк."
+        "title": "Графики в ответах",
+        "text": "Графики сохраняются в чате: на телефоне сравнения показаны полосами с точными числами. Доступны исходные данные, CSV и разворачивание."
       },
       "en": {
-        "title": "Correct spreadsheet presentation",
-        "text": "Changed Excel files are identified as spreadsheets without misleading added and removed line counts."
-      }
-    },
-    {
-      "ru": {
-        "title": "Понятнее ошибки браузера",
-        "text": "Диагностика показывает подсказки об исправлении параметров отклонённых действий браузера."
-      },
-      "en": {
-        "title": "Clearer browser errors",
-        "text": "Diagnostics show parameter correction hints for rejected browser actions."
+        "title": "Inline charts",
+        "text": "Charts persist in chat. Mobile comparisons show bars with exact values, source data, CSV export and expanded viewing."
       }
     }
   ]

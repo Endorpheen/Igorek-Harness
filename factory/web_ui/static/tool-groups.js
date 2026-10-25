@@ -29,6 +29,7 @@
     };
     for (const item of items) {
       if (attached.has(item.id)) continue;
+      if (item.type === 'tool' && /(?:^|__|\.)render_chart$/.test(item.name || '')) { flush(); result.push(item); continue; }
       const eligible = item.type === 'tool' || technical(item) || (item.type === 'approval' && item.resolved && item.kind !== 'user_input');
       if (!eligible) { flush(); result.push(item); continue; }
       const owner = task(item);

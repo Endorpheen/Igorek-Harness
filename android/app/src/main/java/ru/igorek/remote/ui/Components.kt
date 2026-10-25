@@ -160,6 +160,7 @@ private fun approvalDecisionLabel(decision: String): String = when (decision.low
 
 @Composable
 fun ToolCallCard(item: TimelineItem.ToolCall, modifier: Modifier = Modifier) {
+    if (ru.igorek.remote.data.isChartTool(item.name)) { ChartCard(item, modifier); return }
     val failure = ru.igorek.remote.data.notificationFailureText(item)
     if (failure != null) {
         return
@@ -460,6 +461,10 @@ fun TimelineRow(
     onCancelMessage: (taskId: String, messageId: String) -> Unit = { _, _ -> },
     sessionId: String = "",
 ) {
+    if (item is TimelineItem.ToolCall && ru.igorek.remote.data.isChartTool(item.name)) {
+        ChartCard(item, modifier)
+        return
+    }
     val failure = ru.igorek.remote.data.notificationFailureText(item)
     if (failure != null) {
         return
