@@ -50,6 +50,7 @@ private fun JsonObject.uploadAttachments(): List<UploadAttachmentDto> = arr("att
 }
 
 private fun formatToolInput(name: String, input: JsonObject): String {
+    if (isChartTool(name)) return input.toString()
     val command = input.str("command")
     if (command.isNotEmpty()) return command
     val path = input.str("file_path")

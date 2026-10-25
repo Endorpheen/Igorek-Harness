@@ -955,6 +955,15 @@ class WebUiHttpTest(WebUiServerTestCase):
         self.assertEqual(status, 200)
         self.assertLess(page.index(b'src="/media-previews.js"'), page.index(b'src="/app.js"'))
 
+    def test_chart_renderer_is_served_with_the_application(self):
+        status, headers, data = self._request("GET", "/charts.js")
+        self.assertEqual(status, 200)
+        self.assertIn("text/javascript", headers.get("Content-Type", ""))
+        self.assertIn(b"IgorekCharts", data)
+        status, _, page = self._request("GET", "/")
+        self.assertEqual(status, 200)
+        self.assertLess(page.index(b"/charts.js"), page.index(b"/app.js"))
+
     def test_static_render_helper_is_served_locally(self):
         status, headers, data = self._request("GET", "/render.js")
 

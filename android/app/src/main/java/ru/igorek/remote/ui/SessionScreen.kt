@@ -927,7 +927,7 @@ fun SessionScreen(
                                 }
                             })
                         }
-                        items(timeline, key = { it.id }) { item ->
+                        items(ru.igorek.remote.data.projectCharts(timeline), key = { it.id }) { item ->
                             TimelineRow(
                                 item = item,
                                 sessionId = sessionId,

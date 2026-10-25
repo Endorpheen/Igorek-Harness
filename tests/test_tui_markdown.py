@@ -18,7 +18,9 @@ class MarkdownTest(unittest.TestCase):
 
     def test_render_code_block(self):
         lines = render_markdown_to_lines("```python\nprint(1)\n```", 40)
-        self.assertTrue(any("print(1)" in l for l in lines))
+        plain = [re.sub(r"\x1b\[[0-9;]*m", "", line) for line in lines]
+        self.assertTrue(any("print(1)" in line for line in plain))
+        self.assertIn("\x1b[4mprint\x1b[0m", "\n".join(lines))
 
     def test_render_code_block_has_color_without_box_drawing(self):
         lines = render_markdown_to_lines("```python\nx=1\n```", 40)

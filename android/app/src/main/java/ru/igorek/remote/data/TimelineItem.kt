@@ -57,6 +57,7 @@ sealed interface TimelineItem {
         val resultPreview: String = "",
         val durationMs: Long = 0,
         val storedPath: String? = null,
+        val chartVersions: List<String> = emptyList(),
     ) : TimelineItem
 
     data class ApprovalNotice(

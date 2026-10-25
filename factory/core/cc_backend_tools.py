@@ -2555,3 +2555,6 @@ def execute_tool(
         source_chat_id=source_chat_id,
         **kwargs,
     )
+
+# Register the declarative, read-only chart tool for all model providers.
+from . import chart_tool as _chart_tool  # noqa: F401,E402

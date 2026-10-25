@@ -34,7 +34,7 @@ TOOLSETS: dict[str, dict[str, Any]] = {
     },
     "session": {
         "description": "Search past conversation sessions",
-        "tools": ["SessionSearch", "memory_forget", "update_plan"],
+        "tools": ["SessionSearch", "memory_forget", "update_plan", "render_chart"],
     },
     "skills": {
         "description": "Discover, inspect, scan, and manage local skills",

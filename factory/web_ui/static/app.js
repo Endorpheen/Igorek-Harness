@@ -2760,7 +2760,7 @@ function timelineVariant(item) {
   return item.type;
 }
 const activityOpenStates = new Map();
-function activityItems(items) { return window.IgorekToolGroups ? window.IgorekToolGroups.project(items) : items; }
+function activityItems(items) { return window.IgorekToolGroups ? window.IgorekToolGroups.project(window.IgorekCharts ? window.IgorekCharts.project(items) : items) : items; }
 function renderTimelineNow() {
   window.IgorekSummary?.sync();
   const fragment = document.createDocumentFragment();
@@ -2818,7 +2818,7 @@ function renderTimelineNow() {
       nodes.push(node);
     }
   }
-  for (const id of timelineNodes.keys()) if (!retained.has(id)) timelineNodes.delete(id);
+  for (const id of timelineNodes.keys()) if (!retained.has(id)) { timelineNodes.get(id)?.node?.disposeChart?.(); timelineNodes.delete(id); }
   let cursor = ui.timeline.firstChild;
   for (const node of nodes) {
     if (node === cursor) cursor = cursor.nextSibling;
@@ -3270,6 +3270,10 @@ function renderActivityGroup(item, rerender, scope) {
 // rerender — where to redraw the card after collapsing/expanding:
 // a standard session timeline or agent history preview.
 function renderTool(item, rerender = renderTimeline) {
+  if (window.IgorekCharts?.isTool(item.name)) {
+    const card = window.IgorekCharts.render(item);
+    return registerTimelineUpdater(card, next => card.updateChart(next));
+  }
   const card = element("article", "tool-card" + (item.open ? " open" : ""));
   const head = element("button", "tool-head");
   head.type = "button";

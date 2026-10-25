@@ -81,6 +81,7 @@ _STATIC_TYPES = {
     "workspace-tabs.js": "text/javascript; charset=utf-8",
     "opencode-panel.js": "text/javascript; charset=utf-8",
     "tool-groups.js": "text/javascript; charset=utf-8",
+    "charts.js": "text/javascript; charset=utf-8",
     "activity.css": "text/css; charset=utf-8",
     "mcp-task.js": "text/javascript; charset=utf-8",
     "plugins.js": "text/javascript; charset=utf-8",
