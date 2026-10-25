@@ -122,15 +122,30 @@ class DesktopBrowserPipe:
         profile = context.get("profile")
         if self.closed or not self.allowed(profile):
             return json.dumps({"error": "desktop_browser_access_denied"})
-        if not isinstance(fields, dict) or not isinstance(fields.get("action"), str):
-            return json.dumps(_rejected_request(fields))
+        if not isinstance(fields, dict):
+            return json.dumps(_rejected_request(fields, "Request must be an object."))
+        if "action" not in fields:
+            return json.dumps(_rejected_request(fields, "Missing required field: action."))
+        if not isinstance(fields["action"], str):
+            return json.dumps(_rejected_request(fields, "action must be a string."))
         action = fields.get("action")
         contract = _ACTION_FIELDS.get(action)
         if contract is None:
-            return json.dumps(_rejected_request(fields, "Unsupported action."))
+            return json.dumps(_rejected_request(fields, "Unsupported action. Allowed actions: " + ", ".join(sorted(_ACTION_FIELDS)) + "."))
         required, optional = contract
-        if not ({"action"} | required) <= set(fields) or set(fields) - {"action"} - required - optional:
-            return json.dumps(_rejected_request(fields, "Missing or unexpected fields for this action."))
+        missing = ({"action"} | required) - set(fields)
+        unexpected = set(fields) - {"action"} - required - optional
+        if missing or unexpected:
+            details = []
+            if missing:
+                details.append(f"Missing required fields for {action}: {', '.join(sorted(missing))}.")
+            known = unexpected & set(SCHEMA["input_schema"]["properties"])
+            if known:
+                details.append(f"Unsupported fields for {action}: {', '.join(sorted(known))}.")
+            if unexpected - known:
+                details.append(f"{len(unexpected - known)} unrecognized field name(s) omitted from diagnostics.")
+            details.append(f"Allowed fields: {', '.join(sorted({'action'} | required | optional))}.")
+            return json.dumps(_rejected_request(fields, " ".join(details)))
         interactions = {"click", "hover", "fill", "press", "select", "check", "scroll_element", "drag"}
         if 'url' in fields and (not isinstance(fields['url'], str) or len(fields['url']) > 2048):
             return json.dumps(_rejected_request(fields, 'url must be a string of at most 2048 characters.'))
@@ -182,8 +197,17 @@ class DesktopBrowserPipe:
             self.pending[identity] = (done, result)
         try:
             self.emit({"type": self.channel + "_request", "id": identity, "fields": fields})
-            if not done.wait(self.timeout if timeout is None else min(self.timeout,timeout)):
-                return json.dumps({"error": "desktop_browser_timeout"})
+            wait_seconds = self.timeout if timeout is None else min(self.timeout, timeout)
+            if not done.wait(wait_seconds):
+                from .diagnostics import observation
+                action = fields.get("action") if fields.get("action") in _ACTION_FIELDS else "browser operation"
+                detail = (f"Desktop did not reply to {action} within {int(wait_seconds * 1000)} ms. "
+                          "The request was emitted, but completion is unknown. Check the current page before repeating input.")
+                diagnostic = observation("TOOL.EXECUTION_FAILED", component="tool", operation="execute",
+                    endpoint_role="runtime_to_tool", phase="desktop_reply", delivery="unknown",
+                    tool_name="desktop_browser", tool_action=action, reason_code="desktop_browser_timeout", reason_detail=detail)
+                diagnostic["outcome"] = "unknown"
+                return json.dumps({"error": "desktop_browser_timeout", "hint": detail, "diagnostic": diagnostic})
             if self.closed or not self.allowed(profile):
                 return json.dumps({"error": "desktop_browser_access_denied"})
             return json.dumps(_browser_feedback(fields, result.get("value", {"error": "desktop_browser_unavailable"})), ensure_ascii=False)

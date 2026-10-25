@@ -297,6 +297,11 @@ def _should_short_circuit_tool_result(state: AnthropicTurnState) -> tuple[bool, 
     if tool_use_count != 1:
         return False, ""
 
+    tool_result = strip_system_reminder(tool_result or "").strip()
+    if _looks_like_tool_error_payload(tool_result):
+        return False, ""
+    if tool_result.startswith("[tool_result"):
+        tool_result = "\n".join(tool_result.splitlines()[1:]).strip()
     if not tool_result.startswith("File created successfully at:"):
         return False, ""
 
@@ -1090,6 +1095,13 @@ def _build_edit_local_context(state: AnthropicTurnState, filename: str | None) -
         )
 
     target_name = Path(filename).name
+    base_dir = resolution_base_dir(
+        state.last_successful_read_file,
+        state.last_tool_file,
+        state.project_root,
+        state.current_shell_cwd,
+    )
+    target_path = resolve_local_path_if_valid(filename, base_dir=base_dir)
     latest_read_result = ""
     latest_tool_error = ""
 
@@ -1135,7 +1147,24 @@ def _build_edit_local_context(state: AnthropicTurnState, filename: str | None) -
                 if found:
                     break
 
-            if Path(matched_target).name != target_name:
+            history_base_dir = base_dir
+            if matched_target and not Path(matched_target).is_absolute():
+                history_request = state.req.model_copy(
+                    update={"messages": messages[:prev_idx + 1]}
+                )
+                history_cwd = _extract_last_shell_cwd(
+                    history_request, initial_cwd=state.project_root
+                ) or state.project_root
+                if history_cwd:
+                    history_base_dir = Path(history_cwd)
+            matched_path = resolve_local_path_if_valid(
+                matched_target, base_dir=history_base_dir
+            )
+            if target_path is None or matched_path is None:
+                continue
+            if os.path.normcase(os.path.normpath(str(matched_path))) != os.path.normcase(
+                os.path.normpath(str(target_path))
+            ):
                 continue
 
             if matched_tool == "Read" and not is_error and not latest_read_result:
@@ -3191,36 +3220,36 @@ async def lifespan(_: FastAPI):
         llama_autodetect_mmproj=LLAMA_AUTODETECT_MMPROJ,
         llama_server_command=LLAMA_SERVER_COMMAND,
     )
-    CONTEXT_COMPRESSOR = ContextCompressor(
-        model=MODEL_NAME or "unknown",
-        tokenizer=GENERATOR.tokenizer,
-        context_length=int(
-            os.environ.get("CONTEXT_COMPRESSION_CONTEXT_LENGTH", LLAMA_CTX_SIZE)
-        ),
-        summary_client=ContextCompressionClient(
-            generator=GENERATOR,
-            model_name=MODEL_NAME or "unknown",
-            config=build_context_compression_client_config(),
-        ),
-        config=ContextCompactorConfig(
-            enabled=os.environ.get("CONTEXT_COMPRESSION_ENABLED", "1") != "0",
-            threshold=float(os.environ.get("CONTEXT_COMPRESSION_THRESHOLD", "0.50")),
-            target_ratio=float(
-                os.environ.get("CONTEXT_COMPRESSION_TARGET_RATIO", "0.20")
-            ),
-            protect_first_n=int(
-                os.environ.get("CONTEXT_COMPRESSION_PROTECT_FIRST_N", "3")
-            ),
-            protect_last_n=int(
-                os.environ.get("CONTEXT_COMPRESSION_PROTECT_LAST_N", "20")
-            ),
-            summary_model=os.environ.get("CONTEXT_COMPRESSION_MODEL", "").strip()
-            or None,
-        ),
-        quiet_mode=not DEBUG_TRACE,
-    )
-    SERVER_READY = True
     try:
+        CONTEXT_COMPRESSOR = ContextCompressor(
+            model=MODEL_NAME or "unknown",
+            tokenizer=GENERATOR.tokenizer,
+            context_length=int(
+                os.environ.get("CONTEXT_COMPRESSION_CONTEXT_LENGTH", LLAMA_CTX_SIZE)
+            ),
+            summary_client=ContextCompressionClient(
+                generator=GENERATOR,
+                model_name=MODEL_NAME or "unknown",
+                config=build_context_compression_client_config(),
+            ),
+            config=ContextCompactorConfig(
+                enabled=os.environ.get("CONTEXT_COMPRESSION_ENABLED", "1") != "0",
+                threshold=float(os.environ.get("CONTEXT_COMPRESSION_THRESHOLD", "0.50")),
+                target_ratio=float(
+                    os.environ.get("CONTEXT_COMPRESSION_TARGET_RATIO", "0.20")
+                ),
+                protect_first_n=int(
+                    os.environ.get("CONTEXT_COMPRESSION_PROTECT_FIRST_N", "3")
+                ),
+                protect_last_n=int(
+                    os.environ.get("CONTEXT_COMPRESSION_PROTECT_LAST_N", "20")
+                ),
+                summary_model=os.environ.get("CONTEXT_COMPRESSION_MODEL", "").strip()
+                or None,
+            ),
+            quiet_mode=not DEBUG_TRACE,
+        )
+        SERVER_READY = True
         yield
     finally:
         SERVER_READY = False
@@ -3331,7 +3360,8 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
         error_type="api_error",
     )
     return JSONResponse(
-        status_code=500, content=_with_request_id(payload, _request_id(request), 500)
+        status_code=500, content=_with_request_id(payload, _request_id(request), 500),
+        headers={"x-request-id": _request_id(request)},
     )
 
 
@@ -4000,16 +4030,20 @@ async def _handle_tool_turn(
     state: AnthropicTurnState,
     decision: ToolTurnDecision,
 ) -> dict[str, Any] | StreamingResponse:
-    # If planner returned Write without content, generate content now
     tool_use = decision.tool_use
     tool_name = str(tool_use.get("name", ""))
     tool_input = tool_use.get("input", {})
+    tool = state.tool_map.get(tool_name)
+    input_is_valid = False
+    if isinstance(tool, dict) and isinstance(tool_input, dict):
+        input_is_valid, _ = validate_tool_input(tool, tool_input)
+    # Complete invalid file arguments; valid empty strings are intentional values.
     if (
         tool_name in {"Write", "Edit", "Update", "MultiEdit"}
         and isinstance(tool_input, dict)
-        and tool_input.get("file_path")
-        and not tool_input.get("content")
-        and not tool_input.get("new_string")
+        and isinstance(tool_input.get("file_path"), str)
+        and tool_input["file_path"].strip()
+        and not input_is_valid
     ):
         filename = tool_input.get("file_path") or state.active_filename
         _trace_event(
@@ -4058,6 +4092,20 @@ async def _handle_tool_turn(
                         source=decision.source,
                         preamble=decision.preamble,
                     )
+    from factory.core.diagnostics import safe_text
+    tool_input = decision.tool_use.get("input")
+    if not isinstance(tool, dict) or not isinstance(tool_input, dict):
+        raise HTTPException(status_code=502, detail="Tool input must match an advertised object schema")
+    input_is_valid, input_reason = validate_tool_input(tool, tool_input)
+    if not input_is_valid:
+        reason = safe_text(input_reason)
+        _trace_event(request, "invalid_tool_input_rejected", tool=tool_name, reason=reason)
+        raise HTTPException(status_code=502, detail=f"Invalid generated tool input: {reason}")
+    policy_ok, policy_reason = _validate_tool_policy(state, tool_name, tool_input)
+    if not policy_ok:
+        reason = safe_text(policy_reason)
+        _trace_event(request, "tool_policy_rejected", tool=tool_name, reason=reason)
+        raise HTTPException(status_code=403, detail=f"Tool use rejected by policy: {reason}")
     input_tokens = _count_prompt_tokens(state.normalized.prompt)
     if not decision.preamble:
         decision.preamble = await _generate_tool_preamble(state, decision.tool_use)
@@ -4142,6 +4190,7 @@ async def _handle_text_turn(
             req=state.req,
             mode=state.normalized.mode,
             output_text="",
+            stop_reason="end_turn",
             policy_denial=state.policy_denial,
         )
         _trace_event(
@@ -4178,6 +4227,7 @@ async def _handle_text_turn(
             req=state.req,
             mode=state.normalized.mode,
             output_text=execute_command_output,
+            stop_reason="end_turn",
             policy_denial=state.policy_denial,
         )
         _trace_event(
@@ -4209,6 +4259,7 @@ async def _handle_text_turn(
             req=state.req,
             mode=state.normalized.mode,
             output_text=output_text,
+            stop_reason="end_turn",
         )
         _trace_event(
             request, "text_turn_response", summary=_summarize_response_payload(response)
@@ -4241,6 +4292,7 @@ async def _handle_text_turn(
             req=state.req,
             mode=state.normalized.mode,
             output_text=output_text,
+            stop_reason="end_turn",
         )
         _trace_event(
             request, "text_turn_response", summary=_summarize_response_payload(response)
@@ -4278,6 +4330,7 @@ async def _handle_text_turn(
             req=state.req,
             mode=state.normalized.mode,
             output_text=output_text,
+            stop_reason="end_turn",
         )
         _trace_event(
             request, "text_turn_response", summary=_summarize_response_payload(response)
@@ -4322,6 +4375,7 @@ async def _handle_text_turn(
                 req=state.req,
                 mode=state.normalized.mode,
                 output_text=output_text,
+                stop_reason="end_turn",
             )
             _trace_event(
                 request,
@@ -4357,6 +4411,7 @@ async def _handle_text_turn(
             req=state.req,
             mode=state.normalized.mode,
             output_text=output_text,
+            stop_reason="end_turn",
             policy_denial=state.policy_denial,
         )
         _trace_event(
@@ -4625,11 +4680,13 @@ async def anthropic_messages(
     try:
         return await _handle_text_turn(request, state)
     except Exception as exc:
+        from factory.core.diagnostics import safe_text
+        error_text = safe_text(exc)
         _trace_event(
-            request, "text_turn_error", error=str(exc), error_type=type(exc).__name__
+            request, "text_turn_error", error=error_text, error_type=type(exc).__name__
         )
         raise HTTPException(
-            status_code=502, detail=f"Generation failed: {exc}"
+            status_code=502, detail=f"Generation failed: {error_text}"
         ) from exc
 
 

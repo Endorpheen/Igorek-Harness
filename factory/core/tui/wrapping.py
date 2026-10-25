@@ -193,7 +193,7 @@ def is_ordered_list_marker(raw_token: str, token: str) -> bool:
     """Port of ``codex::wrapping::is_ordered_list_marker``."""
     return (
         bool(token)
-        and all(c.is_ascii_digit() for c in token)
+        and all(c.isascii() and c.isdigit() for c in token)
         and (raw_token.endswith(".") or raw_token.endswith(")"))
     )
 
@@ -229,7 +229,7 @@ def has_valid_scheme_prefix(token: str) -> bool:
     scheme, _, rest = token.partition("://")
     if not scheme or not rest:
         return False
-    if not scheme[0].is_ascii_alphabetic():
+    if not (scheme[0].isascii() and scheme[0].isalpha()):
         return False
     return all(c.isalnum() or c in "+-." for c in scheme[1:])
 
@@ -377,7 +377,7 @@ def word_wrap_line(line: Line, width_or_options: Union[int, RtOptions]) -> List[
     flat = _line_to_text(line)
     rt_opts = _options_from(width_or_options)
     initial_width = max(1, rt_opts.width - _display_width(rt_opts.initial_indent))
-    initial_wrapped = wrap_ranges_trim(flat, rt_opts.with_width(initial_width))
+    initial_wrapped = wrap_ranges_trim(flat, rt_opts.with_width(initial_width).with_initial_indent("").with_subsequent_indent(""))
     if not initial_wrapped:
         return [rt_opts.initial_indent]
     first_range = initial_wrapped[0]
@@ -389,7 +389,7 @@ def word_wrap_line(line: Line, width_or_options: Union[int, RtOptions]) -> List[
         skip_leading += 1
     base = base + skip_leading
     subsequent_width = max(1, rt_opts.width - _display_width(rt_opts.subsequent_indent))
-    remaining = wrap_ranges_trim(flat[base:], rt_opts.with_width(subsequent_width))
+    remaining = wrap_ranges_trim(flat[base:], rt_opts.with_width(subsequent_width).with_initial_indent("").with_subsequent_indent(""))
     for r in remaining:
         if not r[0] and not r[1]:
             continue
@@ -402,7 +402,7 @@ def word_wrap_lines(lines: Iterable[Line], width_or_options: Union[int, RtOption
     base_opts = _options_from(width_or_options)
     out: List[str] = []
     for idx, line in enumerate(lines):
-        opts = base_opts if idx == 0 else base_opts.initial_indent(base_opts.subsequent_indent)
+        opts = base_opts if idx == 0 else base_opts.with_initial_indent(base_opts.subsequent_indent)
         wrapped = word_wrap_line(line, opts)
         out.extend(wrapped)
     return out
@@ -437,15 +437,11 @@ def mixed_url_wrap_line(line: Line, rt_opts: RtOptions) -> List[str]:
 
 def mixed_url_wrap_ranges(text: str, initial_width: int, subsequent_width: int) -> List[Tuple[int, int]]:
     """Port of ``codex::wrapping::mixed_url_wrap_ranges``."""
-    leading_space_width = sum(1 for ch in text if ch == " ")
+    leading_space_width = len(text) - len(text.lstrip(" "))
     words: List[MixedUrlWord] = []
-    cursor = 0
-    for token in text.split():
-        word_start = cursor
-        word_end = word_start + len(token)
-        if token:
-            words.append(MixedUrlWord(range=(word_start, word_end), is_url=is_url_like_token(token)))
-        cursor = word_end + 1
+    for match in re.finditer(r"\S+", text):
+        token = match.group()
+        words.append(MixedUrlWord(range=match.span(), is_url=is_url_like_token(token)))
     lines: List[Tuple[int, int]] = []
     line_start: Optional[int] = None
     line_end = 0
@@ -523,7 +519,10 @@ def wrap_ranges(text: str, width_or_options: Union[int, RtOptions]) -> List[Tupl
     subsequent_indent = rt_opts.subsequent_indent
     indent_width = _display_width(initial_indent or subsequent_indent)
     inner_width = max(1, rt_opts.width - indent_width)
-    wrapped = _stdlib_textwrap.wrap(text, width=inner_width, break_long_words=rt_opts.break_words)
+    wrapped = _stdlib_textwrap.wrap(
+        text, width=inner_width, break_long_words=rt_opts.break_words,
+        break_on_hyphens=rt_opts.word_splitter != WordSplitterKind.NO_HYPHENATION.value,
+    )
     out: List[Tuple[int, int]] = []
     cursor = 0
     for line_idx, piece in enumerate(wrapped):
@@ -532,7 +531,7 @@ def wrap_ranges(text: str, width_or_options: Union[int, RtOptions]) -> List[Tupl
         trailing = 0
         while end + trailing < len(text) and text[end + trailing] == " ":
             trailing += 1
-        out.append((start, end + trailing + 1))
+        out.append((start, end + trailing))
         cursor = end + trailing
     return out
 
@@ -544,7 +543,10 @@ def wrap_ranges_trim(text: str, width_or_options: Union[int, RtOptions]) -> List
     subsequent_indent = rt_opts.subsequent_indent
     indent_width = _display_width(initial_indent or subsequent_indent)
     inner_width = max(1, rt_opts.width - indent_width)
-    wrapped = _stdlib_textwrap.wrap(text, width=inner_width, break_long_words=rt_opts.break_words)
+    wrapped = _stdlib_textwrap.wrap(
+        text, width=inner_width, break_long_words=rt_opts.break_words,
+        break_on_hyphens=rt_opts.word_splitter != WordSplitterKind.NO_HYPHENATION.value,
+    )
     out: List[Tuple[int, int]] = []
     cursor = 0
     for line_idx, piece in enumerate(wrapped):

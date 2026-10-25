@@ -5,6 +5,13 @@ import re
 from typing import Any
 
 
+_TOKEN_COUNT_FIELDS = frozenset({
+    "input_tokens", "cached_input_tokens", "output_tokens", "reasoning_output_tokens",
+    "total_tokens", "cache_creation_input_tokens", "cache_read_input_tokens",
+    "prompt_tokens", "completion_tokens", "max_tokens", "num_tokens",
+})
+
+
 SECRET_PATTERNS = [
     re.compile(
         r"(?i)(?<![A-Za-z0-9_])(api[_-]?key|token|secret|password)"
@@ -51,7 +58,9 @@ def redact_value(value: Any) -> Any:
 def redact_mapping(payload: dict[str, Any]) -> dict[str, Any]:
     redacted: dict[str, Any] = {}
     for key, value in payload.items():
-        if any(token in key.lower() for token in ("key", "token", "secret", "password")):
+        if key.lower() in _TOKEN_COUNT_FIELDS and type(value) is int and value >= 0:
+            redacted[key] = value
+        elif any(token in key.lower() for token in ("key", "token", "secret", "password")):
             redacted[key] = "[REDACTED]"
         else:
             redacted[key] = redact_value(value)

@@ -109,6 +109,11 @@ class WorkspaceCleaner:
                 # Deletes task events
                 cur.execute("DELETE FROM events WHERE task_id = ?", (task_id,))
 
+                cur.execute(
+                    "DELETE FROM events WHERE task_id IN "
+                    "(SELECT task_id FROM tasks WHERE parent_id = ?)", (task_id,)
+                )
+
                 # Deletes subtasks
                 cur.execute("DELETE FROM tasks WHERE parent_id = ?", (task_id,))
 
@@ -304,8 +309,9 @@ def main():
             dry_run=args.dry_run,
             status_filter=args.status
         )
-        # Also cleaning orphaned folders
-        cleaner.cleanup_orphaned_workspaces()
+        # A preview must not mutate orphaned workspaces either.
+        if not args.dry_run:
+            cleaner.cleanup_orphaned_workspaces()
 
     elif args.command == 'delete':
         success = cleaner.delete_task(

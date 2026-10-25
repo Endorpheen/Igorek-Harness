@@ -53,10 +53,14 @@ igorek-sudo = "factory.core.sudo_broker:main"
 
 [dependency-groups]
 dev = [
+    "fastapi>=0.161.1",
+    "httpx2>=2.16.0",
     "pytest",
     "pytest-cov>=6,<8",
     "pytest-timeout>=2,<3",
+    "requests>=2.34.2",
     "ruff>=0.14,<1",
     "tree-sitter==0.26.0",
     "tree-sitter-language-pack==1.22.1",
+    "uvicorn>=0.54.0",
 ]

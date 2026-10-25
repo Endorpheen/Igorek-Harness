@@ -789,6 +789,8 @@ def _make_idle_completer():
     class SlashCompleter(Completer):
         def get_completions(self, document, complete_event):
             text = document.text_before_cursor
+            if "\n" in text or "\r" in text:
+                return
             if text.startswith("@"):
                 first_line = text.splitlines()[0] if text else ""
                 after_at = first_line[1:] if first_line.startswith("@") and len(first_line) > 1 else ""
@@ -1069,7 +1071,9 @@ def _fetch_latest_from_pypi() -> str:
     data = _http_get_json(_PYPI_URL)
     if not data:
         return ""
-    info = data.get("info") or {}
+    info = data.get("info")
+    if not isinstance(info, dict):
+        return ""
     return str(info.get("version") or "").strip()
 
 
@@ -1092,8 +1096,8 @@ def _update_cache_path() -> Path:
 
 
 def _read_update_cache(ttl: float) -> tuple[bool, str, str] | None:
-    path = _update_cache_path()
     try:
+        path = _update_cache_path()
         if not path.is_file():
             return None
         stat = path.stat()
@@ -1101,6 +1105,8 @@ def _read_update_cache(ttl: float) -> tuple[bool, str, str] | None:
             return None
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
+        return None
+    if not isinstance(payload, dict):
         return None
     latest = str(payload.get("latest") or "")
     if not latest:
@@ -1111,8 +1117,8 @@ def _read_update_cache(ttl: float) -> tuple[bool, str, str] | None:
 
 
 def _write_update_cache(available: bool, latest: str, command: str) -> None:
-    path = _update_cache_path()
     try:
+        path = _update_cache_path()
         path.write_text(
             json.dumps(
                 {"available": available, "latest": latest, "command": command,

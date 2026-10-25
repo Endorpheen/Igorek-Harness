@@ -113,10 +113,10 @@ def _color_to_ansi(color: TuiColor, is_bg: bool) -> str:
     if color is None or color.tag == "reset":
         return f"\x1b[{base + 9}m"
     if color.tag == "rgb":
-        prefix = base + 10
+        prefix = base + 8
         return f"\x1b[{prefix};2;{color.r};{color.g};{color.b}m"
     if color.tag == "indexed":
-        prefix = base + 10
+        prefix = base + 8
         return f"\x1b[{prefix};5;{color.index}m"
     named = {
         "black": 0, "red": 1, "green": 2, "yellow": 3,
@@ -124,7 +124,9 @@ def _color_to_ansi(color: TuiColor, is_bg: bool) -> str:
         "dark_gray": 8, "light_red": 9, "light_green": 10, "light_yellow": 11,
         "light_blue": 12, "light_magenta": 13, "light_cyan": 14, "white": 15,
     }
-    return f"\x1b[{base + named.get(color.tag, 9)}m"
+    index = named.get(color.tag)
+    code = base + 9 if index is None else (base + index if index < 8 else base + 60 + index - 8)
+    return f"\x1b[{code}m"
 
 
 # ---------------------------------------------------------------------------
@@ -224,7 +226,7 @@ def write_history_line(
     _set_fg_bg(writer, TuiColor.reset(), TuiColor.reset())
     _clear_until_newline(writer)
     decorated = decorate_spans(line)
-    writer.write(decorated.encode("utf-8", errors="replace") if isinstance(decorated, str) else decorated)
+    writer.write("".join(decorated).encode("utf-8", errors="replace"))
 
 
 # ---------------------------------------------------------------------------
@@ -359,7 +361,7 @@ def insert_history_hyperlink_lines_with_mode_and_wrap_policy(
                 RtOptions(wrap_width).with_subsequent_indent(leading_whitespace_prefix(line.line)),
             )
             wrapped_static = [line_to_static(l) for l in wrapped_raw]
-            line_wrapped = [remap_wrapped_line(line, wrapped_static)]
+            line_wrapped = remap_wrapped_line(line, wrapped_static)
         wrapped_rows += sum(
             max(1, (wrapped_line.width() + wrap_width - 1) // wrap_width)
             for wrapped_line in line_wrapped

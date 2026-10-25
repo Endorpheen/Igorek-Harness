@@ -31,7 +31,7 @@ def extract_project_root(req: Any) -> str | None:
         system_text = ""
     if system_text:
         cwd_match = re.search(
-            r"Primary working directory:\s*(?P<path>/[^\s\n]+)",
+            r"Primary working directory:[ \t]*(?P<path>/[^\r\n]+)",
             system_text,
         )
         if cwd_match:
@@ -120,6 +120,8 @@ def resolution_base_dir(
         p = Path(candidate).expanduser()
         if not p.is_absolute():
             continue
+        if p.is_dir():
+            return p
         return p.parent if p.is_file() or p.suffix else p
     return None
 

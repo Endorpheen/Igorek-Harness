@@ -53,6 +53,7 @@ from .session_compaction import (
 from .tool_result_store import DEFAULT_TOOL_RESULT_STORE_CONFIG, enforce_turn_budget, maybe_persist_tool_result
 from .tool_result_access import ToolResultAccess
 from .trace_taxonomy import CcTraceEvent
+from .diagnostics import safe_text, observation
 from .iteration_budget import IterationBudget
 from .tool_runtime_context import (
     set_runtime_context,
@@ -755,12 +756,21 @@ def _auto_scale_max_tokens(max_tokens: int, context_window_tokens: int) -> int:
 
 
 def _positive_int(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
     if isinstance(value, int) and value > 0:
         return value
     if isinstance(value, float) and value > 0:
-        return int(value)
+        try:
+            parsed = int(value)
+        except (ValueError, OverflowError):
+            return None
+        return parsed if parsed > 0 else None
     if isinstance(value, str) and value.strip().isdigit():
-        parsed = int(value.strip())
+        try:
+            parsed = int(value.strip())
+        except ValueError:
+            return None
         return parsed if parsed > 0 else None
     return None
 
@@ -934,6 +944,28 @@ def _is_prompt_too_long_error(error_text: str) -> bool:
     )
 
 
+def _terminal_response_text_and_usage(body: Any) -> tuple[str, dict[str, int]]:
+    if not isinstance(body, dict):
+        return "", {}
+    raw_usage = body.get("usage")
+    usage = {}
+    if isinstance(raw_usage, dict):
+        for key in ("input_tokens", "output_tokens"):
+            value = raw_usage.get(key)
+            if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+                usage[key] = value
+    content = body.get("content")
+    if not isinstance(content, list):
+        return "", usage
+    parts = []
+    for block in content:
+        if isinstance(block, dict) and block.get("type") == "text":
+            text = block.get("text")
+            if isinstance(text, str) and text.strip():
+                parts.append(text.strip())
+    return "\n".join(parts), usage
+
+
 def _make_terminal_fal_response_call(
     *,
     url: str,
@@ -970,18 +1002,10 @@ def _make_terminal_fal_response_call(
     )
     body, _lat_ms = _http_post(url, payload, headers, timeout_s)
     if isinstance(body, dict) and body.get("error"):
-        log_fn(f"[cc-backend] Terminal FAL response call failed: {body['error']}")
+        log_fn(f"[cc-backend] Terminal FAL response call failed: {safe_text(body['error'])}")
         return fallback_text, 0, 0
 
-    usage = body.get("usage", {}) if isinstance(body, dict) else {}
-    text_parts: list[str] = []
-    content_blocks = body.get("content", []) if isinstance(body, dict) else []
-    for block in content_blocks:
-        if isinstance(block, dict) and block.get("type") == "text":
-            text = str(block.get("text") or "").strip()
-            if text:
-                text_parts.append(text)
-    output_text = "\n".join(text_parts).strip()
+    output_text, usage = _terminal_response_text_and_usage(body)
     if not output_text or _looks_like_tool_artifact(output_text):
         return (
             fallback_text,
@@ -1029,18 +1053,10 @@ def _make_forced_write_postamble(
     )
     body, _lat_ms = _http_post(url, payload, headers, timeout_s)
     if isinstance(body, dict) and body.get("error"):
-        log_fn(f"[cc-backend] Forced Write postamble failed: {body['error']}")
+        log_fn(f"[cc-backend] Forced Write postamble failed: {safe_text(body['error'])}")
         return f"Файл сохранён: {file_path}", 0, 0
 
-    usage = body.get("usage", {}) if isinstance(body, dict) else {}
-    text_parts: list[str] = []
-    content_blocks = body.get("content", []) if isinstance(body, dict) else []
-    for block in content_blocks:
-        if isinstance(block, dict) and block.get("type") == "text":
-            t = str(block.get("text") or "").strip()
-            if t:
-                text_parts.append(t)
-    output_text = "\n".join(text_parts).strip()
+    output_text, usage = _terminal_response_text_and_usage(body)
     if not output_text or _looks_like_tool_artifact(output_text):
         return f"Файл сохранён: {file_path}", usage.get("input_tokens", 0), usage.get("output_tokens", 0)
     return output_text, usage.get("input_tokens", 0), usage.get("output_tokens", 0)
@@ -1101,26 +1117,34 @@ def _make_synthesis_call(
         body = _openai_response_to_anthropic(body, set())
 
     if isinstance(body, dict) and body.get("error"):
-        log_fn(f"[cc-backend] Synthesis call failed: {body['error']}")
+        log_fn(f"[cc-backend] Synthesis call failed: {safe_text(body['error'])}")
         return {
             "status": "fail",
-            "output_text": body["error"],
+            "output_text": safe_text(body["error"]),
             "usage": _usage(total_input_tokens, total_output_tokens, start_time),
             "tool_calls_count": tool_calls_count,
         }
 
-    usage = body.get("usage", {})
+    output_text, usage = _terminal_response_text_and_usage(body)
     total_input_tokens += usage.get("input_tokens", 0)
     total_output_tokens += usage.get("output_tokens", 0)
-
-    text_parts: list[str] = []
-    for block in body.get("content", []):
-        if isinstance(block, dict) and block.get("type") == "text":
-            t = block.get("text", "")
-            if t.strip():
-                text_parts.append(t.strip())
-
-    output_text = "\n".join(text_parts) if text_parts else ""
+    if not isinstance(body, dict) or not isinstance(body.get("content"), list):
+        diagnostic = observation(
+            "PROTOCOL.INVALID_RESPONSE", component="model", operation="model_round",
+            endpoint_role="runtime_to_provider", phase="response_body",
+        )
+        append_cc_backend_trace(workdir, {
+            "kind": CcTraceEvent.TASK_FINISH, "status": "fail",
+            "reason": "synthesis_invalid_response", "diagnostic": diagnostic,
+        })
+        return {
+            "status": "fail", "failure_reason": "synthesis_invalid_response",
+            "failure_details": "Provider returned a malformed synthesis response.",
+            "error_code": "PROTOCOL.INVALID_RESPONSE", "diagnostic": diagnostic,
+            "output_text": "Провайдер вернул некорректный ответ при подготовке итога.",
+            "usage": _usage(total_input_tokens, total_output_tokens, start_time),
+            "tool_calls_count": tool_calls_count,
+        }
     if not output_text.strip():
         append_cc_backend_trace(
             workdir,
@@ -4312,13 +4336,21 @@ def _http_post_streaming_openai(
     last_finish_reason = ""
     sse_event_count = 0
     got_done = False
+    stream_failure: dict | None = None
+
+    def _sse_data(lines: list[str]) -> str:
+        values = []
+        for line in lines:
+            if line.startswith("data:"):
+                value = line[5:]
+                values.append(value[1:] if value.startswith(" ") else value)
+        return "\n".join(values)
 
     def _process_sse_event(event_data: str):
         """Process a single SSE data payload."""
-        nonlocal model_name, usage_info, last_finish_reason
-        if not event_data or event_data.strip() == "[DONE]":
+        nonlocal model_name, usage_info, last_finish_reason, got_done, stream_failure
+        if not event_data:
             return
-        nonlocal got_done
         if event_data.strip() == "[DONE]":
             got_done = True
             return
@@ -4326,7 +4358,24 @@ def _http_post_streaming_openai(
             chunk = json.loads(event_data)
         except (json.JSONDecodeError, TypeError):
             return
-        if chunk.get("error"):
+        provider_error = chunk.get("error")
+        if provider_error or isinstance(provider_error, dict):
+            detail = provider_error.get("message") if isinstance(provider_error, dict) else provider_error
+            code = (provider_error.get("code") or provider_error.get("type")) if isinstance(provider_error, dict) else None
+            metadata = model_failure_diagnostics({
+                "provider_error_code": code,
+                "request_id": resp.getheader("x-request-id", ""),
+            })
+            stream_failure = {
+                "error": safe_text(detail if isinstance(detail, str) and detail else "Provider returned an error event."),
+                "error_code": "STREAM.INTERRUPTED",
+                "diagnostic": observation(
+                    "STREAM.INTERRUPTED", component="model", operation="model_round",
+                    endpoint_role="runtime_to_provider", phase="sse_event",
+                    provider_request_id=metadata.get("request_id", ""),
+                ),
+                **metadata,
+            }
             return
         model_name = chunk.get("model", model_name)
         choices = chunk.get("choices", [])
@@ -4465,18 +4514,15 @@ def _http_post_streaming_openai(
             if not line:
                 # Empty line = event boundary, process accumulated lines
                 if current_event_lines:
-                    event_data = ""
-                    for el in current_event_lines:
-                        if el.startswith("data: "):
-                            event_data = el[6:]
-                        elif el.startswith("data:"):
-                            event_data = el[5:].strip()
+                    event_data = _sse_data(current_event_lines)
                     if event_data and event_data.strip() == "[DONE]":
                         got_done = True
                     else:
                         _process_sse_event(event_data)
                     sse_event_count += 1
                     current_event_lines = []
+                    if stream_failure is not None:
+                        break
             else:
                 current_event_lines.append(line)
     except Exception as error:
@@ -4495,19 +4541,20 @@ def _http_post_streaming_openai(
             (time.time() - start) * 1000
         )
 
+    if stream_failure is not None:
+        return stream_failure, int((time.time() - start) * 1000)
+
     # Process any remaining lines (stream ended without blank line)
     if current_event_lines:
-        event_data = ""
-        for el in current_event_lines:
-            if el.startswith("data: "):
-                event_data = el[6:]
-            elif el.startswith("data:"):
-                event_data = el[5:].strip()
+        event_data = _sse_data(current_event_lines)
         if event_data and event_data.strip() == "[DONE]":
             got_done = True
         else:
             _process_sse_event(event_data)
             sse_event_count += 1
+
+    if stream_failure is not None:
+        return stream_failure, int((time.time() - start) * 1000)
 
     full_text = "".join(content_parts)
     if not got_done and not last_finish_reason:

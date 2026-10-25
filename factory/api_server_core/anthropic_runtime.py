@@ -131,7 +131,8 @@ def anthropic_text_stream_response(state, req, normalized, params, *, generator,
             yield sse_event_fn("message_stop", {"type": "message_stop"})
             return
         except RuntimeError as exc:
-            error_text = f"Ошибка генерации: {exc}"
+            from factory.core.diagnostics import safe_text
+            error_text = f"Ошибка генерации: {safe_text(exc)}"
             yield sse_event_fn("content_block_delta", {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": error_text}})
             yield sse_event_fn("content_block_stop", {"type": "content_block_stop", "index": 0})
             yield message_delta_event_fn(stop_reason="end_turn", output_tokens=len(error_text) // 4)

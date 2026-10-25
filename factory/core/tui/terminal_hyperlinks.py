@@ -233,12 +233,10 @@ def remap_wrapped_line(
 def _longest_suffix_matching_prefix(rendered: str, source: str) -> Optional[int]:
     """Port of ``codex::terminal_hyperlinks::longest_suffix_matching_prefix``.
 
-    Find the largest ``index`` such that ``rendered[index:]`` is a prefix
+    Find the smallest ``index`` such that ``rendered[index:]`` is a prefix
     of ``source``.
     """
-    if not source.startswith(rendered):
-        return None
-    for idx in range(len(rendered) - 1, -1, -1):
+    for idx in range(len(rendered)):
         if source.startswith(rendered[idx:]):
             return idx
     return None
@@ -322,7 +320,7 @@ def _has_unmatched_closing_delimiter(candidate: str, closing: str) -> bool:
 
 def web_destination(destination: str) -> Optional[str]:
     """Port of ``codex::terminal_hyperlinks::web_destination``."""
-    safe = "".join(ch for ch in destination if not ch.is_control() and ord(ch) < 0x7F)
+    safe = "".join(ch for ch in destination if 0x20 <= ord(ch) < 0x7F)
     try:
         parsed = urlparse(safe)
     except Exception:

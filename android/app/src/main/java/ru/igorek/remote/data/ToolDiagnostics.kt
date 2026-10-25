@@ -66,7 +66,7 @@ internal fun toolFailureObservation(event: BridgeEvent, base: ErrorObservation):
     })
     val detail = objectError?.string("message").orEmpty().ifBlank {
         if (errorText != reason) errorText else ""
-    }
+    }.ifBlank { result?.string("hint").orEmpty() }
     val typed = (result?.get("diagnostic") as? JsonObject)?.takeIf {
         (it["code"] as? JsonPrimitive)?.contentOrNull in ErrorCatalog.codes
     }?.let { value -> runCatching {
@@ -100,15 +100,15 @@ internal fun diagnosticExplanation(error: ErrorObservation, language: AppLanguag
     val definition = ErrorCatalog.codes[error.code] ?: ErrorCatalog.codes.getValue("ERROR.UNKNOWN")
     val context = listOf(error.toolName, error.service, error.toolAction).filter { it.isNotBlank() }.joinToString(" → ")
     val title = if (language == AppLanguage.Russian) definition.ru else definition.en
-    val reason = when (error.reasonCode) {
+    val reason = error.reasonDetail.ifBlank { when (error.reasonCode) {
         "invalid_service_fields" -> text("Передан недопустимый набор полей вызова.", "The call contains an invalid set of fields.")
         "service_method_not_allowed" -> text("Запрошенный метод сервиса недоступен.", "The requested service method is not allowed.")
         "host_service_access_denied" -> text("Профилю не разрешён доступ к сервису.", "The profile is not allowed to access this service.")
         "invalid_url" -> text("Инструмент отклонил адрес страницы.", "The tool rejected the page address.")
         "invalid_request" -> error.reasonDetail.ifBlank { text("Параметры не подходят выбранному действию. Проверь схему инструмента.", "The parameters do not match the selected action. Check the tool schema.") }
         "stale_target" -> text("Элемент страницы изменился. Агенту нужно перечитать страницу и получить новый ref.", "The page element changed. The agent needs to read the page again and obtain a current ref.")
-        else -> error.reasonDetail.ifBlank { error.reasonCode }
-    }
+        else -> error.reasonCode
+    } }
     val detail = reason.ifBlank {
         if (error.code == "TOOL.EXECUTION_FAILED") text("Инструмент не передал подробную причину; она доступна в исходном результате действия, если была записана.",
             "The tool did not provide a detailed cause; consult the original action result if it was recorded.") else ""

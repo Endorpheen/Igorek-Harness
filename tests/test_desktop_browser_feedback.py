@@ -93,3 +93,54 @@ def test_invalid_values_identify_the_parameter_without_echoing_its_contents(fiel
     assert result["error"] == "invalid_request"
     assert field in result["diagnostic"]["reason_detail"]
     assert field in result["hint"]
+
+
+@pytest.mark.parametrize("fields, expected", [
+    ({"action": "read", "limit": 2000}, "Unsupported fields for read: limit."),
+    ({"action": "collect", "limit": 100}, "Unsupported fields for collect: limit."),
+    ({"action": "result", "offset": 0, "limit": 6000}, "Unsupported fields for result: limit, offset."),
+    ({"action": "click"}, "Missing required fields for click: target."),
+    ({"action": "fill", "target": "r-" + "a" * 32 + "-1", "offset": 9}, "Missing required fields for fill: text. Unsupported fields for fill: offset."),
+])
+def test_rejection_report_names_the_exact_contract_violation(fields, expected):
+    pipe = DesktopBrowserPipe(lambda _: pytest.fail("invalid call was executed"), lambda _: True)
+    result = json.loads(pipe.call(fields))
+    assert expected in result["diagnostic"]["reason_detail"]
+    assert expected in result["hint"]
+    assert "Allowed fields:" in result["diagnostic"]["reason_detail"]
+
+
+def test_unknown_field_names_are_counted_without_exposing_the_name_or_value():
+    pipe = DesktopBrowserPipe(lambda _: pytest.fail("invalid call was executed"), lambda _: True)
+    result = pipe.call({"action": "read", "CANARY-private-field": "CANARY-private-value"})
+    assert "1 unrecognized field name" in json.loads(result)["diagnostic"]["reason_detail"]
+    assert "CANARY" not in result
+
+
+def test_timeout_records_the_waiting_boundary_and_preserves_unknown_outcome():
+    emitted = []
+    pipe = DesktopBrowserPipe(emitted.append, lambda _: True, timeout=.002)
+    result = json.loads(pipe.call({"action": "elements", "query": "CANARY"}))
+    assert result["error"] == "desktop_browser_timeout"
+    diagnostic = result["diagnostic"]
+    assert diagnostic["phase"] == "desktop_reply"
+    assert diagnostic["delivery"] == "unknown"
+    assert diagnostic["outcome"] == "unknown"
+    assert "elements" in diagnostic["reason_detail"]
+    assert "2 ms" in diagnostic["reason_detail"]
+    assert "CANARY" not in result
+    assert len(emitted) == 1 and not pipe.pending
+
+
+@pytest.mark.parametrize("fields, detail", [
+    ([], "Request must be an object."),
+    ({}, "Missing required field: action."),
+    ({"action": 42}, "action must be a string."),
+    ({"action": "CANARY_UNKNOWN_ACTION"}, "Allowed actions:"),
+])
+def test_request_shape_failures_have_distinct_value_free_causes(fields, detail):
+    pipe = DesktopBrowserPipe(lambda _: pytest.fail("rejected request was emitted"), lambda _: True)
+    result = json.loads(pipe.call(fields))
+    assert detail in result["diagnostic"]["reason_detail"]
+    assert "CANARY" not in json.dumps(result)
+    assert result["diagnostic"]["delivery"] == "rejected"

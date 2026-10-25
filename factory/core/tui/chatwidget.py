@@ -858,9 +858,9 @@ def _init_chatwidget_state(widget: "ChatWidget") -> None:
     widget.active_agent_label: Optional[str] = None
     widget.thread_id: Optional[str] = None
     widget.thread_name: Optional[str] = None
-    widget.model: str = ""
-    widget.branch: str = ""
-    widget.cwd: str = ""
+    widget.model: str = getattr(widget, "model", "")
+    widget.branch: str = getattr(widget, "branch", "")
+    widget.cwd: str = getattr(widget, "cwd", "")
     widget.session_configured_display: SessionConfiguredDisplay = SessionConfiguredDisplay.None_
     widget.entered_trust_nux: bool = False
 

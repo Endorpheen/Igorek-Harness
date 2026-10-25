@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shlex
 import signal
 import subprocess
 import sys
@@ -230,7 +231,11 @@ def _start_optional_session_embeddings_runtime(
             print("[embeddings] warning: embeddings runtime enabled, but model path was not found; continuing without embeddings")
         return None, None
 
-    port = int(str(os.environ.get("FACTORY_SESSION_EMBEDDINGS_PORT", "8022")).strip() or "8022")
+    try:
+        port = int(str(os.environ.get("FACTORY_SESSION_EMBEDDINGS_PORT", "8022")).strip() or "8022")
+    except ValueError as exc:
+        print(f"[embeddings] warning: invalid embeddings port: {exc}; continuing without embeddings")
+        return None, None
     bind_host = str(os.environ.get("FACTORY_SESSION_EMBEDDINGS_HOST", host)).strip() or host
     model_name = str(
         os.environ.get("FACTORY_SESSION_EMBEDDINGS_MODEL", "jina-embeddings-v5-text-nano-retrieval")
@@ -267,9 +272,14 @@ def _start_optional_session_embeddings_runtime(
         "--pooling",
         "last",
     ]
-    if extra_args:
-        cmd.extend(extra_args.split())
     try:
+        if extra_args:
+            lexer = shlex.shlex(extra_args, posix=True)
+            lexer.whitespace_split = True
+            lexer.commenters = ""
+            if sys.platform == "win32":
+                lexer.escape = ""
+            cmd.extend(lexer)
         proc = subprocess.Popen(
             cmd,
             cwd=str(Path(__file__).resolve().parents[2]),
@@ -296,6 +306,7 @@ def _start_optional_session_embeddings_runtime(
             proc.wait(timeout=5)
         except subprocess.TimeoutExpired:
             proc.kill()
+            proc.wait(timeout=5)
     print(f"[embeddings] warning: embeddings runtime did not become ready for model={model_name}; continuing without embeddings")
     return None, None
 
@@ -347,6 +358,7 @@ def run_local_stack(
     poll_interval: int = 2,
 ) -> int:
     _bootstrap_stack_env()
+    worker_profiles = _resolve_worker_profiles(profile)
     _recover_isolation_startup()
     repo_root = Path(__file__).resolve().parents[2]
     processes: list[subprocess.Popen] = []
@@ -363,16 +375,16 @@ def run_local_stack(
             text=True,
             bufsize=1,
         )
+        processes.append(proc)
         thread = threading.Thread(target=_stream_output, args=(prefix, proc.stdout), daemon=True)
         thread.start()
-        processes.append(proc)
         threads.append(thread)
         return proc
 
     def register_external_process(proc: subprocess.Popen[str]) -> None:
         processes.append(proc)
 
-    def shutdown(*_args) -> None:
+    def cleanup() -> None:
         nonlocal shutting_down
         if shutting_down:
             return
@@ -385,66 +397,74 @@ def run_local_stack(
                 proc.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 proc.kill()
+                proc.wait(timeout=5)
+
+    def shutdown(*_args) -> None:
+        if shutting_down:
+            return
+        cleanup()
         raise SystemExit(0)
 
     signal.signal(signal.SIGINT, shutdown)
     signal.signal(signal.SIGTERM, shutdown)
 
-    embeddings_proc, embeddings_base_url = _start_optional_session_embeddings_runtime(
-        stream_output_fn=_stream_output,
-        register_process_fn=register_external_process,
-        host=api_host,
-        data_dir=os.environ.get("FACTORY_DATA_DIR") or os.environ.get("IGOREK_FACTORY_HOME"),
-    )
-    api_proc = start_process("api", ["api", "--host", api_host, "--port", str(api_port)])
-    worker_profiles = _resolve_worker_profiles(profile)
-    worker_procs: list[tuple[str, subprocess.Popen]] = [
-        (
-            worker_profile,
-            start_process(
-                f"worker:{worker_profile}",
-                ["worker", "--profile", worker_profile, "--poll-interval", str(poll_interval)],
-            ),
+    try:
+        embeddings_proc, embeddings_base_url = _start_optional_session_embeddings_runtime(
+            stream_output_fn=_stream_output,
+            register_process_fn=register_external_process,
+            host=api_host,
+            data_dir=os.environ.get("FACTORY_DATA_DIR") or os.environ.get("IGOREK_FACTORY_HOME"),
         )
-        for worker_profile in worker_profiles
-    ]
-    telegram_should_start, telegram_skip_reason = _telegram_bridge_start_reason()
-    telegram_proc: subprocess.Popen | None = None
-    if telegram_should_start:
-        telegram_profile = _resolve_telegram_bridge_profile(profile)
-        telegram_proc = start_process(
-            "telegram",
-            ["telegram", "--profile", telegram_profile],
-            extra_env={"FACTORY_API_BASE_URL": f"http://{api_host}:{api_port}"},
+        api_proc = start_process("api", ["api", "--host", api_host, "--port", str(api_port)])
+        worker_procs: list[tuple[str, subprocess.Popen]] = [
+            (
+                worker_profile,
+                start_process(
+                    f"worker:{worker_profile}",
+                    ["worker", "--profile", worker_profile, "--poll-interval", str(poll_interval)],
+                ),
+            )
+            for worker_profile in worker_profiles
+        ]
+        telegram_should_start, telegram_skip_reason = _telegram_bridge_start_reason()
+        telegram_proc: subprocess.Popen | None = None
+        if telegram_should_start:
+            telegram_profile = _resolve_telegram_bridge_profile(profile)
+            telegram_proc = start_process(
+                "telegram",
+                ["telegram", "--profile", telegram_profile],
+                extra_env={"FACTORY_API_BASE_URL": f"http://{api_host}:{api_port}"},
+            )
+        elif _truthy(os.environ.get("FACTORY_TELEGRAM_ENABLED")):
+            print(f"[run] Telegram bridge not started: {telegram_skip_reason}")
+
+        print(
+            f"CLI stack started: api=http://{api_host}:{api_port} profile={profile}"
+            f" workers={','.join(worker_profiles)}"
+            f"{' embeddings=on' if embeddings_proc is not None or embeddings_base_url else ''}"
+            f"{' telegram=on' if telegram_proc is not None else ''}. "
+            "Press Ctrl+C to stop all processes."
         )
-    elif _truthy(os.environ.get("FACTORY_TELEGRAM_ENABLED")):
-        print(f"[run] Telegram bridge not started: {telegram_skip_reason}")
 
-    print(
-        f"CLI stack started: api=http://{api_host}:{api_port} profile={profile}"
-        f" workers={','.join(worker_profiles)}"
-        f"{' embeddings=on' if embeddings_proc is not None or embeddings_base_url else ''}"
-        f"{' telegram=on' if telegram_proc is not None else ''}. "
-        "Press Ctrl+C to stop all processes."
-    )
-
-    embeddings_warned = False
-    while True:
-        if api_proc.poll() is not None:
-            print(f"[run] API exited with code {api_proc.returncode}")
-            shutdown()
-        for worker_profile, worker_proc in worker_procs:
-            if worker_proc.poll() is not None:
-                print(f"[run] Worker ({worker_profile}) exited with code {worker_proc.returncode}")
+        embeddings_warned = False
+        while True:
+            if api_proc.poll() is not None:
+                print(f"[run] API exited with code {api_proc.returncode}")
                 shutdown()
-        if embeddings_proc is not None and embeddings_proc.poll() is not None and not embeddings_warned:
-            print(f"[run] Embeddings runtime exited with code {embeddings_proc.returncode}; continuing without embeddings")
-            embeddings_warned = True
-            embeddings_proc = None
-        if telegram_proc is not None and telegram_proc.poll() is not None:
-            print(f"[run] Telegram bridge exited with code {telegram_proc.returncode}")
-            shutdown()
-        signal.pause()
+            for worker_profile, worker_proc in worker_procs:
+                if worker_proc.poll() is not None:
+                    print(f"[run] Worker ({worker_profile}) exited with code {worker_proc.returncode}")
+                    shutdown()
+            if embeddings_proc is not None and embeddings_proc.poll() is not None and not embeddings_warned:
+                print(f"[run] Embeddings runtime exited with code {embeddings_proc.returncode}; continuing without embeddings")
+                embeddings_warned = True
+                embeddings_proc = None
+            if telegram_proc is not None and telegram_proc.poll() is not None:
+                print(f"[run] Telegram bridge exited with code {telegram_proc.returncode}")
+                shutdown()
+            signal.pause()
+    finally:
+        cleanup()
 
 
 def _resolve_gateway_env_files(explicit: str | None = None) -> list[Path]:
@@ -472,6 +492,7 @@ def _resolve_gateway_env_files(explicit: str | None = None) -> list[Path]:
 def _bootstrap_stack_env(*, env_file: str | None = None) -> None:
     if _truthy(os.environ.get("FACTORY_STACK_ENV_BOOTSTRAPPED")):
         return
+    explicit_keys = set(os.environ)
     builtin_values = _load_env_file(_resolve_builtin_gateway_preset_path())
     if builtin_values:
         _apply_env_defaults(builtin_values)
@@ -480,10 +501,10 @@ def _bootstrap_stack_env(*, env_file: str | None = None) -> None:
         file_values = _load_env_file(env_path)
         if file_values:
             merged_file_values.update(file_values)
-    # Explicit environment (launcher alias, CLI flags) always wins over env
-    # files: files only fill in values that are not already set.
+    # Explicit environment wins over files, which override built-in defaults.
     for key, value in merged_file_values.items():
-        os.environ.setdefault(key, value)
+        if key not in explicit_keys:
+            os.environ[key] = value
     _materialize_gateway_vault_env()
     os.environ["FACTORY_STACK_ENV_BOOTSTRAPPED"] = "true"
 
@@ -497,11 +518,12 @@ def run_gateway_stack(
     env_file: str | None = None,
     data_dir: str | None = None,
 ) -> int:
+    if data_dir:
+        os.environ["FACTORY_DATA_DIR"] = data_dir
+        os.environ["IGOREK_FACTORY_HOME"] = data_dir
     builtin_preset_path = _resolve_builtin_gateway_preset_path()
     env_paths = _resolve_gateway_env_files(env_file)
     _bootstrap_stack_env(env_file=env_file)
-    if data_dir and "FACTORY_DATA_DIR" not in os.environ and "IGOREK_FACTORY_HOME" not in os.environ:
-        os.environ["FACTORY_DATA_DIR"] = data_dir
     _apply_env_defaults(
         {
             "FACTORY_PORT": str(api_port),

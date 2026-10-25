@@ -1130,6 +1130,10 @@ class TelegramBridge:
                     normalized = _ensure_text(item)
                     if normalized:
                         delivered_files[normalized] = ""
+            try:
+                event_after_seq = max(0, int(raw.get("event_after_seq") or 0))
+            except (TypeError, ValueError, OverflowError):
+                event_after_seq = 0
             result[chat_key] = ChatRuntimeState(
                 chat_id=chat_key,
                 user_id=_ensure_text(raw.get("user_id")),
@@ -1140,7 +1144,7 @@ class TelegramBridge:
                 model_override=_ensure_text(raw.get("model_override")) or None,
                 thread_id=_ensure_text(raw.get("thread_id")) or None,
                 runtime_session_id=_ensure_text(raw.get("runtime_session_id")) or None,
-                event_after_seq=int(raw.get("event_after_seq") or 0),
+                event_after_seq=event_after_seq,
                 workspace_task_id=_ensure_text(raw.get("workspace_task_id")) or None,
                 pending_task_id=_ensure_text(raw.get("pending_task_id")) or None,
                 delivered_files=delivered_files,
@@ -1713,7 +1717,9 @@ class TelegramBridge:
             selected = queued if not argument or argument.strip().lower() == "all" else []
             if not selected:
                 try:
-                    selected = [queued[int(argument) - 1]]
+                    index = int(argument)
+                    if 1 <= index <= len(queued):
+                        selected = [queued[index - 1]]
                 except (ValueError, IndexError):
                     selected = [item for item in queued if item["request_id"] == argument]
             if not selected:
@@ -1760,7 +1766,7 @@ class TelegramBridge:
         """Reads stable queued approval tasks without relying on app-server state."""
         result: list[dict[str, str]] = []
         # This is only a database read without holding a Telegram session lock.
-        candidates = [item for item in (session.pending_task_id, session.workspace_task_id) if item]
+        candidates = list(dict.fromkeys(item for item in (session.pending_task_id, session.workspace_task_id) if item))
         for task_id in candidates:
             if not task_id:
                 continue
@@ -2058,8 +2064,11 @@ class TelegramBridge:
         safe_name = _sanitize_filename(f"{stem}{suffix}", fallback=f"telegram_{kind}{suffix}")
         target_dir = self._uploads_dir / chat_id
         target_dir.mkdir(parents=True, exist_ok=True)
-        target_path = target_dir / f"{int(time.time())}_{safe_name}"
-        target_path.write_bytes(payload)
+        with tempfile.NamedTemporaryFile(
+            dir=target_dir, prefix=f"{int(time.time())}_", suffix=f"_{safe_name}", delete=False
+        ) as upload:
+            upload.write(payload)
+            target_path = Path(upload.name)
         return {
             "kind": kind,
             "name": safe_name,

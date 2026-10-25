@@ -101,7 +101,7 @@ def resolve_file_arg_name(tool: dict[str, Any]) -> str | None:
 
 
 def extract_code_block(text: str) -> str | None:
-    match = re.search(r"```(?:[A-Za-z0-9_+-]+)?\n(.*?)```", text, flags=re.DOTALL)
+    match = re.search(r"```(?:[A-Za-z0-9_+-]+)?\r?\n(.*?)```", text, flags=re.DOTALL)
     if match:
         return match.group(1).strip()
     return None
@@ -143,7 +143,8 @@ def extract_creation_content_from_user_text(text: str, filename: str) -> str | N
 
 
 def extract_bash_file_target(command: str) -> str:
-    command = command.splitlines()[0].strip()
+    lines = command.splitlines()
+    command = lines[0].strip() if lines else ""
     if not command:
         return ""
 

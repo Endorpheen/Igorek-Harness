@@ -1,6 +1,8 @@
 package ru.igorek.remote.data
 
 import kotlinx.serialization.json.*
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.decodeFromString
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -129,5 +131,82 @@ class BrowserToolDiagnosticsTest {
         val first = observe(event("""{"action":"read","limit":1500}""", diagnostic = buildJsonObject {}))
         assertEquals("TOOL.INVALID_ARGUMENTS", first.single().diagnostic!!.code)
         assertEquals("invalid_request", first.single().diagnostic!!.reasonCode)
+    }
+
+    @Test fun untypedToolHintsReachTheCardAndExportedExplanation() {
+        val call = event("""{"action":"read","limit":2000}""").let { original ->
+            original.copy(payload = JsonObject(original.payload + ("context_output" to JsonPrimitive(
+                """{"error":"invalid_request","hint":"Unsupported fields for read: limit. Allowed fields: action."}"""))))
+        }
+        val first = observe(call)
+        val error = first.single().diagnostic!!
+        assertTrue(error.reasonDetail.contains("Unsupported fields for read: limit"))
+        assertTrue(diagnosticExplanation(error, AppLanguage.Russian).contains("Allowed fields: action"))
+        assertTrue(diagnosticExplanation(error, AppLanguage.English).contains("Allowed fields: action"))
+    }
+
+    @Test fun detailedUrlAndTimeoutCausesAreNeverReplacedByGenericLabels() {
+        for (reason in listOf("invalid_url", "desktop_browser_timeout")) {
+            val detail = "Exact fixture cause at desktop reply boundary."
+            val diagnostic = buildJsonObject {
+                put("code", "TOOL.EXECUTION_FAILED"); put("component", "tool"); put("operation", "execute")
+                put("reason_code", reason); put("reason_detail", detail)
+            }
+            val error = observe(event("""{"action":"elements"}""", reason, diagnostic = diagnostic)).single().diagnostic!!
+            assertTrue(diagnosticExplanation(error, AppLanguage.Russian).contains(detail))
+            assertTrue(diagnosticExplanation(error, AppLanguage.English).contains(detail))
+        }
+    }
+
+    @Test fun fieldCauseSurvivesPersistenceAndBothExportFormats() {
+        val cause = "Unsupported fields for result: limit, offset. Allowed fields: action."
+        val call = event("""{"action":"result","offset":0,"limit":6000}""").let { original ->
+            original.copy(payload = JsonObject(original.payload + ("context_output" to JsonPrimitive(
+                buildJsonObject { put("error", "invalid_request"); put("hint", cause) }.toString()))))
+        }
+        val codec = Json { encodeDefaults = true; ignoreUnknownKeys = true }
+        val restored = codec.decodeFromString<List<NotificationEntry>>(codec.encodeToString(observe(call)))
+        val snapshot = buildJsonObject { put("incidents", codec.encodeToJsonElement(restored)) }.toString()
+        for (language in listOf(AppLanguage.Russian, AppLanguage.English)) {
+            val overview = prepareDiagnosticSupport(snapshot, "fixture", language).json
+            val single = incidentDiagnosticReport(restored.single(), "fixture", language)
+            for (report in listOf(overview, single)) {
+                val item = Json.parseToJsonElement(report).jsonObject.getValue("local").jsonObject
+                    .getValue("incidents").jsonArray.single().jsonObject
+                assertEquals(cause, item.getValue("error").jsonObject.getValue("reason_detail").jsonPrimitive.content)
+                assertTrue(item.getValue("explanation").jsonPrimitive.content.contains(cause))
+                assertFalse(report.contains("tool_input"))
+            }
+        }
+    }
+
+    @Test fun uncertainTimeoutRemainsActiveAndExplainedAfterReportExport() {
+        val cause = "Desktop did not reply to elements within 45000 ms. Completion is unknown."
+        val typed = buildJsonObject {
+            put("code", "TOOL.EXECUTION_FAILED"); put("delivery", "unknown"); put("outcome", "unknown")
+            put("phase", "desktop_reply"); put("reason_code", "desktop_browser_timeout"); put("reason_detail", cause)
+        }
+        val first = observe(event("""{"action":"elements"}""", "desktop_browser_timeout", diagnostic = typed))
+        val after = reconcileNotificationEvent(first, finish())
+        assertEquals("needs_owner", after.single().state)
+        val report = Json.parseToJsonElement(incidentDiagnosticReport(after.single(), "fixture", AppLanguage.Russian)).jsonObject
+        val item = report.getValue("local").jsonObject.getValue("incidents").jsonArray.single().jsonObject
+        val error = item.getValue("error").jsonObject
+        assertEquals("unknown", error.getValue("outcome").jsonPrimitive.content)
+        assertEquals("desktop_reply", error.getValue("phase").jsonPrimitive.content)
+        assertTrue(item.getValue("explanation").jsonPrimitive.content.contains("45000 ms"))
+    }
+
+    @Test fun detailedHintIsSanitizedBeforePersistenceAndExport() {
+        val call = event("""{"action":"read"}""").let { original ->
+            original.copy(payload = JsonObject(original.payload + ("context_output" to JsonPrimitive(
+                """{"error":"invalid_request","hint":"Unsupported fields: limit. api_key=EXCLUDED Bearer EXCLUDED"}"""))))
+        }
+        val first = observe(call)
+        assertTrue(first.single().diagnostic!!.reasonDetail.contains("limit"))
+        assertFalse(first.single().text.contains("EXCLUDED"))
+        val report = incidentDiagnosticReport(first.single(), "fixture", AppLanguage.English)
+        assertTrue(report.contains("Unsupported fields"))
+        assertFalse(report.contains("EXCLUDED"))
     }
 }

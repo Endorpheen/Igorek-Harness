@@ -77,6 +77,8 @@ def _extract_session_id(normalized: Any) -> str | None:
         payload = json.loads(raw)
     except Exception:
         return None
+    if not isinstance(payload, dict):
+        return None
     session_id = str(payload.get("session_id", "") or "").strip()
     return session_id or None
 

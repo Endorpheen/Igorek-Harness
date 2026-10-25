@@ -1324,6 +1324,10 @@ class MobileService:
         if not absolute.is_file() and str(match.get("status")) != "deleted":
             raise MobileNotFound(f"file not found: {relative}")
 
+        from ..change_file_types import non_text_change_kind
+        if non_text_change_kind(relative):
+            return self._unavailable_diff(relative, 0, 0)
+
         additions = int(match["additions"])
         deletions = int(match["deletions"])
         try:
@@ -1470,6 +1474,10 @@ class MobileService:
         if relative is None:
             raise MobileNotFound(f"path is outside the session workdir: {target}")
         absolute = Path(workdir).resolve() / relative
+
+        from ..change_file_types import non_text_change_kind
+        if non_text_change_kind(relative):
+            return self._unavailable_checkpoint_diff(relative, rev)
 
         available, old = manager.content_at(
             target_path=str(absolute),

@@ -684,7 +684,10 @@ def file_url_to_local_path_text(url) -> Optional[str]:
     Port of ``codex::markdown_render::file_url_to_local_path_text``.
     ``url`` is a ``urllib.parse.ParseResult``.
     """
-    path_text = url.path
+    try:
+        path_text = unquote(url.path, errors="strict")
+    except UnicodeDecodeError:
+        path_text = url.path
     hostname = url.hostname
     if hostname and hostname != "" and hostname != "localhost":
         path_text = f"//{hostname}{path_text}"
@@ -739,7 +742,7 @@ def strip_local_path_prefix(path_text: str, cwd_text: str) -> Optional[str]:
         return None
     if cwd_text in ("/", "//"):
         return path_text.lstrip("/")
-    if path_text.startswith(cwd_text):
+    if path_text.startswith(cwd_text + "/"):
         rest = path_text[len(cwd_text):]
         return rest.lstrip("/")
     return None
