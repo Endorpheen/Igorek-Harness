@@ -359,7 +359,7 @@ def _make_prompt_session(status_line=None, *, toolbar_enabled=True, reasoning_st
         if ANSI is not None: return ANSI(c)
         if HTML is not None:
             clean = re.sub(r"\x1b\[[0-9;]*[A-Za-z]","",c)
-            esc = clean.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;").replace("\n","<br/>")
+            esc = clean.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
             return HTML(f"<style fg='#6c6c6c'>{esc}</style>")
         return c
 

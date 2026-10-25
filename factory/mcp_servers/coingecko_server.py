@@ -250,6 +250,9 @@ def main() -> None:
             request = json.loads(line)
         except json.JSONDecodeError:
             continue
+        if not isinstance(request, dict):
+            _send(_make_error(None, -32600, "Request must be an object"))
+            continue
         method = str(request.get("method", "")).strip()
         req_id = request.get("id")
 
@@ -262,7 +265,12 @@ def main() -> None:
             continue
 
         if method == "tools/call":
-            params = request.get("params") or {}
+            params = request.get("params")
+            if params is None:
+                params = {}
+            if not isinstance(params, dict):
+                _send(_make_error(req_id, -32602, "Tool params must be an object"))
+                continue
             tool_name = str(params.get("name", "")).strip()
             arguments = params.get("arguments") or {}
             if not isinstance(arguments, dict):

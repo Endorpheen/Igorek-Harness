@@ -13,6 +13,8 @@ import time
 import coverage
 import pytest
 
+from native_terminal_support import wait_for_terminal
+
 
 @pytest.mark.skipif(
     os.name != "posix", reason="Real POSIX PTY, window-size and SGR mouse acceptance"
@@ -113,16 +115,12 @@ def test_native_turn_keys_mouse_resize_and_external_cancellation(tmp_path, mode)
                     cursor_replies += 1
 
     def wait_for(predicate, timeout=7):
-        end = time.monotonic() + timeout
-        while time.monotonic() < end:
-            pump()
-            if predicate():
-                return
-            if process.poll() is not None:
-                break
-        pytest.fail(
-            "Native terminal transition failed: "
-            + transcript.decode(errors="replace")[-2500:]
+        return wait_for_terminal(
+            predicate,
+            process=process,
+            pump=pump,
+            timeout=timeout,
+            diagnostic=lambda: transcript.decode(errors="replace")[-2500:],
         )
 
     try:

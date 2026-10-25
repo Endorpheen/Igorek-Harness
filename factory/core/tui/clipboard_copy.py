@@ -179,16 +179,14 @@ def wsl_clipboard_copy(text: str) -> Optional[str]:
         child.wait()
         return "failed to open powershell.exe stdin"
     try:
-        child.stdin.write(text.encode("utf-8"))
-        child.stdin.close()
+        output = child.communicate(input=text.encode("utf-8"), timeout=30)
     except OSError as exc:
         child.kill()
         child.wait()
         return f"failed to write to powershell.exe: {exc}"
-    try:
-        output = child.communicate(timeout=30)
     except subprocess.TimeoutExpired:
         child.kill()
+        child.wait()
         return "powershell.exe timed out"
     if child.returncode == 0:
         return None
@@ -225,16 +223,14 @@ def tmux_clipboard_copy(text: str) -> Optional[str]:
         child.wait()
         return "failed to open tmux stdin"
     try:
-        child.stdin.write(text.encode("utf-8"))
-        child.stdin.close()
+        output = child.communicate(input=text.encode("utf-8"), timeout=30)
     except OSError as exc:
         child.kill()
         child.wait()
         return f"failed to write to tmux: {exc}"
-    try:
-        output = child.communicate(timeout=30)
     except subprocess.TimeoutExpired:
         child.kill()
+        child.wait()
         return "tmux timed out"
     if child.returncode == 0:
         return None
@@ -318,7 +314,7 @@ def osc52_copy(text: str) -> Optional[str]:
         except (OSError, ValueError):
             pass
     try:
-        return write_osc52_to_writer(sequence, sys.stdout)
+        return write_osc52_to_writer(sequence, getattr(sys.stdout, "buffer", sys.stdout))
     except (OSError, ValueError) as exc:
         return f"failed to write OSC 52: {exc}"
 

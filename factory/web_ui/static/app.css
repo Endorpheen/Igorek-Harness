@@ -495,55 +495,6 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
   gap:9px
 }
 
-.secure-badge,.runtime-badge {
-  height:25px;
-  display:flex;
-  align-items:center;
-  gap:6px;
-  padding:0 9px;
-  border-radius:5px;
-  font:9px var(--mono);
-  letter-spacing:.04em
-}
-
-.secure-badge {
-  border:1px solid rgba(102,214,177,.14);
-  color:#91cbb6;
-  background:rgba(102,214,177,.045)
-}
-
-.secure-badge span {
-  width:5px;
-  height:5px;
-  border-radius:50%;
-  background:var(--mint)
-}
-
-.runtime-badge {
-  color:var(--quiet);
-  border:1px solid var(--line)
-}
-
-.runtime-badge i {
-  width:5px;
-  height:5px;
-  border-radius:50%;
-  background:#677276
-}
-
-.runtime-badge.active {
-  color:#a7cd83;
-  border-color:rgba(196,242,108,.16)
-}
-
-.runtime-badge.active i {
-  background:var(--lime);
-  box-shadow:0 0 8px rgba(196,242,108,.5)
-}
-
-.runtime-badge b {
-  font-weight:400
-}
 
 
 .workspace-row {
@@ -3558,11 +3509,6 @@ body.sidebar-open .sidebar-scrim {
     gap:5px
   }
 
-.secure-badge,.runtime-badge {
-    font-size:7px;
-    padding-inline:6px;
-    height:23px
-  }
 
 .welcome-view {
     min-height:calc(100dvh - 56px);
@@ -5682,7 +5628,9 @@ body.gh-review-mode #sidebar { display:none; }
 .access-confirm button { margin-right:6px; }
 @media(max-width:560px) { .composer-access-button { max-width:130px; } }
 
-.rail-updates { order:99; flex:none; margin-top:auto; color:#91b4dc; background:#253343; border-radius:50%; width:30px; height:30px; padding:6px; }
+.rail-footer { order:99; margin-top:auto; display:flex; flex-direction:column; align-items:center; gap:10px; }
+.rail-footer .rail-button { flex:none; width:30px; height:30px; padding:6px; border-radius:50%; }
+.rail-updates { color:#91b4dc; background:#253343; }
 .rail-updates:hover { background:#304359; color:#c2dcfa; }
 .updates-dialog { width:min(380px,calc(100vw - 32px)); box-sizing:border-box; padding:22px; border:1px solid var(--line); border-radius:16px; background:#202623; color:var(--text); font:13px/1.6 var(--sans, system-ui); }
 .updates-dialog::backdrop { background:#0008; }

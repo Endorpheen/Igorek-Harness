@@ -20,7 +20,10 @@
         <button id="nav-reviews" class="rail-button" type="button" title="Проверка кода" aria-label="Проверка кода" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="5" r="3"/><circle cx="6" cy="19" r="3"/><circle cx="18" cy="6" r="3"/><path d="M6 8v8m12-7v3a5 5 0 0 1-5 5h-4"/></svg></button>
         <button id="nav-scheduled" class="rail-button" type="button" title="Запланировано" aria-label="Запланировано" aria-controls="scheduled-view" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l-3 3"/></svg></button>
         <button id="nav-plugins" class="rail-button" type="button" title="Плагины" aria-label="Плагины" aria-controls="plugins-view" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3v5m8-5v5M6 8h12v4a6 6 0 0 1-6 6v4m-6-14v4a6 6 0 0 0 6 6"/></svg></button>
-        <button id="nav-updates" class="rail-button rail-updates" type="button" title="Проверить обновления Игорька" aria-label="Обновления Игорька"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 16v4h16v-4"/></svg></button>
+        <div class="rail-footer">
+          <button class="rail-button" id="open-settings" type="button" data-i18n-aria-label="topbar.settings_aria" data-i18n-title="topbar.settings_title" aria-label="Настройки" title="Настройки" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9.8 2-.8 2.5-2.2 1.3-2.5-.5-2 3.4 1.7 2v2.6l-1.7 2 2 3.4 2.5-.5L9 19.5l.8 2.5h4.4l.8-2.5 2.2-1.3 2.5.5 2-3.4-1.7-2v-2.6l1.7-2-2-3.4-2.5.5L15 4.5 14.2 2Z"/><circle cx="12" cy="12" r="3"/></svg></button>
+          <button id="nav-updates" class="rail-button rail-updates" type="button" title="Проверить обновления Игорька" aria-label="Обновления Игорька"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-5-5 5 5 5-5M4 16v4h16v-4"/></svg></button>
+        </div>
       </nav>
       <aside class="sidebar" id="sidebar">
         <div class="brand-row">
@@ -52,11 +55,8 @@
             <div class="crumb"><span data-i18n="topbar.workspace">Рабочее пространство</span><span class="crumb-divider">/</span><strong id="active-title">Выберите сессию</strong></div>
           </div>
           <div class="topbar-right">
-            <span class="secure-badge"><span></span> HTTPS · LOCAL</span>
-            <span class="runtime-badge" id="runtime-badge"><i></i><b id="runtime-label">ожидание</b></span>
 
             <button class="icon-button topbar-icon" id="toggle-panel" type="button" data-i18n-aria-label="topbar.panel_aria" data-i18n-title="topbar.panel_title" aria-label="Панель проверки" title="Изменения, файлы, чекпоинты" aria-expanded="false" aria-controls="side-panel" hidden>▤</button>
-            <button class="icon-button topbar-icon" id="open-settings" type="button" data-i18n-aria-label="topbar.settings_aria" data-i18n-title="topbar.settings_title" aria-label="Настройки" title="Настройки" hidden>⚙</button>
           </div>
         </header>
 

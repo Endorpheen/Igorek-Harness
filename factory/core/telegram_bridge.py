@@ -1804,6 +1804,10 @@ class TelegramBridge:
             self._safe_send(session.chat_id, "Задача отменена, Telegram-сессия свободна.")
             return
         approved = action in {"once", "session"}
+        if approved:
+            from .mcp_config import accept_mcp_enable_suggestion
+
+            accept_mcp_enable_suggestion(self._effective_profile_name(session), server_name)
         resolve_user_input_request(
             _ensure_text(request.get("request_id")),
             response={"answers": {"mcp_enable_decision": {"selected_options": ["Включить"]}}} if approved else None,
@@ -1815,10 +1819,6 @@ class TelegramBridge:
             self._save_sessions()
             self._safe_send(session.chat_id, "Доступ отклонён; задача отменена, сессия свободна.")
             return
-        # Existing MCP approval includes capability and returns the task to the queue.
-        from .mcp_config import accept_mcp_enable_suggestion
-
-        accept_mcp_enable_suggestion(self._effective_profile_name(session), server_name)
         if not resume_waiting_approval_task(task_id):
             self._safe_send(session.chat_id, "Approval сохранён, но задачу не удалось вернуть в очередь.")
             return

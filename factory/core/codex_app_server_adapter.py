@@ -74,12 +74,14 @@ class CodexAppServerSession:
     def start(self, thread_id: str | None = None) -> None:
         if self._proc is not None:
             return
+        self._closed = False
         self._proc = subprocess.Popen(
             ["codex", "app-server", "--listen", "stdio://"],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            encoding="utf-8",
             bufsize=1,
             cwd=self.cwd,
             env={**os.environ, **self.env},
@@ -89,47 +91,61 @@ class CodexAppServerSession:
         threading.Thread(target=self._read_stdout, daemon=True).start()
         threading.Thread(target=self._read_stderr, daemon=True).start()
 
-        self.request(
-            "initialize",
-            {
-                "clientInfo": {
-                    "name": "igorek-tui-app-server",
-                    "version": "0.1",
+        try:
+            self.request(
+                "initialize",
+                {
+                    "clientInfo": {
+                        "name": "igorek-tui-app-server",
+                        "version": "0.1",
+                    },
+                    "capabilities": {
+                        "experimentalApi": True,
+                    },
                 },
-                "capabilities": {
-                    "experimentalApi": True,
-                },
-            },
-        )
+            )
 
-        params: dict[str, Any] = {
-            "cwd": self.cwd,
-            "approvalPolicy": "untrusted",
-            "approvalsReviewer": "user",
-            "sandbox": "workspace-write",
-            "ephemeral": True,
-            "personality": "pragmatic",
-        }
-        if self.model:
-            params["model"] = self.model
-        if self.model_provider:
-            params["modelProvider"] = self.model_provider
-        if self.developer_instructions:
-            params["developerInstructions"] = self.developer_instructions
+            params: dict[str, Any] = {
+                "cwd": self.cwd,
+                "approvalPolicy": "untrusted",
+                "approvalsReviewer": "user",
+                "sandbox": "workspace-write",
+                "ephemeral": True,
+                "personality": "pragmatic",
+            }
+            if self.model:
+                params["model"] = self.model
+            if self.model_provider:
+                params["modelProvider"] = self.model_provider
+            if self.developer_instructions:
+                params["developerInstructions"] = self.developer_instructions
 
-        if thread_id:
-            params["threadId"] = thread_id
-            result = self.request("thread/resume", params)
-        else:
-            result = self.request("thread/start", params)
-        thread = result.get("thread") if isinstance(result, dict) else None
-        if not isinstance(thread, dict) or not thread.get("id"):
-            raise RuntimeError("app-server did not return thread id")
-        self._thread_id = str(thread["id"])
+            if thread_id:
+                params["threadId"] = thread_id
+                result = self.request("thread/resume", params)
+            else:
+                result = self.request("thread/start", params)
+            thread = result.get("thread") if isinstance(result, dict) else None
+            if not isinstance(thread, dict) or not thread.get("id"):
+                raise RuntimeError("app-server did not return thread id")
+            self._thread_id = str(thread["id"])
+        except Exception:
+            self.close()
+            raise
+
+    def _fail_pending(self, message: str) -> None:
+        with self._pending_lock:
+            pending = list(self._pending.values())
+            self._pending.clear()
+        for item in pending:
+            item.error = {"message": message}
+            item.event.set()
 
     def close(self) -> None:
         self._closed = True
+        self._fail_pending("app-server session closed")
         proc = self._proc
+        self._proc = None
         if proc is None:
             return
         if proc.poll() is None:
@@ -138,19 +154,23 @@ class CodexAppServerSession:
                 proc.wait(timeout=3)
             except subprocess.TimeoutExpired:
                 proc.kill()
-        self._proc = None
+                proc.wait(timeout=3)
 
     def request(self, method: str, params: dict[str, Any], timeout_s: float = 30.0) -> Any:
         request_id = self._allocate_request_id()
         pending = _PendingResponse(event=threading.Event())
         with self._pending_lock:
             self._pending[request_id] = pending
-        self._send({"id": request_id, "method": method, "params": params})
-        if not pending.event.wait(timeout=timeout_s):
-            raise TimeoutError(f"timeout while waiting for app-server response to {method}")
-        if pending.error is not None:
-            raise RuntimeError(f"app-server {method} failed: {json.dumps(pending.error, ensure_ascii=False)}")
-        return pending.result
+        try:
+            self._send({"id": request_id, "method": method, "params": params})
+            if not pending.event.wait(timeout=timeout_s):
+                raise TimeoutError(f"timeout while waiting for app-server response to {method}")
+            if pending.error is not None:
+                raise RuntimeError(f"app-server {method} failed: {json.dumps(pending.error, ensure_ascii=False)}")
+            return pending.result
+        finally:
+            with self._pending_lock:
+                self._pending.pop(request_id, None)
 
     def send_user_message(self, text: str, timeout_s: float = 30.0) -> dict[str, Any]:
         if not self._thread_id:
@@ -219,9 +239,10 @@ class CodexAppServerSession:
             self._proc.stdin.flush()
 
     def _read_stdout(self) -> None:
-        assert self._proc is not None
-        assert self._proc.stdout is not None
-        for raw_line in self._proc.stdout:
+        proc = self._proc
+        if proc is None or proc.stdout is None:
+            return
+        for raw_line in proc.stdout:
             line = raw_line.strip()
             if not line:
                 continue
@@ -231,25 +252,31 @@ class CodexAppServerSession:
                 self.error_handler(f"app-server emitted non-JSON stdout: {line}")
                 continue
             self._handle_message(message)
-        if not self._closed:
-            return_code = self._proc.poll()
-            self.error_handler(f"codex app-server stdout closed (exit code {return_code})")
+        if not self._closed and self._proc is proc:
+            return_code = proc.poll()
+            message = f"codex app-server stdout closed (exit code {return_code})"
+            self._fail_pending(message)
+            self.error_handler(message)
 
     def _read_stderr(self) -> None:
-        assert self._proc is not None
-        assert self._proc.stderr is not None
-        for raw_line in self._proc.stderr:
+        proc = self._proc
+        if proc is None or proc.stderr is None:
+            return
+        for raw_line in proc.stderr:
             line = raw_line.rstrip()
             if not line or self._closed:
                 continue
             if "bwrap: loopback:" in line:
                 continue
             self.error_handler(f"codex app-server stderr: {line}")
-        if not self._closed:
-            return_code = self._proc.poll()
+        if not self._closed and self._proc is proc:
+            return_code = proc.poll()
             self.error_handler(f"codex app-server stderr closed (exit code {return_code})")
 
     def _handle_message(self, message: dict[str, Any]) -> None:
+        if not isinstance(message, dict):
+            self.error_handler("app-server emitted a non-object message")
+            return
         if "id" in message and "method" not in message:
             self._handle_response(message)
             return
@@ -266,6 +293,8 @@ class CodexAppServerSession:
 
     def _handle_response(self, message: dict[str, Any]) -> None:
         request_id = message.get("id")
+        if type(request_id) is not int:
+            return
         with self._pending_lock:
             pending = self._pending.pop(request_id, None)
         if pending is None:

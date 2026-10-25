@@ -1,25 +1,25 @@
 {
-  "versionName": "0.1.122",
-  "versionCode": 123,
+  "versionName": "0.1.123",
+  "versionCode": 124,
   "changes": [
     {
       "ru": {
-        "title": "Точнее диагностика инструментов",
-        "text": "Подтверждённо отклонённые вызовы браузера больше не остаются активными после успешного восстановления. Настоящие ошибки и неопределённые результаты сохраняются для проверки."
+        "title": "Корректное отображение таблиц",
+        "text": "Изменённые Excel-файлы обозначаются как таблицы без фиктивного подсчёта добавленных и удалённых строк."
       },
       "en": {
-        "title": "More accurate tool diagnostics",
-        "text": "Confirmed rejected browser calls no longer remain active after successful recovery. Actual failures and uncertain outcomes remain available for review."
+        "title": "Correct spreadsheet presentation",
+        "text": "Changed Excel files are identified as spreadsheets without misleading added and removed line counts."
       }
     },
     {
       "ru": {
-        "title": "Понятные причины сбоев",
-        "text": "Отчёт сохраняет причины ошибок инструментов. Пустые диагностические данные больше не превращаются во внутреннюю ошибку."
+        "title": "Понятнее ошибки браузера",
+        "text": "Диагностика показывает подсказки об исправлении параметров отклонённых действий браузера."
       },
       "en": {
-        "title": "Clearer failure causes",
-        "text": "Reports retain tool failure causes. Empty diagnostic data no longer becomes an invented internal error."
+        "title": "Clearer browser errors",
+        "text": "Diagnostics show parameter correction hints for rejected browser actions."
       }
     }
   ]

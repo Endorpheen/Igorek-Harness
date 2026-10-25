@@ -1345,7 +1345,7 @@ def execute_cc_backend_task(
         system_prompt = f"{system_prompt.rstrip()}\n\n{_telegram_runtime_suffix()}"
 
     url = _anthropic_messages_url(base_url)
-    anthropic_tools = enabled_tools if enabled_tools is not None else get_tool_schemas()
+    anthropic_tools = list(enabled_tools if enabled_tools is not None else get_tool_schemas())
     if vault_store_provider is None:
         anthropic_tools = [tool for tool in anthropic_tools if tool.get('name') != 'VaultStore']
     tools = anthropic_tools
