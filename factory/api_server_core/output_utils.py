@@ -2,7 +2,7 @@ import re
 
 
 def sanitize_output(text: str) -> str:
-    text = re.sub(r"(?is)<system-reminder>.*?</system-reminder>", "", text)
+    text = re.sub(r"(?is)<system-reminder>.*?(?:</system-reminder>|$)", "", text)
     text = re.sub(r"(?im)<\|channel\>[^\r\n]*", "", text)
     text = re.sub(r"(?im)<channel\|>", "", text)
     text = re.sub(r"(?im)<\|start\|>", "", text)

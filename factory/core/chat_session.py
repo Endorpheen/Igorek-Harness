@@ -1122,11 +1122,11 @@ class ChatSession:
             return
         sel, chosen = run_resume_picker(sessions, action=SessionPickerAction.FORK)
         self.console.print()
-        if sel == SessionSelection.START_FRESH or chosen is None:
-            self.console.print("  [dim]Cancelled.[/dim]")
-            return
         if sel == SessionSelection.EXIT:
             self._active = False
+            return
+        if sel == SessionSelection.START_FRESH or chosen is None:
+            self.console.print("  [dim]Cancelled.[/dim]")
             return
         new_name = _fork_session(_sp_fn(chosen["session_id"]))
         if new_name:
@@ -1232,10 +1232,12 @@ class ChatSession:
 
     def _apply_session_model(self, selected_model: str) -> Optional[str]:
         from .cli_chat_rich import _apply_session_model
-        return _apply_session_model(
-            self.sl, profile_model_name(get_profile_config(self.profile)),
-            selected_model,
+        model_override = _apply_session_model(
+            self.sl, profile_model=profile_model_name(get_profile_config(self.profile)),
+            selected_model=selected_model,
         )
+        self.widget.model = selected_model
+        return model_override
 
     def _cmd_profile(self, text: str = ""):
         a = text[len("/profile"):].strip()
@@ -1834,7 +1836,7 @@ class ChatSession:
                 except Exception:
                     pass
         trace_path = _trace_path_for_task(task_id)
-        final_states = {"ok", "fail", "dead_letter"}
+        final_states = {"ok", "fail", "dead_letter", "cancelled"}
         turn_started = time.monotonic()
         if getattr(self, "_fs_external_app", None) is None:
             self.sl.refresh()
@@ -2117,7 +2119,8 @@ class ChatSession:
                 cancel_task(task_id)
             finally:
                 try:
-                    app.exit()
+                    if app.is_running:
+                        app.exit()
                 except Exception:
                     pass
 

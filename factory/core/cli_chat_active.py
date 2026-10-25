@@ -838,6 +838,16 @@ def _create_chat_application(
             event.app.exit(result=None)
             return
         running_state["interrupted"] = True
+        if persistent and running_state.get("task_active"):
+            # The task worker outlives the app, so cancel before closing it.
+            task_id = str(running_state.get("current_task_id") or "")
+            if task_id:
+                try:
+                    cancel_task(task_id)
+                except Exception:
+                    pass
+            else:
+                running_state["interrupt_pending"] = True
         event.app.exit(result="__INTERRUPT__")
 
     def _output_lines():

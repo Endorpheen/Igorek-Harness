@@ -249,10 +249,13 @@ def _atomic_write_text(file_path: Path, content: str) -> None:
 
 
 def _scan_skill_change(scan_path: Path) -> str:
-    result = scan_skill(scan_path, source="agent-created")
-    allowed, reason = should_allow_install(result, force=False)
-    if result.verdict == "dangerous" or allowed is False:
-        return f"Security scan blocked this skill ({reason}):\n{format_scan_report(result)}"
+    try:
+        result = scan_skill(scan_path, source="agent-created")
+        allowed, reason = should_allow_install(result, force=False)
+        if result.verdict == "dangerous" or allowed is False:
+            return f"Security scan blocked this skill ({reason}):\n{format_scan_report(result)}"
+    except Exception as exc:
+        return f"Security scan failed: {type(exc).__name__}: {exc}"
     return ""
 
 
@@ -539,9 +542,14 @@ def _skill_manage(args: dict[str, Any], **_: Any) -> str:
             if _find_skill(manager, name):
                 return _json({"success": False, "error": f"Skill already exists: {name}"})
             skill_dir = _managed_skill_dir(skills_root, name, category)
+            skill_dir.mkdir(parents=True, exist_ok=False)
             skill_md = skill_dir / "SKILL.md"
-            _atomic_write_text(skill_md, content)
-            scan_error = _scan_skill_change(skill_dir)
+            try:
+                _atomic_write_text(skill_md, content)
+                scan_error = _scan_skill_change(skill_dir)
+            except Exception:
+                shutil.rmtree(skill_dir, ignore_errors=True)
+                raise
             if scan_error:
                 shutil.rmtree(skill_dir, ignore_errors=True)
                 return _json({"success": False, "error": scan_error})

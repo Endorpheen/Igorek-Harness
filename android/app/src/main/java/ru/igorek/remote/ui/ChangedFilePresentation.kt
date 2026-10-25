@@ -10,12 +10,14 @@ import ru.igorek.remote.data.ReviewFile
 internal fun nonTextChangeLabel(path: String, reason: String = "", language: AppLanguage = AppLocale.current): String? {
     val extension = path.substringAfterLast('/').substringAfterLast('.', "").lowercase(Locale.ROOT)
     val kind = when (extension) {
+        "xlsx", "xls", "xlsm", "xlsb", "xlt", "xltx", "xltm", "ods", "ots", "numbers" -> "spreadsheet"
         "mp4", "m4v", "mov", "webm", "mkv", "avi", "mpeg", "mpg", "3gp", "ogv" -> "video"
         "mp3", "wav", "flac", "ogg", "m4a", "aac", "opus", "aiff", "wma" -> "audio"
         "jpg", "jpeg", "png", "gif", "webp", "bmp", "tif", "tiff", "heic", "heif", "avif", "ico" -> "image"
         else -> if (reason == "binary") "binary" else return null
     }
     return when (kind) {
+        "spreadsheet" -> if (language == AppLanguage.Russian) "Таблица" else "Spreadsheet"
         "video" -> if (language == AppLanguage.Russian) "Видео" else "Video"
         "audio" -> if (language == AppLanguage.Russian) "Аудио" else "Audio"
         "image" -> if (language == AppLanguage.Russian) "Изображение" else "Image"

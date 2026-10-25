@@ -38,14 +38,14 @@ class PagerKeymap:
     Default bindings match the ``RuntimeKeymap::defaults().pager`` of the
     Rust source: arrow keys for scroll/page/jump, Esc/q to close.
     """
-    scroll_up: PagerKeyBindingList = field(default_factory=lambda: PagerKeyBindingList((KeyCode.UP,)))
-    scroll_down: PagerKeyBindingList = field(default_factory=lambda: PagerKeyBindingList((KeyCode.DOWN,)))
-    page_up: PagerKeyBindingList = field(default_factory=lambda: PagerKeyBindingList((KeyCode.PAGE_UP,)))
-    page_down: PagerKeyBindingList = field(default_factory=lambda: PagerKeyBindingList((KeyCode.PAGE_DOWN,)))
-    jump_top: PagerKeyBindingList = field(default_factory=lambda: PagerKeyBindingList((KeyCode.HOME,)))
-    jump_bottom: PagerKeyBindingList = field(default_factory=lambda: PagerKeyBindingList((KeyCode.END,)))
-    close: PagerKeyBindingList = field(default_factory=lambda: PagerKeyBindingList((KeyCode.ESC, KeyCode.CHAR_Q,)))
-    close_transcript: PagerKeyBindingList = field(default_factory=lambda: PagerKeyBindingList((KeyCode.CHAR_T,)))
+    scroll_up: PagerKeyBindingList = field(default_factory=lambda: PagerKeyBindingList((KeyCode.Up(),)))
+    scroll_down: PagerKeyBindingList = field(default_factory=lambda: PagerKeyBindingList((KeyCode.Down(),)))
+    page_up: PagerKeyBindingList = field(default_factory=lambda: PagerKeyBindingList((KeyCode.PageUp(),)))
+    page_down: PagerKeyBindingList = field(default_factory=lambda: PagerKeyBindingList((KeyCode.PageDown(),)))
+    jump_top: PagerKeyBindingList = field(default_factory=lambda: PagerKeyBindingList((KeyCode("home"),)))
+    jump_bottom: PagerKeyBindingList = field(default_factory=lambda: PagerKeyBindingList((KeyCode("end"),)))
+    close: PagerKeyBindingList = field(default_factory=lambda: PagerKeyBindingList((KeyCode.Esc(), KeyCode.Char("q"),)))
+    close_transcript: PagerKeyBindingList = field(default_factory=lambda: PagerKeyBindingList((KeyCode.Char("t"),)))
 
 
 # ---------------------------------------------------------------------------
@@ -180,7 +180,8 @@ class PagerView:
     def render(self, area, buf) -> None:
         # Stub — the Python pipeline doesn't use ratatui Buffer.
         content_height = self.content_height(int(getattr(area, "width", 80)))
-        self.last_rendered_height = content_height
+        self.last_content_height = content_height
+        self.last_rendered_height = max(0, int(getattr(area, "height", 0)))
         if self.pending_scroll_chunk is not None:
             self.ensure_chunk_visible(self.pending_scroll_chunk, area)
             self.pending_scroll_chunk = None

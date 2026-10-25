@@ -177,9 +177,9 @@ class CodexAppServerRuntime:
             if session is None:
                 return
             if method == "serverRequest/resolved":
-                request_id = str(params.get("id") or "")
-                if request_id:
-                    session.remove_resolved_request(request_id)
+                request_id = params.get("id")
+                if request_id is not None:
+                    session.remove_resolved_request(str(request_id))
             session.append_event(
                 {
                     "kind": "notification",
@@ -358,12 +358,14 @@ class CodexAppServerRuntime:
             session = self._sessions.pop(session_id, None)
         if session is None:
             raise KeyError(f"session not found: {session_id}")
-        self._approval_bridge.reject_pending_for_session(
-            session_id=session.session_id,
-            requested_by=f"app_server:{session.session_id}",
-            resolution_note="pending approval rejected because managed app-server session was closed",
-        )
-        session.adapter.close()
+        try:
+            self._approval_bridge.reject_pending_for_session(
+                session_id=session.session_id,
+                requested_by=f"app_server:{session.session_id}",
+                resolution_note="pending approval rejected because managed app-server session was closed",
+            )
+        finally:
+            session.adapter.close()
 
     def _require_session(self, session_id: str) -> _ManagedSession:
         with self._lock:

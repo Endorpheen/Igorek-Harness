@@ -65,7 +65,7 @@ def browser_tool_diagnostics(tool_input,result_text) -> dict:
         if not isinstance(body,dict):return result
     except (ValueError,TypeError):return result
     allowed={
-        'error':{'browser_needs_owner','desktop_locked','browser_closed','invalid_request','invalid_url','public_page_required','navigation_failed','browser_operation_failed','browser_queue_full','invalid_page','stale_target','target_obscured','protected_input','target_disabled','target_not_found','unsupported_target','invalid_target','target_mismatch','wait_timeout','page_state_unavailable','stale_cursor','unknown_post','no_run','screenshot_failed','menu_not_closed','invalid_value','login_required','challenge'},
+        'error':{'desktop_browser_timeout','browser_needs_owner','desktop_locked','browser_closed','invalid_request','invalid_url','public_page_required','navigation_failed','browser_operation_failed','browser_queue_full','invalid_page','stale_target','target_obscured','protected_input','target_disabled','target_not_found','unsupported_target','invalid_target','target_mismatch','wait_timeout','page_state_unavailable','stale_cursor','unknown_post','no_run','screenshot_failed','menu_not_closed','invalid_value','login_required','challenge'},
         'auth':{'ready','not_checked','unknown','login_required','challenge'},
         'reason':{'manual_login','login_required','challenge','navigation_failed','controls_failed','browser_crashed','interrupted','wait_timeout','page_state_unavailable'},
     }

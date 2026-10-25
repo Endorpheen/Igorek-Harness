@@ -369,7 +369,7 @@ def _normalize_image_size(value: Any) -> str | dict[str, int]:
         raw = DEFAULT_IMAGE_SIZE
     dimensions = re.fullmatch(r"(\d+)\s*[xX]\s*(\d+)", raw)
     if dimensions:
-        return {"width": int(dimensions.group(1)), "height": int(dimensions.group(2))}
+        return _normalize_image_size({"width": int(dimensions.group(1)), "height": int(dimensions.group(2))})
     if raw not in ALLOWED_IMAGE_SIZE_PRESETS:
         raise RuntimeError(
             "image_size должен быть preset "
@@ -552,6 +552,7 @@ def main() -> int:
         line = raw_line.strip()
         if not line:
             continue
+        request = None
         try:
             request = json.loads(line)
             method = request.get("method")
@@ -605,7 +606,7 @@ def main() -> int:
         except Exception as exc:
             _send(
                 _make_error(
-                    request.get("id") if "request" in locals() else None,
+                    request.get("id") if isinstance(request, dict) else None,
                     -32000,
                     str(exc),
                 )

@@ -275,7 +275,7 @@ def _models_list(
     **_kwargs: Any,
 ) -> dict[str, Any]:
     """Search/filter/sort OpenRouter's model catalog."""
-    models = _get_models_catalog()
+    models = list(_get_models_catalog())
 
     # Free-text search
     if query:

@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Optional, Tuple
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 
 class PasteImageError(Exception):
@@ -85,8 +85,8 @@ def paste_image_as_png() -> Tuple[bytes, PastedImageInfo]:
 
     img = None
     try:
-        grabbed = ImageGrab.grab(clipboard=True)
-        if grabbed is not None:
+        grabbed = ImageGrab.grabclipboard()
+        if grabbed is not None and not isinstance(grabbed, list):
             img = grabbed
     except Exception:
         img = None
@@ -253,17 +253,20 @@ def normalize_pasted_path(pasted: str) -> Optional[Path]:
     if unquoted.startswith("file://"):
         parsed = urlparse(unquoted)
         if parsed.scheme == "file":
-            return Path(parsed.path)
+            return Path(unquote(parsed.path))
 
     if unquoted.startswith("file:"):
         parsed = urlparse(unquoted)
         if parsed.scheme == "file":
-            return Path(parsed.path)
+            return Path(unquote(parsed.path))
 
     if (win_path := _normalize_windows_path(unquoted)) is not None:
         return win_path
 
-    parts = list(shlex.shlex(pasted, posix=True))
+    try:
+        parts = shlex.split(pasted, posix=True)
+    except ValueError:
+        return None
     if len(parts) == 1:
         part = parts[0]
         if (win_path := _normalize_windows_path(part)) is not None:

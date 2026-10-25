@@ -79,7 +79,7 @@ const ui = {
   modePlan: byId("mode-plan"), modeExecute: byId("mode-execute"), modeNote: byId("composer-mode-note"),
   mentionMenu: byId("mention-menu"), mentionHead: byId("mention-menu-head"),
   mentionRows: byId("mention-rows"), mentionNote: byId("mention-note"),
-  runtime: byId("runtime-badge"), runtimeLabel: byId("runtime-label"), indicator: byId("streaming-indicator"),
+  indicator: byId("streaming-indicator"),
   indicatorLabel: byId("streaming-label"),
   scroll: byId("conversation-scroll"), deviceName: byId("device-name"), logout: byId("logout"),
   toast: byId("toast"),
@@ -1488,8 +1488,6 @@ function applyStaticI18n() {
 }
 
 function renderRuntime() {
-  ui.runtime.classList.toggle("active", Boolean(state.runtimeActive));
-  ui.runtimeLabel.textContent = t(state.runtimeKey || "status.waiting");
   if (ui.stop) ui.stop.hidden = !state.runtimeActive;
 }
 function setRuntime(active, key) {

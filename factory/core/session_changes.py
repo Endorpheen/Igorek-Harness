@@ -20,6 +20,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from .change_file_types import non_text_change_kind
 from .durable_root_scope import durable_root_within_workdir, is_within_relative
 from .runtime import get_data_root
 
@@ -234,6 +235,10 @@ class TaskChangeTracker:
         exists = os.path.isfile(path)
         if not exists and baseline is None:
             return
+        if non_text_change_kind(relative):
+            status = "added" if baseline is None else "deleted" if not exists else "modified"
+            self._store(relative, 0, 0, status, force=True)
+            return
         current = _read_text(path) if exists else ""
         if baseline is None:
             additions, deletions = count_line_changes("", current)
@@ -255,6 +260,10 @@ class TaskChangeTracker:
         content: str,
     ) -> None:
         previous = self._files.get(relative)
+        if non_text_change_kind(relative):
+            status = "added" if previous is None and tool_name == "Write" else "modified"
+            self._store(relative, 0, 0, status, force=True)
+            return
         if tool_name == "Write":
             operation_additions = _count_lines(content)
             operation_deletions = 0
@@ -270,6 +279,8 @@ class TaskChangeTracker:
         self._store(relative, additions, deletions, status)
 
     def _store(self, relative: str, additions: int, deletions: int, status: str, *, force: bool = False) -> None:
+        if non_text_change_kind(relative):
+            additions, deletions, force = 0, 0, True
         if not force and status == "modified" and additions == 0 and deletions == 0:
             self._files.pop(relative, None)
             return
@@ -345,8 +356,11 @@ def aggregate_changes(
             relative = _normalize_path(str(entry.get("path") or ""), task_workdir, session_workdir)
             if not relative or is_internal_path(relative, durable_root=durable_root):
                 continue
-            additions = int(entry.get("additions") or 0)
-            deletions = int(entry.get("deletions") or 0)
+            if non_text_change_kind(relative):
+                additions, deletions = 0, 0
+            else:
+                additions = int(entry.get("additions") or 0)
+                deletions = int(entry.get("deletions") or 0)
             existing = merged.get(relative)
             if existing is None:
                 merged[relative] = {

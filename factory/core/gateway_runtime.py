@@ -612,7 +612,7 @@ class GatewayRuntime:
             item_id = _ensure_text(params.get("itemId"))
             if item_id:
                 item = state.item_cache.setdefault(item_id, {"type": "agentMessage", "text": ""})
-                item["text"] = f"{_ensure_text(item.get('text'))}{_ensure_text(params.get('delta'))}"
+                item["text"] = str(item.get("text") or "") + str(params.get("delta") or "")
         elif method == "item/completed":
             item = params.get("item")
             if isinstance(item, dict):

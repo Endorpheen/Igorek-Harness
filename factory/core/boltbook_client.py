@@ -1086,10 +1086,14 @@ def update_inbox_from_feed(feed_data: dict[str, Any], *, captured_at: int) -> di
         existing = by_id.get(candidate_id)
         if existing:
             existing["last_seen_at"] = captured_at
+            zero_counters = {key for key in ("upvotes", "downvotes", "comment_count") if key in post}
+            author = post.get("author")
+            if isinstance(author, dict):
+                zero_counters.update(f"author_{key}" for key in ("karma", "follower_count") if key in author)
             for key, value in summary.items():
                 if key in {"captured_at", "status"}:
                     continue
-                if value:
+                if value or key in zero_counters:
                     existing[key] = value
             seen_count += 1
             continue

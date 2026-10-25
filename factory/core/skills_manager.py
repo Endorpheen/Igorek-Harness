@@ -597,8 +597,8 @@ class SkillsManager:
         if trigger_section:
             trigger_lines = trigger_section.group(1).strip().split('\n')
             for line in trigger_lines:
-                line = re.sub(r'^[\s\-\*\d\.]+', '', line.strip()).strip()
-                line = re.sub(r'\*\*([^*]+)\*\*', r'\1', line)
+                line = re.sub(r'\*\*([^*]+)\*\*', r'\1', line.strip())
+                line = re.sub(r'^[\s\-\*\d\.]+', '', line).strip()
                 if line and not line.startswith('#'):
                     triggers.append(line)
 

@@ -21,12 +21,11 @@ def flatten_block_content(content: str | list[dict[str, Any]] | None, *, role: s
             tool_text = flatten_block_content(block.get("content"), role=role)
             tool_use_id = block.get("tool_use_id", "")
             is_error = block.get("is_error", False)
-            if tool_text:
-                prefix = f"[tool_result id={tool_use_id}"
-                if is_error:
-                    prefix += " error=true"
-                prefix += "]"
-                parts.append(f"{prefix}\n{tool_text}")
+            prefix = f"[tool_result id={tool_use_id}"
+            if is_error:
+                prefix += " error=true"
+            prefix += "]"
+            parts.append(f"{prefix}\n{tool_text}" if tool_text else prefix)
         elif block_type == "tool_use":
             name = block.get("name", "tool")
             tool_input = block.get("input", {})
@@ -272,36 +271,40 @@ def extract_latest_user_request_text(req: Any) -> str:
 
 
 def extract_latest_tool_exchange(req: Any) -> tuple[str, str, str, dict[str, Any]]:
-    tool_name = ""
-    tool_input = ""
-    tool_result = ""
-    tool_input_obj: dict[str, Any] = {}
-
-    for msg in reversed(req.messages):
-        content = msg.content
-        if isinstance(content, str):
+    """Pair the latest result with its preceding call, retaining legacy id-less input."""
+    selected_result = None
+    result_index = len(req.messages)
+    for index in range(len(req.messages) - 1, -1, -1):
+        msg = req.messages[index]
+        if msg.role != "user" or isinstance(msg.content, str):
             continue
+        selected_result = next((block for block in reversed(msg.content)
+                                if block.get("type") == "tool_result"), None)
+        if selected_result is not None:
+            result_index = index
+            break
 
-        if msg.role == "user" and not tool_result:
-            for block in reversed(content):
-                if block.get("type") == "tool_result":
-                    tool_result = flatten_block_content([block], role=msg.role)
-                    break
-
-        if msg.role == "assistant" and not tool_name:
-            for block in reversed(content):
-                if block.get("type") == "tool_use":
-                    tool_name = str(block.get("name", "tool"))
-                    raw_input = block.get("input", {})
-                    tool_input_obj = raw_input if isinstance(raw_input, dict) else {}
-                    tool_input = json.dumps(tool_input_obj, ensure_ascii=False)
-                    break
-
-        if tool_result and tool_name:
+    result_id = str(selected_result.get("tool_use_id") or "") if selected_result is not None else ""
+    tool_name, tool_input = "", ""
+    tool_input_obj: dict[str, Any] = {}
+    for msg in reversed(req.messages[:result_index]):
+        if msg.role != "assistant" or isinstance(msg.content, str):
+            continue
+        for block in reversed(msg.content):
+            if block.get("type") != "tool_use" or result_id and str(block.get("id", "")) != result_id:
+                continue
+            tool_name = str(block.get("name", "tool"))
+            raw_input = block.get("input", {})
+            tool_input_obj = raw_input if isinstance(raw_input, dict) else {}
+            tool_input = json.dumps(tool_input_obj, ensure_ascii=False)
+            break
+        if tool_name:
             break
 
     user_text = extract_latest_user_request_text(req)
-    return user_text, tool_name, tool_result or tool_input, tool_input_obj
+    payload = (flatten_block_content([selected_result], role="user")
+               if selected_result is not None else tool_input)
+    return user_text, tool_name, payload, tool_input_obj
 
 
 def extract_tool_targets(req: Any, tool_names: set[str]) -> list[str]:

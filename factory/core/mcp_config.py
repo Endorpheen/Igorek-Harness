@@ -237,6 +237,8 @@ def accept_mcp_enable_suggestion(
     server_name: str,
     data_dir: str | None = None,
 ) -> dict[str, Any]:
+    if (get_mcp_dir(data_dir) / "access.json").exists():
+        raise PermissionError("desktop_owner_required")
     entry = set_mcp_server_global_disabled(server_name, False, data_dir)
     enabled = enable_mcp_server_for_profile(profile, server_name, data_dir)
     return {

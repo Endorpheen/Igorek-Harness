@@ -9,6 +9,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from .change_file_types import non_text_change_kind
 from .session_changes import count_line_changes, is_internal_path
 from .session_diff import MAX_DIFF_FILE_BYTES, build_diff_hunks
 
@@ -245,6 +246,10 @@ class ChangesReview:
     def file_data(self, entry: dict[str, Any], *, hunks: bool = False) -> dict[str, Any]:
         result = {**entry, 'additions': None, 'deletions': None, 'source':'unavailable', 'unavailable_reason':'no_baseline', 'hunks':[], 'truncated':False}
         if not self.revision and not self.empty_baseline:
+            return result
+        if non_text_change_kind(entry['path']) or non_text_change_kind(entry.get('old_path') or ''):
+            result['unavailable_reason'] = 'binary'
+            result['note'] = 'Нетекстовый файл: сравнение строк неприменимо'
             return result
         try:
             old_path = entry.get('old_path') or entry['path']
