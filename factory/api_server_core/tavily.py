@@ -114,7 +114,9 @@ def extract_tavily_query(text: str) -> str:
     cleaned = re.sub(r"Authorization:\s*Bearer\s+[A-Za-z0-9._-]+", " ", text or "", flags=re.IGNORECASE)
     cleaned = re.sub(r"https?://api\.tavily\.com/search", " ", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\bTAVILY_API_KEY\b", " ", cleaned, flags=re.IGNORECASE)
-    cleaned = re.sub(r"\s+", " ", cleaned).strip(" \n\t`'\"")
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    if len(cleaned) >= 2 and cleaned[0] == cleaned[-1] and cleaned[0] in "`\"'":
+        cleaned = cleaned[1:-1].strip()
     return cleaned
 
 
@@ -196,24 +198,22 @@ def build_tavily_result_summaries(payload: dict[str, Any], limit: int = 5) -> li
 
 
 def extract_curl_json_payload(command: str) -> dict[str, Any] | None:
-    match = re.search(r"""(?:^|\s)-d\s+'([^']+)'""", command)
-    if not match:
-        match = re.search(r'''(?:^|\s)-d\s+"([^"]+)"''', command)
-    if match:
-        raw_payload = match.group(1).strip()
-        try:
-            parsed = json.loads(raw_payload)
-        except Exception:
-            parsed = None
-        if isinstance(parsed, dict):
-            return parsed
-
-    form_pairs = re.findall(r"""(?:^|\s)-d\s+['"]([^'"]+)['"]""", command)
-    if not form_pairs:
+    try:
+        arguments = shlex.split(command)
+    except ValueError:
         return None
+    bodies = [arguments[i + 1] for i, argument in enumerate(arguments[:-1]) if argument == "-d"]
+    if not bodies:
+        return None
+    try:
+        parsed = json.loads(bodies[0])
+    except (ValueError, TypeError):
+        parsed = None
+    if isinstance(parsed, dict):
+        return parsed
 
     payload: dict[str, Any] = {}
-    for pair in form_pairs:
+    for pair in bodies:
         if "=" not in pair:
             continue
         key, value = pair.split("=", 1)
@@ -263,5 +263,5 @@ def tavily_retry_bash_command_for_error(command: str, error_text: str, strip_sys
         f'-H "Authorization: Bearer {bearer}" '
         '-H "Content-Type: application/json" '
         '"https://api.tavily.com/search" '
-        f"-d '{serialized_payload}'"
+        f"-d {shlex.quote(serialized_payload)}"
     )

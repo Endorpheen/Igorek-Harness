@@ -114,6 +114,14 @@ _TELEGRAM_SAFE_CHUNK_LIMIT = 3500
 _TELEGRAM_LONG_THINK_LIMIT = 2400
 _TELEGRAM_RICH_CHUNK_LIMIT = 30000
 
+# Protect literal code in both long-thought delivery and HTML formatting.
+_TELEGRAM_PROTECTED_BLOCK_RE = re.compile(
+    r"```(?P<language>[a-zA-Z0-9_+\-]*)\n(?P<fenced_code>.*?)```"
+    r"|(?i:<think>\s*(?P<thinking>.*?)\s*</think>)"
+    r"|`(?P<inline_code>[^`\n]+)`",
+    re.DOTALL,
+)
+
 
 def _strip_persisted_output_leak(text: str) -> str:
     cleaned = re.sub(r"(?s)<persisted-output>.*?</persisted-output>", " ", text or "")
@@ -126,7 +134,10 @@ def _prepare_long_think_fallbacks(text: str) -> tuple[str, list[dict[str, str]]]
     attachments: list[dict[str, str]] = []
 
     def replace_block(match: re.Match[str]) -> str:
-        thinking = (match.group(1) or "").strip()
+        thinking = match.group("thinking")
+        if thinking is None:
+            return match.group(0)
+        thinking = thinking.strip()
         if len(thinking) <= _TELEGRAM_LONG_THINK_LIMIT:
             return match.group(0)
         index = len(attachments) + 1
@@ -143,7 +154,7 @@ def _prepare_long_think_fallbacks(text: str) -> tuple[str, list[dict[str, str]]]
             "\n"
         )
 
-    prepared = re.sub(r"(?is)<think>\s*(.*?)\s*</think>", replace_block, text or "")
+    prepared = _TELEGRAM_PROTECTED_BLOCK_RE.sub(replace_block, text or "")
     return prepared, attachments
 
 
@@ -161,51 +172,51 @@ def _convert_markdown_to_telegram_html(text: str) -> str:
     if not normalized:
         return ""
 
-    think_blocks: list[str] = []
-    code_blocks: list[str] = []
+    occupied = set(re.findall(r"@@IGOREK_(\d+)_", normalized))
+    namespace = 0
+    while str(namespace) in occupied:
+        namespace += 1
+    prefix = f"@@IGOREK_{namespace}_BLOCK_"
+    blocks: list[str] = []
 
-    def store_think_block(match: re.Match[str]) -> str:
-        thinking = (match.group(1) or "").strip()
-        if not thinking:
-            return ""
-        escaped_thinking = html.escape(thinking)
-        rendered = (
-            "<blockquote expandable>"
-            "<b>Размышления модели</b>\n"
-            f"{escaped_thinking}"
-            "</blockquote>"
-        )
-        think_blocks.append(rendered)
-        return f"\n@@THINKBLOCK_{len(think_blocks) - 1}@@\n"
-
-    def store_code_block(match: re.Match[str]) -> str:
-        language = _ensure_text(match.group(1))
-        code = match.group(2) or ""
-        escaped_code = html.escape(code.strip("\n"))
-        if language:
-            escaped_language = html.escape(language)
-            rendered = f"<pre><code class=\"language-{escaped_language}\">{escaped_code}</code></pre>"
+    def store_block(match: re.Match[str]) -> str:
+        thinking = match.group("thinking")
+        if thinking is not None:
+            thinking = thinking.strip()
+            if not thinking:
+                return ""
+            block = (
+                "<blockquote expandable>"
+                "<b>Размышления модели</b>\n"
+                f"{html.escape(thinking)}"
+                "</blockquote>"
+            )
+        elif match.group("fenced_code") is not None:
+            language = _ensure_text(match.group("language"))
+            code = html.escape(match.group("fenced_code").strip("\n"))
+            block = (
+                f'<pre><code class="language-{html.escape(language)}">{code}</code></pre>'
+                if language else f"<pre>{code}</pre>"
+            )
         else:
-            rendered = f"<pre>{escaped_code}</pre>"
-        code_blocks.append(rendered)
-        return f"@@CODEBLOCK_{len(code_blocks) - 1}@@"
+            block = f'<code>{html.escape(match.group("inline_code"))}</code>'
+        blocks.append(block)
+        marker = f"{prefix}{len(blocks) - 1}@@"
+        return f"\n{marker}\n" if thinking is not None else marker
 
-    rendered = re.sub(r"(?is)<think\s*/\s*>", "", normalized)
-    rendered = re.sub(r"(?is)<think>\s*(.*?)\s*</think>", store_think_block, rendered)
-    rendered = re.sub(r"```([a-zA-Z0-9_+\-]*)\n(.*?)```", store_code_block, rendered, flags=re.DOTALL)
+    rendered = _TELEGRAM_PROTECTED_BLOCK_RE.sub(store_block, normalized)
+    rendered = re.sub(r"(?is)<think\s*/\s*>", "", rendered)
     rendered = html.escape(rendered)
     rendered = re.sub(r"(?is)&lt;think\b[^&]*?(?:&gt;|/&gt;)\s*", "", rendered)
-    rendered = re.sub(r"`([^`\n]+)`", lambda m: f"<code>{html.escape(m.group(1))}</code>", rendered)
     rendered = re.sub(r"\*\*([^\n*][^*]*?)\*\*", r"<b>\1</b>", rendered)
     rendered = re.sub(r"(?<!\*)\*([^\n*][^*]*?)\*(?!\*)", r"<i>\1</i>", rendered)
     rendered = re.sub(r"__([^\n_][^_]*?)__", r"<u>\1</u>", rendered)
     rendered = re.sub(r"\[([^\]]+)\]\((https?://[^)\s]+)\)", r"<a href=\"\2\">\1</a>", rendered)
     rendered = rendered.replace("\r\n", "\n").replace("\r", "\n")
-    for index, block in enumerate(think_blocks):
-        rendered = rendered.replace(f"@@THINKBLOCK_{index}@@", block)
-    for index, block in enumerate(code_blocks):
-        rendered = rendered.replace(f"@@CODEBLOCK_{index}@@", block)
+    for index, block in enumerate(blocks):
+        rendered = rendered.replace(f"{prefix}{index}@@", block)
     return rendered
+
 
 
 def _sanitize_filename(name: str, *, fallback: str) -> str:
@@ -693,6 +704,8 @@ class TelegramBotApi:
             }
             if reply_to_message_id is not None:
                 fallback_payload["reply_to_message_id"] = reply_to_message_id
+            if reply_markup is not None:
+                fallback_payload["reply_markup"] = reply_markup
             return self._request_json("sendMessage", fallback_payload)
 
     def send_message(

@@ -12,6 +12,7 @@ from pathlib import Path
 
 from .runtime import get_db_path
 from .schema import open_db
+from .tool_runtime_context import is_interrupt_requested
 from .vault.logging_redaction import redact_text
 
 _context = ContextVar("running_command_context", default=None)
@@ -111,7 +112,7 @@ def run_process(argv, *, label: str, guest_privileged=False, **kwargs):
             except subprocess.TimeoutExpired:
                 with open_db(db) as conn:
                     row = conn.execute("SELECT stop_requested FROM running_commands WHERE id = ?", (identity,)).fetchone()
-                if row and row[0]:
+                if (row and row[0]) or is_interrupt_requested():
                     _terminate(process)
                     try:
                         output, error = process.communicate(timeout=1)

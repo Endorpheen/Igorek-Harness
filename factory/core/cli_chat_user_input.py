@@ -199,13 +199,28 @@ def _ask_user_input(
             except (EOFError, KeyboardInterrupt):
                 form.cancel()
                 break
-            form.handle_key(key)
+            question = form.current_question
+            answer = form.current_answer
+            if question and question.field_type in ("text", "secret") and answer is not None:
+                if len(key) == 1:
+                    answer.text_value += key
+                elif key == "backspace":
+                    answer.text_value = answer.text_value[:-1]
+                else:
+                    form.handle_key(key)
+            else:
+                form.handle_key(key)
         if form.cancelled:
             return None
         return form.submit()
 
     # ── Interactive prompt_toolkit session ──
-    sel = {"idx": 0}
+    from prompt_toolkit.filters import Condition
+
+    editing_text = Condition(
+        lambda: form.current_question is not None
+        and form.current_question.field_type in ("text", "secret")
+    )
 
     app_holder: dict = {"app": None}
 
@@ -241,13 +256,13 @@ def _ask_user_input(
         e.app.invalidate()
 
     @kb.add("up")
-    @kb.add("k")
+    @kb.add("k", filter=~editing_text)
     def _(e):
         form.handle_key("up")
         e.app.invalidate()
 
     @kb.add("down")
-    @kb.add("j")
+    @kb.add("j", filter=~editing_text)
     def _(e):
         form.handle_key("down")
         e.app.invalidate()
@@ -279,9 +294,16 @@ def _ask_user_input(
         else:
             e.app.invalidate()
 
-    @kb.add("space")
+    @kb.add("space", filter=~editing_text)
     def _(e):
         form.handle_key(" ")
+        e.app.invalidate()
+
+    @kb.add("backspace", filter=editing_text)
+    def _(e):
+        answer = form.current_answer
+        if answer is not None and answer.text_value:
+            answer.text_value = answer.text_value[:-1]
         e.app.invalidate()
 
     # Character input for text/secret fields
@@ -294,10 +316,6 @@ def _ask_user_input(
                 ans = form.current_answer
                 if ans is not None:
                     ans.text_value += key
-            elif key == "backspace":
-                ans = form.current_answer
-                if ans is not None and ans.text_value:
-                    ans.text_value = ans.text_value[:-1]
         e.app.invalidate()
 
     # A custom Application (rather than PromptSession) is required for mouse
@@ -322,11 +340,15 @@ def _ask_user_input(
 def _drain_stdin() -> None:
     """Drain any pending stdin so our prompt starts fresh."""
     import sys, select
-    while select.select([sys.stdin], [], [], 0)[0]:
-        try:
-            sys.stdin.read(1)
-        except Exception:
-            break
+    try:
+        while select.select([sys.stdin], [], [], 0)[0]:
+            try:
+                if not sys.stdin.read(1):
+                    break
+            except Exception:
+                break
+    except (OSError, ValueError, TypeError):
+        return
 
 
 def _clear_and_render(console, form: RequestUserInputForm) -> None:

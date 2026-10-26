@@ -15,6 +15,8 @@ class MultiSelectPicker:
     def set_items(self, items: list[MultiSelectItem]):
         self.items = items
         self.scroll.total = len(items)
+        self.scroll.selected = 0
+        self.scroll.offset = 0
 
     def toggle_current(self):
         if 0 <= self.scroll.selected < len(self.items):

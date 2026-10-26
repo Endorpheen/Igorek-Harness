@@ -27,7 +27,8 @@ def send_task(text, profile="zai"):
         response = requests.post(
             f"{API_URL}/task",
             json=data,
-            headers={"Content-Type": "application/json"}
+            headers={"Content-Type": "application/json",
+                     "X-API-Key": os.environ.get("FACTORY_API_KEY", "")}
         )
 
         if response.status_code == 201:
@@ -76,7 +77,7 @@ def get_task_status(task_id):
 
 def main():
     parser = argparse.ArgumentParser(description='Отправка задач в Agent Factory')
-    parser.add_argument('text', help='Текст задачи')
+    parser.add_argument('text', nargs='?', help='Текст задачи')
     parser.add_argument('--profile', default='zai', help='Профиль (zai/minimax/orchestrator)')
     parser.add_argument('--status', help='Проверить статус задачи')
     args = parser.parse_args()
@@ -84,6 +85,8 @@ def main():
     if args.status:
         get_task_status(args.status)
     else:
+        if args.text is None:
+            parser.error("text is required unless --status is used")
         task_id = send_task(args.text, args.profile)
         if task_id:
             print(f"\n⏳ Ожидание выполнения...")

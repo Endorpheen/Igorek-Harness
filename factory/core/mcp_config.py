@@ -317,7 +317,7 @@ def materialize_profile_mcp_config(profile: str, data_dir: str | None = None) ->
     return out_path
 
 
-def _codex_mcp_list_names(*, codex_bin: str | None = None, codex_env: dict[str, str] | None = None) -> set[str]:
+def _codex_mcp_list_names(*, codex_bin: str | None = None, codex_env: dict[str, str] | None = None, timeout_s: int = 30) -> set[str]:
     binary = codex_bin or resolve_codex_bin()
     env = os.environ.copy()
     if codex_env:
@@ -327,6 +327,7 @@ def _codex_mcp_list_names(*, codex_bin: str | None = None, codex_env: dict[str, 
         text=True,
         capture_output=True,
         env=env,
+        timeout=max(5, int(timeout_s)),
     )
     if proc.returncode != 0:
         message = (proc.stderr or proc.stdout or "").strip()
@@ -426,7 +427,7 @@ def sync_codex_mcp_for_profile(
 
     registry = list_mcp_servers(data_dir)
     emit(f"mcp sync-codex: profile={profile} enabled={len(enabled)} timeout_s={timeout_s}")
-    existing = _codex_mcp_list_names(codex_bin=codex_bin, codex_env=codex_env)
+    existing = _codex_mcp_list_names(codex_bin=codex_bin, codex_env=codex_env, timeout_s=timeout_s)
 
     added: list[str] = []
     skipped_existing: list[str] = []

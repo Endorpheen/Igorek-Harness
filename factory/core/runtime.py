@@ -205,6 +205,21 @@ def get_profile_config(profile: str, profiles_dir: str | Path | None = None) -> 
     return config
 
 
+def profile_llama_cpp_reasoning_format(profile_config: dict) -> str | None:
+    """Read an explicit llama.cpp extension without opting other providers in."""
+    options = profile_config.get("llama_cpp")
+    if options is None:
+        return None
+    if not isinstance(options, dict):
+        raise ValueError("llama_cpp profile options must be an object")
+    value = options.get("reasoning_format")
+    if value is None:
+        return None
+    if not isinstance(value, str) or value not in {"auto", "none", "deepseek", "deepseek-legacy"}:
+        raise ValueError("Unsupported llama_cpp reasoning_format")
+    return value
+
+
 def profile_backend_name(profile_config: dict) -> str:
     return str(profile_config.get("backend", "claude")).strip() or "claude"
 

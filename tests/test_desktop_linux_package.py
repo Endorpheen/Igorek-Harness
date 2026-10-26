@@ -30,6 +30,17 @@ def source(tmp_path):
     (desktop / 'packaging').mkdir()
     (repo / 'pyproject.toml').write_text('[project]\nversion = "0.1.819"\n')
     (desktop / 'package.json').write_text(json.dumps({'devDependencies': {'electron': '44.5.1'}}))
+    dependencies = {"undici": "7.30.1"}
+    package_path = desktop / "package.json"
+    package_data = json.loads(package_path.read_text()) if package_path.exists() else {}
+    package_data["dependencies"] = dependencies
+    package_path.write_text(json.dumps(package_data))
+    (desktop / "package-lock.json").write_text(json.dumps({"packages": {"": {"dependencies": dependencies}, "node_modules/undici": {"version": "7.30.1"}}}))
+    dependency = desktop / "node_modules/undici"
+    (dependency / "lib").mkdir(parents=True)
+    (dependency / "package.json").write_text(json.dumps({"name": "undici", "version": "7.30.1", "main": "index.js"}))
+    for name in ["index.js", "LICENSE", "lib/fixture.js"]:
+        (dependency / name).write_text("reviewed dependency fixture")
     for name in package.APP_FILES + package.BACKEND_FILES:
         (desktop / name).write_text('fixture source')
     for name in ['verify-package.py', 'portable-launcher.sh', 'install-sandbox-policy.sh', 'install-linux.py', 'install-gui.py', 'installer-gtk.py', 'install-libvirt-helper.py', 'install-gui.sh', 'igorek.svg']:

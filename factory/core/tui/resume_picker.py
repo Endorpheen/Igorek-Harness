@@ -6,6 +6,8 @@ same pipeline as Codex ratatui.
 """
 from __future__ import annotations
 
+import codecs
+import os
 import select
 import shutil
 import sys
@@ -217,8 +219,9 @@ def _render_picker(state: PickerState) -> list[str]:
 def _drain_stdin_raw(fd: int) -> None:
     """Discard any pending stdin characters without affecting terminal settings."""
     try:
-        while select.select([sys.stdin], [], [], 0.0)[0]:
-            sys.stdin.read(1)
+        while select.select([fd], [], [], 0.0)[0]:
+            if not os.read(fd, 4096):
+                break
     except Exception:
         pass
 
@@ -258,38 +261,37 @@ def _read_key_raw() -> str:
     fd = sys.stdin.fileno()
     old_settings = termios.tcgetattr(fd)
     try:
-        tty.setraw(fd)
-        ch = sys.stdin.read(1)
-        if ch == "\r" or ch == "\n":
-            return "enter"
-        if ch == "\x1b":
-            ch2 = sys.stdin.read(1)
-            if ch2 == "[":
-                ch3 = sys.stdin.read(1)
-                if ch3 == "A":
-                    return "up"
-                elif ch3 == "B":
-                    return "down"
-                elif ch3 == "5":
-                    sys.stdin.read(1)  # ~
-                    return "pageup"
-                elif ch3 == "6":
-                    sys.stdin.read(1)  # ~
-                    return "pagedown"
-                elif ch3 == "H":
-                    return "home"
-                elif ch3 == "F":
-                    return "end"
-                else:
-                    return "escape"
-            return "escape"
-        if ch == "\x7f" or ch == "\x08":
-            return "backspace"
-        if ch == "\t":
-            return "tab"
-        if ch == "\x03":
+        tty.setraw(fd, when=termios.TCSADRAIN)
+        def read_byte(timeout=None):
+            if timeout is not None and not select.select([fd], [], [], timeout)[0]:
+                return b""
+            return os.read(fd, 1)
+
+        first = read_byte()
+        if not first:
             return "c-c"
-        return ch
+        controls = {b"\r": "enter", b"\n": "enter", b"\x7f": "backspace",
+                    b"\x08": "backspace", b"\t": "tab", b"\x03": "c-c"}
+        if first in controls:
+            return controls[first]
+        if first == b"\x1b":
+            if read_byte(0.1) != b"[":
+                return "escape"
+            tail = read_byte(0.1)
+            names = {b"A": "up", b"B": "down", b"H": "home", b"F": "end"}
+            if tail in names:
+                return names[tail]
+            if tail in {b"5", b"6"} and read_byte(0.1) == b"~":
+                return "pageup" if tail == b"5" else "pagedown"
+            return "escape"
+        decoder = codecs.getincrementaldecoder(sys.stdin.encoding or "utf-8")("replace")
+        text = decoder.decode(first)
+        while not text:
+            part = read_byte(0.1)
+            if not part:
+                return decoder.decode(b"", final=True)
+            text = decoder.decode(part)
+        return text
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
 
@@ -357,8 +359,7 @@ def run_resume_picker(
             # Read key
             key = _read_key_raw()
 
-            # Drain any extra buffered characters to prevent rapid re-renders
-            _drain_stdin_raw(fd)
+            # Preserve queued key bytes so fast typing and pasted queries are not lost.
 
             # Re-check terminal size
             size = shutil.get_terminal_size((80, 24))

@@ -22,6 +22,7 @@ def set_runtime_context(
     task_id: str = "",
     progress_callback=None,
     interrupt_event=None,
+    interrupt_check=None,
 ):
     _tool_runtime_ctx.delegate_depth = delegate_depth
     _tool_runtime_ctx.iteration_budget = iteration_budget
@@ -34,6 +35,7 @@ def set_runtime_context(
     _tool_runtime_ctx.task_id = task_id
     _tool_runtime_ctx.progress_callback = progress_callback
     _tool_runtime_ctx.interrupt_event = interrupt_event
+    _tool_runtime_ctx.interrupt_check = interrupt_check
 
 
 def clear_runtime_context():
@@ -49,6 +51,7 @@ def clear_runtime_context():
         "task_id",
         "progress_callback",
         "interrupt_event",
+        "interrupt_check",
     ):
         try:
             delattr(_tool_runtime_ctx, attr)
@@ -82,9 +85,10 @@ def request_interrupt():
 def is_interrupt_requested() -> bool:
     """Check if interrupt was requested for current thread."""
     event = getattr(_tool_runtime_ctx, "interrupt_event", None)
-    if event is not None:
-        return event.is_set()
-    return False
+    if event is not None and event.is_set():
+        return True
+    check = getattr(_tool_runtime_ctx, "interrupt_check", None)
+    return bool(check()) if callable(check) else False
 
 
 def notify_progress(event_type: str, tool_name: str = "", preview: str = ""):

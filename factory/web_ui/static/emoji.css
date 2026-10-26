@@ -1,0 +1,10 @@
+.pepe-emoji{display:inline-block;width:1.7em;height:1.7em;object-fit:contain;vertical-align:middle;margin:0 .08em}
+.emoji-button{font-size:24px;line-height:1;color:var(--muted,#929b9d)}
+.emoji-picker{position:fixed;inset:auto;margin:0;width:264px;max-width:calc(100vw - 24px);padding:14px;border:1px solid var(--line2,#363d41);border-radius:14px;background:var(--panel,#171a1d);color:var(--text,#e1e8df);box-shadow:0 12px 40px #0006}
+.emoji-picker::backdrop{background:transparent}
+.emoji-picker strong{display:block;font-size:13px;margin-bottom:10px}
+.emoji-picker-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+.emoji-picker-grid button{display:grid;place-items:center;height:54px;padding:4px;border:1px solid transparent;border-radius:9px;background:transparent;cursor:pointer}
+.emoji-picker-grid button:hover,.emoji-picker-grid button:focus-visible{background:#bcf06b18;border-color:var(--lime,#c4f26c);outline:0}
+.emoji-picker-grid .pepe-emoji{width:44px;height:44px;margin:0}
+.emoji-reaction{padding:8px 0}.emoji-reaction .pepe-emoji{width:64px;height:64px}

@@ -11,6 +11,7 @@ import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+from ..artifact_files import open_regular_file
 
 SCOPE = 'https://www.googleapis.com/auth/gmail.readonly'
 SERVICE = 'desktop-integration:gmail'
@@ -102,8 +103,9 @@ class GmailConnection:
             raise ValueError()
         if self._record() and self._data().get('refresh_token'):
             raise ValueError()
-        fd = os.open(source, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
-        with os.fdopen(fd, 'rb') as stream:
+        path = Path(source).absolute()
+        path = path.parent.resolve() / path.name
+        with open_regular_file(path) as stream:
             info = os.fstat(stream.fileno())
             if not stat.S_ISREG(info.st_mode) or info.st_size > 16384:
                 raise ValueError()

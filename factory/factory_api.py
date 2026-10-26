@@ -181,8 +181,8 @@ def _db_tables_check(conn: sqlite3.Connection):
 
 def _deliver_schedule_output(deliver: dict, output_text: str, name: str, schedule_id: str):
     """Deliver schedule execution output to the configured target platform."""
-    platform = str(deliver.get('platform', '')).strip().lower()
-    chat_id = str(deliver.get('chat_id', '')).strip()
+    platform = str(deliver.get('platform') or '').strip().lower()
+    chat_id = str(deliver.get('chat_id') or '').strip()
     if not platform or not chat_id or not output_text:
         return
 
@@ -266,7 +266,7 @@ def _execute_schedule_via_gateway(schedule_info: dict):
                 or ""
             )
 
-        # Save last_output to schedule (truncated to 10KB)
+        # Save at most 10,000 characters of the latest schedule output.
         with open_db(DB_PATH) as conn:
             _ensure_db_schema(conn)
             cursor = conn.cursor()
@@ -329,15 +329,33 @@ class FactoryAPIHandler(HeaderDeadlineMixin, BaseHTTPRequestHandler):
                 post_data = self.rfile.read(content_length)
                 data = json.loads(post_data.decode('utf-8'))
 
-                # Validate required fields
+                # Validate request shapes before creating a queued task.
+                if not isinstance(data, dict):
+                    self._send_json_response(400, {"error": "Request body must be an object"})
+                    return
                 if 'text' not in data:
                     self._send_json_response(400, {"error": "Missing 'text' field"})
                     return
-
                 task_text = data['text']
-                profile = data.get('profile', 'zai')  # Default to zai
-                capabilities = data.get('capabilities', [])
-                metadata = data.get('metadata', {})
+                if not isinstance(task_text, str) or not task_text.strip():
+                    self._send_json_response(400, {"error": "'text' must be a non-empty string"})
+                    return
+                profile = data.get('profile', 'zai')
+                profile = 'zai' if profile is None else profile
+                capabilities = data.get('capabilities')
+                capabilities = [] if capabilities is None else capabilities
+                metadata = data.get('metadata')
+                metadata = {} if metadata is None else metadata
+                if not isinstance(profile, str) or not profile.strip():
+                    self._send_json_response(400, {"error": "'profile' must be a non-empty string"})
+                    return
+                if not isinstance(capabilities, list) or any(not isinstance(item, str) or not item.strip() for item in capabilities):
+                    self._send_json_response(400, {"error": "'capabilities' must be an array of non-empty strings"})
+                    return
+                if not isinstance(metadata, dict):
+                    self._send_json_response(400, {"error": "'metadata' must be an object"})
+                    return
+                profile = profile.strip()
 
                 # Add source info
                 metadata['source'] = 'matrix'
@@ -1754,20 +1772,19 @@ def main():
     print()
     LOGGER.info("server_start", "Factory API server started", host=bind_host, port=args.port)
 
+    server = None
     try:
         server = BoundedHTTPServer((bind_host, args.port), FactoryAPIHandler)
         server.serve_forever()
     except KeyboardInterrupt:
         print("\n🛑 Server stopped")
         LOGGER.info("server_stop", "Factory API server stopped by KeyboardInterrupt")
-        if BOLTBOOK_HEARTBEAT_INSTANCE:
-            BOLTBOOK_HEARTBEAT_INSTANCE.stop()
-        if WATCHDOG_INSTANCE:
-            WATCHDOG_INSTANCE.stop()
-        scheduler.stop()
     except Exception as e:
         print(f"❌ Error starting server: {e}")
         LOGGER.error("server_error", f"Factory API server error: {e}")
+    finally:
+        if server is not None:
+            server.server_close()
         if BOLTBOOK_HEARTBEAT_INSTANCE:
             BOLTBOOK_HEARTBEAT_INSTANCE.stop()
         if WATCHDOG_INSTANCE:

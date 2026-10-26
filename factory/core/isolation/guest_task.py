@@ -131,6 +131,7 @@ class GuestTask:
     egress: SessionEgress | None = None
     git_gateway: GitGatewayRoute | None = None
     apk_delivery_url: str = ""
+    reasoning_format: str = ""
 
     @classmethod
     def from_wire(
@@ -156,6 +157,7 @@ class GuestTask:
             model=_required_text(payload, "model"),
             base_url=_required_text(payload, "base_url"),
             api_format=_required_text(payload, "api_format"),
+            reasoning_format=_optional_text(payload, "reasoning_format"),
             system_prompt=_required_text(payload, "system_prompt"),
             user_message=_required_text(payload, "user_message"),
             skills_text=_required_text(payload, "skills_text"),
@@ -223,6 +225,8 @@ class GuestTask:
             # stays enabled and the host resolves it (todo 9).
             "approvals_enabled_provider": _approvals_enabled,
         }
+        if self.reasoning_format:
+            kwargs["reasoning_format"] = self.reasoning_format
         if self.current_session:
             kwargs["current_session"] = self.current_session
         if self.source_platform:

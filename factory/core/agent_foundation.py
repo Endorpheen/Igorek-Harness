@@ -61,7 +61,8 @@ def _read_json(path: Path, default: dict) -> dict:
     if not path.exists():
         return json.loads(json.dumps(default))
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        parsed = json.loads(path.read_text(encoding="utf-8"))
+        return parsed if isinstance(parsed, dict) else json.loads(json.dumps(default))
     except Exception:
         return json.loads(json.dumps(default))
 

@@ -36,7 +36,7 @@ def _read_plan_has_explicit_bounds(plan: dict[str, Any] | None) -> bool:
         return False
     offset = tool_input.get("offset")
     limit = tool_input.get("limit")
-    return isinstance(offset, int) and offset > 0 and isinstance(limit, int) and limit > 0
+    return type(offset) is int and offset > 0 and type(limit) is int and limit > 0
 
 
 def _user_tool_restrictions_prompt(state: Any) -> str:

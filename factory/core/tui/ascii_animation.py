@@ -43,7 +43,7 @@ class AsciiAnimation:
     ) -> "AsciiAnimation":
         if not variants:
             raise ValueError("AsciiAnimation requires at least one animation variant")
-        clamped_idx = min(variant_idx, len(variants) - 1)
+        clamped_idx = max(0, min(variant_idx, len(variants) - 1))
         inst = cls(request_frame)
         inst.variants = variants
         inst.variant_idx = clamped_idx

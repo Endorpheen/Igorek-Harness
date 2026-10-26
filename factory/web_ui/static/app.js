@@ -3003,7 +3003,8 @@ function renderMessage(item, context = {}) {
         if (state.uiNavigation?.length && window.IgorekDesktop?.navigation) {
           window.IgorekMarkdown.activateNavigation(body, state.uiNavigation, id => navigateDesktop(id));
         }
-      } else body.textContent = rawText;
+      } else if (window.IgorekEmoji) body.replaceChildren(window.IgorekEmoji.fragment(rawText));
+      else body.textContent = rawText;
     }
   };
   update(item);
@@ -3270,6 +3271,10 @@ function renderActivityGroup(item, rerender, scope) {
 // rerender — where to redraw the card after collapsing/expanding:
 // a standard session timeline or agent history preview.
 function renderTool(item, rerender = renderTimeline) {
+  if (window.IgorekEmoji?.isTool(item.name)) {
+    const card = window.IgorekEmoji.renderTool(item);
+    return registerTimelineUpdater(card, next => card.updateEmoji(next));
+  }
   if (window.IgorekCharts?.isTool(item.name)) {
     const card = window.IgorekCharts.render(item);
     return registerTimelineUpdater(card, next => card.updateChart(next));
@@ -9347,3 +9352,8 @@ if(window.IgorekNavigationHistory){
   window.IgorekAppHistory=Object.freeze({schedule:scheduleAppNavigation,record:value=>history.record(value),back:()=>history.back().catch(error=>toast(error.message,'error')),forward:()=>history.forward().catch(error=>toast(error.message,'error')),state:()=>history.state(),reset:()=>history.reset()});
   scheduleAppNavigation();
 }
+
+window.addEventListener('igorek-emoji-ready', () => {
+  for (const node of document.querySelectorAll('.pepe-emoji')) node.loading = 'lazy';
+  if (typeof renderTimeline === 'function') { timelineNodes.clear(); renderTimeline(); }
+});

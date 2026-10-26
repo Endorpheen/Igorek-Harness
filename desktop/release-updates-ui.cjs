@@ -1,7 +1,7 @@
 const { join } = require('node:path');
 const { ReleaseUpdates } = require('./release-updates.cjs');
 
-function updateDialog({app,dialog,shell,current,portable,install,channel,fetch=globalThis.fetch,presentationFactory}) {
+function updateDialog({app,dialog,shell,current,portable,install,channel,fetch,presentationFactory}) {
   let busy = false, pendingFile;
   return async parent => {
     if (busy || !parent || parent.isDestroyed()) return {state:'busy'};

@@ -19,6 +19,8 @@ from ..terminal_hyperlinks import (
 )
 from ..wrapping import RtOptions, word_wrap_line
 from . import (
+    _ANSI_RE,
+    _ansi_safe_wrap_line_to_width,
     TABLE_BODY_SEPARATOR_CHAR,
     TableCell,
     TableColumnKind,
@@ -197,8 +199,7 @@ def _render_stacked_field(
     label_line = HyperlinkLine.new(
         " " * FIELD_LEADING_PADDING + label_styled
     )
-    wrapped_labels = word_wrap_line(label_line.line, RtOptions(width=label_width))
-    wrapped_labels = [line_to_static(w) for w in wrapped_labels]
+    wrapped_labels = _wrap_styled_line(label_line.line, label_width)
     out.extend(HyperlinkLine.new(line) for line in wrapped_labels)
 
     if available_width is not None:
@@ -245,8 +246,7 @@ def _wrap_cell(cell: TableCell, width: int) -> List[HyperlinkLine]:
     wrapped: List[HyperlinkLine] = []
     for source_line in cell.lines:
         source = HyperlinkLine.new(source_line)
-        rendered = word_wrap_line(source_line, RtOptions(width=max(1, width)))
-        rendered = [line_to_static(r) for r in rendered]
+        rendered = _wrap_styled_line(source_line, width)
         if not rendered:
             wrapped.append(HyperlinkLine.new(""))
         else:
@@ -254,6 +254,14 @@ def _wrap_cell(cell: TableCell, width: int) -> List[HyperlinkLine]:
     if not wrapped:
         wrapped.append(HyperlinkLine.new(""))
     return wrapped
+
+
+def _wrap_styled_line(text: str, width: int) -> List[str]:
+    """Wrap visible text while preserving complete SGR sequences."""
+    width = max(1, width)
+    if _ANSI_RE.search(text):
+        return _ansi_safe_wrap_line_to_width(text, width)
+    return [line_to_static(line) for line in word_wrap_line(text, RtOptions(width=width))]
 
 
 def _cell_width(cell: TableCell) -> int:

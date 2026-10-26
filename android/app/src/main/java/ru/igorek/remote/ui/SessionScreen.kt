@@ -270,6 +270,12 @@ fun SessionScreen(
     var sending by remember { mutableStateOf(false) }
     var stopMenu by remember { mutableStateOf(false) }
     var attachMenu by remember { mutableStateOf(false) }
+    var emojiPicker by remember { mutableStateOf(false) }
+    if (emojiPicker) PepeEmojiPicker(onDismiss = { emojiPicker = false }, onPick = { token ->
+        draft += token
+        emojiPicker = false
+    })
+
     var mcpOpen by remember(sessionId) { mutableStateOf(false) }
     var selectedMcp by remember(sessionId) { mutableStateOf<JsonObject?>(null) }
     var mcpRunning by remember(sessionId) { mutableStateOf(false) }
@@ -744,6 +750,9 @@ fun SessionScreen(
                                             Icon(Icons.Default.Add, contentDescription = uiText("Прикрепить файл", "Attach file"))
                                         }
                                         DropdownMenu(expanded = attachMenu, onDismissRequest = { attachMenu = false }) {
+                                            DropdownMenuItem(text = { Text(uiText("Эмодзи Пепе", "Pepe emoji")) },
+                                                onClick = { attachMenu = false; emojiPicker = true })
+
                                             DropdownMenuItem(
                                                 text = { Text(uiText("Подключения MCP", "MCP connections")) },
                                                 onClick = { attachMenu = false; mcpOpen = true },

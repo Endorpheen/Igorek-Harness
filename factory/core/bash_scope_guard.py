@@ -284,7 +284,14 @@ def _is_safe_device(path: str) -> bool:
 
 
 def _tokenize(command: str) -> list[str]:
-    lexer = shlex.shlex(command, posix=True, punctuation_chars="|&;()<>")
+    # shlex groups adjacent punctuation such as ");" and "&&(" into one token.
+    # Separate unquoted parentheses so subsequent commands remain visible.
+    spaced = re.sub(
+        r"""#[^\n]*|'[^']*'|"(?:\\.|[^"\\])*"|\\.|[()]""",
+        lambda match: f" {match[0]} " if match[0] in {"(", ")"} else match[0],
+        command,
+    )
+    lexer = shlex.shlex(spaced, posix=True, punctuation_chars="|&;()<>")
     lexer.whitespace_split = True
     lexer.commenters = "#"
     try:

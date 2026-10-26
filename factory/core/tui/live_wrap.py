@@ -141,7 +141,7 @@ class RowBuilder:
                 if first is None:
                     break
                 i, ch = first
-                end = i + len(ch.encode("utf-8"))
+                end = i + 1
                 p = self.current_line[:end]
                 self.rows.append(Row(text=p, explicit_break=False))
                 self.current_line = self.current_line[end:]
@@ -169,9 +169,7 @@ def take_prefix_by_width(
         if cols + ch_w > max_cols:
             break
         cols += ch_w
-        end_idx = i + len(ch.encode("utf-8"))
-        if cols == max_cols:
-            break
+        end_idx = i + 1
     prefix = text[:end_idx]
     suffix = text[end_idx:]
     return prefix, suffix, cols

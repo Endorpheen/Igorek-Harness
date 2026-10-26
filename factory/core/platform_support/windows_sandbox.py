@@ -346,13 +346,18 @@ class WindowsSandbox:
             env = {**env, 'PATH': str(self.adapter_path.parent) + os.pathsep + env.get('PATH', '')}
         stdio = [msvcrt.get_osfhandle(stream.fileno()) for stream in (stdin, stdout, stderr)]
         handles = (W.HANDLE * len(set(stdio)))(*dict.fromkeys(stdio))
-        for handle in handles:
-            os.set_handle_inheritable(handle, True)
-        size = ctypes.c_size_t()
-        self.attribute_init(None, 1, 0, ctypes.byref(size))
-        storage = ctypes.create_string_buffer(size.value)
-        self._check(self.attribute_init(storage, 1, 0, ctypes.byref(size)))
+        inherited = []
+        storage = None
+        attributes_initialized = False
         try:
+            for handle in handles:
+                os.set_handle_inheritable(handle, True)
+                inherited.append(handle)
+            size = ctypes.c_size_t()
+            self.attribute_init(None, 1, 0, ctypes.byref(size))
+            storage = ctypes.create_string_buffer(size.value)
+            self._check(self.attribute_init(storage, 1, 0, ctypes.byref(size)))
+            attributes_initialized = True
             self._check(self.attribute_update(storage, 0, 0x20002, handles, ctypes.sizeof(handles), None, None))
             startup = StartupEx()
             startup.startup.cb = ctypes.sizeof(startup)
@@ -393,8 +398,9 @@ class WindowsSandbox:
                 self.terminate_process(self.process, 1)
                 raise
         finally:
-            self.attribute_delete(storage)
-            for handle in handles:
+            if attributes_initialized:
+                self.attribute_delete(storage)
+            for handle in inherited:
                 os.set_handle_inheritable(handle, False)
         return self.pid
 

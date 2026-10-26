@@ -1,15 +1,25 @@
 {
-  "versionName": "0.1.124",
-  "versionCode": 125,
+  "versionName": "0.1.125",
+  "versionCode": 126,
   "changes": [
     {
       "ru": {
-        "title": "Графики в ответах",
-        "text": "Графики сохраняются в чате: на телефоне сравнения показаны полосами с точными числами. Доступны исходные данные, CSV и разворачивание."
+        "title": "Анимированные Пепе",
+        "text": "16 анимированных реакций отображаются прямо в сообщениях и ответах."
       },
       "en": {
-        "title": "Inline charts",
-        "text": "Charts persist in chat. Mobile comparisons show bars with exact values, source data, CSV export and expanded viewing."
+        "title": "Animated Pepe reactions",
+        "text": "16 animated reactions appear directly in messages and replies."
+      }
+    },
+    {
+      "ru": {
+        "title": "Выбор эмодзи",
+        "text": "Набор Пепе доступен через кнопку «+» при вводе сообщения. Реакции сохраняются в истории чата."
+      },
+      "en": {
+        "title": "Emoji picker",
+        "text": "Choose a Pepe reaction from the + menu while composing a message. Reactions remain in chat history."
       }
     }
   ]

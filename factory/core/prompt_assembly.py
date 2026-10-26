@@ -736,6 +736,9 @@ def build_cc_backend_system_prompt(
         ),
         title="Schedule Tools",
     )
+    if source_platform in {"desktop", "android", "mobile"}:
+        from .pepe_emoji import emoji_guidance
+        _append_block(blocks, "animated_emoji", emoji_guidance(), title="Animated Emoji")
     return render_prompt_blocks(blocks)
 
 
@@ -841,6 +844,9 @@ def build_cc_backend_compact_system_prompt(
         _compact_schedule_guidance(),
         title="Schedule Tools",
     )
+    if source_platform in {"desktop", "android", "mobile"}:
+        from .pepe_emoji import emoji_guidance
+        _append_block(blocks, "animated_emoji", emoji_guidance(), title="Animated Emoji")
     return render_prompt_blocks(blocks)
 
 

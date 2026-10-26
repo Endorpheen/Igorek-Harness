@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import json
+import math
 import subprocess
 import tempfile
 import time
@@ -408,12 +409,12 @@ def _has_sent_post_reaction(item: dict[str, Any]) -> bool:
 
 def _reaction_priority(item: dict[str, Any]) -> tuple[int, int, int]:
     decision = item.get("decision")
-    score = int(((decision or {}).get("score")) or 0) if isinstance(decision, dict) else 0
+    score = _safe_decision_score(decision) or 0
     interaction = item.get("interaction")
-    own_post_rank = 1 if isinstance(interaction, dict) and interaction.get("under_own_post") else 0
+    own_post_rank = 1 if isinstance(interaction, dict) and interaction.get("under_own_post") is True else 0
     kind_rank = 2 if str(item.get("kind") or "").strip().lower() == "comment" else 1
-    comment_count = int(item.get("comment_count") or 0)
-    captured_at = int(item.get("captured_at") or 0)
+    comment_count = _safe_number(item.get("comment_count")) or 0
+    captured_at = _safe_number(item.get("captured_at")) or 0
     return (own_post_rank, kind_rank, score, -comment_count, captured_at)
 
 
@@ -470,6 +471,29 @@ def _next_reaction_command(item: dict[str, Any]) -> str:
     return f"igorek-factory boltbook generate-drafts --limit 1 --min-score {int(((item.get('decision') or {}).get('score')) or 5)}"
 
 
+def _safe_number(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        if math.isnan(value) or math.isinf(value):
+            return None
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value.strip())
+        except ValueError:
+            return None
+    return None
+
+
+def _safe_decision_score(decision: Any) -> int | None:
+    if not isinstance(decision, dict):
+        return None
+    return _safe_number(decision.get("score"))
+
+
 def _normalize_autonomous_history(entries: Any, *, now: int) -> list[int]:
     if not isinstance(entries, list):
         return []
@@ -511,6 +535,7 @@ def _build_autonomous_post_brief(*, max_topic_items: int = 6) -> str:
 
     topic_lines: list[str] = []
     seen: set[str] = set()
+    max_topic_items = max(0, int(max_topic_items))
     for item in items:
         if not isinstance(item, dict):
             continue
@@ -524,14 +549,14 @@ def _build_autonomous_post_brief(*, max_topic_items: int = 6) -> str:
         if key in seen:
             continue
         seen.add(key)
+        if len(topic_lines) >= max_topic_items:
+            break
         kind = str(item.get("kind") or "post").strip().lower()
         author = str(item.get("author") or "").strip()
-        score = int(((item.get("decision") or {}).get("score")) or 0)
+        score = _safe_decision_score(item.get("decision")) or 0
         topic_lines.append(
             f"- [{kind}] {title} (author={author or '-'}, score={score})"
         )
-        if len(topic_lines) >= max_topic_items:
-            break
 
     post_state = load_post_drafts_state()
     post_items = post_state.get("items")
@@ -977,13 +1002,14 @@ def _decide_candidate_action(item: dict[str, Any]) -> dict[str, Any]:
 
     if kind == "comment":
         interaction = item.get("interaction")
-        if isinstance(interaction, dict) and interaction.get("under_own_post"):
+        interaction_flags = interaction if isinstance(interaction, dict) else {}
+        if interaction_flags.get("under_own_post") is True:
             score += 4
             reasons.append("comment_under_own_post")
-        if isinstance(interaction, dict) and interaction.get("reply_to_us"):
+        if interaction_flags.get("reply_to_us") is True:
             score += 5
             reasons.append("reply_to_agent")
-        if isinstance(interaction, dict) and interaction.get("mentions_us"):
+        if interaction_flags.get("mentions_us") is True:
             score += 4
             reasons.append("agent_mentioned")
         if score == 0:
@@ -1420,33 +1446,42 @@ def _is_autonomous_comment_candidate(item: dict[str, Any], *, min_score: int) ->
         return False
     if str(decision.get("action") or "").strip().lower() != "draft_comment":
         return False
-    score = int(decision.get("score") or 0)
-    if score < min_score:
+    score = _safe_decision_score(decision)
+    if score is None or score < min_score:
         return False
 
     kind = str(item.get("kind") or "").strip().lower()
-    reasons = {str(reason) for reason in (decision.get("reasons") or [])}
+    raw_reasons = decision.get("reasons", [])
+    if isinstance(raw_reasons, list):
+        if not all(isinstance(reason, str) for reason in raw_reasons):
+            return False
+        reasons = {reason for reason in raw_reasons}
+    else:
+        return False
     if kind == "comment":
         interaction = item.get("interaction")
         if not isinstance(interaction, dict):
             return False
         return bool(
-            interaction.get("reply_to_us")
-            or interaction.get("mentions_us")
-            or interaction.get("under_own_post")
+            interaction.get("reply_to_us") is True
+            or interaction.get("mentions_us") is True
+            or interaction.get("under_own_post") is True
         )
     if kind == "post":
         if "question_or_discussion_prompt" not in reasons:
             return False
         if not ({"low_comment_count", "moderate_comment_count"} & reasons):
             return False
-        return int(item.get("comment_count") or 0) <= 5
+        comment_count = _safe_number(item.get("comment_count"))
+        if comment_count is None or comment_count > 5:
+            return False
+        return True
     return False
 
 
 def _is_own_post_thread_candidate(item: dict[str, Any]) -> bool:
     interaction = item.get("interaction")
-    return bool(isinstance(interaction, dict) and interaction.get("under_own_post"))
+    return bool(isinstance(interaction, dict) and interaction.get("under_own_post") is True)
 
 
 def _select_autonomous_comment_candidate(*, min_score: int = 6) -> dict[str, Any] | None:

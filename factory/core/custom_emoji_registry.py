@@ -126,8 +126,18 @@ def register_from_json(message: dict[str, Any], alias: str | None = None) -> lis
         # Extract fallback text using offset and length
         offset = entity.get("offset", 0)
         length = entity.get("length", 1)
-        if isinstance(text, str) and offset < len(text):
-            fallback = text[offset : offset + length]
+        if type(offset) is not int or type(length) is not int or offset < 0 or length <= 0:
+            continue
+        if isinstance(text, str):
+            # Telegram entity offsets and lengths count UTF-16 code units.
+            encoded = text.encode("utf-16-le", errors="surrogatepass")
+            start, end = offset * 2, (offset + length) * 2
+            if start >= len(encoded) or end > len(encoded):
+                continue
+            try:
+                fallback = encoded[start:end].decode("utf-16-le")
+            except UnicodeDecodeError:
+                continue
         else:
             fallback = ""
 

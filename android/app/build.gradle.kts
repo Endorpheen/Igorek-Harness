@@ -7,6 +7,12 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+val emojiAssets = layout.buildDirectory.dir("generated/emoji-assets")
+val syncPepeEmojiAssets = tasks.register<Sync>("syncPepeEmojiAssets") {
+    from(rootProject.file("../factory/web_ui/static/emoji"))
+    into(emojiAssets.map { it.dir("emoji") })
+}
+tasks.named("preBuild") { dependsOn(syncPepeEmojiAssets) }
 val voiceMarkdownAssets = layout.buildDirectory.dir("generated/voice-markdown-assets")
 val tlsTestResources = layout.buildDirectory.dir("generated/tls-test-resources")
 val generateTestTlsKey = tasks.register<Exec>("generateTestTlsKey") {
@@ -37,6 +43,7 @@ tasks.named("preBuild") { dependsOn(syncVoiceMarkdownRenderer) }
 android {
     sourceSets.getByName("test").resources.srcDir(rootProject.file("../tests/fixtures/diagnostics"))
     sourceSets.getByName("main").assets.directories.add(voiceMarkdownAssets.get().asFile.path)
+    sourceSets.getByName("main").assets.directories.add(emojiAssets.get().asFile.path)
     sourceSets.getByName("test").resources.directories.add(tlsTestResources.get().asFile.path)
     namespace = "ru.igorek.remote"
     compileSdk { version = release(37) { minorApiLevel = 0 } }
@@ -46,8 +53,8 @@ android {
         minSdk = 26
         targetSdk = 34
         testInstrumentationRunner = providers.gradleProperty("igorekTestRunner").orElse("ru.igorek.remote.VoiceCallInstrumentation").get()
-        versionCode = 125
-        versionName = "0.1.124"
+        versionCode = 126
+        versionName = "0.1.125"
     }
 
     buildTypes {

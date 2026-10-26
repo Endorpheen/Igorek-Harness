@@ -53,6 +53,7 @@ class OsWalkFileSearchSession:
             self._matches = []
             return
         q = query.lower()
+        self._matches = []
         seen = set()
         for root in self._roots:
             if not root.exists():
@@ -161,6 +162,7 @@ class TuiSessionReporter:
                 self._st.session_token != self._session_token
                 or not self._st.latest_query
                 or not snapshot.query
+                or snapshot.query != self._st.latest_query
             ):
                 return
             query = snapshot.query

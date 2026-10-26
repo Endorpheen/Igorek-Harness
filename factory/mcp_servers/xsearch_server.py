@@ -213,11 +213,17 @@ def main() -> int:
         line = raw_line.strip()
         if not line:
             continue
+        request_id = None
         try:
             request = json.loads(line)
+            if not isinstance(request, dict):
+                _send(_make_error(None, -32600, "Request must be an object"))
+                continue
             method = request.get("method")
             request_id = request.get("id")
-            params = request.get("params") or {}
+            params = request.get("params")
+            if params is None:
+                params = {}
 
             if method == "initialize":
                 _send(
@@ -247,8 +253,16 @@ def main() -> int:
                 continue
 
             if method == "tools/call":
+                if not isinstance(params, dict):
+                    _send(_make_error(request_id, -32602, "params must be an object"))
+                    continue
                 tool_name = params.get("name")
-                arguments = params.get("arguments") or {}
+                arguments = params.get("arguments")
+                if arguments is None:
+                    arguments = {}
+                if not isinstance(arguments, dict):
+                    _send(_make_error(request_id, -32602, "arguments must be an object"))
+                    continue
                 if tool_name != "xsearch_query":
                     _send(
                         _make_error(
@@ -263,7 +277,7 @@ def main() -> int:
         except Exception as exc:
             _send(
                 _make_error(
-                    request.get("id") if "request" in locals() else None,
+                    request_id,
                     -32000,
                     str(exc),
                 )

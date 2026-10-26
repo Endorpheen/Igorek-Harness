@@ -19,10 +19,13 @@ MAX_MESSAGE_CHARS = 50_000
 
 def _epoch_seconds(value: Any) -> int:
     if isinstance(value, (int, float)):
-        number = float(value)
-        if number > 10_000_000_000:
-            number /= 1000
-        return max(0, int(number))
+        try:
+            number = float(value)
+            if number > 10_000_000_000:
+                number /= 1000
+            return max(0, int(number))
+        except (ValueError, OverflowError):
+            return 0
     if isinstance(value, str) and value:
         try:
             return max(0, int(datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()))
@@ -264,6 +267,10 @@ class ExternalSessionCatalog:
                 path = Path(str(raw.get("fullPath") or ""))
                 if not session_id or not self._allowed_claude_path(path):
                     continue
+                try:
+                    message_count = max(0, int(raw.get("messageCount") or 0))
+                except (TypeError, ValueError, OverflowError):
+                    message_count = 0
                 records[session_id] = ExternalSessionRecord(
                     source="claude",
                     session_id=session_id,
@@ -271,7 +278,7 @@ class ExternalSessionCatalog:
                     cwd=str(raw.get("projectPath") or ""),
                     created_at=_epoch_seconds(raw.get("created")),
                     updated_at=_epoch_seconds(raw.get("modified") or raw.get("fileMtime")),
-                    message_count=max(0, int(raw.get("messageCount") or 0)),
+                    message_count=message_count,
                     native_resume=True,
                     locator=str(path),
                 )

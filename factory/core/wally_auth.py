@@ -93,7 +93,10 @@ def _coerce_expires_at(raw: Any) -> int | None:
     if raw is None or raw == "":
         return None
     if isinstance(raw, (int, float)):
-        value = int(raw)
+        try:
+            value = int(raw)
+        except (ValueError, OverflowError):
+            return None
         return value if value > 0 else None
     text = str(raw).strip()
     if not text:

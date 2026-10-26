@@ -1896,15 +1896,15 @@ def main() -> int:
                     session_name = chosen["session_id"]
                     # CWD prompt if session cwd differs
                     if chosen.get("cwd") and chosen["cwd"] != str(Path.cwd()):
-                        from core.tui.cwd_prompt import run_cwd_prompt, CwdPromptAction, CwdPromptOutcome
+                        from core.tui.cwd_prompt import run_cwd_prompt, CwdPromptAction, CwdPromptOutcomeKind, CwdSelection
                         outcome = run_cwd_prompt(
-                            action=CwdPromptAction.RESUME,
+                            action=CwdPromptAction.Resume,
                             session_cwd=chosen["cwd"],
                             current_cwd=str(Path.cwd()),
                         )
-                        if outcome == CwdPromptOutcome.EXIT:
+                        if outcome.kind == CwdPromptOutcomeKind.Exit:
                             return 0
-                        if outcome == CwdPromptOutcome.SESSION:
+                        if outcome.selection == CwdSelection.Session:
                             session_cwd = Path(chosen["cwd"])
                             if session_cwd.is_dir():
                                 os.chdir(session_cwd)

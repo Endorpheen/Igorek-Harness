@@ -2318,6 +2318,12 @@ class Worker:
                 "priority_steer_provider": priority_steer_provider,
                 "approvals_enabled_provider": approvals_enabled_provider,
             }
+            if api_format == "openai":
+                from .runtime import profile_llama_cpp_reasoning_format
+
+                reasoning_format = profile_llama_cpp_reasoning_format(self.config)
+                if reasoning_format is not None:
+                    executor_kwargs["reasoning_format"] = reasoning_format
             if vault_writer is not None:
                 executor_kwargs['vault_store_provider'] = lambda args: vault_writer.save(args,
                     workdir=workdir, task_id=task_id, session_id=str(task_metadata.get('session') or ''), profile=self.profile)
