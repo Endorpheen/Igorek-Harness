@@ -1,3 +1,9 @@
+## 2026-10-26 — Portable native-test report paths for release acceptance
+
+The hosted Python jobs reproduced 12 failures in three native test files when the shared runner received a relative output directory. Child processes changed their working directory, so relative COVERAGE_FILE and isolated HOME/data paths no longer identified the original evidence directory. The runner now resolves the output path before launching children, including its direct run_file entry point. No application code, assertion or skip condition changed.
+
+A new real-child regression changes directory and verifies that report, HOME and data paths remain absolute and writable. Re-running all three previously failing files and the runner contracts with a relative --output path and branch coverage passes 25/25 cases with zero skips/failures. Fatal Ruff and diff checks pass. The existing full local coverage result remains historical; final hosted acceptance will measure the final tree.
+
 ## 2026-10-26 — Desktop security dependency patches for 0.2.25
 
 - Updated Electron 44.9.0 to 44.9.3, Undici 7.30.0/6.29.0 to 7.30.1/6.29.1, and fast-uri 3.1.8 to 3.1.9 without changing dependency major versions. npm audit, including build dependencies, reports zero known vulnerabilities.

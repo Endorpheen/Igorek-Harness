@@ -50,3 +50,31 @@ time.sleep(30)
     else:
         os.kill(proof['child'], 9)
         pytest.fail('Timed-out test left a running child process')
+
+
+def test_relative_output_remains_usable_after_a_child_changes_directory(tmp_path, monkeypatch):
+    source = Path(__file__).resolve().parents[1] / "tools/run_tests.py"
+    spec = importlib.util.spec_from_file_location("relative_output_runner", source)
+    runner = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(runner)
+    child_test = tmp_path / "test_relative_output_fixture.py"
+    child_test.write_text("""import os
+from pathlib import Path
+
+def test_owned_absolute_paths():
+    destination = Path(os.environ['COVERAGE_FILE']).with_suffix('.fixture')
+    elsewhere = Path.cwd() / 'elsewhere'
+    elsewhere.mkdir()
+    os.chdir(elsewhere)
+    for name in ['COVERAGE_FILE', 'HOME', 'USERPROFILE', 'FACTORY_DATA_DIR', 'FACTORY_ENV_FILES_DIR']:
+        assert Path(os.environ[name]).is_absolute(), name
+    destination.write_text('retained after chdir')
+""")
+    monkeypatch.setattr(runner, "REPO", tmp_path)
+    monkeypatch.chdir(tmp_path)
+    output = Path("results")
+    output.mkdir()
+    result = runner.run_file(child_test, 0, output, timeout=30, coverage=False)
+    assert result["exit_code"] == 0, (output / "0000-test_relative_output_fixture/output.log").read_text()
+    assert result["passed"] == 1
+    assert (output / ".coverage.fixture").read_text() == "retained after chdir"

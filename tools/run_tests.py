@@ -35,6 +35,7 @@ def discover(paths: list[str]) -> list[Path]:
 
 
 def run_file(path: Path, index: int, output: Path, timeout: int, coverage: bool) -> dict:
+    output = output.resolve()
     name = f"{index:04d}-{path.stem}"
     root = output / name
     root.mkdir()
@@ -131,7 +132,7 @@ def main() -> int:
     if args.jobs < 1 or args.file_timeout < 1:
         parser.error("Job count and timeout must be positive")
     files = discover(args.paths)
-    output = args.output or Path(tempfile.mkdtemp(prefix="igorek-tests-"))
+    output = (args.output or Path(tempfile.mkdtemp(prefix="igorek-tests-"))).resolve()
     output.mkdir(parents=True, exist_ok=True)
     print(f"Running {len(files)} files with {args.jobs} processes; evidence: {output}", flush=True)
     results = []
