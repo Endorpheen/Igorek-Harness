@@ -79,6 +79,72 @@ def check_controls(browser, page, base, output, results):
     results['mobile_chapter'] = True
 
 
+
+def check_diagram_zoom(browser, page, base, output, results):
+    chapter = '1-Overview/1-Overview/'
+    checks = []
+
+    def dimensions(viewport):
+        return viewport.evaluate("e => ({width:e.clientWidth,scroll:e.scrollWidth,height:e.clientHeight})")
+
+    for language, prefix, fit_name, actual_name, plus_name, minus_name in [
+        ('en', '', 'Fit', 'Actual size', 'Zoom in', 'Zoom out'),
+        ('ru', 'ru/', 'Вписать', 'Натуральный размер', 'Увеличить', 'Уменьшить'),
+    ]:
+        page.goto(base + prefix + chapter, wait_until='networkidle')
+        frame = page.locator('.wiki-diagram').first
+        frame.wait_for()
+        page.wait_for_function("document.querySelector('.wiki-diagram-scale')?.textContent.endsWith('%')")
+        viewport = frame.locator('.wiki-diagram-viewport')
+        initial = dimensions(viewport)
+        assert initial['scroll'] <= initial['width'] + 1, 'Fitted diagram overflows'
+        text_size = page.locator('.md-typeset p').first.evaluate('e => getComputedStyle(e).fontSize')
+        frame.get_by_role('button', name=actual_name, exact=True).click()
+        assert frame.locator('output').inner_text() == '100%'
+        actual = dimensions(viewport)
+        assert actual['scroll'] > actual['width'], 'Actual-size view lost diagram detail'
+        frame.get_by_role('button', name=plus_name, exact=True).click()
+        assert frame.locator('output').inner_text() == '125%'
+        frame.get_by_role('button', name=minus_name, exact=True).click()
+        assert frame.locator('output').inner_text() == '100%'
+        assert text_size == page.locator('.md-typeset p').first.evaluate('e => getComputedStyle(e).fontSize')
+        frame.get_by_role('button', name=fit_name, exact=True).click()
+        page.wait_for_function("document.querySelector('.wiki-diagram-viewport').scrollLeft === 0")
+        assert dimensions(viewport)['scroll'] <= initial['width'] + 1
+        page.set_viewport_size({'width': 1100, 'height': 900})
+        page.wait_for_function("(() => {const e=document.querySelector('.wiki-diagram-viewport');return e.scrollWidth<=e.clientWidth+1;})()")
+        assert frame.get_by_role('button', name=fit_name, exact=True).get_attribute('aria-pressed') == 'true'
+        page.set_viewport_size({'width': 1440, 'height': 1050})
+        checks.append({'language': language, 'fit': initial, 'actual': actual, 'zoom_buttons': True, 'resize_fit': True, 'article_text_unchanged': True})
+    frame.scroll_into_view_if_needed()
+    page.screenshot(path=str(output / 'diagram-zoom-desktop.png'))
+    page.locator('label[for="__palette_1"]').first.click()
+    page.wait_for_function("document.body.dataset.mdColorScheme === 'slate'")
+    assert page.locator('.wiki-diagram').count() == page.locator('div.mermaid').count()
+    frame.screenshot(path=str(output / 'diagram-zoom-dark.png'))
+    phone_context = browser.new_context(viewport={'width': 390, 'height': 844}, is_mobile=True, has_touch=True)
+    try:
+        phone = phone_context.new_page()
+        phone.goto(base + 'ru/' + chapter, wait_until='networkidle')
+        mobile_frame = phone.locator('.wiki-diagram').first
+        mobile_frame.wait_for()
+        phone.wait_for_function("document.querySelector('.wiki-diagram-scale')?.textContent.endsWith('%')")
+        mobile_viewport = mobile_frame.locator('.wiki-diagram-viewport')
+        size = dimensions(mobile_viewport)
+        assert size['scroll'] <= size['width'] + 1
+        assert phone.evaluate('document.documentElement.scrollWidth <= innerWidth + 1')
+        mobile_frame.get_by_role('button', name='Увеличить', exact=True).tap()
+        mobile_frame.get_by_role('button', name='Вписать', exact=True).tap()
+        mobile_frame.scroll_into_view_if_needed()
+        mobile_frame.screenshot(path=str(output / 'diagram-zoom-mobile.png'))
+        checks.append({'mobile': True, 'fit': size, 'touch_zoom': True, 'page_overflow': False})
+    finally:
+        phone_context.close()
+    results['diagram_zoom'] = checks
+    page.locator('label[for="__palette_0"]').first.click()
+    page.wait_for_function("document.body.dataset.mdColorScheme === 'default'")
+
+
 def run(site, output, base=None):
     output.mkdir(parents=True, exist_ok=True)
     results = {'pages': 0, 'diagrams': 0, 'language_switches': 0, 'errors': []}
@@ -139,6 +205,7 @@ def run(site, output, base=None):
                 results['language_switches'] += 1
             results['pages'] += 1
             print('PAGE', results['pages'], relative or '/', 'diagrams', count, flush=True)
+        check_diagram_zoom(browser, page, base, output, results)
         check_controls(browser, page, base, output, results)
         browser.close()
     (output / 'browser-check.json').write_text(json.dumps(results, indent=2, ensure_ascii=False) + '\n')

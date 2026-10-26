@@ -83,8 +83,11 @@ current architecture diagrams.
 Diagram colors and fonts are defined centrally in `content/assets/wiki.css`
 using Material's Mermaid theme variables. Exported default white/black styling
 is removed only in the rendered version, while meaningful role colors remain.
-Diagrams retain their natural size inside horizontally scrollable containers,
-so mobile readers can inspect readable labels instead of a shrunken whole graph.
+Diagrams initially fit the article width. Localized controls in
+`content/assets/diagram-zoom.js` provide Fit, zoom out/in and actual-size views
+without changing article text size. A larger view scrolls inside its own viewport;
+Fit follows window resizing and preserves the complete graph on mobile as well.
+The viewer scales Material's Mermaid host, including its closed SVG shadow root.
 
 ## GitHub Pages
 
