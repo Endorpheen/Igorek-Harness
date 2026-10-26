@@ -42,4 +42,11 @@ class ProfileChoicesTest {
         assertFalse(CreateSessionRequest(idempotencyKey = "legacy").activateProfile)
         assertFalse(SendMessageRequest("legacy").activateProfile)
     }
+    @Test
+    fun modelChoicesAreAvailableAndLegacyServersRemainCompatible() {
+        val current = json.decodeFromString<SessionOptionsResponse>("""{"profile_catalog":[{"name":"cloud","model":"gpt-6.1-sol","models":["gpt-6.1-sol","gpt-6.1-terra"]}],"profile_switch_supported":true}""")
+        assertEquals(listOf("gpt-6.1-sol", "gpt-6.1-terra"), current.switchableProfiles.single().models)
+        val legacy = json.decodeFromString<SessionOptionsResponse>("""{"profile_catalog":[{"name":"old"}],"profile_switch_supported":true}""")
+        assertTrue(legacy.switchableProfiles.single().models.isEmpty())
+    }
 }

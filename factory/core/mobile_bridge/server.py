@@ -603,6 +603,12 @@ class MobileRequestHandler(BaseHTTPRequestHandler):
                     raise MobileInvalid('profile must be a string')
                 self._send_json(200, self.bridge.service.switch_session_profile(route[1], body['profile']))
                 return
+            if len(route) == 3 and route[0] == 'sessions' and route[2] == 'model' and method == 'POST':
+                body = self._read_json_body()
+                if set(body) != {'profile', 'model'} or not all(isinstance(body[k], str) for k in body):
+                    raise MobileInvalid('profile and model must be strings')
+                self._send_json(200, self.bridge.service.switch_session_model(route[1], body['profile'], body['model']))
+                return
             if len(route) == 2 and route[0] == "sessions" and method == "PATCH":
                 body = self._read_json_body()
                 title = body.get("title") if "title" in body else None

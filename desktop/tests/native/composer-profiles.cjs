@@ -23,6 +23,12 @@ async function run(){
   await until('typeof selectSession==="function"&&state.paired');
   await window.webContents.executeJavaScript(`selectSession(${JSON.stringify(config.session)})`);
   await until('document.querySelector("#composer-model").textContent.includes("cloud")');
+  await click('#composer-model');await until(`Boolean(document.querySelector('.composer-profile-option[data-model="gpt-6.1-terra"]'))`);
+  await click('.composer-profile-option[data-model="gpt-6.1-terra"]');
+  await until('state.session.meta.model==="gpt-6.1-terra"&&!document.querySelector(".composer-profile-menu")');
+  assert.ok(await window.webContents.executeJavaScript('document.querySelector("#composer-model").textContent.includes("gpt-6.1-terra")'));
+  await click('#composer-model');await until(`Boolean(document.querySelector('.composer-profile-option[data-model="gpt-6.1-sol"]'))`);await click('.composer-profile-option[data-model="gpt-6.1-sol"]');
+  await until('state.session.meta.model==="gpt-6.1-sol"&&!document.querySelector(".composer-profile-menu")');
   await window.webContents.executeJavaScript(`document.querySelector('#message-input').value='Retained draft';document.querySelector('#message-input').dispatchEvent(new Event('input',{bubbles:true}));`);
   await click('#composer-model');await until('Boolean(document.querySelector(".composer-profile-option[data-profile=local]"))');
   fs.writeFileSync(path.join(output,'profile-menu.png'),(await window.webContents.capturePage()).toPNG());

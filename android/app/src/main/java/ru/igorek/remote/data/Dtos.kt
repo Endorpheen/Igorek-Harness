@@ -74,6 +74,7 @@ data class ProfileChoice(
     val name: String,
     val model: String = "",
     val local: Boolean = false,
+    val models: List<String> = emptyList(),
 )
 
 @Serializable

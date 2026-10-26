@@ -1,25 +1,25 @@
 {
-  "versionName": "0.1.125",
-  "versionCode": 126,
+  "versionName": "0.1.126",
+  "versionCode": 127,
   "changes": [
     {
       "ru": {
-        "title": "Анимированные Пепе",
-        "text": "16 анимированных реакций отображаются прямо в сообщениях и ответах."
+        "title": "Выбор модели",
+        "text": "Переключайте доступные модели в текущем чате без перезапуска исполнителя."
       },
       "en": {
-        "title": "Animated Pepe reactions",
-        "text": "16 animated reactions appear directly in messages and replies."
+        "title": "Choose a model",
+        "text": "Switch available models in the current chat without restarting the executor."
       }
     },
     {
       "ru": {
-        "title": "Выбор эмодзи",
-        "text": "Набор Пепе доступен через кнопку «+» при вводе сообщения. Реакции сохраняются в истории чата."
+        "title": "Сохранность чатов",
+        "text": "Повышена надёжность истории при одновременных изменениях и архивировании."
       },
       "en": {
-        "title": "Emoji picker",
-        "text": "Choose a Pepe reaction from the + menu while composing a message. Reactions remain in chat history."
+        "title": "Chat history reliability",
+        "text": "Improved history reliability during concurrent changes and archiving."
       }
     }
   ]

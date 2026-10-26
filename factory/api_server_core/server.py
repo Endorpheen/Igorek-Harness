@@ -468,132 +468,12 @@ async def _maybe_attach_project_analysis_workflow(
     )
 
 
-def _initial_project_analysis_workflow_state() -> tuple[
-    str | None,
-    str | None,
-    int,
-    list[str],
-    list[str],
-    list[str],
-    list[str],
-    list[str],
-    list[str],
-    list[str],
-    list[str],
-    list[str],
-    str | None,
-]:
-    return (
-        "project_analysis",
-        "scan_root",
-        1,
-        [],
-        [],
-        [],
-        [],
-        [],
-        [],
-        [],
-        [],
-        [],
-        None,
-    )
 
 
-def _initial_file_investigation_workflow_state() -> tuple[
-    str | None,
-    str | None,
-    int,
-    list[str],
-    list[str],
-    list[str],
-    list[str],
-    list[str],
-    list[str],
-    list[str],
-    list[str],
-    list[str],
-    str | None,
-]:
-    return (
-        "file_investigation",
-        "read_primary",
-        1,
-        [],
-        [],
-        [],
-        [],
-        [],
-        [],
-        [],
-        [],
-        [],
-        None,
-    )
 
 
-def _initial_tavily_research_workflow_state() -> tuple[
-    str | None,
-    str | None,
-    int,
-    list[str],
-    list[str],
-    list[str],
-    list[str],
-    list[str],
-    list[str],
-    list[str],
-    list[str],
-    list[str],
-    str | None,
-]:
-    return (
-        "tavily_research",
-        "search",
-        1,
-        [],
-        [],
-        [],
-        [],
-        [],
-        [],
-        [],
-        [],
-        [],
-        None,
-    )
 
 
-def _initial_local_implementation_workflow_state() -> tuple[
-    str | None,
-    str | None,
-    int,
-    list[str],
-    list[str],
-    list[str],
-    list[str],
-    list[str],
-    list[str],
-    list[str],
-    list[str],
-    list[str],
-    str | None,
-]:
-    return (
-        "local_implementation",
-        "continue",
-        1,
-        [],
-        [],
-        [],
-        [],
-        [],
-        [],
-        [],
-        [],
-        [],
-        None,
-    )
 
 
 async def _maybe_start_initial_workflow(
@@ -794,62 +674,6 @@ def _extract_recent_tool_exchanges(req: AnthropicMessagesRequest) -> list[ToolEx
     return _extract_tool_exchanges(recent_req)
 
 
-def _workflow_has_completed_assistant_text(
-    req: AnthropicMessagesRequest, workflow_name: str
-) -> bool:
-    last_relevant_assistant_index: int | None = None
-    for index, msg in enumerate(req.messages):
-        if msg.role != "assistant" or isinstance(msg.content, str):
-            continue
-        has_relevant_tool_use = False
-        for block in msg.content:
-            if not isinstance(block, dict) or block.get("type") != "tool_use":
-                continue
-            tool_name = str(block.get("name", "")).strip()
-            tool_input = block.get("input")
-            if not isinstance(tool_input, dict):
-                tool_input = {}
-            if workflow_name == "project_analysis" and tool_name == "Bash":
-                command = str(tool_input.get("command", "")).strip()
-                if _is_directory_scan_bash_command(command):
-                    has_relevant_tool_use = True
-                    break
-            if workflow_name == "file_investigation" and tool_name == "Read":
-                has_relevant_tool_use = True
-                break
-            if workflow_name == "failure_recovery" and tool_name in {
-                "Read",
-                "Bash",
-                "Edit",
-                "Write",
-                "Update",
-                "MultiEdit",
-            }:
-                has_relevant_tool_use = True
-                break
-        if has_relevant_tool_use:
-            last_relevant_assistant_index = index
-
-    if last_relevant_assistant_index is None:
-        return False
-
-    for msg in req.messages[last_relevant_assistant_index + 1 :]:
-        if msg.role != "assistant":
-            continue
-        if isinstance(msg.content, str):
-            if strip_system_reminder(msg.content).strip():
-                return True
-            continue
-        has_tool_use = any(
-            isinstance(block, dict) and block.get("type") == "tool_use"
-            for block in msg.content
-        )
-        if has_tool_use:
-            continue
-        visible_text = _flatten_block_content(msg.content, role=msg.role).strip()
-        if visible_text:
-            return True
-    return False
 
 
 def _tool_target_from_input(tool_name: str, tool_input: dict[str, Any]) -> str:
