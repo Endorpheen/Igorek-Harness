@@ -70,3 +70,15 @@
   .wiki-hero h1 {font-size: 1.65rem;}
   .wiki-hero img {width: 3.5rem; height: 3.5rem; margin-top: 1.6rem;}
 }
+
+.md-typeset .wiki-diagram {max-width: 100%; min-width: 0; margin: 1.2rem 0; border: 1px solid #82b25b33; border-radius: .5rem; overflow: hidden; background: #82b25b05;}
+.wiki-diagram-controls {display: flex; flex-wrap: wrap; align-items: center; gap: .25rem; padding: .35rem .5rem; border-bottom: 1px solid #82b25b33; font-size: .64rem;}
+.wiki-diagram-controls button {min-height: 1.7rem; min-width: 1.7rem; padding: .2rem .45rem; border: 1px solid transparent; border-radius: .3rem; color: var(--md-default-fg-color); font: inherit; line-height: 1.2; cursor: pointer;}
+.wiki-diagram-controls button:hover, .wiki-diagram-controls button[aria-pressed="true"] {background: #82b25b20; color: var(--md-typeset-a-color);}
+.wiki-diagram-controls button:focus-visible, .wiki-diagram-viewport:focus-visible {outline: 2px solid var(--md-accent-fg-color); outline-offset: -2px;}
+.wiki-diagram-controls button:disabled {opacity: .35; cursor: default;}
+.wiki-diagram-scale {min-width: 3.5rem; text-align: center; font-variant-numeric: tabular-nums; color: var(--md-default-fg-color--light);}
+.wiki-diagram-viewport {overflow: auto; max-height: 75vh; overscroll-behavior-x: contain;}
+.wiki-diagram-space {position: relative; margin-inline: auto; overflow: hidden;}
+.wiki-diagram-canvas {position: absolute; left: 0; top: 0; transform-origin: top left;}
+.md-typeset .wiki-diagram .mermaid {max-width: none; margin: 0; padding: 0; border: 0; border-radius: 0; overflow: visible; background: transparent;}

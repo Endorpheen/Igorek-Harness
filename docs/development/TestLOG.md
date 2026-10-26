@@ -1,3 +1,11 @@
+## 2026-10-26 — Adjustable Mermaid diagram scale in the Wiki
+
+Wide diagrams initially fit the article width. Localized Fit, zoom out/in and actual-size controls scale each diagram independently of article text. Fit follows viewport resizing; larger views retain their own bounded scroll area. The viewer preserves Material's closed SVG shadow root and its theme styling. No new library or application version change is required.
+
+Strict MkDocs build, 11 Wiki importer/citation unit tests, 6,312 local links, 1,692 source links and imported-source hashes pass. The actual Chromium acceptance run covers all 76 page routes and 178 rendered diagrams with zero errors. New browser controls verify both languages, 100%/125% zoom, Fit, resize, unchanged paragraph font size, light/dark styles and touch interaction at 390px without page overflow. The initial combined browser run exposed a test theme-state assumption; the zoom check now restores the light theme before the pre-existing search/theme tests. The final complete run passes. JavaScript syntax, fatal Ruff and diff checks pass.
+
+Screenshots and receipts: build/verification-wiki-diagram-zoom-20261026. Changes are local source only at this checkpoint; no GitHub push, Pages publication, application installation or owner-service restart has occurred.
+
 ## 2026-10-26 — Portable native-test report paths for release acceptance
 
 The hosted Python jobs reproduced 12 failures in three native test files when the shared runner received a relative output directory. Child processes changed their working directory, so relative COVERAGE_FILE and isolated HOME/data paths no longer identified the original evidence directory. The runner now resolves the output path before launching children, including its direct run_file entry point. No application code, assertion or skip condition changed.
