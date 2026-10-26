@@ -5,11 +5,11 @@
     ru: {title:'Профиль и модель', hint:'Выбор запускает исполнителя для этого чата.', loading:'Загружаю профили…',
       empty:'Нет проверенных подключений. Добавьте и проверьте модель в настройках.',
       unavailable:'Переключение профиля в этом подключении недоступно.', current:'В этом чате', running:'Исполнитель запущен',
-      starting:'Запускаю профиль…', busy:'Дождитесь завершения текущей задачи.', failed:'Не удалось переключить профиль.', choose:'Выбрать профиль и запустить исполнителя'},
+      starting:'Запускаю профиль…', switchingModel:'Переключаю модель…', busy:'Дождитесь завершения текущей задачи.', failed:'Не удалось переключить профиль.', choose:'Выбрать профиль и запустить исполнителя'},
     en: {title:'Profile and model', hint:'Selecting a profile starts its worker for this chat.', loading:'Loading profiles…',
       empty:'No verified connections. Add and check a model in settings.', unavailable:'Profile switching is unavailable for this connection.',
       current:'This chat', running:'Worker running', starting:'Starting profile…', busy:'Wait for the current task to finish.',
-      failed:'Could not switch the profile.', choose:'Choose a profile and start its worker'},
+      failed:'Could not switch the profile.', switchingModel:'Switching model…', choose:'Choose a profile and start its worker'},
   };
   const text = key => labels[document.documentElement.lang.startsWith('en') ? 'en' : 'ru'][key];
   function node(tag, className, value='') {
@@ -82,6 +82,28 @@
             }
           });
           list.append(row);
+        }
+        const active=profiles.find(profile=>profile.name===options.profile());
+        if(Array.isArray(active?.models)&&active.models.length){
+          list.append(node('strong','composer-profile-label',document.documentElement.lang.startsWith('en')?'Model for this chat':'Модель для этого чата'));
+          for(const model of active.models){
+            const row=node('button','composer-profile-option');row.type='button';row.disabled=blocked();row.dataset.model=model;
+            row.setAttribute('role','menuitemradio');row.setAttribute('aria-checked',String(model===options.model?.()));
+            row.append(node('span','composer-profile-label',model));
+            row.addEventListener('click',async()=>{
+              if(!valid()||blocked())return;
+              pending.add(id);options.changing?.(true);status.textContent=text('switchingModel');
+              for(const entry of list.querySelectorAll('button'))entry.disabled=true;
+              try{
+                const result=await options.api('/api/sessions/'+encodeURIComponent(id)+'/model',{
+                  method:'POST',body:JSON.stringify({profile:active.name,model})});
+                if(result?.session_id!==id||result?.meta?.profile!==active.name||result?.meta?.model!==model)throw Error(text('failed'));
+                window.dispatchEvent(new CustomEvent('igorek-profile-changed',{detail:result}));
+                if(!valid())return;await options.changed(result);if(valid())close(true);
+              }catch(error){if(valid()){status.textContent=error.message||text('failed');status.setAttribute('role','alert');}}
+              finally{pending.delete(id);options.changing?.(false);if(valid())for(const entry of list.querySelectorAll('button'))entry.disabled=blocked();}
+            });list.append(row);
+          }
         }
         list.querySelector('button:not(:disabled)')?.focus();
       } catch(error) {

@@ -102,6 +102,23 @@ internal fun SessionProfilePicker(sessionId: String, profile: String, model: Str
                         }
                     })
             }
+            options?.switchableProfiles?.firstOrNull { it.name == profile }?.models.orEmpty().let { models ->
+                if (models.isNotEmpty()) Text(uiText("Модель для этого чата", "Model for this chat"),
+                    Modifier.padding(start = 16.dp, top = 12.dp), style = MaterialTheme.typography.labelMedium)
+                models.forEach { choice ->
+                    DropdownMenuItem(text = { Text(modelDisplayName(choice)) },
+                        trailingIcon = { if (choice == model) Icon(Icons.Default.Check,
+                            contentDescription = uiText("Выбран", "Selected")) }, enabled = !busy && !switching,
+                        onClick = {
+                            if (choice == model) { expanded = false; return@DropdownMenuItem }
+                            request[0]++
+                            Bridge.switchSessionModel(sessionId, profile, choice) { error ->
+                                failure = error?.message
+                                if (error == null) expanded = false
+                            }
+                        })
+                }
+            }
             if (failure != null) DropdownMenuItem(text = { Text(uiText("Повторить", "Retry")) }, onClick = { load() })
         }
     }

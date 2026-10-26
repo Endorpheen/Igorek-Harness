@@ -82,8 +82,11 @@ class OwnerVault:
         if not self.agent:
             return {'error': 'agent_unavailable'}
         if operation == 'catalog':
+            model_pair = ('gpt-6.1-sol', 'gpt-6.1-terra')
             return {'profiles': [{'name': p['config']['name'], 'model': p['config']['model'],
-                                   'local': is_loopback_provider(p['config'])} for p in profiles],
+                                   'local': is_loopback_provider(p['config']),
+                                   'models': list(model_pair) if p['config'].get('api_format') == 'openai-responses'
+                                   and p['config'].get('model') in model_pair else []} for p in profiles],
                     'active_profile': self.agent.status().get('profile', ''), 'can_switch': True}
         profile = next((p for p in profiles if p['config']['name'] == name), None)
         if profile is None:

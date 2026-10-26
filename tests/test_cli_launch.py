@@ -53,6 +53,29 @@ def until(predicate, timeout=15):
     pytest.fail("Expected runtime lifecycle transition did not occur")
 
 
+def _stop_shared_runtime_when_idle(lifecycle):
+    try:
+        lifecycle("stop")
+        return True
+    except RuntimeError as exc:
+        if str(exc) != "Shared runtime is busy; finish or cancel active tasks before stopping it":
+            raise
+        return False
+
+
+def test_shared_runtime_stop_retries_the_busy_transition():
+    lifecycle = Mock(side_effect=[RuntimeError("Shared runtime is busy; finish or cancel active tasks before stopping it"), {"stopping": True}])
+    assert not _stop_shared_runtime_when_idle(lifecycle)
+    assert _stop_shared_runtime_when_idle(lifecycle)
+    assert lifecycle.call_args_list == [(("stop",),), (("stop",),)]
+
+
+def test_shared_runtime_stop_does_not_hide_other_failures():
+    lifecycle = Mock(side_effect=RuntimeError("unexpected fixture failure"))
+    with pytest.raises(RuntimeError, match="unexpected fixture failure"):
+        _stop_shared_runtime_when_idle(lifecycle)
+
+
 def test_existing_consumer_is_reused_and_never_stopped(home):
     config = get_profile_config("one")
     with presence.WorkerPresence("one", config):
@@ -298,7 +321,8 @@ raise SystemExit(main())
         other.close()
         if shared:
             until(lambda: not any(_active_tasks(home)))
-            lifecycle("stop")
+
+            until(lambda: _stop_shared_runtime_when_idle(lifecycle))
         server.shutdown()
         server.server_close()
     until(lambda: not presence.consumers("one", get_profile_config("one")))

@@ -27,6 +27,8 @@ class DelegateContractTest(unittest.TestCase):
         self.assertEqual(result['status'], 'ok')
         child = calls[0]
         self.assertIn('Compute 17 * 23', child['user_message'])
+        self.assertIn('Answer briefly', child['user_message'])
+        self.assertIn(child['workdir'], child['system_prompt'])
         self.assertEqual({s['name'] for s in child['enabled_tools']}, {'Bash', 'Read', 'Write'})
         self.assertNotIn('must_write_skills', child['metadata'])
         self.assertIs(child['approvals_enabled_provider'], provider)

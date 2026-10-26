@@ -113,7 +113,7 @@ from .uploads import (
     MAX_UPLOAD_BYTES,
 )
 
-ACTIVE_STATUSES = frozenset({"queued", "processing", "waiting_approval", "cancelling", "retry"})
+ACTIVE_STATUSES = frozenset({"queued", "processing", "waiting_approval", "waiting_user_input", "cancelling", "retry"})
 FINAL_STATUSES = frozenset({"ok", "fail", "dead_letter", "cancelled", "timeout"})
 
 logger = logging.getLogger(__name__)
@@ -939,7 +939,28 @@ class MobileService:
             self._require_available_profile(profile)
             if profile != meta.get('profile'):
                 update_session_meta(path, {'profile': profile, 'model': selected.get('model', ''),
-                    'provider': '', 'profile_generation': uuid.uuid4().hex})
+                    'model_override': '', 'provider': '', 'profile_generation': uuid.uuid4().hex})
+            return self.get_session(session_id)
+
+    def switch_session_model(self, session_id: str, profile: str, model: str) -> dict[str, Any]:
+        if not isinstance(profile, str) or not isinstance(model, str) or self.profile_control is None:
+            raise MobileInvalid('Переключение модели недоступно.')
+        with self._approval_lock, self._session_lock:
+            path = _session_path(session_id)
+            if not path.is_file():
+                raise MobileNotFound(f'session not found: {session_id}')
+            meta = _read_session_meta(path) or {}
+            if meta.get('agent_session') or meta.get('demo'):
+                raise MobileInvalid('Для этой сессии переключение модели недоступно.')
+            if self._active_task_id_for_session(session_id):
+                raise MobileConflict('Дождитесь завершения текущей задачи перед переключением модели.')
+            if meta.get('profile') != profile:
+                raise MobileConflict('Профиль чата изменился. Обновите список моделей.')
+            catalog = self.profile_control('catalog', '')
+            selected = next((p for p in catalog.get('profiles', []) if p.get('name') == profile), None)
+            if not catalog.get('can_switch') or not selected or model not in selected.get('models', []):
+                raise MobileInvalid('Модель недоступна для этого профиля.')
+            update_session_meta(path, {'model': model, 'model_override': model})
             return self.get_session(session_id)
 
     def update_session(
@@ -2011,6 +2032,8 @@ class MobileService:
         }
         if meta.get('profile_generation'):
             metadata['profile_generation'] = meta['profile_generation']
+        if effective_profile == meta.get('profile') and meta.get('model_override'):
+            metadata['model_override'] = meta['model_override']
         if desktop_ui:
             metadata['desktop_ui'] = True
             metadata['platform'] = 'desktop'
@@ -2534,6 +2557,7 @@ class MobileService:
                 "source": "mobile_bridge",
                 "platform": "android",
                 "created_via": "mobile_bridge.resume_pending_steers",
+                **({'model_override': meta['model_override']} if meta.get('model_override') else {}),
                 "history_messages": working_history,
                 "structured_session_history": True,
                 "session": session_id,

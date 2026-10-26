@@ -53,7 +53,15 @@ agent = Agent()
 owner.agent = agent
 owner.browser_service = service
 service.available_profiles = lambda: [agent.active]
-service.profile_control = owner.mobile_profile_control
+def fixture_profile_control(operation, name):
+    result = owner.mobile_profile_control(operation, name)
+    if operation == 'catalog':
+        for profile in result.get('profiles', []):
+            profile['models'] = ['gpt-6.1-sol', 'gpt-6.1-terra'] if profile['name'] == 'cloud' else []
+    return result
+
+
+service.profile_control = fixture_profile_control
 agent.start(saved['cloud']['credential_id'])
 sid = service.create_session(profile='cloud', cwd=str(root))['session_id']
 _append_entry(_session_path(sid), 'user', 'Retained fixture history')

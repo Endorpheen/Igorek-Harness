@@ -15,7 +15,7 @@ def test_archive_preserves_exact_bytes_and_resets_only_source_thread(tmp_path,na
     assert result is not None and result.parent==tmp_path and result!=source
     assert result.read_text(encoding='utf-8')==content and source.read_text()==''
     assert other.read_text()=='keep'
-    assert len(list(tmp_path.iterdir()))==3
+    assert set(tmp_path.iterdir()) == {source, other, result, tmp_path/'.session.jsonl.lock'}
 
 
 def test_archive_collision_never_overwrites_existing_thread(tmp_path,monkeypatch):
@@ -35,7 +35,8 @@ def test_absent_or_empty_session_does_not_create_archive(tmp_path,content):
     source=tmp_path/'session.jsonl'
     if content is not None:source.write_text(content)
     assert c.archive_session_thread(source) is None
-    assert list(tmp_path.iterdir())==([] if content is None else [source])
+    expected = set() if content is None else {source, tmp_path/'.session.jsonl.lock'}
+    assert set(tmp_path.iterdir()) == expected
     if content is not None:assert source.read_text()==''
 
 

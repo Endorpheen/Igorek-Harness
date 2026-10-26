@@ -33,27 +33,6 @@ def _strip_blocked_tools(tool_names: list[str]) -> list[str]:
     return [t for t in tool_names if t not in DELEGATE_BLOCKED_TOOLS]
 
 
-def _build_child_system_prompt(goal: str, context: str | None, workdir: str) -> str:
-    parts = [
-        "You are a focused subagent working on a specific delegated task.",
-        "",
-        f"YOUR TASK:\n{goal}",
-    ]
-    if context and context.strip():
-        parts.append(f"\nCONTEXT:\n{context}")
-    parts.append(
-        f"\nWORKSPACE PATH:\n{workdir}\n"
-        "Use this exact path for local file operations unless the task says otherwise."
-    )
-    parts.append(
-        "\nComplete this task using the tools available to you. "
-        "When finished, provide a clear, concise summary of what you did, "
-        "what you found, any files created or modified, and any issues encountered. "
-        "Your response is returned to the parent agent as a summary."
-    )
-    return "\n".join(parts)
-
-
 def delegate_task(args: dict[str, Any], **kwargs: Any) -> str:
     """Spawn a child agent to handle a delegated task."""
     # Import here to avoid circular dependency at module load time.
