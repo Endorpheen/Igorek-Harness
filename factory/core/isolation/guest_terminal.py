@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import errno
 import fcntl
 import logging
 import os
@@ -204,11 +205,19 @@ class GuestPty:
             return self._exit_code
         try:
             reaped, status = os.waitpid(pid, os.WNOHANG)
-        except (ChildProcessError, OSError):
+        except ChildProcessError:
+            self._pid = None
+            self._exit_code = self._exit_code if self._exit_code is not None else 0
+            return self._exit_code
+        except OSError as exc:
+            if exc.errno != errno.ECHILD:
+                return None
+            self._pid = None
             self._exit_code = self._exit_code if self._exit_code is not None else 0
             return self._exit_code
         if reaped == 0:
             return None
+        self._pid = None
         if os.WIFEXITED(status):
             self._exit_code = os.WEXITSTATUS(status)
         elif os.WIFSIGNALED(status):

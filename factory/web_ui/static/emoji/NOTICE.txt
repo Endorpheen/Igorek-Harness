@@ -1,0 +1,6 @@
+Pepe reaction GIFs selected from the Pepe Server Archive.
+Source: https://github.com/Overimagine1/pepe-server-archive
+Pinned source commit: bcf5ecbddff05b68467c219187dda788e2392c1e
+The archive credits the CovyHive (formerly Pepe Server) community.
+Upstream artwork and character rights remain with their respective creators.
+The source paths and SHA-256 digests are recorded in catalog.json.

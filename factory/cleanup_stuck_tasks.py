@@ -57,8 +57,10 @@ def cleanup_stuck_tasks(timeout_seconds=300, profile=None):
 
             print(f"⚠️  Найдено {len(stuck_tasks)} зависших задач:")
 
+            marked = 0
             for task_id, task_profile, input_text, created_at in stuck_tasks:
                 # Show task details
+                input_text = str(input_text or "")
                 text_preview = input_text[:100] + "..." if len(input_text) > 100 else input_text
                 print(f"  - {task_id[:8]}... [{task_profile}] {text_preview}")
 
@@ -71,14 +73,17 @@ def cleanup_stuck_tasks(timeout_seconds=300, profile=None):
                         updated_at = strftime('%s', 'now')
                     WHERE task_id = ?
                       AND status = 'processing'
+                      AND updated_at < strftime('%s', 'now') - ?
                 """, (
                     "cleanup_stuck_tasks: no heartbeat for "
                     f"{timeout_seconds}s (profile {task_profile})",
                     task_id,
+                    timeout_seconds,
                 ))
+                marked += cursor.rowcount
 
             conn.commit()
-            print(f"\n✅ {len(stuck_tasks)} зависших задач помечено dead_letter")
+            print(f"\n✅ {marked} зависших задач помечено dead_letter")
 
     except Exception as e:
         print(f"❌ Ошибка очистки: {e}")

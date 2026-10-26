@@ -8,8 +8,8 @@ class CommitTickRunner:
 
     def tick(self) -> list[str]:
         mode = self.policy.decide(
-            sum(len(c.state._queue) for c in self.controllers),
-            0
+            sum(c.state.queue_depth() for c in self.controllers),
+            max((c.state.oldest_age() for c in self.controllers), default=0.0)
         )
         if mode == ChunkingMode.SMOOTH:
             for c in self.controllers:
@@ -20,5 +20,5 @@ class CommitTickRunner:
         else:
             result = []
             for c in self.controllers:
-                result.extend(c.on_commit_tick())
+                result.extend(c.on_commit_tick_batch())
             return result

@@ -130,6 +130,8 @@ def smarthelp_query(question: str) -> tuple[str, str]:
         except Exception:
             pass
         raise SmarthelpError(f"OpenRouter HTTP {exc.code}: {err_body}") from exc
+    except (urllib.error.URLError, OSError, TimeoutError) as exc:
+        raise SmarthelpError(f"Ошибка подключения к OpenRouter: {exc}") from exc
 
     latency_ms = int((time.time() - t0) * 1000)
     usage = body.get("usage") or {}
@@ -191,7 +193,7 @@ def smarthelp_agent_query(
                 tool_name=tool_name,
                 preview=preview,
                 args=args,
-                **{k: v for k, v in kwargs.items() if k not in {"name", "preview", "args"}},
+                **{k: v for k, v in kwargs.items() if k not in {"name", "tool_name", "preview", "args"}},
             )
 
     system_prompt = build_cc_backend_system_prompt(

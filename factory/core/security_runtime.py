@@ -516,6 +516,8 @@ class SecurityRuntime:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             env=env,
             cwd=cwd,
         )
@@ -553,6 +555,10 @@ class SecurityRuntime:
             returncode = process.wait(timeout=timeout_s)
         except subprocess.TimeoutExpired:
             process.kill()
+            try:
+                process.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                pass
             stdout_thread.join(timeout=1)
             stderr_thread.join(timeout=1)
             raise

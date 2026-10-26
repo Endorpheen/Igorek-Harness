@@ -427,6 +427,7 @@ class HostTaskInput:
     egress: SessionEgress | None = None
     git_gateway: GitGatewayRoute | None = None
     apk_delivery_url: str = ""
+    reasoning_format: str = ""
 
 
 def build_wire_task_payload(task: HostTaskInput) -> dict[str, JsonValue]:
@@ -453,6 +454,7 @@ def build_wire_task_payload(task: HostTaskInput) -> dict[str, JsonValue]:
         "trailing_context_text": task.trailing_context_text,
     }
     for key, text in (
+        ("reasoning_format", task.reasoning_format),
         ("current_session", task.current_session),
         ("source_platform", task.source_platform),
         ("source_chat_id", task.source_chat_id),

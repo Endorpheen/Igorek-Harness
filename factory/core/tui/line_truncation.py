@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from typing import List, Tuple
 
-from .terminal_hyperlinks import _char_width
+from .live_wrap import _char_width, _str_width
 
 
 Line = str
@@ -22,7 +22,7 @@ _ANSI_RE = re.compile(r"\033\[[0-9;]*m")
 
 def _display_width(text: str) -> int:
     """Display width of a string with ANSI codes stripped."""
-    return len(_ANSI_RE.sub("", text))
+    return _str_width(_ANSI_RE.sub("", text))
 
 
 def line_width(line: Line) -> int:

@@ -1,0 +1,11 @@
+{
+  "description": "Synthetic reproduction: structured reasoning is followed by another unclosed think block in streamed content.",
+  "deltas": [
+    {"reasoning_content": "Native reasoning. "},
+    {"content": "<th"},
+    {"content": "ink>Let me carefully analyze the fixture function to write accurate tests.\n\n```python\nassert 1 == 1\n```"}
+  ],
+  "finish_reason": "length",
+  "expected_answer": "",
+  "expected_reasoning": "Native reasoning. Let me carefully analyze the fixture function to write accurate tests.\n\n```python\nassert 1 == 1\n```"
+}

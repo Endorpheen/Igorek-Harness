@@ -160,6 +160,8 @@ private fun approvalDecisionLabel(decision: String): String = when (decision.low
 
 @Composable
 fun ToolCallCard(item: TimelineItem.ToolCall, modifier: Modifier = Modifier) {
+    if (PepeEmojis.isTool(item.name)) { EmojiReactionCard(item, modifier); return }
+
     if (ru.igorek.remote.data.isChartTool(item.name)) { ChartCard(item, modifier); return }
     val failure = ru.igorek.remote.data.notificationFailureText(item)
     if (failure != null) {
@@ -461,6 +463,7 @@ fun TimelineRow(
     onCancelMessage: (taskId: String, messageId: String) -> Unit = { _, _ -> },
     sessionId: String = "",
 ) {
+    if (item is TimelineItem.ToolCall && PepeEmojis.isTool(item.name)) { EmojiReactionCard(item, modifier); return }
     if (item is TimelineItem.ToolCall && ru.igorek.remote.data.isChartTool(item.name)) {
         ChartCard(item, modifier)
         return
@@ -481,7 +484,7 @@ fun TimelineRow(
                     Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
                     if (item.displayText.isNotBlank()) {
                         SelectionContainer(Modifier.padding(start = 8.dp).weight(1f)) {
-                            Text(item.displayText, style = MaterialTheme.typography.bodyMedium)
+                            ru.igorek.remote.ui.markdown.PlainEmojiText(item.displayText)
                         }
                         CopyButton(item.displayText)
                     }
@@ -727,4 +730,12 @@ private fun ReasoningCard(item: TimelineItem.Reasoning, modifier: Modifier = Mod
             }
         }
     }
+}
+
+@Composable
+private fun EmojiReactionCard(item: TimelineItem.ToolCall, modifier: Modifier = Modifier) {
+    PepeEmojis.load(androidx.compose.ui.platform.LocalContext.current)
+    val id = PepeEmojis.receipt(item.name, item.resultPreview)
+    if (id != null) AnimatedPepe(id, modifier.padding(vertical = 6.dp).size(64.dp))
+    else Text(uiText("Эмодзи недоступен", "Emoji unavailable"), modifier = modifier)
 }

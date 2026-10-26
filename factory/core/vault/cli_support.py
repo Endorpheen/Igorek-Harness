@@ -102,7 +102,7 @@ def import_credentials(
             imported_lines.add(index)
         if redact_source and imported_lines:
             redacted_lines = [
-                f"# REDACTED by igorek-vault import: {line}" if i in imported_lines else line
+                f"# REDACTED by igorek-vault import: {line.split('=', 1)[0].strip()}=[redacted]" if i in imported_lines else line
                 for i, line in enumerate(lines)
             ]
             source.write_text("\n".join(redacted_lines) + "\n", encoding="utf-8")

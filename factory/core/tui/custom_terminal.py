@@ -45,7 +45,8 @@ class CustomTerminal:
 
     def draw(self, draw_fn: Callable):
         """Diff-based render: only write changed lines."""
-        if self._needs_clear:
+        full_clear = self._needs_clear
+        if full_clear:
             self.clear()
             self._needs_clear = False
 
@@ -66,6 +67,11 @@ class CustomTerminal:
                 break
             if i >= len(self._prev_lines) or self._prev_lines[i] != line:
                 sys.stdout.write(f"\033[{vp.y + i};{vp.x}H\033[2K{line}")
+
+        # Clear leftover rows of a previous, longer frame.
+        if not full_clear:
+            for i in range(len(new_lines), min(len(self._prev_lines), vp.height)):
+                sys.stdout.write(f"\033[{vp.y + i};{vp.x}H\033[2K")
         sys.stdout.flush()
         self._prev_lines = new_lines
 

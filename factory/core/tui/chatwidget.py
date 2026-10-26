@@ -405,25 +405,28 @@ class ChatWidget:
         """Codex line 4133: feed streaming text delta."""
         self.stream_buffer += delta
         if "\n" in self.stream_buffer:
-            lines = self.stream_buffer.splitlines()
-            self.stream_buffer = lines[-1] if not self.stream_buffer.endswith("\n") else ""
-            for line in lines[:-1]:
+            lines = self.stream_buffer.split("\n")
+            remainder = lines.pop()
+            self.stream_buffer = remainder
+            for line in lines:
                 if not self.active_cell or not self.active_cell.is_stream_continuation():
                     self.flush_active_cell()
                     self.active_cell = MarkdownCell(line + "\n")
                 else:
-                    # Append to existing streaming cell
-                    pass
-            self.request_redraw()
+                    self.active_cell.text = (self.active_cell.text or "") + line + "\n"
+        self.request_redraw()
 
     def handle_stream_finished(self):
-        """Codex line 4123: finalize stream."""
+        """Finalize the raw Markdown message without splitting its last line."""
         if self.stream_buffer:
-            if self.active_cell:
+            if isinstance(self.active_cell, MarkdownCell):
+                self.active_cell.text += self.stream_buffer
+            else:
                 self.flush_active_cell()
-            self.active_cell = MarkdownCell(self.stream_buffer)
-            self.flush_active_cell()
+                self.active_cell = MarkdownCell(self.stream_buffer)
             self.stream_buffer = ""
+        if self.active_cell:
+            self.flush_active_cell()
         self.request_redraw()
 
     # ── interrupt / quit ─────────────────────────────────────────
@@ -444,8 +447,6 @@ class ChatWidget:
 
     def handle_agent_message_delta(self, delta: str):
         """Codex: feed agent message text delta."""
-        if not self.stream_buffer:
-            self.stream_buffer = ""
         self.stream_buffer += delta
 
         # Newline-gated commit: extract complete lines
@@ -453,24 +454,23 @@ class ChatWidget:
             line, self.stream_buffer = self.stream_buffer.split("\n", 1)
             if not self.active_cell or not isinstance(self.active_cell, MarkdownCell):
                 self.flush_active_cell()
-                self.active_cell = MarkdownCell(line)
+                self.active_cell = MarkdownCell(line + "\n")
             else:
                 # Append to existing markdown cell
-                self.active_cell = MarkdownCell(
-                    "\n".join(self.active_cell.display_lines(self._width)) + "\n" + line
-                )
+                self.active_cell.text = (self.active_cell.text or "") + line + "\n"
             self.had_work_activity = True
         self.request_redraw()
 
     def handle_agent_message_complete(self):
-        """Codex: finalize agent message streaming."""
+        """Finalize the raw Markdown message without splitting its last line."""
         if self.stream_buffer:
-            if not self.active_cell or not isinstance(self.active_cell, MarkdownCell):
+            if isinstance(self.active_cell, MarkdownCell):
+                self.active_cell.text += self.stream_buffer
+            else:
                 self.flush_active_cell()
-            self.active_cell = MarkdownCell(self.stream_buffer)
-            self.flush_active_cell()
+                self.active_cell = MarkdownCell(self.stream_buffer)
             self.stream_buffer = ""
-        elif self.active_cell:
+        if self.active_cell:
             self.flush_active_cell()
         self.request_redraw()
 

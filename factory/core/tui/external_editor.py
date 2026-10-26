@@ -46,9 +46,10 @@ def resolve_editor_command(env: Optional[os._Environ] = None) -> List[str]:
         raw = e.get("EDITOR")
     if raw is None:
         raise EditorLaunchError(EditorError.MISSING_EDITOR)
-    parts = shlex.split(raw)
-    if parts is None:
-        raise EditorLaunchError(EditorError.PARSE_FAILED)
+    try:
+        parts = shlex.split(raw)
+    except ValueError as exc:
+        raise EditorLaunchError(EditorError.PARSE_FAILED) from exc
     if not parts:
         raise EditorLaunchError(EditorError.EMPTY_COMMAND)
     return parts

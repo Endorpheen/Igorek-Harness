@@ -1676,109 +1676,111 @@ class ChatSession:
             task_id = str(task.get("task_id", "")) or None
             status = str(task.get("status", "")) or None
             approval_blocked = task.get("approval_blocked_tools", [])
+            if isinstance(approval_blocked, list):
+                approval_blocked = [item for item in approval_blocked if isinstance(item, dict)]
 
             if not (isinstance(approval_blocked, list) and approval_blocked):
                 break
 
-            # Approval flow
+            # Merge protocol context before collecting each decision once.
+            from .cli_chat_rich import _approval_text_for_history
+            from .cli_chat_approval import (
+                _blocked_tool_session_rule,
+                _print_approval_history,
+            )
             for blocked in approval_blocked:
                 if not isinstance(blocked, dict):
                     continue
-                from .cli_chat_rich import _approval_text_for_history
-                from .cli_chat_approval import (
-                    _blocked_tool_session_rule,
-                    _print_approval_history,
-                )
                 approval_context_messages = self._merge_approval_context(
                     approval_context_messages,
                     blocked.get("approval_context_messages", []),
                 )
-                history_text = _approval_text_for_history(task, approval_blocked)
+            history_text = _approval_text_for_history(task, approval_blocked)
 
-                if not turn_user_persisted:
-                    _append_entry(sp, role="user", text=text)
-                    turn_user_persisted = True
-                if history_text and history_text != last_approval_history_text:
-                    _append_entry(sp, role="assistant", text=history_text,
-                                   task_id=task_id, status=status)
-                    last_approval_history_text = history_text
+            if not turn_user_persisted:
+                _append_entry(sp, role="user", text=text)
+                turn_user_persisted = True
+            if history_text and history_text != last_approval_history_text:
+                _append_entry(sp, role="assistant", text=history_text,
+                               task_id=task_id, status=status)
+                last_approval_history_text = history_text
 
-                self._fs_run_on_terminal(lambda: self.console.print())
+            self._fs_run_on_terminal(lambda: self.console.print())
 
-                approved_signatures = []
-                approved_host_ops: list[dict] = []
-                ftc = None
-                for blocked in approval_blocked:
-                    if not isinstance(blocked, dict):
-                        continue
-                    tn = "host-op" if is_host_op_blocked_record(blocked) else str(blocked.get("tool") or "?")
-                    target = _print_blocked_tool_target(blocked)
-                    aa = self._ask_approval(blocked)
-                    if is_host_op_blocked_record(blocked):
-                        # Host ops are resolved by the host broker, so the TUI
-                        # carries the decision in the resume metadata instead of
-                        # an approval signature.
-                        if aa in {"allow", "allow_session"}:
-                            decision = "allow_session" if aa == "allow_session" else "allow_once"
-                            try:
-                                request = parse_host_op_blocked_record(blocked)
-                            except HostOpApprovalError:
-                                self.console.print(
-                                    "  [red]Некорректная заявка host-op пропущена (нет действия).[/red]"
-                                )
-                            else:
-                                approved_host_ops.append(
-                                    HostOpApprovalOutcome.pending_broker(
-                                        request, decision=decision, resolved_by="tui"
-                                    ).to_record()
-                                )
-                        self._fs_run_on_terminal(
-                            lambda: _print_approval_history(self.console, tn, target, aa)
-                        )
-                        continue
+            approved_signatures = []
+            approved_host_ops: list[dict] = []
+            ftc = None
+            for blocked in approval_blocked:
+                if not isinstance(blocked, dict):
+                    continue
+                tn = "host-op" if is_host_op_blocked_record(blocked) else str(blocked.get("tool") or "?")
+                target = _print_blocked_tool_target(blocked)
+                aa = self._ask_approval(blocked)
+                if is_host_op_blocked_record(blocked):
+                    # Host ops are resolved by the host broker, so the TUI
+                    # carries the decision in the resume metadata instead of
+                    # an approval signature.
                     if aa in {"allow", "allow_session"}:
-                        sig = str(blocked.get("signature") or "").strip()
-                        if sig:
-                            approved_signatures.append(sig)
-                        ftc = _forced_tool_call_for_resume(
-                            blocked,
-                            approval_context_messages,
-                        )
-                        if aa == "allow_session":
-                            session_rule = _blocked_tool_session_rule(blocked)
-                            if (session_rule and
-                                session_rule not in self.approved_session_rules):
-                                self.approved_session_rules.append(session_rule)
+                        decision = "allow_session" if aa == "allow_session" else "allow_once"
+                        try:
+                            request = parse_host_op_blocked_record(blocked)
+                        except HostOpApprovalError:
+                            self.console.print(
+                                "  [red]Некорректная заявка host-op пропущена (нет действия).[/red]"
+                            )
+                        else:
+                            approved_host_ops.append(
+                                HostOpApprovalOutcome.pending_broker(
+                                    request, decision=decision, resolved_by="tui"
+                                ).to_record()
+                            )
                     self._fs_run_on_terminal(
                         lambda: _print_approval_history(self.console, tn, target, aa)
                     )
+                    continue
+                if aa in {"allow", "allow_session"}:
+                    sig = str(blocked.get("signature") or "").strip()
+                    if sig:
+                        approved_signatures.append(sig)
+                    ftc = _forced_tool_call_for_resume(
+                        blocked,
+                        approval_context_messages,
+                    )
+                    if aa == "allow_session":
+                        session_rule = _blocked_tool_session_rule(blocked)
+                        if (session_rule and
+                            session_rule not in self.approved_session_rules):
+                            self.approved_session_rules.append(session_rule)
+                self._fs_run_on_terminal(
+                    lambda: _print_approval_history(self.console, tn, target, aa)
+                )
 
-                if not approved_signatures and not approved_host_ops:
-                    from .cli_chat_rich import _extract_rejection_context
-                    rejection_ctx = _extract_rejection_context(approval_blocked)
-                    rejection_text = (rejection_ctx
-                                      if rejection_ctx
-                                      else "Action rejected by user.")
-                    if not turn_user_persisted:
-                        _append_entry(sp, role="user", text=text)
-                        turn_user_persisted = True
-                    if (rejection_text and
-                        rejection_text != last_approval_history_text):
-                         _append_entry(sp, role="assistant", text=rejection_text,
-                                        task_id=task_id, status=status)
-                    self.pending_inputs.extend(self.mq.drain_all())
-                    return
+            if not approved_signatures and not approved_host_ops:
+                from .cli_chat_rich import _extract_rejection_context
+                rejection_ctx = _extract_rejection_context(approval_blocked)
+                rejection_text = (rejection_ctx
+                                  if rejection_ctx
+                                  else "Action rejected by user.")
+                if not turn_user_persisted:
+                    _append_entry(sp, role="user", text=text)
+                    turn_user_persisted = True
+                if (rejection_text and
+                    rejection_text != last_approval_history_text):
+                    _append_entry(sp, role="assistant", text=rejection_text,
+                                  task_id=task_id, status=status)
+                self.pending_inputs.extend(self.mq.drain_all())
+                return
 
-                if approved_signatures:
-                    meta["approved_tool_calls"] = approved_signatures
-                if approved_host_ops:
-                    meta["host_op_resolutions"] = approved_host_ops
-                meta["approved_session_rules"] = list(self.approved_session_rules)
-                resume_context = _approval_context_for_resume(approval_context_messages)
-                if resume_context:
-                    meta["approval_context_messages"] = resume_context
-                if ftc is not None:
-                    meta["forced_tool_call"] = ftc
+            if approved_signatures:
+                meta["approved_tool_calls"] = approved_signatures
+            if approved_host_ops:
+                meta["host_op_resolutions"] = approved_host_ops
+            meta["approved_session_rules"] = list(self.approved_session_rules)
+            resume_context = _approval_context_for_resume(approval_context_messages)
+            if resume_context:
+                meta["approval_context_messages"] = resume_context
+            if ftc is not None:
+                meta["forced_tool_call"] = ftc
 
         raw_text = str(task.get("result_text") or
                        task.get("output_text") or
@@ -2031,9 +2033,15 @@ class ChatSession:
                     return True
 
                 while not done_event.is_set():
-                    app_task = asyncio.create_task(app.run_async())
+                    application_ready = asyncio.Event()
+                    app_task = asyncio.create_task(
+                        app.run_async(pre_run=application_ready.set)
+                    )
                     try:
                         while not done_event.is_set() and not app_task.done():
+                            if not application_ready.is_set():
+                                await asyncio.sleep(0.01)
+                                continue
                             pending_user_input = self._pending_user_input_request(task_id)
                             if pending_user_input is not None:
                                 app.exit(result="__form__")

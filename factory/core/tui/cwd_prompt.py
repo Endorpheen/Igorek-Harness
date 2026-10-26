@@ -158,28 +158,28 @@ class CwdPromptScreen:
 
     def handle_key(self, key_event: KeyEvent) -> None:
         """React to a key event (port of ``CwdPromptScreen::handle_key``)."""
-        if key_event.kind == KeyEventKind.RELEASE:
+        if key_event.kind == KeyEventKind.Release:
             return
         if (key_event.modifiers & int(KeyModifiers.CONTROL)) and key_event.code in (
-            KeyCode.CHAR_C,
-            KeyCode.CHAR_D,
+            KeyCode.Char('c'),
+            KeyCode.Char('d'),
         ):
             self.selection = None
             self.should_exit = True
             self.request_frame.schedule_frame()
             return
         code = key_event.code
-        if code == KeyCode.UP or code == KeyCode.CHAR_K:
+        if code == KeyCode.Up() or code == KeyCode.Char('k'):
             self.set_highlight(self.highlighted.prev())
-        elif code == KeyCode.DOWN or code == KeyCode.CHAR_J:
+        elif code == KeyCode.Down() or code == KeyCode.Char('j'):
             self.set_highlight(self.highlighted.next())
-        elif code == KeyCode.CHAR_1:
+        elif code == KeyCode.Char('1'):
             self.select(CwdSelection.Session)
-        elif code == KeyCode.CHAR_2:
+        elif code == KeyCode.Char('2'):
             self.select(CwdSelection.Current)
-        elif code == KeyCode.ENTER:
+        elif code == KeyCode.Enter():
             self.select(self.highlighted)
-        elif code == KeyCode.ESC:
+        elif code == KeyCode.Esc():
             self.select(CwdSelection.Session)
 
     def set_highlight(self, highlight: CwdSelection) -> None:
@@ -197,6 +197,77 @@ class CwdPromptScreen:
 
     def get_selection(self) -> Optional[CwdSelection]:
         return self.selection
+
+
+def run_cwd_prompt(
+    *,
+    action: CwdPromptAction,
+    current_cwd: str,
+    session_cwd: str,
+) -> CwdPromptOutcome:
+    """Select a resume directory through the current prompt-toolkit frontend."""
+    from prompt_toolkit.application import Application
+    from prompt_toolkit.formatted_text import FormattedText
+    from prompt_toolkit.key_binding import KeyBindings
+    from prompt_toolkit.layout import Layout, Window
+    from prompt_toolkit.layout.controls import FormattedTextControl
+    from prompt_toolkit.styles import Style as PromptStyle
+
+    screen = CwdPromptScreen.new(
+        _NullFrameRequester(), action, str(current_cwd), str(session_cwd)
+    )
+
+    def render():
+        fragments = [
+            ("class:title", f"Choose working directory to {action.verb()} this session\n\n"),
+            ("", f"Session = latest cwd recorded in the {action.past_participle()} session\n"),
+            ("", "Current = your current working directory\n\n"),
+        ]
+        options = [
+            (CwdSelection.Session, f"1. Use session directory ({screen.session_cwd})"),
+            (CwdSelection.Current, f"2. Use current directory ({screen.current_cwd})"),
+        ]
+        for index, (selection, label) in enumerate(options):
+            highlighted = screen.highlighted is selection
+            row = selection_option_row(index, label, highlighted)
+            fragments.append(("class:selected" if highlighted else "", row.as_lines(0)[0] + "\n"))
+        fragments.append(("class:hint", "\nUp/Down or j/k: choose · Enter: continue · Esc: session · Ctrl+C/D: cancel\n"))
+        return FormattedText(fragments)
+
+    bindings = KeyBindings()
+
+    def handler(code, modifiers=KeyModifiers.NONE):
+        def apply(event):
+            screen.handle_key(KeyEvent.new(code, modifiers))
+            if screen.is_done():
+                event.app.exit(result=CwdPromptOutcome(
+                    kind=CwdPromptOutcomeKind.Exit if screen.should_exit else CwdPromptOutcomeKind.Selection,
+                    selection=screen.get_selection(),
+                ))
+            else:
+                event.app.invalidate()
+        return apply
+
+    for key, code in [
+        ("up", KeyCode.Up()), ("down", KeyCode.Down()),
+        ("k", KeyCode.Char("k")), ("j", KeyCode.Char("j")),
+        ("1", KeyCode.Char("1")), ("2", KeyCode.Char("2")),
+        ("enter", KeyCode.Enter()), ("escape", KeyCode.Esc()),
+    ]:
+        bindings.add(key)(handler(code))
+    bindings.add("c-c")(handler(KeyCode.Char("c"), KeyModifiers.CONTROL))
+    bindings.add("c-d")(handler(KeyCode.Char("d"), KeyModifiers.CONTROL))
+    app = Application(
+        layout=Layout(Window(FormattedTextControl(render), dont_extend_height=True, wrap_lines=True)),
+        key_bindings=bindings,
+        style=PromptStyle.from_dict({"title": "bold", "selected": "reverse", "hint": "dim"}),
+        full_screen=False,
+        erase_when_done=True,
+    )
+    try:
+        return app.run()
+    except (EOFError, KeyboardInterrupt):
+        return CwdPromptOutcome(kind=CwdPromptOutcomeKind.Exit)
 
 
 # ---------------------------------------------------------------------------
@@ -338,7 +409,7 @@ def render_cwd_prompt_screen(screen: CwdPromptScreen, area=None, buf=None) -> No
     column.push(RenderableItem(_empty_renderable()))
     column.push(RenderableItem(_text_line([
         _span_text("Press ", Style()),
-        _span_text(plain(KeyCode.ENTER), Style()),
+        _span_text(plain(KeyCode.Enter()), Style()),
         _span_text(" to continue", Style()),
     ])))
     if area is not None and buf is not None:
@@ -394,5 +465,6 @@ __all__ = [
     "OptionRow",
     "render_cwd_prompt_screen",
     "run_cwd_selection_prompt",
+    "run_cwd_prompt",
     "selection_option_row",
 ]

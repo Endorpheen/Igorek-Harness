@@ -21,11 +21,13 @@ factory = [
     "web_ui/static/audio/*",
     "web_ui/static/vendor/*",
     "web_ui/static/workers/*",
+    "web_ui/static/emoji/*",
+    "web_ui/static/emoji/pepe/*.gif",
 ]
 
 [project]
 name = "igorek-agent-factory"
-version = "0.2.24"
+version = "0.2.25"
 description = "A personal AI agent workspace with desktop, mobile and terminal interfaces"
 readme = "README.md"
 license = "Apache-2.0"

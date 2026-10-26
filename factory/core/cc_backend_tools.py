@@ -1258,7 +1258,7 @@ def _handle_update_plan(args: dict[str, Any], **kwargs: Any) -> str:
         if not isinstance(item.get("step"), str):
             raise ValueError(f"plan[{index}].step must be a string")
         status = item.get("status")
-        if status not in {"pending", "in_progress", "completed"}:
+        if not isinstance(status, str) or status not in {"pending", "in_progress", "completed"}:
             raise ValueError(f"plan[{index}].status is invalid: {status!r}")
         if status == "in_progress":
             in_progress_count += 1
@@ -1728,6 +1728,8 @@ def _ask_enable_mcp_approval(
     try:
         result = json.loads(raw)
     except json.JSONDecodeError:
+        return {"approved": False, "decision": "invalid_response", "raw": raw}
+    if not isinstance(result, dict):
         return {"approved": False, "decision": "invalid_response", "raw": raw}
     if result.get("cancelled"):
         return {"approved": False, "decision": "cancelled", "response": result}
@@ -2558,3 +2560,4 @@ def execute_tool(
 
 # Register the declarative, read-only chart tool for all model providers.
 from . import chart_tool as _chart_tool  # noqa: F401,E402
+from . import pepe_emoji as _pepe_emoji  # noqa: F401,E402

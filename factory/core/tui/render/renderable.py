@@ -404,7 +404,7 @@ class InsetRenderable(Renderable):
 
     def desired_height(self, width: int) -> int:
         return (
-            self.child.desired_height(width - self.insets.left - self.insets.right)
+            self.child.desired_height(max(0, width - self.insets.left - self.insets.right))
             + self.insets.top
             + self.insets.bottom
         )

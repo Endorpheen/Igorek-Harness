@@ -1,5 +1,13 @@
 package ru.igorek.remote.ui.markdown
 
+import ru.igorek.remote.ui.PepeEmojis
+import ru.igorek.remote.ui.PEPE_TAG
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.TextLayoutResult
+
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -42,6 +50,7 @@ fun MarkdownText(
     modifier: Modifier = Modifier,
     maxLines: Int = Int.MAX_VALUE,
 ) {
+    PepeEmojis.load(LocalContext.current)
     val codeBackground = MaterialTheme.colorScheme.surfaceVariant
     val codeColor = MaterialTheme.colorScheme.onSurfaceVariant
     val accent = MaterialTheme.colorScheme.primary
@@ -219,12 +228,12 @@ internal fun annotate(
         fun webText(text: String) {
             var offset = 0
             MarkdownLinks.ranges(text).forEach { range ->
-                append(text.substring(offset, range.first))
+                PepeEmojis.append(this, text.substring(offset, range.first))
                 val label = text.substring(range.first, range.last + 1)
                 link(label, label)
                 offset = range.last + 1
             }
-            append(text.substring(offset))
+            PepeEmojis.append(this, text.substring(offset))
         }
         spans.forEach { span ->
             when (span) {
@@ -246,6 +255,21 @@ private fun LinkText(
     maxLines: Int,
     color: Color = Color.Unspecified,
 ) {
+    if (text.getStringAnnotations(PEPE_TAG, 0, text.length).isNotEmpty()) {
+        val context = LocalContext.current
+        val layout = remember(text) { mutableStateOf<TextLayoutResult?>(null) }
+        val click = Modifier.pointerInput(text) {
+            detectTapGestures { position ->
+                layout.value?.let { value ->
+                    val offset = value.getOffsetForPosition(position).coerceIn(0, text.lastIndex)
+                    text.getStringAnnotations(WEB_LINK_TAG, offset, offset).firstOrNull()?.let { openWebLink(context, it.item) }
+                }
+            }
+        }
+        Text(text = text, style = style, maxLines = maxLines, color = color,
+            inlineContent = PepeEmojis.inlineContent(), modifier = click, onTextLayout = { layout.value = it })
+        return
+    }
     if (text.getStringAnnotations(WEB_LINK_TAG, 0, text.length).isEmpty()) {
         Text(text = text, style = style, maxLines = maxLines, color = color)
         return
@@ -262,4 +286,11 @@ private fun LinkText(
             }
         },
     )
+}
+
+@Composable
+internal fun PlainEmojiText(value: String) {
+    PepeEmojis.load(LocalContext.current)
+    val text = buildAnnotatedString { PepeEmojis.append(this, value) }
+    LinkText(text = text, style = MaterialTheme.typography.bodyMedium, maxLines = Int.MAX_VALUE)
 }

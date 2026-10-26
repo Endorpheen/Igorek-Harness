@@ -6,7 +6,7 @@ import re
 import sqlite3
 import time
 import uuid
-from math import sqrt
+from math import isfinite, sqrt
 from pathlib import Path
 from typing import Any
 
@@ -47,6 +47,15 @@ def _load_entries(path: Path) -> list[dict[str, Any]]:
         if isinstance(item, dict) and item.get("role") in {"user", "assistant"}:
             entries.append(item)
     return entries
+
+
+def _decode_tags(raw: Any) -> list[Any]:
+    """Retain valid tag lists without failing recall on optional corrupt metadata."""
+    try:
+        parsed = json.loads(raw) if raw else []
+    except (TypeError, ValueError):
+        return []
+    return parsed if isinstance(parsed, list) else []
 
 
 def _build_recall_chunks(session_id: str, entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -101,7 +110,10 @@ def _build_recall_chunks(session_id: str, entries: list[dict[str, Any]]) -> list
         text = _normalize_text(entry.get("text") or "")
         if not text:
             continue
-        ts_value = int(entry.get("ts") or 0)
+        try:
+            ts_value = int(entry.get("ts") or 0)
+        except (TypeError, ValueError, OverflowError):
+            ts_value = 0
         if role == "user":
             if pending_user or assistant_parts:
                 flush_chunk()
@@ -369,7 +381,7 @@ class SessionRecallStore:
                     "matched_terms": matched_terms,
                     "lexical_score": float(row["lexical_score"] or 0.0),
                     "excerpt": excerpt,
-                    "tags": json.loads(row["tags_json"]) if row["tags_json"] else [],
+                    "tags": _decode_tags(row["tags_json"]),
                 }
             )
         return results[:requested_limit]
@@ -497,8 +509,11 @@ class SessionRecallStore:
                 continue
             if not isinstance(vector, list) or not vector:
                 continue
-            score = _cosine_similarity(query_vector, vector)
-            if score <= 0.0:
+            try:
+                score = _cosine_similarity(query_vector, vector)
+            except (TypeError, ValueError, OverflowError):
+                continue
+            if not isfinite(score) or score <= 0.0:
                 continue
             text = str(row["text"] or "").strip()
             excerpt = text if len(text) <= 900 else text[:900].rstrip() + "…"
@@ -511,7 +526,7 @@ class SessionRecallStore:
                     "last_active": "",
                     "semantic_score": score,
                     "excerpt": excerpt,
-                    "tags": json.loads(row["tags_json"]) if row["tags_json"] else [],
+                    "tags": _decode_tags(row["tags_json"]),
                     "_provenance": "local",
                 }
             )
@@ -578,7 +593,7 @@ class SessionRecallStore:
                     "last_active": "",
                     "semantic_score": scores[entry_id],
                     "excerpt": excerpt,
-                    "tags": json.loads(row["tags_json"]) if row["tags_json"] else [],
+                    "tags": _decode_tags(row["tags_json"]),
                     "_provenance": "archive",
                 }
             )

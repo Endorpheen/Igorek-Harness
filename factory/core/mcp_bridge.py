@@ -217,7 +217,7 @@ class MCPClient:
             raise PermissionError("mcp_access_denied")
         """Launch the subprocess and perform MCP handshake."""
         # Use direct connection - strip proxy variables
-        env = {k: v for k, v in os.environ.items() if "PROXY" not in k}
+        env = {k: v for k, v in os.environ.items() if "PROXY" not in k.upper()}
         if not self.inherit_environment:
             env = {k: v for k, v in env.items() if k in {'PATH', 'LANG', 'LC_ALL', 'TMPDIR', 'SYSTEMROOT'}}
         env.update(self.extra_env)
@@ -361,11 +361,12 @@ class MCPClient:
         if not raw_line:
             raise RuntimeError(f"MCP server '{self.name}' closed stdout")
         response = json.loads(raw_line.decode("utf-8"))
+        if not isinstance(response, dict):
+            raise RuntimeError(f"MCP server '{self.name}' returned an invalid response")
         if "error" in response:
             error = response["error"]
-            raise RuntimeError(
-                f"MCP error from '{self.name}': {error.get('message', error)}"
-            )
+            message = error.get("message", error) if isinstance(error, dict) else error
+            raise RuntimeError(f"MCP error from '{self.name}': {message}")
         return response.get("result")
 
     def _send_notification(self, method: str) -> None:

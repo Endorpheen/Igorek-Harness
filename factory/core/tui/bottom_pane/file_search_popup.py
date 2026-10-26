@@ -25,7 +25,7 @@ def _list_repo_files(cwd: Path) -> list[str]:
     # Fallback: simple glob
     try:
         matches = glob.glob("**/*", root_dir=str(cwd), recursive=True)
-        return sorted([m for m in matches[:200] if not m.startswith(".git/")])
+        return sorted([m for m in matches[:200] if not m.startswith(".git/") and (cwd / m).is_file()])
     except Exception:
         pass
     return []
@@ -76,23 +76,26 @@ class FileSearchPopup:
         total = len(self.results)
         if total:
             self.scroll.selected = (self.scroll.selected - 1) % total
+            self.scroll.offset = max(0, self.scroll.selected - _POPUP_HEIGHT + 1)
 
     def move_down(self):
         total = len(self.results)
         if total:
             self.scroll.selected = (self.scroll.selected + 1) % total
+            self.scroll.offset = max(0, self.scroll.selected - _POPUP_HEIGHT + 1)
 
     def desired_height(self) -> int:
         return min(len(self.results), _POPUP_HEIGHT) + 1
 
     def render_lines(self, width: int = 80) -> list[str]:
-        items = self.results[:_POPUP_HEIGHT]
+        start = self.scroll.offset
+        items = self.results[start:start + _POPUP_HEIGHT]
         if not items:
             if self._all_files is None:
                 return ["  scanning files..."]
             return ["  no matches"]
         lines: list[str] = []
-        for i, path in enumerate(items):
+        for i, path in enumerate(items, start=start):
             marker = "►" if i == self.scroll.selected else " "
             disp = path if len(path) <= width - 6 else "…" + path[-(width - 7):]
             lines.append(f"  {marker} {disp}")

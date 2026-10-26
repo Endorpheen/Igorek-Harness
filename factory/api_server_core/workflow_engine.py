@@ -111,7 +111,7 @@ WORKFLOW_CONFIGS: dict[str, dict[str, Any]] = {
 
 
 def _extract_bash_file_target(command: str) -> str:
-    command = command.splitlines()[0].strip()
+    command = command.split("\n", 1)[0].strip()
     if not command:
         return ""
     redirect_match = re.search(r">\s*['\"]?(?P<path>[^'\"\s][^'\">]*)['\"]?", command)

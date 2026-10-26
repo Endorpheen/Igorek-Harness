@@ -1520,7 +1520,7 @@ class Writer:
 
         if widths is None:
             if rows:
-                return self._render_records(header, rows, available)
+                return self._render_records(header, rows, available, spillover_lines=spillover_lines)
             return RenderedTableLines(
                 table_lines=self._render_table_pipe_fallback(header, rows, table_state.alignments),
                 table_lines_prewrapped=False,
@@ -1528,7 +1528,9 @@ class Writer:
             )
 
         if self._should_render_records(rows, widths):
-            return self._render_records(header, rows, self._available_record_width())
+            return self._render_records(
+                header, rows, self._available_record_width(), spillover_lines=spillover_lines
+            )
 
         out: List[str] = []
         out.extend(self._render_table_row(header, widths, table_state.alignments, self.styles.strong))
@@ -1564,6 +1566,8 @@ class Writer:
         header: List[TableCell],
         rows: List[List[TableCell]],
         available: Optional[int],
+        *,
+        spillover_lines: Optional[List[str]] = None,
     ) -> RenderedTableLines:
         """Vertical key/value fallback — port of table_key_value::render_records.
 
@@ -1584,7 +1588,7 @@ class Writer:
         return RenderedTableLines(
             table_lines=[line.line for line in link_lines],
             table_lines_prewrapped=True,
-            spillover_lines=[],
+            spillover_lines=list(spillover_lines or []),
         )
 
     def _should_render_records(

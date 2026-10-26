@@ -417,7 +417,7 @@ def test_daemon_profile_workers_serialize_process_local_environment(home, monkey
 
 
 @pytest.mark.skipif(os.name != "posix", reason="Owner-local POSIX scheduled-task acceptance")
-def test_daemon_executes_schedule_without_any_cli_client(home):
+def test_daemon_executes_schedule_without_any_cli_client(home, monkeypatch):
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
     from factory.core.cli_daemon import lifecycle
     from factory.core.scheduler import TaskScheduler
@@ -449,6 +449,18 @@ def test_daemon_executes_schedule_without_any_cli_client(home):
     config = json.loads(path.read_text())
     config["base_url"] = f"http://127.0.0.1:{server.server_port}/v1"
     path.write_text(json.dumps(config))
+    from factory.core import cli_daemon
+    assert Path(cli_daemon.get_data_root()).resolve() == home.resolve()
+    owned_processes = []
+    real_popen = subprocess.Popen
+
+    def owned_popen(argv, *args, **kwargs):
+        process = real_popen(argv, *args, **kwargs)
+        if list(argv[:3]) == [sys.executable, "-m", "factory.core.cli_daemon"]:
+            owned_processes.append(process)
+        return process
+
+    monkeypatch.setattr(cli_daemon.subprocess, "Popen", owned_popen)
     try:
         lifecycle("start")
         scheduler = TaskScheduler(str(home / "database/factory.db"))
@@ -461,7 +473,23 @@ def test_daemon_executes_schedule_without_any_cli_client(home):
         assert len(calls) == 1
         assert lifecycle("version")["running"]
     finally:
-        until(lambda: not _active_tasks(home))
-        lifecycle("stop")
-        server.shutdown()
-        server.server_close()
+        try:
+            until(lambda: not _active_tasks(home))
+
+            def stop_when_idle():
+                try:
+                    lifecycle("stop")
+                except RuntimeError as error:
+                    if str(error) != "Shared runtime is busy; finish or cancel active tasks before stopping it":
+                        raise
+                    return False
+                return True
+
+            until(stop_when_idle)
+        finally:
+            for process in owned_processes:
+                if process.poll() is None:
+                    process.terminate()
+                    process.wait(timeout=10)
+            server.shutdown()
+            server.server_close()

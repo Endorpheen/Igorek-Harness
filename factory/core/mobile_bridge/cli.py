@@ -16,9 +16,12 @@ def _apply_data_dir(data_dir: str | None) -> None:
 
 
 def _format_timestamp(value: Any) -> str:
-    if not isinstance(value, (int, float)) or value <= 0:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
         return "-"
-    return time.strftime("%Y-%m-%d %H:%M", time.localtime(int(value)))
+    try:
+        return time.strftime("%Y-%m-%d %H:%M", time.localtime(int(value)))
+    except (OverflowError, OSError, ValueError):
+        return "-"
 
 
 def _print_pairing(payload: dict[str, Any]) -> None:

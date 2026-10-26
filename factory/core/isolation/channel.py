@@ -465,7 +465,7 @@ class _PayloadPolicy:
             raise ChannelError("session_search_request_invalid", "invalid limit", fatal=False)
         if not isinstance(role_filter, str) or len(role_filter) > 64:
             raise ChannelError("session_search_request_invalid", "invalid role filter", fatal=False)
-        if mode not in {"lexical", "semantic", "hybrid"}:
+        if not isinstance(mode, str) or mode not in {"lexical", "semantic", "hybrid"}:
             raise ChannelError("session_search_request_invalid", "invalid search mode", fatal=False)
 
     @staticmethod

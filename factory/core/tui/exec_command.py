@@ -44,7 +44,10 @@ def split_command_string(command: str) -> List[str]:
 
     Port of ``codex::exec_command::split_command_string``.
     """
-    parts = shlex.split(command)
+    try:
+        parts = shlex.split(command)
+    except ValueError:
+        return [command]
     if not parts:
         return [command]
     try:

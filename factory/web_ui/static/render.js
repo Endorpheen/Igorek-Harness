@@ -46,6 +46,13 @@
     };
     while (index < text.length) {
       const char = text[index];
+      if (char === ":" && global.IgorekEmoji) {
+        const emoji = global.IgorekEmoji.match(text, index);
+        if (emoji) {
+          flush(); target.append(global.IgorekEmoji.image(emoji.id));
+          index += emoji.token.length; continue;
+        }
+      }
       if (char === "`") {
         const end = text.indexOf("`", index + 1);
         if (end > index + 1) {

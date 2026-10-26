@@ -227,8 +227,8 @@ class FactoryACPAgent(acp.Agent):
             message_cb = make_message_cb(conn, session_id, loop)
 
         def _run_agent() -> dict:
-            from .cc_backend_executor import execute_cc_backend_task
-            from .prompt_assembly import build_cc_backend_system_prompt
+            from ..cc_backend_executor import execute_cc_backend_task
+            from ..prompt_assembly import build_cc_backend_system_prompt
 
             system_prompt = build_cc_backend_system_prompt(
                 workdir=state.cwd,
@@ -357,9 +357,9 @@ class FactoryACPAgent(acp.Agent):
         return "\n".join(lines)
 
     def _cmd_tools(self, args: str, state: SessionState) -> str:
-        from .tool_registry import registry
+        from ..cc_backend_tools import get_tool_schemas
 
-        tools = registry.list_tools()
+        tools = [tool["name"] for tool in get_tool_schemas()]
         lines = [f"Available tools ({len(tools)}):", ""]
         for t in tools[:20]:
             lines.append(f"  {t}")
@@ -379,7 +379,7 @@ async def _run_server() -> None:
     """Run the ACP server with stdout transport."""
     agent = FactoryACPAgent()
     try:
-        await asyncio.run(acp.run_agent(agent, use_unstable_protocol=True))
+        await acp.run_agent(agent, use_unstable_protocol=True)
     except KeyboardInterrupt:
         logger.info("Shutting down (KeyboardInterrupt)")
     except Exception:

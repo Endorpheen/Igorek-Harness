@@ -69,10 +69,7 @@ from .tool_call_salvage import (
     strip_salvage_meta,
 )
 
-_TAGGED_REASONING_PATTERN = re.compile(
-    r"```[\s\S]*?```|<think\s*/\s*>|<think\b[^>]*>([\s\S]*?)</think>",
-    re.IGNORECASE,
-)
+from .reasoning_tags import TaggedReasoningSplitter
 
 
 def _normalize_tagged_reasoning_blocks(content_blocks: object) -> list[dict]:
@@ -91,22 +88,20 @@ def _normalize_tagged_reasoning_blocks(content_blocks: object) -> list[dict]:
         if block.get("type") != "text":
             normalized.append(block)
             continue
-        text = str(block.get("text") or "")
-        cursor = 0
-        for match in _TAGGED_REASONING_PATTERN.finditer(text):
-            if match.group(1) is None and not match.group(0).lower().startswith("<think"):
-                continue
-            visible = text[cursor:match.start()]
-            if visible:
-                normalized.append({"type": "text", "text": visible})
-            reasoning = str(match.group(1) or "").strip()
-            if reasoning:
-                normalized.append({"type": "__reasoning", "text": reasoning})
-            cursor = match.end()
-        visible = text[cursor:]
-        if visible:
-            normalized.append({"type": "text", "text": visible})
+        splitter = TaggedReasoningSplitter()
+        parts = splitter.feed(str(block.get("text") or "")) + splitter.finish()
+        converted: list[dict] = []
+        for kind, value in parts:
+            if kind == "__reasoning":
+                value = value.strip()
+            if value:
+                if converted and converted[-1].get("type") == kind and kind == "text":
+                    converted[-1]["text"] += value
+                else:
+                    converted.append({"type": kind, "text": value})
+        normalized.extend(converted)
     return normalized
+
 
 DEFAULT_CONTEXT_WINDOW_TOKENS = 32_000
 MAX_TRANSIENT_NETWORK_RETRIES = 2
@@ -729,8 +724,8 @@ def _terminal_skill_manage_output(
         return None
     name = str(tool_input.get("name") or "").strip()
     if name:
-        return f"Готово: skill `{name}` создан, проверен, открыт и удалён."
-    return "Готово: skill создан, проверен, открыт и удалён."
+        return f"Навык `{name}` удалён."
+    return "Навык удалён."
 
 
 def _metadata_int(metadata: dict[str, Any], *keys: str, default: int) -> int:
@@ -853,12 +848,18 @@ def _context_window_from_models_cache(model: str) -> int | None:
         data = json.loads(Path(cache_path).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
+    if not isinstance(data, dict):
+        return None
     for provider_id in ("opencode-go", "opencode", "openrouter", "minimax", "glm"):
         provider = data.get(provider_id, {})
         models = provider.get("models", {}) if isinstance(provider, dict) else {}
+        if not isinstance(models, dict):
+            continue
         for model_id, info in models.items():
             if model_id == model:
                 limit = info.get("limit", {}) if isinstance(info, dict) else {}
+                if not isinstance(limit, dict):
+                    continue
                 ctx = _positive_int(limit.get("context"))
                 if ctx:
                     return ctx
@@ -966,6 +967,22 @@ def _terminal_response_text_and_usage(body: Any) -> tuple[str, dict[str, int]]:
     return "\n".join(parts), usage
 
 
+def _post_terminal_text_request(url, payload, headers, timeout_s, *, is_openai_api=False):
+    """Use the task's explicit API contract for short artifact acknowledgements."""
+    from .openai_responses import is_responses_url
+    if is_openai_api and not is_responses_url(url):
+        payload = dict(payload)
+        system = payload.pop("system", "")
+        payload["messages"] = _anthropic_messages_to_openai(
+            [{"role": "system", "content": system}] + payload["messages"]
+        )
+        payload["stream"] = False
+    body, latency = _http_post(url, payload, headers, timeout_s)
+    if is_openai_api and isinstance(body, dict) and not body.get("error"):
+        body = _openai_response_to_anthropic(body, set())
+    return body, latency
+
+
 def _make_terminal_fal_response_call(
     *,
     url: str,
@@ -977,6 +994,7 @@ def _make_terminal_fal_response_call(
     fallback_text: str,
     workdir: str,
     log_fn,
+    is_openai_api: bool = False,
 ) -> tuple[str, int, int]:
     action = "отредактировано" if tool_name == "fal_edit_image" else "создано"
     payload: dict[str, Any] = {
@@ -1000,7 +1018,9 @@ def _make_terminal_fal_response_call(
         workdir,
         {"kind": CcTraceEvent.MODEL_TERMINAL_FAL_RESPONSE_CALL, "tool_name": tool_name},
     )
-    body, _lat_ms = _http_post(url, payload, headers, timeout_s)
+    body, _lat_ms = _post_terminal_text_request(
+        url, payload, headers, timeout_s, is_openai_api=is_openai_api
+    )
     if isinstance(body, dict) and body.get("error"):
         log_fn(f"[cc-backend] Terminal FAL response call failed: {safe_text(body['error'])}")
         return fallback_text, 0, 0
@@ -1026,6 +1046,7 @@ def _make_forced_write_postamble(
     raw_result: str,
     workdir: str,
     log_fn,
+    is_openai_api: bool = False,
 ) -> tuple[str, int, int]:
     """After a forced Write succeeds, ask the model for a short Russian summary."""
     basename = os.path.basename(file_path) if file_path else "файл"
@@ -1051,7 +1072,9 @@ def _make_forced_write_postamble(
         workdir,
         {"kind": CcTraceEvent.MODEL_FORCED_WRITE_POSTAMBLE, "file_path": file_path},
     )
-    body, _lat_ms = _http_post(url, payload, headers, timeout_s)
+    body, _lat_ms = _post_terminal_text_request(
+        url, payload, headers, timeout_s, is_openai_api=is_openai_api
+    )
     if isinstance(body, dict) and body.get("error"):
         log_fn(f"[cc-backend] Forced Write postamble failed: {safe_text(body['error'])}")
         return f"Файл сохранён: {file_path}", 0, 0
@@ -1298,6 +1321,7 @@ def execute_cc_backend_task(
     request_headers: dict[str, str] | None = None,
     request_headers_provider: Callable[[], dict[str, str]] | None = None,
     api_format: str = "anthropic",
+    reasoning_format: str | None = None,
     profile: str = "",
     history_messages: list[dict[str, Any]] | None = None,
     trailing_context_text: str = "",
@@ -1338,6 +1362,9 @@ def execute_cc_backend_task(
     if log_fn is None:
         log_fn = lambda msg: None
     artifact_workdir = artifact_workdir or workdir
+    if reasoning_format is not None:
+        if api_format != "openai" or not isinstance(reasoning_format, str) or reasoning_format not in {"auto", "none", "deepseek", "deepseek-legacy"}:
+            raise ValueError("reasoning_format requires an explicit supported OpenAI-compatible transport")
 
     if (
         source_platform or ""
@@ -1656,6 +1683,23 @@ def execute_cc_backend_task(
     import threading
 
     _interrupt_event = threading.Event()
+
+
+    def _is_task_cancelling() -> bool:
+        # Not only `cancelling`, but also when the task string disappears: a removed task
+        # cannot be continued (no place to write the result, the client doesn’t see it, and
+        # the profile queue is occupied by a zombie). A non-empty `task_id` (subtasks like `delegate_*`) is not tracked.
+        #
+        # A child task `delegate_task` runs outside of `tasks`, so the parent web cancellation address is sent to it
+        # via a file flag in the task’s working directory. Registered command wait loops
+        # consult this predicate as well as the checks between model rounds.
+        if subagent_id:
+            from .subagents import cancel_requested as _subagent_cancel_requested
+
+            if _subagent_cancel_requested(artifact_workdir, subagent_id):
+                return True
+        return task_should_stop(task_id)
+
     set_runtime_context(
         delegate_depth=delegate_depth,
         iteration_budget=iteration_budget,
@@ -1668,22 +1712,8 @@ def execute_cc_backend_task(
         task_id=task_id,
         progress_callback=progress_callback,
         interrupt_event=_interrupt_event,
+        interrupt_check=_is_task_cancelling,
     )
-
-    def _is_task_cancelling() -> bool:
-        # Not only `cancelling`, but also when the task string disappears: a removed task
-        # cannot be continued (no place to write the result, the client doesn’t see it, and
-        # the profile queue is occupied by a zombie). A non-empty `task_id` (subtasks like `delegate_*`) is not tracked.
-        #
-        # A child task `delegate_task` runs outside of `tasks`, so the parent web cancellation address is sent to it
-        # via a file flag in the task’s working directory. Checks occur between rounds: a long single tool call
-        # continues, but the next round does not start.
-        if subagent_id:
-            from .subagents import cancel_requested as _subagent_cancel_requested
-
-            if _subagent_cancel_requested(artifact_workdir, subagent_id):
-                return True
-        return task_should_stop(task_id)
 
     try:
         def _maybe_apply_reactive_compaction(
@@ -1775,6 +1805,8 @@ def execute_cc_backend_task(
                     request_payload = {"model": model, "max_tokens": output_limit, "messages": [{"role": "user", "content": prompt}]}
                     if is_openai_api:
                         request_payload["stream"] = False
+                        if reasoning_format is not None:
+                            request_payload["reasoning_format"] = reasoning_format
                         if model.rsplit("/", 1)[-1].lower().startswith("deepseek-v4"):
                             request_payload["thinking"] = {"type": "disabled"}
                     body, _ = _http_post(url, request_payload, headers, timeout_s, use_curl=is_openai_api)
@@ -2111,6 +2143,7 @@ def execute_cc_backend_task(
                     raw_result=str(forced_result_text),
                     workdir=artifact_workdir,
                     log_fn=log_fn,
+                    is_openai_api=is_openai_api,
                 )
                 total_input_tokens += add_in
                 total_output_tokens += add_out
@@ -2180,7 +2213,23 @@ def execute_cc_backend_task(
                         str(pending.get("id") or "").strip()
                         or f"pending_tool_call_{pending_index + 1}"
                     )
-                    if not pending_name or pending_name not in valid_tool_names:
+                    pending_missing_fields = _missing_required_tool_fields(
+                        anthropic_tools, pending_name, pending_input
+                    )
+                    if pending_missing_fields:
+                        pending_result_text = json.dumps(
+                            {
+                                "error": (
+                                    f"Invalid tool input for {pending_name}: "
+                                    f"missing required field(s): {', '.join(pending_missing_fields)}. "
+                                    "Call the tool again with all required fields."
+                                ),
+                                "tool_name": pending_name,
+                                "missing_required_fields": pending_missing_fields,
+                            },
+                            ensure_ascii=False,
+                        )
+                    elif not pending_name or pending_name not in valid_tool_names:
                         pending_result_text = json.dumps(
                             {
                                 "error": (
@@ -2518,6 +2567,8 @@ def execute_cc_backend_task(
                 payload["messages"] = _anthropic_messages_to_openai(
                     [{"role": "system", "content": system_prompt}] + messages
                 )
+                if reasoning_format is not None:
+                    payload["reasoning_format"] = reasoning_format
                 # Thinking-mode uplinks (via DeepSeek through opencode zen) require that assistant messages containing tool_calls include reasoning_content.
                 payload["messages"], _reasoning_filled = _ensure_reasoning_passback(
                     payload["messages"],
@@ -2837,7 +2888,7 @@ def execute_cc_backend_task(
                     salvage_ok,
                     validation_error,
                 ) = try_salvage_textual_tool_call(
-                    output_text, tools, workdir
+                    output_text, anthropic_tools, workdir
                 )
                 if salvaged_tool is not None and salvage_ok:
                     session_budget.record_salvage_success()
@@ -2931,7 +2982,7 @@ def execute_cc_backend_task(
                     continue
 
                 if not tool_use_blocks and contains_textual_tool_artifact(
-                    output_text, tools
+                    output_text, anthropic_tools
                 ):
                     session_budget.record_textual_tool_retry()
                     consecutive_textual_artifact_rounds += 1
@@ -3281,7 +3332,7 @@ def execute_cc_backend_task(
                     round_has_web_tool = True
 
                 missing_fields = _missing_required_tool_fields(
-                    tools,
+                    anthropic_tools,
                     str(effective_name or ""),
                     effective_input if isinstance(effective_input, dict) else {},
                 )
@@ -3600,6 +3651,7 @@ def execute_cc_backend_task(
                                 fallback_text=terminal_output,
                                 workdir=artifact_workdir,
                                 log_fn=log_fn,
+                                is_openai_api=is_openai_api,
                             )
                         )
                         total_input_tokens += add_input_tokens
@@ -4330,6 +4382,18 @@ def _http_post_streaming_openai(
 
     content_parts: list[str] = []
     reasoning_parts: list[str] = []
+    content_splitter = TaggedReasoningSplitter()
+
+    def accept_content(parts: list[tuple[str, str]]) -> None:
+        for kind, value in parts:
+            (reasoning_parts if kind == "__reasoning" else content_parts).append(value)
+            if trace_dir:
+                append_cc_backend_trace(trace_dir, {
+                    "kind": CcTraceEvent.MODEL_REASONING_DELTA if kind == "__reasoning" else CcTraceEvent.MODEL_TEXT_DELTA,
+                    "round": round_num + 1, "text": value,
+                    "parent_task_id": parent_task_id or None,
+                })
+
     tool_calls_map: dict[int, dict] = {}
     usage_info: dict = {}
     model_name = ""
@@ -4346,6 +4410,17 @@ def _http_post_streaming_openai(
                 values.append(value[1:] if value.startswith(" ") else value)
         return "\n".join(values)
 
+    def _invalid_sse_shape(field: str) -> None:
+        nonlocal stream_failure
+        stream_failure = {
+            "error": f"Malformed response stream event at {field}.",
+            "error_code": "PROTOCOL.INVALID_RESPONSE",
+            "diagnostic": observation(
+                "PROTOCOL.INVALID_RESPONSE", component="model", operation="model_round",
+                endpoint_role="runtime_to_provider", phase="sse_event",
+            ),
+        }
+
     def _process_sse_event(event_data: str):
         """Process a single SSE data payload."""
         nonlocal model_name, usage_info, last_finish_reason, got_done, stream_failure
@@ -4357,6 +4432,9 @@ def _http_post_streaming_openai(
         try:
             chunk = json.loads(event_data)
         except (json.JSONDecodeError, TypeError):
+            return
+        if not isinstance(chunk, dict):
+            _invalid_sse_shape("event")
             return
         provider_error = chunk.get("error")
         if provider_error or isinstance(provider_error, dict):
@@ -4378,15 +4456,36 @@ def _http_post_streaming_openai(
             }
             return
         model_name = chunk.get("model", model_name)
-        choices = chunk.get("choices", [])
+        choices = chunk.get("choices")
+        if choices is None:
+            choices = []
+        if not isinstance(choices, list):
+            _invalid_sse_shape("choices")
+            return
         if not choices:
             if chunk.get("usage"):
                 usage_info = chunk["usage"]
             return
         choice = choices[0]
-        if choice.get("finish_reason"):
-            last_finish_reason = choice["finish_reason"]
-        delta = choice.get("delta", {})
+        if not isinstance(choice, dict):
+            _invalid_sse_shape("choices[0]")
+            return
+        finish_reason = choice.get("finish_reason")
+        if finish_reason is not None and not isinstance(finish_reason, str):
+            _invalid_sse_shape("choices[0].finish_reason")
+            return
+        if finish_reason:
+            last_finish_reason = finish_reason
+        delta = choice.get("delta")
+        if delta is None:
+            delta = {}
+        if not isinstance(delta, dict):
+            _invalid_sse_shape("choices[0].delta")
+            return
+        for field in ("content", "reasoning_content"):
+            if delta.get(field) is not None and not isinstance(delta[field], str):
+                _invalid_sse_shape(f"delta.{field}")
+                return
         # Reasoning delta (DeepSeek thinking mode)
         delta_reasoning = delta.get("reasoning_content")
         if delta_reasoning:
@@ -4401,25 +4500,37 @@ def _http_post_streaming_openai(
                         "parent_task_id": parent_task_id or None,
                     },
                 )
-        # Text delta
+        # Classify tagged reasoning before emitting any visible text delta.
         delta_content = delta.get("content")
         if delta_content:
-            content_parts.append(delta_content)
-            if trace_dir:
-                append_cc_backend_trace(
-                    trace_dir,
-                    {
-                        "kind": CcTraceEvent.MODEL_TEXT_DELTA,
-                        "round": round_num + 1,
-                        "text": delta_content,
-                        "parent_task_id": parent_task_id or None,
-                    },
-                )
+            accept_content(content_splitter.feed(delta_content))
         # Tool call deltas (accumulate)
         delta_tool_calls = delta.get("tool_calls")
+        if delta_tool_calls is not None and not isinstance(delta_tool_calls, list):
+            _invalid_sse_shape("delta.tool_calls")
+            return
         if delta_tool_calls:
             for tc_delta in delta_tool_calls:
+                if not isinstance(tc_delta, dict):
+                    _invalid_sse_shape("delta.tool_calls[]")
+                    return
                 tc_index = tc_delta.get("index", 0)
+                if isinstance(tc_index, bool) or not isinstance(tc_index, int) or tc_index < 0:
+                    _invalid_sse_shape("delta.tool_calls[].index")
+                    return
+                if tc_delta.get("id") is not None and not isinstance(tc_delta["id"], str):
+                    _invalid_sse_shape("delta.tool_calls[].id")
+                    return
+                fn = tc_delta.get("function")
+                if fn is None:
+                    fn = {}
+                if not isinstance(fn, dict):
+                    _invalid_sse_shape("delta.tool_calls[].function")
+                    return
+                for field in ("name", "arguments"):
+                    if fn.get(field) is not None and not isinstance(fn[field], str):
+                        _invalid_sse_shape(f"delta.tool_calls[].function.{field}")
+                        return
                 if tc_index not in tool_calls_map:
                     tool_calls_map[tc_index] = {
                         "id": tc_delta.get("id", ""),
@@ -4429,7 +4540,6 @@ def _http_post_streaming_openai(
                 tc = tool_calls_map[tc_index]
                 if tc_delta.get("id"):
                     tc["id"] = tc_delta["id"]
-                fn = tc_delta.get("function", {})
                 if fn.get("name"):
                     tc["function"]["name"] = fn["name"]
                 if fn.get("arguments"):
@@ -4556,6 +4666,7 @@ def _http_post_streaming_openai(
     if stream_failure is not None:
         return stream_failure, int((time.time() - start) * 1000)
 
+    accept_content(content_splitter.finish())
     full_text = "".join(content_parts)
     if not got_done and not last_finish_reason:
         return {'error': 'Response stream ended without a terminal event; partial tool calls were not executed.',

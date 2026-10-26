@@ -188,27 +188,34 @@ class PtyTerminalBackend:
 
     def poll_exit(self) -> int | None:
         """Reap the child once (non-blocking); ``None`` while it still runs."""
-        pid = self._pid
-        if pid is None:
+        with self._lock:
+            pid = self._pid
+            if pid is None:
+                return self._exit_code
+            if self._exit_code is not None:
+                return self._exit_code
+            try:
+                reaped, status = os.waitpid(pid, os.WNOHANG)
+            except ChildProcessError:
+                self._pid = None
+                self._exit_code = self._exit_code if self._exit_code is not None else 0
+                return self._exit_code
+            except OSError as exc:
+                if exc.errno != errno.ECHILD:
+                    return None
+                self._pid = None
+                self._exit_code = 0
+                return self._exit_code
+            if reaped == 0:
+                return None
+            self._pid = None
+            if os.WIFEXITED(status):
+                self._exit_code = os.WEXITSTATUS(status)
+            elif os.WIFSIGNALED(status):
+                self._exit_code = 128 + os.WTERMSIG(status)
+            else:  # pragma: no cover - neither exited nor signalled
+                self._exit_code = 1
             return self._exit_code
-        if self._exit_code is not None:
-            return self._exit_code
-        try:
-            reaped, status = os.waitpid(pid, os.WNOHANG)
-        except ChildProcessError:
-            self._exit_code = self._exit_code if self._exit_code is not None else 0
-            return self._exit_code
-        except OSError:
-            return None
-        if reaped == 0:
-            return None
-        if os.WIFEXITED(status):
-            self._exit_code = os.WEXITSTATUS(status)
-        elif os.WIFSIGNALED(status):
-            self._exit_code = 128 + os.WTERMSIG(status)
-        else:  # pragma: no cover - neither exited nor signalled
-            self._exit_code = 1
-        return self._exit_code
 
     def open(self, spec: TerminalSpec) -> None:
         if self._master_fd is not None:

@@ -109,6 +109,10 @@ _STATIC_TYPES = {
     # The Excel parsing worker connects only from its own origin.
     "workers/xlsx-worker.js": "text/javascript; charset=utf-8",
 }
+
+from ..core.pepe_emoji import catalog as _emoji_catalog
+_STATIC_TYPES.update({"emoji.js": "text/javascript; charset=utf-8", "emoji.css": "text/css; charset=utf-8", "emoji/catalog.json": "application/json; charset=utf-8"})
+_STATIC_TYPES.update({"emoji/" + row["file"]: "image/gif" for row in _emoji_catalog()["emojis"]})
 _MAX_BODY = 256_000
 # Nested payloads exceed the JSON limit: the request body consists of raw file bytes, and the boundary
 # is set to the same limit as that of the mobile bridge.
@@ -1537,13 +1541,19 @@ class _Handler(BaseHTTPRequestHandler):
             session = json.loads(data)
         except (ValueError, TypeError):
             raise TerminalError("session_mode_unknown") from None
-        if session.get("isolation") == "kvm-unavailable":
+        if not isinstance(session, dict):
+            raise TerminalError("session_mode_unknown")
+        isolation = session.get("isolation")
+        if isolation == "kvm-unavailable":
             raise TerminalError("kvm_terminal_unavailable")
-        if session.get("isolation") not in {"none", "kvm"}:
+        if not isinstance(isolation, str) or isolation not in {"none", "kvm"}:
             raise TerminalError("session_mode_unknown")
         if session["isolation"] == "none" and os.environ.get("FACTORY_WEB_HOST_TERMINAL") != "1":
             raise TerminalError("host_terminal_disabled")
-        cwd = (session.get("meta") or {}).get("cwd")
+        meta = session.get("meta")
+        if not isinstance(meta, dict):
+            raise TerminalError("workdir_missing")
+        cwd = meta.get("cwd")
         if not isinstance(cwd, str) or not os.path.isabs(cwd) or not os.path.isdir(cwd):
             raise TerminalError("workdir_missing")
         self.server._terminal_modes[session_id] = session["isolation"]

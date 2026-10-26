@@ -334,6 +334,25 @@ class MobileRequestHandler(BaseHTTPRequestHandler):
         route = parts[len(prefix_parts) :]
 
         try:
+            if route == ["emojis", "catalog"] and method == "GET":
+                from ..pepe_emoji import catalog
+                self._send_json(200, catalog())
+                return
+            if len(route) == 3 and route[:2] == ["emojis", "media"] and method == "GET":
+                from ..pepe_emoji import emoji_media
+                try:
+                    data = emoji_media(route[2])
+                except (ValueError, OSError):
+                    self._send_json(404, {"error": "Emoji unavailable"})
+                    return
+                self.send_response(200)
+                self.send_header("Content-Type", "image/gif")
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.send_header("Cache-Control", "private, max-age=86400")
+                self.end_headers()
+                self.wfile.write(data)
+                return
             if len(route)==2 and route[0]=='operations' and method=='GET':
                 if not re.fullmatch(r'[A-Za-z0-9_-]{8,160}',route[1]) or set(query)-{'session_id'}:
                     self._send_json(400,{'error':'Invalid operation reference'});return

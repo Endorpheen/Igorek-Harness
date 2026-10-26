@@ -6,6 +6,7 @@
   'use strict';
   const ui = (ru,en) => globalThis.IgorekI18n?.lang === 'en' ? en : ru;
   const colors = ['#c4f26c', '#66d6b1', '#9fc9f3', '#d9b0f3', '#f4a96c', '#f17f74'];
+  let menuSequence = 0;
   const isTool = name => /(?:^|__|\.)render_chart$/.test(String(name || ''));
   function validate(raw) {
     if (!raw || typeof raw !== 'object' || JSON.stringify(raw).length > 24000) throw Error('Некорректные данные графика');
@@ -96,9 +97,11 @@
     return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><title>${escape(chart.title)}</title>${parts.join('')}</svg>`;
   }
   function render(item) {
-    const card=document.createElement('article');card.className='chart-card';let current=item, chart=null, observer=null, dataOpen=false;
+    const card=document.createElement('article');card.className='chart-card';let current=item, chart=null, observer=null, dataOpen=false, versionMenu=null;
     const el=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n;};
+    const closeVersions=()=>{if(versionMenu?.matches(':popover-open'))versionMenu.hidePopover();};
     const draw=()=>{
+      closeVersions();versionMenu=null;
       const previousData=card.querySelector('details.chart-data');if(previousData)dataOpen=previousData.open;
       card.replaceChildren();const decoded=decode(current);
       if(!decoded){const running=['running','pending','queued'].includes(current.status);card.append(el('div','chart-title',running?ui('Строю график…','Building chart…'):ui('Не удалось построить график','Could not build chart')));if(!running){let err='Проверьте подписи, количество значений и шкалу.';try{err=JSON.parse(current.result).error || err;}catch(_){}card.append(el('p','chart-caption',String(err)));}return;}
@@ -117,10 +120,36 @@
       const download=(label,mime,content,extension)=>{const b=el('button','',label);b.type='button';b.onclick=()=>{const url=URL.createObjectURL(new Blob([content()],{type:mime})),a=el('a');a.href=url;a.download='chart-'+decoded.chart_id+'.'+extension;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};return b;};
       actions.append(download(ui('Скачать SVG','Download SVG'),'image/svg+xml',()=>exportSvg(chart),'svg'),download('CSV','text/csv;charset=utf-8',()=> '\ufeff'+csv(chart),'csv'));
       const expand=el('button','',ui('Развернуть','Expand'));expand.dataset.chartExpand='true';expand.type='button';expand.onclick=()=>{const dialog=el('dialog','chart-dialog'),copy=render(current),close=el('button','',ui('Закрыть','Close'));close.type='button';close.onclick=()=>{copy.disposeChart?.();dialog.close();dialog.remove();};dialog.append(close,copy);dialog.addEventListener('cancel',()=>{copy.disposeChart?.();dialog.remove();});document.body.append(dialog);dialog.showModal();};actions.append(expand);
-      if(current.chart_revisions?.length>1){const select=el('select');select.setAttribute('aria-label',ui('Версия графика','Chart version'));current.chart_revisions.forEach((r,i)=>{const option=el('option','', ui('Версия ','Version ')+(i+1));option.value=String(i);select.append(option);});select.value=String(current.chart_selected_version ?? current.chart_revisions.length-1);select.onchange=()=>{const versions=current.chart_revisions,selected=Number(select.value);current={...versions[selected],id:current.id,chart_revisions:versions,chart_selected_version:selected};draw();};actions.append(select);}
+      if(current.chart_revisions?.length>1){
+        const versions=current.chart_revisions,selected=current.chart_selected_version ?? versions.length-1;
+        const trigger=el('button','chart-version-trigger',ui('Версия ','Version ')+(selected+1));trigger.type='button';
+        const menu=el('div','chart-version-menu');menu.id='chart-versions-'+(++menuSequence);menu.popover='auto';menu.setAttribute('role','menu');menu.setAttribute('aria-label',ui('Версии графика','Chart versions'));
+        trigger.setAttribute('aria-haspopup','menu');trigger.setAttribute('aria-controls',menu.id);trigger.setAttribute('aria-expanded','false');
+        const options=versions.map((revision,index)=>{
+          const option=el('button','chart-version-option',ui('Версия ','Version ')+(index+1));option.type='button';option.setAttribute('role','menuitemradio');option.setAttribute('aria-checked',String(index===selected));option.tabIndex=index===selected?0:-1;
+          option.onclick=()=>{menu.hidePopover();current={...versions[index],id:current.id,chart_revisions:versions,chart_selected_version:index};draw();card.querySelector('.chart-version-trigger')?.focus();};menu.append(option);return option;
+        });
+        const openVersions=()=>{
+          if(!menu.matches(':popover-open'))menu.showPopover();
+          const rect=trigger.getBoundingClientRect(),height=menu.offsetHeight,width=menu.offsetWidth;menu.style.left=Math.max(8,Math.min(rect.left,window.innerWidth-width-8))+'px';menu.style.top=Math.max(8,rect.bottom+6+height<=window.innerHeight-8?rect.bottom+6:rect.top-height-6)+'px';options[selected].focus();
+        };
+        trigger.onclick=()=>{if(menu.matches(':popover-open'))menu.hidePopover();else openVersions();};
+        menu.addEventListener('toggle',event=>trigger.setAttribute('aria-expanded',String(event.newState==='open')));
+        menu.addEventListener('keydown',event=>{
+          if(event.key==='Escape'){event.preventDefault();event.stopPropagation();menu.hidePopover();trigger.focus();return;}
+          if(event.key==='Tab'){menu.hidePopover();trigger.focus();return;}
+          const index=options.indexOf(document.activeElement);let next;
+          if(event.key==='ArrowDown')next=(index+1)%options.length;
+          else if(event.key==='ArrowUp')next=(index-1+options.length)%options.length;
+          else if(event.key==='Home')next=0;else if(event.key==='End')next=options.length-1;
+          if(next!==undefined){event.preventDefault();options[next].focus();}
+        });
+        trigger.addEventListener('keydown',event=>{if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();openVersions();}});
+        versionMenu=menu;actions.append(trigger,menu);
+      }
       card.append(actions);
     };
-    card.updateChart=next=>{current=next;draw();};card.disposeChart=()=>observer?.disconnect();draw();return card;
+    card.updateChart=next=>{current=next;draw();};card.disposeChart=()=>{closeVersions();observer?.disconnect();};draw();return card;
   }
   return {validate,decode,project,isTool,svg,exportSvg,csv,range,render,colors};
 });

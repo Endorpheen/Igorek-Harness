@@ -33,9 +33,9 @@ def read_request(path: Path) -> dict:
         raise ValueError('invalid_update_request')
     value = json.loads(path.read_text(encoding='utf-8'))
     expected = {'schema', 'kind', 'file', 'size', 'sha256', 'version', 'target', 'parent_pid', 'restart', 'data_dir'}
-    if set(value) != expected or value['schema'] != 1 or value['kind'] not in {'windows', 'snapshot', 'appimage'}:
+    if set(value) != expected or type(value['schema']) is not int or value['schema'] != 1 or value['kind'] not in {'windows', 'snapshot', 'appimage'}:
         raise ValueError('invalid_update_request')
-    if (not isinstance(value['size'], int) or not 0 < value['size'] <= 2 * 1024**3
+    if (type(value['size']) is not int or not 0 < value['size'] <= 2 * 1024**3
             or not re.fullmatch(r'[a-f0-9]{64}', value['sha256'])
             or not re.fullmatch(r'\d{1,6}\.\d{1,6}\.\d{1,6}', value['version'])
             or type(value['restart']) is not bool or type(value['parent_pid']) is not int

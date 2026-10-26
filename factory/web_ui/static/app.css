@@ -5723,8 +5723,19 @@ body.gh-review-mode #sidebar { display:none; }
 .chart-legend-entry i { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
 .chart-caption { color:var(--muted); font-size:12px; overflow-wrap:anywhere; line-height:1.6; }
 .chart-actions { display:flex; gap:14px; flex-wrap:wrap; margin-top:12px; }
-.chart-actions button,.chart-actions select,.chart-dialog>button { background:transparent; border:0; color:var(--muted); padding:6px 0; cursor:pointer; font-size:12px; }
+.chart-actions button,.chart-dialog>button { background:transparent; border:0; color:var(--muted); padding:6px 0; cursor:pointer; font-size:12px; }
 .chart-actions button:hover,.chart-data summary:hover { color:var(--lime); }
+.chart-version-trigger { display:inline-flex; align-items:center; gap:7px; }
+.chart-version-trigger::after { content:""; width:5px; height:5px; border-right:1.5px solid currentColor; border-bottom:1.5px solid currentColor; transform:rotate(45deg); margin-top:-3px; }
+.chart-version-trigger[aria-expanded="true"] { color:var(--lime); }
+.chart-version-menu { position:fixed; inset:auto; margin:0; padding:5px; min-width:150px; max-width:calc(100vw - 16px); max-height:min(320px,calc(100vh - 16px)); overflow-y:auto; border:1px solid var(--line2); border-radius:10px; background:var(--panel); color:var(--text); box-shadow:0 12px 36px #0008; }
+.chart-version-menu:popover-open { display:grid; gap:2px; }
+.chart-version-menu .chart-version-option { display:flex; align-items:center; justify-content:space-between; gap:20px; width:100%; min-height:32px; padding:8px 10px; border:0; border-radius:6px; background:transparent; color:var(--text); text-align:left; font:12px var(--font); cursor:pointer; }
+.chart-version-menu .chart-version-option:hover,.chart-version-menu .chart-version-option:focus-visible { background:var(--panel2); color:var(--lime); outline:1px solid var(--lime); outline-offset:-1px; }
+.chart-version-menu .chart-version-option[aria-checked="true"] { background:rgba(196,242,108,.12); color:var(--lime); }
+.chart-version-option[aria-checked="true"]::after { content:"✓"; }
+@media(max-width:640px) { .chart-version-menu .chart-version-option { min-height:44px; } }
+
 .chart-data summary { cursor:pointer; color:var(--muted); font-size:12px; padding:5px 0; }
 .chart-data { overflow:auto; }
 .chart-data table { border-collapse:collapse; margin-top:10px; width:100%; font-size:12px; }

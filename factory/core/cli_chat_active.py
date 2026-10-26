@@ -1533,7 +1533,7 @@ def _ask_task_with_live_trace(
                 if task.get("status") in final_states:
                     # Grace period: keep reading until 1s passes with no new events
                     grace_deadline = time.monotonic() + 1.0
-                    while time.monotonic() < grace_deadline:
+                    while not done_event.is_set() and time.monotonic() < grace_deadline:
                         evs, seen = _read_new_trace_events(trace_path, seen)
                         if evs:
                             trace_queue.put(evs)
@@ -1922,6 +1922,9 @@ def _ask_task_with_live_trace(
         done_event.set(); poll_thread.join(timeout=2)
         console.print("  [yellow]Interrupted by user.[/yellow]")
         raise
+    finally:
+        done_event.set()
+        poll_thread.join(timeout=2)
 
     if running_state.get("interrupted"):
         cancel_task(task_id)

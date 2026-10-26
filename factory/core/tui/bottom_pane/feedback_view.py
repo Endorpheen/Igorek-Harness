@@ -12,7 +12,7 @@ class FeedbackView:
     def render_lines(self, width: int = 80) -> list[str]:
         if not self.visible:
             return []
-        lines = ["  ╭─ Feedback ─" + "─" * (width - 15) + "╮"]
+        lines = ["  ╭─ Feedback ─" + "─" * (width - 16) + "╮"]
         for opt in self.options:
             lines.append(f"  │  {opt}" + " " * (width - 6 - len(opt)) + "│")
         lines.append("  ╰" + "─" * (width - 4) + "╯")
