@@ -16,7 +16,7 @@
     "electron": "44.9.3",
     "electron-builder": "26.15.3"
   },
-  "version": "0.2.25",
+  "version": "0.2.26",
   "engines": {
     "node": ">=24"
   },

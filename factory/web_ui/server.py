@@ -998,6 +998,15 @@ class _Handler(BaseHTTPRequestHandler):
                     return
                 self._proxy(method, f'/sessions/{quoted}/profile', body)
                 return
+            if len(parts) == 4 and parts[3] == 'model' and method == 'POST':
+                body = self._body()
+                if body is None:
+                    return
+                if set(body) != {'profile', 'model'} or not all(isinstance(body[k], str) for k in body):
+                    self._json(400, {'error': 'Некорректная модель'})
+                    return
+                self._proxy(method, f'/sessions/{quoted}/model', body)
+                return
             if len(parts) == 4 and parts[3] == "terminal" and method == "POST":
                 self._terminal_ticket(session_id)
                 return

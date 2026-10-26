@@ -1,3 +1,87 @@
+## 2026-10-26 — Per-chat model selection and final coverage pass
+
+Original 448-file Python goal scope: **88.5871% → 88.5875%**. The isolated Python run collected 11,381 tests: 11,360 passed, 21 skipped, 906 subtests, no failures or errors. The skips require their respective platforms.
+
+Verified per-chat model routing, idle-only switching, profile isolation and retained history. A native Electron fixture exercised both model choices; 520 locked-dependency desktop cases passed. Two file-mode fixtures were rewritten without changing assertions to avoid false security alerts; all six affected cases passed afterward. Android unit tests and the debug APK build passed; a physical device was not tested.
+
+Report: `build/verification-coverage-goal90-20261026-checkpoint23`.
+
+## 2026-10-26 — Verified unused delegation helper (unreleased)
+
+Goal basis clarification: retain the original 448-file product scope for the 90% target, with test files excluded. On that same scope the result was **88.5856% → 88.5871%**. The expanded all-Python figure below remains an additional metric and does not change the goal.
+
+Expanded Python product-line coverage: **87.3642% → 87.4572%** (+0.0930 percentage points). Removing an unused private helper accounts for an estimated **+0.0063 points** by changing the denominator; it is not coverage gained from tests. Both primary Python test roots: 11,365 collected, 11,344 passed, 21 existing platform skips, 906 subtests, zero failures or errors. Eleven Wiki unit tests passed separately with coverage merged. The existing Wiki link checker also passed (6312 local links) and contributed 75 newly measured lines; it was not run in the preceding checkpoint. The 365 pre-existing exclusions are unchanged. 1738 source and fixture hashes verified. Full run: 439 seconds.
+
+Removed a private delegation-prompt helper with no in-repository references. Repository history shows it was not used even at its introduction; active delegation uses the shared prompt assembler. Ten delegate cases and seven subtests passed before and after removal in an isolated copy and in the project. Strengthened the existing test for goal and working-directory propagation. Unknown third-party code could still call the private name; no real external model was used in these focused checks.
+
+Reports: `build/verification-coverage-goal90-20261026-checkpoint22`. No version bump, release, installation, or push.
+
+## 2026-10-26 — Full Python scope and stream failure recovery (unreleased)
+
+Expanded Python product-line coverage: **87.3642%** (first baseline across 466 files, including tools, packaging and Wiki hooks). For a comparable view on the exact previous file set: **88.5669% → 88.5856%** (+0.0187 percentage points). The expanded overall percentage is not directly comparable to earlier reports. Both primary Python test roots: 11,365 collected, 11,344 passed, 21 existing platform skips, 906 subtests, zero failures or errors; An additional 11 Wiki tests passed in their separate environment; their coverage is merged. The 365 pre-existing exclusions remain unchanged. 1738 source and fixture hashes verified. Full run: 473 seconds.
+
+Added tests for provider timeout, disconnect and interrupted tool-call data, and a helper-authored test for failed tool-result persistence. Two mutations of stream handling and two of persistence failure behavior were detected. Added source roots to measure all tracked non-test Python files; test files remain omitted only from coverage reports. No runtime behavior change in this checkpoint.
+
+Reports: `build/verification-coverage-goal90-20261026-checkpoint21`. No version bump, release, installation, or push.
+
+## 2026-10-26 — Verified legacy removal and schedule recovery (unreleased)
+
+Python product-line coverage: **88.5168% → 88.5669%** (+0.0501 percentage points). Removing five private unused helpers accounts for an estimated **+0.0489 points** by changing the denominator; it is not test-driven coverage growth. Both test roots: 11,361 collected, 11,340 passed, 21 existing platform skips, 906 subtests, zero failures or errors. The 365 pre-existing exclusions are unchanged. 1736 source and fixture hashes verified. Full run: 477 seconds.
+
+The five internal helpers have no direct references in the repository. History shows the corresponding active workflows were moved to dedicated modules; four initial-state values are identical. The same 161 API cases passed before and after removal in a temporary copy; 162 focused cases passed in the project, including the helper-authored schedule recovery case. The latter detected two deliberate failure/retry mutations. Unknown third-party code could still call these internal underscore-prefixed names.
+
+Reports: `build/verification-coverage-goal90-20261026-checkpoint20`. No version bump, release, installation, or push.
+
+## 2026-10-26 — Coverage scope, archive integrity and workflow guards (unreleased)
+
+Corrected Python product-line coverage: **88.4930% → 88.5168%** (+0.0238 percentage points); branch coverage **79.9664%**. The earlier checkpoint included nine `factory/tests` files; its previous 88.6000% is not directly comparable and was recomputed from the original report. Both test roots still execute: 11,360 collected, 11,339 passed, 21 existing platform skips, 906 subtests, zero failures or errors. The 365 pre-existing exclusions are unchanged. 1735 source and fixture hashes verified. Full run: 492 seconds.
+
+Fixed a reproduced race where archiving a chat could erase a concurrent message. Added cross-process regression coverage, five additional successful repetitions and Windows CI selection. Added an actual coverage-report check and four tests that reject model-planned writes during read-only API workflows; one isolated fault bypassing those workflow checks was detected by all four tests. The earlier helper-authored schedule-result failure test is included in this run. Native Windows verification remains pending.
+
+Reports: `build/verification-coverage-goal90-20261026-checkpoint19`. No version bump, release, installation, or push.
+
+## 2026-10-26 — Concurrent session history preservation (unreleased)
+
+Overall Python line coverage: **88.5963% → 88.6000%** (+0.0037 percentage points); branch coverage **79.9063%**. Both Python test roots: 11,353 collected, 11,332 passed, 21 existing platform skips, 906 subtests, zero failures or errors. The 365 existing exclusions are unchanged. 1730 source and fixture hashes verified. Full run: 439 seconds.
+
+Fixed a reproduced cross-process race in session history. Three regression cases cover overlapping metadata updates and messages and failed replacement. The regression failed against the old code; five additional repetitions passed after the fix. Focused session and mobile service checks: 129 passed, five subtests. These are Linux results, not native Windows verification.
+
+The helper-authored schedule-result fault test was reviewed, mutation-checked and added after this full run; it passed separately and is not included in the above totals or coverage measurement.
+
+Reports: `build/verification-coverage-goal90-20261026-checkpoint18`; testing guidance assessment: `docs/development/TEST_QUALITY_ASSESSMENT.md`. No version bump, release, installation, or push.
+
+## 2026-10-26 — Web routing, autonomous tools and keyboard input (unreleased)
+
+Overall Python line coverage: **88.5803% → 88.5963%** (+0.0160 percentage points); branch coverage **79.9063%**. Both Python test roots: 11,350 collected, 11,329 passed, 21 existing platform skips, 906 subtests, zero failures or errors. The 365 existing exclusions are unchanged. 1729 source and fixture hashes verified. Full run: 456 seconds.
+
+Added 40 tests for web-route validation, autonomy and tool restrictions in both provider formats, and keyboard input boundaries. Eight helper-authored methods were reviewed and retained unchanged. Thirteen independent mutations were detected. These tests do not establish native Android, Windows or VM acceptance.
+
+Reports: `build/verification-coverage-goal90-20261026-checkpoint17`. No runtime change, version bump, release, installation, or push.
+
+## 2026-10-26 — Guest validation, update status and cancellation boundaries (unreleased)
+
+Overall Python line coverage: **88.4252% → 88.5803%** (+0.1551 percentage points); branch coverage **79.8858%**. Both Python test roots: 11,310 collected, 11,289 passed, 21 existing platform skips, 906 subtests, zero failures or errors. The 365 existing exclusions are unchanged. 1725 source and fixture hashes verified. Full run: 473 seconds.
+
+Added 64 tests for guest input validation, update-check transport, idle mouse frames, keyboard handling, cancellation acknowledgements and reconnect delivery. Twelve helper-authored methods were reviewed; the guest fixture was made portable, while the keyboard tests were retained unchanged. Twenty independent mutations were detected. A flaky test teardown now waits for the shared worker lock and still propagates unrelated errors; targeted checks passed. These tests do not establish native Android, Windows or VM acceptance.
+
+Reports: `build/verification-coverage-goal90-20261026-checkpoint16`. No runtime change, version bump, release, installation, or push.
+
+## 2026-10-26 — Keyboard bindings and asynchronous mouse copying (unreleased)
+
+Overall Python line coverage: **88.3538% → 88.4252%** (+0.0714 percentage points); branch coverage **79.6807%**. Both Python test roots: 11,246 collected, 11,225 passed, 21 existing platform skips, 906 subtests, zero failures or errors. The 365 existing exclusions are unchanged. 1719 source and fixture hashes verified. Full run: 458 seconds.
+
+Added 19 tests for keyboard event handling and asynchronous mouse copying, including six helper-authored tests reviewed and strengthened by the maintainer. Nine independent mutations were detected. These tests do not establish native Android, Windows or VM acceptance.
+
+Reports: `build/verification-coverage-goal90-20261026-checkpoint15`. No runtime change, version bump, release, installation, or push.
+
+## 2026-10-26 — Multimodal history and Markdown event boundaries (unreleased)
+
+Overall Python line coverage: **88.2455% → 88.3538%** (+0.1083 percentage points); branch coverage **79.5781%**. Both Python test roots: 11,227 collected, 11,206 passed, 21 existing platform skips, 906 subtests, zero failures or errors. The 365 existing exclusions are unchanged. 1717 source and fixture hashes verified. Full run: 455 seconds.
+
+Added 18 tests for image and caption preservation after history compaction, latest-image selection, local-link label suppression, and Markdown event handling. Five independent mutations were detected. The image conversion tests use the real server module with an isolated deterministic model boundary; Markdown event tests exercise the exported Writer API. These tests do not establish native Android, Windows or VM acceptance.
+
+Reports: `build/verification-coverage-goal90-20261026-checkpoint14`. No runtime change, version bump, release, installation, or push.
+
 ## 2026-10-26 — Adjustable Mermaid diagram scale in the Wiki
 
 Wide diagrams initially fit the article width. Localized Fit, zoom out/in and actual-size controls scale each diagram independently of article text. Fit follows viewport resizing; larger views retain their own bounded scroll area. The viewer preserves Material's closed SVG shadow root and its theme styling. No new library or application version change is required.

@@ -655,6 +655,38 @@ object Bridge {
         }
     }
 
+    fun switchSessionModel(sessionId: String, profile: String, model: String, onDone: (Throwable?) -> Unit) {
+        val active = client ?: return onDone(IOException(AppLocale.text("Нет подключения к серверу", "No server connection")))
+        if (!profileRouteGate.beginSwitch()) return onDone(IOException(AppLocale.text(
+            "Дождитесь завершения отправки или переключения", "Wait for sending or switching to finish")))
+        _profileSwitching.value = true
+        val generation = sessionGeneration.get()
+        clearLastError()
+        scope.launch {
+            val result = try {
+                val switched = runCatching { active.switchSessionModel(sessionId, profile, model) }.map { detail ->
+                    check(detail.sessionId == sessionId && (detail.meta["profile"] as? JsonPrimitive)?.content == profile &&
+                        (detail.meta["model"] as? JsonPrimitive)?.content == model) { "Unexpected model switch response" }
+                    detail
+                }
+                if (client === active) switched.onSuccess { detail ->
+                    _sessions.update { entries -> entries.map { entry -> if (entry.sessionId == sessionId)
+                        entry.copy(model = model) else entry } }
+                    if (selectedSessionId == sessionId && sessionGeneration.get() == generation) {
+                        sessionGeneration.incrementAndGet()
+                        _sessionDetail.value = detail
+                    }
+                    refreshSessions()
+                }.onFailure { handleFailure(it) }
+                switched
+            } finally {
+                profileRouteGate.endSwitch()
+                _profileSwitching.value = false
+            }
+            withContext(Dispatchers.Main) { onDone(result.exceptionOrNull()) }
+        }
+    }
+
     fun loadSessionOptions(onDone: (SessionOptionsResponse?, Throwable?) -> Unit) {
         val active = client ?: return onDone(null, IOException(AppLocale.text("Нет подключения к серверу", "No server connection")))
         clearLastError()

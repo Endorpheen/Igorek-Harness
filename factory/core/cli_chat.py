@@ -6,9 +6,21 @@ import re
 import sys
 import time
 import uuid
+from contextlib import contextmanager
 from pathlib import Path
 
+from .platform_support import exclusive_lock
 from .runtime import DEFAULT_CLI_HOME, get_chat_sessions_dir
+
+
+@contextmanager
+def _session_write_lock(path: Path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    descriptor = exclusive_lock(path.with_name(f".{path.name}.lock"), blocking=True)
+    try:
+        yield
+    finally:
+        os.close(descriptor)
 
 
 def _sanitize_session_name(session: str) -> str:
@@ -120,11 +132,11 @@ def _write_session_meta(
         "cwd": cwd,
         "git_branch": git_branch,
     }
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if path.exists() and path.stat().st_size > 0:
-        return
-    with path.open("w", encoding="utf-8") as fh:
-        fh.write(json.dumps(meta, ensure_ascii=False) + "\n")
+    with _session_write_lock(path):
+        if path.exists() and path.stat().st_size > 0:
+            return
+        with path.open("w", encoding="utf-8") as fh:
+            fh.write(json.dumps(meta, ensure_ascii=False) + "\n")
 
 
 def update_session_meta(path: Path, updates: dict) -> dict:
@@ -134,47 +146,47 @@ def update_session_meta(path: Path, updates: dict) -> dict:
     before meta existed get a fresh header inserted at the top. Writes go through
     a temp file + atomic replace so a partially written file never occurs.
     """
-    path.parent.mkdir(parents=True, exist_ok=True)
-    lines: list[str] = []
-    if path.exists():
-        lines = path.read_text(encoding="utf-8").splitlines()
+    with _session_write_lock(path):
+        lines: list[str] = []
+        if path.exists():
+            lines = path.read_text(encoding="utf-8").splitlines()
 
-    meta: dict | None = None
-    rest_start = 0
-    if lines:
-        try:
-            first = json.loads(lines[0])
-        except json.JSONDecodeError:
-            first = None
-        if isinstance(first, dict) and first.get("type") == "meta":
-            meta = first
-            rest_start = 1
-    if meta is None:
-        meta = {
-            "type": "meta",
-            "session_id": path.stem,
-            "created_at": int(time.time()),
-            "profile": "",
-            "model": "",
-            "provider": "",
-            "cwd": "",
-            "git_branch": "",
-        }
+        meta: dict | None = None
+        rest_start = 0
+        if lines:
+            try:
+                first = json.loads(lines[0])
+            except json.JSONDecodeError:
+                first = None
+            if isinstance(first, dict) and first.get("type") == "meta":
+                meta = first
+                rest_start = 1
+        if meta is None:
+            meta = {
+                "type": "meta",
+                "session_id": path.stem,
+                "created_at": int(time.time()),
+                "profile": "",
+                "model": "",
+                "provider": "",
+                "cwd": "",
+                "git_branch": "",
+            }
 
-    for key, value in updates.items():
-        if value is None:
-            meta.pop(key, None)
-        else:
-            meta[key] = value
+        for key, value in updates.items():
+            if value is None:
+                meta.pop(key, None)
+            else:
+                meta[key] = value
 
-    content = json.dumps(meta, ensure_ascii=False) + "\n"
-    rest = [line for line in lines[rest_start:]]
-    if rest:
-        content += "\n".join(rest) + "\n"
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(content, encoding="utf-8")
-    os.replace(temporary, path)
-    return meta
+        content = json.dumps(meta, ensure_ascii=False) + "\n"
+        rest = [line for line in lines[rest_start:]]
+        if rest:
+            content += "\n".join(rest) + "\n"
+        temporary = path.with_suffix(path.suffix + ".tmp")
+        temporary.write_text(content, encoding="utf-8")
+        os.replace(temporary, path)
+        return meta
 
 
 def _first_user_message(path: Path) -> str:
@@ -299,14 +311,14 @@ def _append_entry(
     if extra:
         payload.update(extra)
 
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as fh:
-        fh.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    with _session_write_lock(path):
+        with path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(payload, ensure_ascii=False) + "\n")
 
 
 def _clear_session(path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("", encoding="utf-8")
+    with _session_write_lock(path):
+        path.write_text("", encoding="utf-8")
 
 
 def fork_session(source_path: Path) -> str | None:
@@ -343,25 +355,26 @@ def archive_session_thread(
     if not path.exists():
         return None
 
-    content = path.read_text(encoding="utf-8")
-    if not content.strip():
-        _clear_session(path)
-        return None
+    with _session_write_lock(path):
+        content = path.read_text(encoding="utf-8")
+        if not content.strip():
+            path.write_text("", encoding="utf-8")
+            return None
 
-    stem = path.stem
-    ts = time.strftime("%Y%m%d-%H%M%S")
-    suffix = uuid.uuid4().hex[:6]
-    candidate_name = archive_name or f"{stem}--thread-{ts}-{suffix}"
-    archive_path = path.with_name(f"{_sanitize_session_name(candidate_name)}.jsonl")
-    while archive_path.exists():
+        stem = path.stem
+        ts = time.strftime("%Y%m%d-%H%M%S")
         suffix = uuid.uuid4().hex[:6]
-        archive_path = path.with_name(
-            f"{_sanitize_session_name(candidate_name)}-{suffix}.jsonl"
-        )
+        candidate_name = archive_name or f"{stem}--thread-{ts}-{suffix}"
+        archive_path = path.with_name(f"{_sanitize_session_name(candidate_name)}.jsonl")
+        while archive_path.exists():
+            suffix = uuid.uuid4().hex[:6]
+            archive_path = path.with_name(
+                f"{_sanitize_session_name(candidate_name)}-{suffix}.jsonl"
+            )
 
-    path.replace(archive_path)
-    _clear_session(path)
-    return archive_path
+        path.replace(archive_path)
+        path.write_text("", encoding="utf-8")
+        return archive_path
 
 
 def _history_tail(entries: list[dict], max_messages: int, max_chars: int | None) -> list[dict]:

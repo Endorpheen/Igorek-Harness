@@ -58,7 +58,9 @@ def run_file(path: Path, index: int, output: Path, timeout: int, coverage: bool)
     command = [sys.executable, "-u", "-m", "pytest", str(path), "-v", "--tb=short",
                "--timeout=60", "-o", "faulthandler_timeout=45", f"--junitxml={xml}"]
     if coverage:
-        command += ["--cov=factory", "--cov=desktop",
+        command += ["--cov=factory", "--cov=desktop", "--cov=tools",
+                    "--cov=factory/scripts", "--cov=desktop/packaging",
+                    "--cov=docs/wiki", "--cov=tools/wiki",
                     "--cov-branch", "--cov-report="]
     started = time.monotonic()
     with (root / "output.log").open("w") as log:
@@ -121,6 +123,13 @@ def run_file(path: Path, index: int, output: Path, timeout: int, coverage: bool)
     return result
 
 
+
+def write_coverage_reports(measured, output: Path) -> None:
+    omit = ["*/factory/tests/*", "*/tools/wiki/test_*.py"]
+    measured.json_report(outfile=str(output / "coverage.json"), omit=omit)
+    measured.xml_report(outfile=str(output / "coverage.xml"), omit=omit)
+    measured.report(skip_empty=True, omit=omit)
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("paths", nargs="*", default=["factory/tests", "tests"])
@@ -154,9 +163,7 @@ def main() -> int:
         measured = Coverage(data_file=str(output / ".coverage"), branch=True)
         measured.combine(data_paths=[str(output)], keep=True)
         measured.save()
-        measured.json_report(outfile=str(output / "coverage.json"))
-        measured.xml_report(outfile=str(output / "coverage.xml"))
-        measured.report(skip_empty=True)
+        write_coverage_reports(measured, output)
     print(json.dumps(totals), flush=True)
     return int(any(result["exit_code"] != 0 for result in results))
 

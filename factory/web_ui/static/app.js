@@ -2627,7 +2627,7 @@ function renderComposerModel(session) {
     return;
   }
   const cached = cachedModelInfo(profile, metaModel);
-  const model = String((cached && cached.model) || metaModel).trim();
+  const model = String(meta.model_override || (cached && cached.model) || metaModel).trim();
   const chip = ui.composerModel;
   chip.replaceChildren();
   chip.append(element("span", "composer-model-dot"));
@@ -8782,7 +8782,7 @@ function buildWorkspaceChat(host, tab) {
     form.classList.toggle('plan-mode',Boolean(tab.planMode));plan.classList.toggle('active',Boolean(tab.planMode));execute.classList.toggle('active',!tab.planMode);plan.setAttribute('aria-pressed',String(Boolean(tab.planMode)));execute.setAttribute('aria-pressed',String(!tab.planMode));note.hidden=!tab.planMode;note.textContent=t('composer.mode_plan_note');
   };
   window.IgorekComposerProfiles?.attach(chip,{
-    api,sessionId:()=>tab.session,profile:()=>snapshot?.meta?.profile,
+    api,sessionId:()=>tab.session,profile:()=>snapshot?.meta?.profile,model:()=>snapshot?.meta?.model,
     busy:()=>sending||Boolean(snapshot?.running_task_id)||!valid()||Boolean(snapshot?.meta?.agent_session)||Boolean(snapshot?.meta?.demo),
     changing:()=>{if(valid())sync();},
     changed:()=>{},
@@ -8810,7 +8810,8 @@ function buildWorkspaceChat(host, tab) {
     const pinned=messages.scrollHeight-messages.scrollTop-messages.clientHeight<60;
     context.replaceChildren(element('span','context-dot'),element('span','',data.meta?.profile||t('session.profile_fallback')),element('span','context-separator','·'),element('span','',data.meta?.cwd||''));
     chip.replaceChildren(element('span','composer-model-dot'),element('span','composer-model-profile',data.meta?.profile||t('session.profile_fallback')));
-    if(data.model||data.meta?.model)chip.append(element('span','composer-model-separator','·'),element('span','composer-model-name',data.model||data.meta.model));chip.title=[data.meta?.profile,data.model||data.meta?.model].filter(Boolean).join(' · ');
+    const selectedModel=data.meta?.model_override||data.model||data.meta?.model;
+    if(selectedModel)chip.append(element('span','composer-model-separator','·'),element('span','composer-model-name',selectedModel));chip.title=[data.meta?.profile,selectedModel].filter(Boolean).join(' · ');
     const taskRows=new Map((data.tasks||[]).map(task=>[task.task_id,task])),items=activityItems(sessionMessageItems(data.messages||[])),last=new Map();items.forEach((item,index)=>{if(item.task_id)last.set(item.task_id,index);});
     const ordered=[],retained=new Set();
     for(const [index,item] of items.entries()){
@@ -8934,7 +8935,7 @@ window.IgorekSummary = window.IgorekSessionSummary.mount({
 new ResizeObserver(()=>{ui.conversation.style.setProperty('--summary-composer-height',ui.composer.parentElement.getBoundingClientRect().height+'px');}).observe(ui.composer.parentElement);
 ui.composer.addEventListener("submit", sendMessage);
 window.IgorekComposerProfiles?.attach(ui.composerModel,{
-  api,sessionId:()=>state.selected,profile:()=>state.session?.meta?.profile,
+  api,sessionId:()=>state.selected,profile:()=>state.session?.meta?.profile,model:()=>state.session?.meta?.model,
   busy:()=>state.sending||state.activeTasks.size>0||Boolean(state.session?.meta?.agent_session)||Boolean(state.session?.meta?.demo),
   changing:()=>{ui.send.disabled=state.sending||window.IgorekComposerProfiles.busy(state.selected);},
   changed:()=>{},
