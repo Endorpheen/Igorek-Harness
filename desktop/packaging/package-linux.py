@@ -18,6 +18,7 @@ from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from bundle_sources import APP_FILES, BACKEND_FILES, LEGAL_FILES
+from runtime_dependencies import stage_runtime_dependencies
 
 
 
@@ -97,7 +98,8 @@ def build(repo: Path, output: Path, *, libvirt_fix: Path | None = None, runtime_
             if source.is_symlink():
                 raise ValueError(f'Application source must be a regular file: {name}')
             shutil.copy2(source, app / name)
-        (app / 'package.json').write_text(json.dumps({'name': 'igorek-desktop-prototype', 'private': True, 'main': 'main.cjs'}) + '\n')
+        (app / 'package.json').write_text(json.dumps({'name': 'igorek-desktop-prototype', 'private': True, 'main': 'main.cjs',
+            'dependencies': stage_runtime_dependencies(desktop, app)}) + '\n')
         print('Copying existing Python and Electron; no dependency builds or downloads.', flush=True)
         ignore = shutil.ignore_patterns('__pycache__', '*.pyc')
         shutil.copytree(runtime, app / 'runtime', symlinks=True, ignore=ignore)

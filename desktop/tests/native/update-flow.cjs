@@ -7,6 +7,8 @@ const {spawn}=require('node:child_process');
 
 async function verifyUpdateFlow({appRoot,root,BrowserWindow,ipcMain,python}) {
   const {updateDialog}=require(path.join(appRoot,'release-updates-ui.cjs'));
+  const {ReleaseUpdates}=require(path.join(appRoot,'release-updates.cjs'));
+  const updateFetch=new ReleaseUpdates({current:'0.2.1',cache:root}).fetch;
   const {createUpdatePresentation}=require(path.join(appRoot,'release-progress.cjs'));
   const payload=Buffer.alloc(2048,42);
   const name='igorek-0.2.2-'+(process.platform==='win32'?'win-x64.exe':'linux-amd64.deb');
@@ -29,7 +31,7 @@ async function verifyUpdateFlow({appRoot,root,BrowserWindow,ipcMain,python}) {
       presentationFactory:owner=>{const value=createUpdatePresentation(owner,{BrowserWindow,ipcMain});
         window=BrowserWindow.getAllWindows().find(candidate=>candidate.getParentWindow()===owner);return value;},
       session:{fetch:()=>assert.fail('Chromium fetch must not handle manual update redirects')},
-      fetch:(url,options)=>globalThis.fetch(origin+(url.includes('api.github.com')?'/metadata':new URL(url).hostname==='github.com'?'/redirect':'/payload'),options)});
+      fetch:(url,options)=>updateFetch(origin+(url.includes('api.github.com')?'/metadata':new URL(url).hostname==='github.com'?'/redirect':'/payload'),options)});
     const result=show(parent);let initial,progress=false,confirmed=false;
     for(let attempt=0;attempt<200;attempt++) {
       await pause(25);

@@ -1,6 +1,7 @@
 const { createHash } = require('node:crypto');
 const fs = require('node:fs/promises');
 const { join } = require('node:path');
+const { fetch: updateFetch } = require('undici');
 
 const REPOSITORY = 'Endorpheen/Igorek-Harness';
 const RELEASES = `https://api.github.com/repos/${REPOSITORY}/releases/latest`;
@@ -37,7 +38,7 @@ function allowedRedirect(value) {
   } catch { return false; }
 }
 class ReleaseUpdates {
-  constructor({current, cache, fetch = globalThis.fetch, platform = process.platform, arch = process.arch, portable = false, preview = false}) {
+  constructor({current, cache, fetch = updateFetch, platform = process.platform, arch = process.arch, portable = false, preview = false}) {
     version(current); this.current = current; this.cache = cache; this.fetch = fetch;
     this.platform = platform; this.arch = arch; this.portable = portable; this.preview = preview; this.asset = null; this.busy = false;
   }

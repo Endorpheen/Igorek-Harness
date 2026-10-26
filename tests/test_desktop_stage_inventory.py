@@ -25,6 +25,17 @@ def stage_fixture(tmp_path,monkeypatch):
     assets=desktop/'assets';assets.mkdir()
     for name in ['release-notes.json','evil-octopus.png','evil-octopus-wink.png','igorek.png','github.svg','OPENAI-ICON-LICENSE.txt','GITHUB-ICON-LICENSE.txt']:
         (assets/name).write_text('fixture '+name)
+    dependencies = {"undici": "7.30.1"}
+    package_path = desktop / "package.json"
+    package_data = json.loads(package_path.read_text()) if package_path.exists() else {}
+    package_data["dependencies"] = dependencies
+    package_path.write_text(json.dumps(package_data))
+    (desktop / "package-lock.json").write_text(json.dumps({"packages": {"": {"dependencies": dependencies}, "node_modules/undici": {"version": "7.30.1"}}}))
+    dependency = desktop / "node_modules/undici"
+    (dependency / "lib").mkdir(parents=True)
+    (dependency / "package.json").write_text(json.dumps({"name": "undici", "version": "7.30.1", "main": "index.js"}))
+    for name in ["index.js", "LICENSE", "lib/fixture.js"]:
+        (dependency / name).write_text("reviewed dependency fixture")
     source=repo/'factory/fixture.py';source.parent.mkdir();source.write_text('fixture = True\n')
     runtime=tmp_path/'runtime';runtime.mkdir()
     for name in module.BACKEND_FILES:
@@ -50,12 +61,14 @@ def test_staging_manifest_matches_every_copied_file_and_ignores_bytecode(stage_f
     f.module.stage(f.runtime,f.output,target)
     assert not (f.output/'runtime/__pycache__').exists() and not (f.output/'runtime/loose.pyc').exists()
     package=json.loads((f.output/'package.json').read_text())
-    assert package['version']=='1.2.3' and package['main']=='main.cjs' and package['dependencies']=={}
+    assert package['version']=='1.2.3' and package['main']=='main.cjs' and package['dependencies']=={'undici':'7.30.1'}
     inventory=json.loads((f.output/'source-manifest.json').read_text())
     assert inventory['platform']==target and inventory['source_commit']=='a'*40 and inventory['source_modified'] is False
     actual={p.relative_to(f.output).as_posix():hashlib.sha256(p.read_bytes()).hexdigest() for p in f.output.rglob('*') if p.is_file() and p.name!='source-manifest.json'}
     assert inventory['files']==actual
     assert set(f.module.APP_FILES)<=set(inventory['files'])
+    assert (f.output/'node_modules/undici/lib/fixture.js').read_text()=='reviewed dependency fixture'
+    assert 'node_modules/undici/LICENSE' in inventory['files']
     for name in f.module.LEGAL_FILES:
         assert (f.output/'licenses'/Path(name).name).read_text()=='fixture legal '+name
 
@@ -117,3 +130,32 @@ def test_symlinks_cannot_substitute_reviewed_sources_or_escape_runtime(stage_fix
         target=f.repo/'factory/fixture.py';target.unlink();target.symlink_to(outside)
     with pytest.raises(ValueError):f.module.stage(f.runtime,f.output,'linux-x64')
     assert not any(p.is_file() and p.read_bytes()==b'fixture outside' for p in f.output.rglob('*'))
+
+
+@pytest.mark.parametrize("kind", ["declared", "lock", "installed", "graph", "license", "library"])
+def test_staging_rejects_stale_or_incomplete_http_client(stage_fixture, kind):
+    f = stage_fixture
+    dependency = f.desktop / "node_modules/undici"
+    if kind == "declared":
+        (f.desktop / "package.json").write_text(json.dumps({"dependencies": {"undici": "7.30.0"}}))
+    elif kind == "lock":
+        path = f.desktop / "package-lock.json"
+        value = json.loads(path.read_text())
+        value["packages"]["node_modules/undici"]["version"] = "7.30.0"
+        path.write_text(json.dumps(value))
+    elif kind in {"installed", "graph"}:
+        path = dependency / "package.json"
+        value = json.loads(path.read_text())
+        if kind == "installed":
+            value["version"] = "7.30.0"
+        else:
+            value["dependencies"] = {"unreviewed": "1.0.0"}
+        path.write_text(json.dumps(value))
+    elif kind == "license":
+        (dependency / "LICENSE").unlink()
+    else:
+        import shutil
+        shutil.rmtree(dependency / "lib")
+    with pytest.raises(ValueError, match="Runtime dependenc"):
+        f.module.stage(f.runtime, f.output, "linux-x64")
+    assert not (f.output / "node_modules/undici/index.js").exists()

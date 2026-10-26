@@ -6,6 +6,7 @@ from pathlib import Path, PureWindowsPath
 import shutil
 import tomllib
 from bundle_sources import APP_FILES, BACKEND_FILES, LEGAL_FILES
+from runtime_dependencies import stage_runtime_dependencies
 
 
 def stage(runtime: Path, output: Path, target: str):
@@ -70,7 +71,7 @@ def stage(runtime: Path, output: Path, target: str):
     package = {'name': 'igorek-desktop', 'version': version, 'private': True, 'main': 'main.cjs',
                'desktopName': 'igorek-desktop.desktop',
                'description': 'Igorek personal AI agent workspace', 'author': 'Igorek contributors', 'license': 'Apache-2.0',
-               'dependencies': {}}
+               'dependencies': stage_runtime_dependencies(repo / 'desktop', output)}
     (output / 'package.json').write_text(json.dumps(package, indent=2) + '\n')
     inventory = {p.relative_to(output).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
                  for p in output.rglob('*') if p.is_file() and not p.is_symlink()}
