@@ -1,3 +1,7 @@
+## 2026-10-27 — Compact profile menus
+
+Desktop native Electron acceptance exercised collapsed and expanded profile lists with thirteen alternatives, bounded scrolling, model and profile selection, keyboard navigation, busy rejection and preserved drafts. The provider icon and session model checks passed 53 Python tests across three files. Android unit tests passed 505 cases and lint passed; a separate Android 14 emulator acceptance verified compact and expanded menus, profile/model selection and non-empty pixels in all 13 provider icons. The first visual inspection revealed transparent Android icon images; these were corrected before the successful emulator check. No physical-device acceptance is claimed.
+
 ## 2026-10-27 — Release 0.2.27 preparation
 
 Python and Desktop were advanced to 0.2.27 with matching Russian Desktop notes; the separately changed Android application is 0.1.127 (128) with matching Russian and English notes. After the version change, 58 selected recovery, installation, staging and runner cases passed. Offline lock consistency and publication contracts passed, and the reviewed source snapshot passed the secret scanner. The earlier full local Python run preceded the version and release-note changes; release acceptance requires checks on the exact release commit.

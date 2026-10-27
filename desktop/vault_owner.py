@@ -12,6 +12,7 @@ import hmac
 import secrets
 import threading
 import time
+from urllib.parse import urlsplit
 
 from factory.core.vault.lifecycle import (
     VaultLifecycle, VaultAuthenticationError, VaultBusyError,
@@ -26,6 +27,27 @@ from factory.core.isolation.base_image import resolve_tool_version
 from agent_runtime import AgentBusyError, ProfileNotVerifiedError, ProfileInUseError
 from factory.core.vault.vault import DuplicateCredentialError
 from factory.core.vault.env_import import EnvImportError
+
+
+def _profile_provider_icon(config):
+    if config.get('api_format') == 'openai-responses':
+        return 'openai'
+    from factory.core.vault.lifecycle import is_loopback_provider
+    if is_loopback_provider(config):
+        return 'local'
+    try:
+        host = urlsplit(str(config.get('base_url') or '')).hostname or ''
+    except ValueError:
+        return 'custom'
+    return {
+        'api.openai.com': 'openai', 'api.anthropic.com': 'anthropic',
+        'opencode.ai': 'opencode', 'openrouter.ai': 'openrouter',
+        'api.z.ai': 'zai', 'open.bigmodel.cn': 'zai',
+        'api.minimax.io': 'minimax', 'api.minimax.chat': 'minimax',
+        'api.deepseek.com': 'deepseek', 'api.moonshot.ai': 'moonshotai',
+        'api.moonshot.cn': 'moonshotai', 'generativelanguage.googleapis.com': 'google',
+        'api.x.ai': 'xai', 'api.inceptionlabs.ai': 'inception',
+    }.get(host, 'custom')
 
 
 class OwnerVault:
@@ -152,7 +174,8 @@ class OwnerVault:
             items = []
             for profile in profiles:
                 config = profile['config']
-                item = {'name': config['name'], 'model': config['model'], 'local': is_loopback_provider(config)}
+                item = {'name': config['name'], 'model': config['model'], 'local': is_loopback_provider(config),
+                        'provider_icon': _profile_provider_icon(config)}
                 if config.get('api_format') == 'openai-responses':
                     with self._models_lock:
                         cached = dict(self._models_cache.get(profile['credential_id']) or {})
