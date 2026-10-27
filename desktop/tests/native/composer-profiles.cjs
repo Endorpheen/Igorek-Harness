@@ -54,6 +54,11 @@ async function run(){
   assert.match(await window.webContents.executeJavaScript(`document.querySelector('.composer-profile-option[data-profile=cloud]').textContent`),/gpt-6\.1-terra/);
   await click('.composer-profile-option[data-model="gpt-6.1-sol"]');
   await until('state.session.meta.model==="gpt-6.1-sol"&&!document.querySelector(".composer-profile-menu")');
+  await click('#composer-model');await until(`Boolean(document.querySelector('.composer-profile-option[data-model="go-model-35"]'))`);
+  assert.equal(await window.webContents.executeJavaScript(`(()=>{const m=document.querySelector('.composer-profile-menu');return m.scrollHeight>m.clientHeight})()`),true);
+  await window.webContents.executeJavaScript(`document.querySelector('.composer-profile-option[data-model="go-model-35"]').scrollIntoView({block:'nearest'});void 0;`);
+  await click('.composer-profile-option[data-model="go-model-35"]');
+  await until('state.session.meta.model==="go-model-35"&&!document.querySelector(".composer-profile-menu")');
   await window.webContents.executeJavaScript(`document.querySelector('#message-input').value='Retained draft';document.querySelector('#message-input').dispatchEvent(new Event('input',{bubbles:true}));`);
   await click('#composer-model');await until('Boolean(document.querySelector(".composer-profile-option[data-profile=local]"))');await revealOtherProfiles();
   fs.writeFileSync(path.join(output,'profile-menu.png'),(await window.webContents.capturePage()).toPNG());

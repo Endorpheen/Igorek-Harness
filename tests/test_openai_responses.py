@@ -76,6 +76,48 @@ def test_payload_preserves_images_tool_ids_history_and_omits_unsupported_fields(
     assert result['tools'][0]['tools'][0]['name'] == 'Read'
 
 
+def test_generic_responses_uses_flat_tools_and_keeps_internal_marker_off_wire(server):
+    base, calls, handlers = server
+    handlers.append(lambda *_: [completed([message('ok')])])
+    payload = {'model': 'fixture', 'messages': [{'role': 'user', 'content': 'hello'}],
+               'tools': [{'name': 'Read', 'input_schema': {'type': 'object'}}]}
+    result, _ = transport.post(base + '/responses', payload,
+                               {'__igorek_generic_responses__': True, 'Authorization': 'Bearer fixture'}, 5)
+    assert result['content'][0]['text'] == 'ok'
+    assert calls[0][1]['tools'][0]['type'] == 'function'
+    assert 'include' not in calls[0][1]
+    assert '__igorek_generic_responses__' not in str(calls[0][2])
+    assert 'OpenCode' in transport._failure({'code': 'invalid_api_key'}, 401, generic=True)['error']
+    assert 'OpenAI' in transport._failure({'code': 'invalid_api_key'}, 401)['error']
+    assert 'OpenCode' in transport._failure({'code': []}, generic=True)['error']
+
+
+def test_generic_responses_executor_calls_real_read(server, tmp_path, monkeypatch):
+    from factory.core.cc_backend_tools import get_tool_schemas
+    base, calls, handlers = server
+    path = tmp_path / 'input.txt'
+    path.write_text('go-fixture-evidence')
+    def reply(payload, index):
+        if index == 1:
+            call = function(args={'file_path': str(path)})
+            call.pop('namespace')
+            return [completed([call])]
+        results = [item for item in payload['input'] if item.get('type') == 'function_call_output']
+        assert len(results) == 1 and 'go-fixture-evidence' in results[0]['output']
+        return [completed([message('go-fixture-evidence')])]
+    handlers.append(reply)
+    monkeypatch.setattr(executor, '_resolve_backend_context_window', lambda **_: (128000, 'fixture'))
+    monkeypatch.setattr(executor, 'is_interrupt_requested', lambda: False)
+    tool = next(item for item in get_tool_schemas() if item['name'] == 'Read')
+    result = executor.execute_cc_backend_task(base_url=base, model='fixture', system_prompt='Fixture',
+        user_message='Read input.txt', workdir=str(tmp_path), api_format='opencode-responses',
+        enabled_tools=[tool], request_headers={'Authorization': 'Bearer fixture'}, checkpoint_config={'enabled': False})
+    assert result['status'] == 'ok', result
+    assert result['tool_calls_count'] == 1 and 'go-fixture-evidence' in result['output_text']
+    assert len(calls) == 2 and calls[0][1]['tools'][0]['type'] == 'function'
+    assert all('__igorek_generic_responses__' not in str(headers) for _, _, headers in calls)
+
+
 def test_bridge_worker_question_round_trip_reaches_model(server, tmp_path, monkeypatch):
     from test_worker_isolation_seam import WorkerSeamHarness
     from factory.core.cc_backend_tools import get_tool_schemas

@@ -78,7 +78,15 @@ data class ProfileChoice(
     @SerialName("model_labels") val modelLabels: Map<String, String> = emptyMap(),
     @SerialName("models_status") val modelsStatus: String = "",
     @SerialName("provider_icon") val providerIcon: String = "",
-)
+) {
+    val displayProviderIcon: String get() = providerIcon.ifBlank {
+        when (name.lowercase()) {
+            "openrouter", "opencode" -> name.lowercase()
+            "mercury" -> "inception"
+            else -> ""
+        }
+    }
+}
 
 @Serializable
 data class SessionOptionsResponse(

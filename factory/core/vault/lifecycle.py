@@ -430,11 +430,17 @@ class VaultLifecycle:
             if record is None or record.id != credential_id or record.imported_from != "desktop-provider-setup":
                 raise ValueError("Unknown provider profile")
             secret = vault.get_secret(record.id)
-            if secret.metadata.get("desktop_profile") != config or config.get("api_format") != api_format:
+            go = False
+            if config.get('api_format') != api_format:
+                from ..opencode_go_catalog import is_opencode_go_url
+                go = is_opencode_go_url(str(config.get('base_url') or ''))
+            allowed_format = config.get("api_format") == api_format or (
+                go and api_format in {'openai', 'anthropic', 'openai-responses', 'opencode-responses', 'google'})
+            if secret.metadata.get("desktop_profile") != config or not allowed_format:
                 raise ValueError("Provider binding changed")
             if secret.metadata.get("connection_check", {}).get("status") != "verified":
                 raise ValueError("Provider is not verified")
-            if api_format == 'openai-responses':
+            if api_format == 'openai-responses' and not go:
                 from ..chatgpt_usage import ResponseHeaders, UsageStore
                 return ResponseHeaders({'Authorization': 'Bearer ' + self.chatgpt_access_token(credential_id, config)},
                     UsageStore(self.home, credential_id, config).observe)
@@ -442,6 +448,8 @@ class VaultLifecycle:
                 if not is_loopback_provider(config):
                     raise ValueError("Remote provider requires an API key")
                 return {"anthropic-version": "2023-06-01"} if api_format == "anthropic" else {}
+            if api_format == 'google':
+                return {'x-goog-api-key': secret.secret}
             return {"x-api-key": secret.secret} if api_format == "anthropic" else {"Authorization": "Bearer " + secret.secret}
 
     def web_search_runtime_headers(self, credential_id: str, config: dict):

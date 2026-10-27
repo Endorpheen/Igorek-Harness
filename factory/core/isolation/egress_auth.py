@@ -81,6 +81,7 @@ _DROP_REQUEST_HEADERS: Final[frozenset[str]] = _HOP_BY_HOP | frozenset(
         "host",
         "authorization",
         "x-api-key",
+        "x-goog-api-key",
         "accept-encoding",
         "content-length",
     }

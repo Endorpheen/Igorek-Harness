@@ -1380,14 +1380,18 @@ def execute_cc_backend_task(
     # Transport selection is based on an explicit API contract, not on authentication.
     # Local OpenAI-compatible servers (e.g., llama-server) typically operate
     # without an API key.
-    is_responses_api = api_format == "openai-responses"
-    is_openai_api = api_format in {"openai", "openai-responses"}
+    is_responses_api = api_format in {"openai-responses", "opencode-responses"}
+    is_google_api = api_format == "google"
+    is_openai_api = api_format in {"openai", "openai-responses", "opencode-responses"}
     valid_tool_names = {
         str(t.get("name") or "") for t in anthropic_tools if t.get("name")
     }
     if is_openai_api:
         url = f"{base_url.rstrip('/')}/{'responses' if is_responses_api else 'chat/completions'}"
         tools = _anthropic_tools_to_openai(anthropic_tools)
+    elif is_google_api:
+        from urllib.parse import quote
+        url = f"{base_url.rstrip('/')}/models/{quote(model, safe='')}:generateContent"
     headers = {
         "Content-Type": "application/json",
         "x-api-key": "dummy",
@@ -1399,6 +1403,10 @@ def execute_cc_backend_task(
         headers.setdefault("User-Agent", "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36")
         if not is_responses_api:
             headers.setdefault("Origin", "https://opencode.ai")
+    elif is_google_api:
+        headers.pop("x-api-key", None)
+        headers.pop("anthropic-version", None)
+        headers['__igorek_google_mode__'] = True
     if isinstance(request_headers, dict):
         headers.update(
             {
@@ -1408,6 +1416,8 @@ def execute_cc_backend_task(
             }
         )
     if is_responses_api:
+        if api_format == 'opencode-responses':
+            headers['__igorek_generic_responses__'] = True
         from .openai_responses import RenewingHeaders
         if request_headers_provider is None and isinstance(request_headers, RenewingHeaders):
             request_headers_provider = request_headers.provider
@@ -2614,7 +2624,12 @@ def execute_cc_backend_task(
             recovery_started = time.monotonic()
             while True:
                 request_timeout_s = timeout_s if network_retry_count == 0 else min(timeout_s, max(1, 30-(time.monotonic()-recovery_started)))
-                if is_openai_api:
+                if is_google_api:
+                    from .google_generate_content import post_stream
+                    body, lat_ms = post_stream(url, payload, headers, request_timeout_s,
+                        trace_dir=artifact_workdir, round_num=round_num, parent_task_id=parent_task_id,
+                        cancel_check=lambda: is_interrupt_requested() or _is_task_cancelling())
+                elif is_openai_api:
                     body, lat_ms = _http_post_streaming_openai(
                         url, payload, headers, request_timeout_s,
                         log_fn=log_fn,
@@ -2782,7 +2797,7 @@ def execute_cc_backend_task(
                         reasoning_parts.append(str(block.get("text", "")))
 
             output_text_preview = "\n".join(text_parts)
-            if not is_openai_api:
+            if not is_openai_api and not is_google_api:
                 for reasoning_text in reasoning_parts:
                     append_cc_backend_trace(
                         artifact_workdir,
@@ -4276,6 +4291,17 @@ def _http_post(
     """Send HTTP POST and return (response_body_dict, latency_ms)."""
     from .openai_responses import is_responses_url, post as responses_post
     from .diagnostics import transport_failure, safe_text
+    is_google = bool(headers.get('__igorek_google_mode__'))
+    if is_google:
+        headers = {key: value for key, value in headers.items() if key != '__igorek_google_mode__'}
+    google_names = set()
+    if is_google:
+        from .google_generate_content import build_request
+        google_names = {str(tool.get('name') or tool.get('function', {}).get('name') or '') for tool in payload.get('tools', [])}
+        try:
+            payload = build_request(payload)
+        except (ValueError, TypeError, KeyError) as exc:
+            return {'error': f'google_request_invalid: {safe_text(exc)}'}, 0
     if is_responses_url(url):
         return responses_post(url, payload, headers, timeout_s)
     if use_curl:
@@ -4306,6 +4332,12 @@ def _http_post(
     except Exception as exc:
         lat = int((time.time() - start) * 1000)
         return {"error": safe_text(exc), **transport_failure(exc)}, lat
+    if is_google:
+        from .google_generate_content import to_anthropic
+        try:
+            body = to_anthropic(body, google_names)
+        except (ValueError, TypeError, KeyError) as exc:
+            return {'error': f'google_response_invalid: {safe_text(exc)}'}, int((time.time() - start) * 1000)
     lat = int((time.time() - start) * 1000)
     return body, lat
 

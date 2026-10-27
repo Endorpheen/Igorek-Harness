@@ -752,6 +752,13 @@ def _effective_cc_backend_model(
     base_url: str,
 ) -> str:
     requested_model = str(task_metadata.get("model_override") or configured_model or "").strip()
+    if provider == 'custom':
+        try:
+            from .opencode_go_catalog import is_opencode_go_url
+        except ImportError:
+            from opencode_go_catalog import is_opencode_go_url
+        if is_opencode_go_url(base_url):
+            return requested_model
     if provider in {"opencode", "opencode-go", "openrouter", "minimax", "glm", "wally"}:
         return requested_model
     return _resolve_cc_backend_model(base_url, requested_model)
@@ -770,6 +777,21 @@ def _resolve_cc_backend_api_format(config: dict, model: str) -> str:
             from opencode_go_catalog import opencode_go_model_transport
         return opencode_go_model_transport(model) or configured
     return configured
+
+
+def _desktop_opencode_go_route(config: dict, model: str, overridden: bool):
+    if not overridden or config.get('provider') != 'custom':
+        return None
+    try:
+        from .opencode_go_catalog import get_opencode_go_routes, is_opencode_go_url
+    except ImportError:
+        from opencode_go_catalog import get_opencode_go_routes, is_opencode_go_url
+    if not is_opencode_go_url(str(config.get('base_url') or '')):
+        return None
+    route = get_opencode_go_routes().get(model)
+    if not route:
+        raise ValueError('OpenCode Go model route unavailable')
+    return route[0], route[1]
 
 
 _OPENCODE_SESSION_ID = (
@@ -2084,6 +2106,9 @@ class Worker:
             base_url=base_url,
         )
         api_format = _resolve_cc_backend_api_format(self.config, model)
+        go_route = _desktop_opencode_go_route(self.config, model, bool(task_metadata.get('model_override')))
+        if go_route is not None:
+            api_format, base_url = go_route
         level_runtime = _resolve_level_runtime(self.config, task_metadata)
         filesystem_mode = level_runtime["filesystem_mode"]
         guard_mode = level_runtime["guard_mode"]
