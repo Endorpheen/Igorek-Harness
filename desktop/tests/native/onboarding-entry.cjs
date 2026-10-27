@@ -73,6 +73,7 @@ async function verifyOnboardingEntry({ runtime, config, dataDir, appRoot, root, 
     await clickNative(settings, '#submit');
     await until(() => settings.webContents.executeJavaScript("!document.getElementById('onboarding-alternatives').hidden"), 'Independent onboarding actions remained hidden after unlock');
     await unchanged();
+    await until(() => settings.webContents.executeJavaScript("!document.getElementById('onboarding-later').disabled"), 'Defer model setup did not become available');
     await clickNative(settings, '#onboarding-later');
     await until(() => settings.isDestroyed(), 'Defer model setup did not return to the main window');
     await unchanged();
