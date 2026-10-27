@@ -14,10 +14,10 @@ def read_history(path: Path) -> list[dict[str, Any]]:
     result = []
     if not path.exists():
         return result
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for raw in path.read_bytes().splitlines():
         try:
-            item = json.loads(line)
-        except ValueError:
+            item = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, ValueError):
             continue
         if isinstance(item, dict) and item.get("role") in {"user", "assistant", "tool", "reasoning"}:
             result.append(item)

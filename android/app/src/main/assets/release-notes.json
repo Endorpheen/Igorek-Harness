@@ -1,25 +1,15 @@
 {
-  "versionName": "0.1.126",
-  "versionCode": 127,
+  "versionName": "0.1.127",
+  "versionCode": 128,
   "changes": [
     {
       "ru": {
-        "title": "Выбор модели",
-        "text": "Переключайте доступные модели в текущем чате без перезапуска исполнителя."
+        "title": "Исправлено отображение Пепе",
+        "text": "Анимированные Пепе с подчёркиваниями в имени правильно отображаются в сообщениях."
       },
       "en": {
-        "title": "Choose a model",
-        "text": "Switch available models in the current chat without restarting the executor."
-      }
-    },
-    {
-      "ru": {
-        "title": "Сохранность чатов",
-        "text": "Повышена надёжность истории при одновременных изменениях и архивировании."
-      },
-      "en": {
-        "title": "Chat history reliability",
-        "text": "Improved history reliability during concurrent changes and archiving."
+        "title": "Fixed Pepe emoji display",
+        "text": "Animated Pepe emoji with underscores in their names display correctly in messages."
       }
     }
   ]

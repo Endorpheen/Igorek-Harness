@@ -94,6 +94,13 @@ test('foreign redirects and stale failed metadata cannot authorize a download',a
   await assert.rejects(f.updater.download(),/redirect_denied/);
   f.updater.fetch=async()=>{throw Error('offline');};await assert.rejects(f.updater.check());await assert.rejects(f.updater.download(),/not_ready/);
 });
+test('foreign redirect is rejected before any request reaches it',async t=>{
+  const f=await fixture(t);await f.updater.check();const requests=[];
+  f.updater.fetch=async url=>{requests.push(url);return new Response(null,{status:302,headers:{location:'https://127.0.0.1/private'}});};
+  await assert.rejects(f.updater.download(),/redirect_denied/);
+  assert.equal(requests.length,1);
+  assert.equal(new URL(requests[0]).hostname,'github.com');
+});
 test('no releases is a normal first-publication state; current version needs no asset',async t=>{
   const f=await fixture(t);f.updater.fetch=async()=>new Response(null,{status:404});assert.equal((await f.updater.check()).state,'no_release');
   f.updater.fetch=async()=>Response.json({tag_name:'v0.2.0'});assert.equal((await f.updater.check()).state,'current');

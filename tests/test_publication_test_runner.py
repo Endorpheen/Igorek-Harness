@@ -78,3 +78,32 @@ def test_owned_absolute_paths():
     assert result["exit_code"] == 0, (output / "0000-test_relative_output_fixture/output.log").read_text()
     assert result["passed"] == 1
     assert (output / ".coverage.fixture").read_text() == "retained after chdir"
+
+
+@pytest.mark.parametrize('report', ['', '<testsuites><testsuite', None])
+def test_missing_or_invalid_junit_report_fails_without_crashing_runner(tmp_path, monkeypatch, report):
+    source = Path(__file__).resolve().parents[1] / 'tools/run_tests.py'
+    spec = importlib.util.spec_from_file_location('broken_report_runner', source)
+    runner = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(runner)
+    wrapper = tmp_path / 'python-fixture'
+    body = repr(report)
+    wrapper.write_text(f'''#!/usr/bin/env python3
+import sys
+from pathlib import Path
+report = {body}
+if report is not None:
+    destination = next(arg.split('=', 1)[1] for arg in sys.argv if arg.startswith('--junitxml='))
+    Path(destination).write_text(report)
+''')
+    wrapper.chmod(0o755)
+    test = tmp_path / 'test_fixture.py'
+    test.write_text('')
+    output = tmp_path / 'results'
+    output.mkdir()
+    monkeypatch.setattr(runner, 'REPO', tmp_path)
+    monkeypatch.setattr(runner, 'sys', SimpleNamespace(executable=str(wrapper)))
+    result = runner.run_file(test, 0, output, timeout=10, coverage=False)
+    assert result['exit_code'] != 0
+    assert result['errors'] >= 1
+    assert result['report_error']

@@ -73,12 +73,12 @@ def _load_entries(path: Path) -> list[dict]:
         return []
 
     entries: list[dict] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if not line.strip():
+    for raw in path.read_bytes().splitlines():
+        if not raw.strip():
             continue
         try:
-            entry = json.loads(line)
-        except json.JSONDecodeError:
+            entry = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
             continue
         if isinstance(entry, dict) and entry.get("role") in {"user", "assistant"}:
             entries.append(entry)
@@ -94,16 +94,16 @@ def _read_session_meta(path: Path) -> dict | None:
     if not path.exists():
         return None
     try:
-        with path.open("r", encoding="utf-8") as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
+        with path.open("rb") as fh:
+            for raw in fh:
+                raw = raw.strip()
+                if not raw:
                     continue
-                entry = json.loads(line)
+                entry = json.loads(raw.decode("utf-8"))
                 if isinstance(entry, dict) and entry.get("type") == "meta":
                     return entry
                 return None
-    except (json.JSONDecodeError, OSError):
+    except (UnicodeDecodeError, json.JSONDecodeError, OSError):
         return None
 
 
@@ -299,6 +299,18 @@ def _append_entry(
     status: str | None = None,
     extra: dict | None = None,
 ) -> None:
+    with _session_write_lock(path):
+        _append_entry_unlocked(path, role, text, task_id, status, extra)
+
+
+def _append_entry_unlocked(
+    path: Path,
+    role: str,
+    text: str,
+    task_id: str | None = None,
+    status: str | None = None,
+    extra: dict | None = None,
+) -> None:
     payload = {
         "role": role,
         "text": text,
@@ -311,9 +323,13 @@ def _append_entry(
     if extra:
         payload.update(extra)
 
-    with _session_write_lock(path):
-        with path.open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    with path.open("a+", encoding="utf-8") as fh:
+        fh.buffer.seek(0, os.SEEK_END)
+        if fh.buffer.tell():
+            fh.buffer.seek(-1, os.SEEK_END)
+            if fh.buffer.read(1) != b"\n":
+                fh.write("\n")
+        fh.write(json.dumps(payload, ensure_ascii=False) + "\n")
 
 
 def _clear_session(path: Path) -> None:

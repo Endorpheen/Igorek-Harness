@@ -3000,6 +3000,7 @@ class Worker:
 
                 print(f"🧹[{self.profile}] Найдено {len(stuck_tasks)} зависших задач:")
 
+                finalized = 0
                 for task_id, profile, status, input_text, created_at in stuck_tasks:
                     # Show task details
                     text_preview = (
@@ -3022,8 +3023,10 @@ class Worker:
                                 updated_at = strftime('%s', 'now')
                             WHERE task_id = ?
                               AND status = 'cancelling'
+                              AND profile = ?
+                              AND updated_at < strftime('%s', 'now') - ?
                             """,
-                            (task_id,),
+                            (task_id, self.profile, timeout_seconds),
                         )
                     else:
                         # Marks as dead letter, saves the record.
@@ -3036,17 +3039,22 @@ class Worker:
                                 updated_at = strftime('%s', 'now')
                             WHERE task_id = ?
                               AND status = 'processing'
+                              AND profile = ?
+                              AND updated_at < strftime('%s', 'now') - ?
                             """,
                             (
                                 "worker_cleanup_stuck_task: no heartbeat for "
                                 f"{timeout_seconds}s (profile {self.profile})",
                                 task_id,
+                                self.profile,
+                                timeout_seconds,
                             ),
                         )
+                    finalized += cursor.rowcount
 
                 conn.commit()
                 print(
-                    f"✅[{self.profile}] {len(stuck_tasks)} зависших задач финализировано"
+                    f"✅[{self.profile}] {finalized} зависших задач финализировано"
                 )
 
         except Exception as e:

@@ -77,6 +77,22 @@ MOBILE_SCHEMA_STATEMENTS: tuple[str, ...] = (
     # Events not from the trace have NULL values, and in SQLite, NULL does not conflict in UNIQUE constraints.
     "CREATE UNIQUE INDEX IF NOT EXISTS idx_mobile_events_task_line ON mobile_events(task_id, src_line)",
     """
+    CREATE TABLE IF NOT EXISTS mobile_steer_recovery (
+        request_key TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        task_id TEXT NOT NULL,
+        message_id TEXT NOT NULL,
+        payload_json TEXT NOT NULL,
+        event_seq INTEGER
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS mobile_steer_event_keys (
+        request_key TEXT PRIMARY KEY,
+        event_seq INTEGER NOT NULL
+    )
+    """,
+    """
     CREATE TABLE IF NOT EXISTS mobile_requests (
         request_key TEXT PRIMARY KEY,
         kind TEXT NOT NULL,
@@ -505,6 +521,72 @@ class MobileStore:
             )
             return int(cursor.rowcount or 0)
 
+
+    def _steer_recovery_db(self) -> str:
+        path = initialize_database(get_db_path())
+        with open_db(path) as conn:
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS mobile_steer_recovery ("
+                "request_key TEXT PRIMARY KEY, session_id TEXT NOT NULL, task_id TEXT NOT NULL, "
+                "message_id TEXT NOT NULL, payload_json TEXT NOT NULL, event_seq INTEGER)"
+            )
+        return path
+
+    def enqueue_keyed_steer(self, key: str, session_id: str, task_id: str, message_id: str,
+                            task_text: str, input_files: list[str], skills: list[str], payload: dict[str, Any]) -> None:
+        with open_db(self._steer_recovery_db()) as conn:
+            conn.execute(
+                "INSERT INTO session_steer_messages "
+                "(session_id, task_id, message_id, text, input_files_json, selected_skills_json, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (session_id, task_id, message_id, task_text, json.dumps(input_files),
+                 json.dumps(skills), int(time.time())),
+            )
+            pending = conn.execute(
+                "SELECT COUNT(*) FROM session_steer_messages WHERE task_id=? AND consumed_at IS NULL",
+                (task_id,),
+            ).fetchone()[0]
+            payload = {**payload, 'pending': pending}
+            conn.execute(
+                "INSERT INTO mobile_steer_recovery "
+                "(request_key, session_id, task_id, message_id, payload_json) VALUES (?, ?, ?, ?, ?)",
+                (key, session_id, task_id, message_id, json.dumps(payload, ensure_ascii=False)),
+            )
+
+    def keyed_steer(self, key: str, session_id: str) -> dict[str, Any] | None:
+        with open_db(self._steer_recovery_db()) as conn:
+            row = conn.execute(
+                "SELECT task_id, message_id, payload_json FROM mobile_steer_recovery "
+                "WHERE request_key=? AND session_id=?", (key, session_id),
+            ).fetchone()
+        if row is None:
+            return None
+        return {'task_id': row[0], 'message_id': row[1], 'payload': json.loads(row[2])}
+
+    def record_keyed_steer_event(self, key: str) -> int | None:
+        with open_db(self._steer_recovery_db()) as conn:
+            row = conn.execute(
+                "SELECT session_id, task_id, payload_json FROM mobile_steer_recovery WHERE request_key=?",
+                (key,),
+            ).fetchone()
+        if row is None:
+            raise ValueError('Missing steer recovery record')
+        payload = json.loads(row[2])
+        payload.pop('entry_text', None)
+        with open_db(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            existing = conn.execute(
+                "SELECT event_seq FROM mobile_steer_event_keys WHERE request_key=?", (key,),
+            ).fetchone()
+            if existing is not None:
+                return None
+            cursor = conn.execute(
+                "INSERT INTO mobile_events (session_id, task_id, ts, kind, payload_json) VALUES (?, ?, ?, ?, ?)",
+                (row[0], row[1], int(time.time()), 'task.message_added', json.dumps(payload, ensure_ascii=False)),
+            )
+            seq = int(cursor.lastrowid)
+            conn.execute("INSERT INTO mobile_steer_event_keys (request_key, event_seq) VALUES (?, ?)", (key, seq))
+            return seq
 
     def remember_request(
         self,
