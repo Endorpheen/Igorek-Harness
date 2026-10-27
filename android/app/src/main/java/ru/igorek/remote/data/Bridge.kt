@@ -29,6 +29,7 @@ import java.io.OutputStream
 import java.io.IOException
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
@@ -687,11 +688,11 @@ object Bridge {
         }
     }
 
-    fun loadSessionOptions(onDone: (SessionOptionsResponse?, Throwable?) -> Unit) {
+    fun loadSessionOptions(modelProfile: String = "", onDone: (SessionOptionsResponse?, Throwable?) -> Unit) {
         val active = client ?: return onDone(null, IOException(AppLocale.text("Нет подключения к серверу", "No server connection")))
         clearLastError()
         scope.launch {
-            val result = runCatching { active.sessionOptions() }
+            val result = runCatching { active.sessionOptions(modelProfile) }
                 .map { options ->
                     val savedProfile = prefs?.lastSessionProfile.orEmpty()
                     val savedCwd = prefs?.lastSessionCwd.orEmpty()
@@ -1186,6 +1187,10 @@ object Bridge {
     )
 
     internal fun mcpChat(sessionId: String): List<McpChatRow> = mcpChatHistory.load(sessionId)
+    internal fun planModeEnabled(sessionId: String): Boolean = prefs?.planModeEnabled(sessionId) ?: false
+    internal fun setPlanModeEnabled(sessionId: String, enabled: Boolean) {
+        checkNotNull(prefs).setPlanModeEnabled(sessionId, enabled)
+    }
     internal fun saveMcpChat(sessionId: String, rows: List<McpChatRow>) {
         mcpChatHistory.save(sessionId, rows)
         _sessions.update { sessions ->
@@ -1306,18 +1311,31 @@ object Bridge {
         attachmentNames: List<String> = emptyList(),
         uploadedAttachments: List<UploadAttachmentDto> = emptyList(),
         skillIds: List<String> = emptyList(),
+        planMode: Boolean = false,
         onDone: (Throwable?) -> Unit,
     ) {
+        val goalCommand = parseSessionGoalCommand(text, _sessionDetail.value?.takeIf { it.sessionId == sessionId }?.goal)
+        if (goalCommand != null) {
+            if (uploadIds.isNotEmpty() || skillIds.isNotEmpty()) {
+                onDone(IOException(AppLocale.text("Отправьте /goal без вложений и навыков", "Send /goal without attachments or skills")))
+            } else when (goalCommand) {
+                SessionGoalCommand.Show -> onDone(null)
+                is SessionGoalCommand.Error -> onDone(IOException(goalCommand.message))
+                is SessionGoalCommand.Action -> goalAction(sessionId, goalCommand.action, goalCommand.goalId, goalCommand.objective, onDone)
+            }
+            return
+        }
         val active = client ?: return
         if (!profileRouteGate.beginSend()) return onDone(IOException(AppLocale.text(
             "Дождитесь переключения профиля", "Wait for profile switching to finish")))
         clearLastError()
-        val messageKey = connectionScope(diagnosticJson.encodeToString(listOf(listOf(sessionId, text), uploadIds, skillIds)))
+        val messageParts = listOf(listOf(sessionId, text), uploadIds, skillIds) + if (planMode) listOf(listOf("plan_mode")) else emptyList()
+        val messageKey = connectionScope(diagnosticJson.encodeToString(messageParts))
         val key = pendingMessages.getOrPut(messageKey) { "android-${UUID.randomUUID()}" }
         persistPendingOperations()
         scope.launch {
             runCatching {
-                try { active.sendMessage(sessionId, text, key, uploadIds, skillIds) }
+                try { active.sendMessage(sessionId, text, key, uploadIds, skillIds, planMode) }
                 catch(error:DiagnosticIOException) {
                     if(error.diagnostic.outcome!="unknown")throw error
                     val lookup=runCatching { active.operationReceipt(key,sessionId) }.getOrNull()
@@ -1363,6 +1381,20 @@ object Bridge {
                 .onFailure { handleFailure(it) }
                 .also { result -> withContext(Dispatchers.Main) { onDone(result.exceptionOrNull()) } }
         }.invokeOnCompletion { profileRouteGate.endSend() }
+    }
+
+    fun goalAction(sessionId: String, action: String, goalId: String? = null, objective: String? = null,
+                   onDone: (Throwable?) -> Unit = {}) {
+        val active = client ?: return onDone(IOException(AppLocale.text("Нет подключения к серверу", "No server connection")))
+        scope.launch {
+            val result = runCatching { active.goalAction(sessionId, action, goalId, objective) }
+            result.onSuccess { response ->
+                if (client === active && selectedSessionId == sessionId) {
+                    _sessionDetail.update { detail -> if (detail?.sessionId == sessionId) detail.copy(goal = response.goal) else detail }
+                }
+            }.onFailure { if (client === active) handleFailure(it) }
+            withContext(Dispatchers.Main) { onDone(result.exceptionOrNull()) }
+        }
     }
 
     fun sendMessageNow(sessionId: String, taskId: String, messageId: String, onDone: (Throwable?) -> Unit) {
@@ -1702,6 +1734,15 @@ object Bridge {
         }
 
         val sessionId = event.sessionId
+        if (event.kind == "goal.updated" && sessionId != null && sessionId == selectedSessionId) {
+            val value = event.payload["goal"]
+            if (value is JsonObject || value is JsonNull) {
+                val decoded = runCatching { diagnosticJson.decodeFromString<SessionGoal?>(value.toString()) }
+                decoded.onSuccess { goal ->
+                    _sessionDetail.update { detail -> if (detail?.sessionId == sessionId) detail.copy(goal = goal) else detail }
+                }
+            }
+        }
         if (sessionId != null) {
             val accumulator = synchronized(timelineLock) {
                 if (event.kind == "approval.resolved") timelines.getOrPut(sessionId) { SessionTimeline(sessionId) }

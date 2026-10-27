@@ -1177,3 +1177,16 @@ test('search failures remain in notifications and blur clears sensitive fields',
   ui.element('search-key').value='again';ui.element('search-password').value='again';ui.windowEvents.blur();
   assert.equal(ui.element('search-key').value,'');assert.equal(ui.element('search-password').value,'');
 });
+
+
+test('ChatGPT startup selects a connection and labels its saved default model', async () => {
+  const ui = recoveryUiHarness();
+  ui.run("state='unlocked'; interfaceLocked=false; profilesState='ready'; agent={running:false}; el('refresh').disabled=false; savedProfiles=[{credential_id:'oauth',config:{name:'codexpro',model:'legacy-model',base_url:'https://api.openai.com/v1',api_format:'openai-responses'},status:'verified',chatgpt:{connected:true}},{credential_id:'local',config:{name:'local',model:'local-model',base_url:'http://127.0.0.1:8081',api_format:'openai'},status:'verified'}];renderOnboarding()");
+  assert.equal(ui.element('onboarding-profile').children[0].textContent, 'codexpro');
+  assert.equal(ui.element('onboarding-profile').children[1].textContent, 'local · local-model');
+  ui.run("editProfile(savedProfiles[0]);window.igorekVault={chatgptModels:async()=>({result:{models:[{id:'new-model',name:'New',api_format:'openai-responses'}],note:'Account models.'}})}");
+  assert.equal(ui.element('profile-model-caption').textContent, 'Модель по умолчанию');
+  await ui.run('loadModels()');
+  assert.match(ui.element('model-catalog-status').textContent, /Сохранённая модель отсутствует/);
+  assert.equal(ui.element('profile-model').value, 'legacy-model');
+});

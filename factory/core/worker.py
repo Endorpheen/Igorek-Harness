@@ -1297,6 +1297,22 @@ class Worker:
             task.get("metadata") if isinstance(task.get("metadata"), dict) else {}
         )
 
+        if task_metadata.get("plan_mode") is True and self.backend != "cc-backend":
+            return {
+                "task_id": task_id,
+                "status": "fail",
+                "error": "Plan mode is not supported by this backend.",
+                "usage": {"prompt": 0, "completion": 0, "lat_ms_p50": 0},
+            }
+
+        if task_metadata.get("goal_continuation") and self.backend != "cc-backend":
+            return {
+                "task_id": task_id,
+                "status": "fail",
+                "error": "Goal continuation requires a backend with goal tools; select a cc-backend profile.",
+                "usage": {"prompt": 0, "completion": 0, "lat_ms_p50": 0},
+            }
+
         host_op_refusal = _consume_host_op_resolutions(task_id, task_metadata)
         if host_op_refusal:
             return {
@@ -2172,6 +2188,11 @@ class Worker:
                     f"[{self.profile}] plan mode: read-only toolset enforced (metadata plan_mode=true)"
                 )
 
+            from .goal_tools import schemas_for_task
+            goal_schemas = schemas_for_task(task_metadata)
+            if goal_schemas:
+                tool_schemas.extend(goal_schemas)
+
             available_tool_names = {
                 str(schema.get("name") or "").strip()
                 for schema in tool_schemas
@@ -2201,6 +2222,8 @@ class Worker:
                     "web_search",
                     "web_extract",
                     "request_user_input",
+                    "get_goal",
+                    "update_goal",
                     "suggest_enable_mcp",
                 }
             ]
@@ -2256,6 +2279,10 @@ class Worker:
             if project_instructions:
                 system_prompt += "\n\n" + project_instructions
                 print(f"[{self.profile}] Project instructions added: AGENTS.md/CLAUDE.md ({len(project_instructions)} chars)")
+
+            if goal_schemas:
+                from .prompt_assembly import active_goal_guidance
+                system_prompt += "\n\n" + active_goal_guidance()
 
             if start_time is None:
                 start_time = time.time()

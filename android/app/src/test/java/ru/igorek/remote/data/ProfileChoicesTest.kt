@@ -49,4 +49,14 @@ class ProfileChoicesTest {
         val legacy = json.decodeFromString<SessionOptionsResponse>("""{"profile_catalog":[{"name":"old"}],"profile_switch_supported":true}""")
         assertTrue(legacy.switchableProfiles.single().models.isEmpty())
     }
+
+    @Test
+    fun accountModelsUseFreshNamesAndReportAvailability() {
+        val options = json.decodeFromString<SessionOptionsResponse>("""{"profile_catalog":[{"name":"cloud","models":["fixture-new"],"model_labels":{"fixture-new":"New model"},"models_status":"ready"}],"profile_switch_supported":true}""")
+        assertEquals("New model", options.switchableProfiles.single().modelLabels["fixture-new"])
+        assertEquals("ready", options.switchableProfiles.single().modelsStatus)
+        val legacy = json.decodeFromString<SessionOptionsResponse>("""{"profile_catalog":[{"name":"cloud"}],"profile_switch_supported":true}""")
+        assertEquals("", legacy.switchableProfiles.single().modelsStatus)
+        assertTrue(legacy.switchableProfiles.single().modelLabels.isEmpty())
+    }
 }

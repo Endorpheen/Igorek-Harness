@@ -83,6 +83,7 @@ DEFAULT_SLASH_COMMANDS = [
     ("/exit", "Выход"),
     ("/clear", "Очистить историю"),
     ("/history", "Последние 20 сообщений"),
+    ("/goal", "Управлять долгосрочной целью"),
     ("/resume", "Выбрать сессию для resume"),
     ("/fork", "Скопировать сессию в новую"),
     ("/status", "Статус сессии"),
@@ -326,6 +327,10 @@ class ChatSession:
                 if self.pending_inputs:
                     text = self.pending_inputs.pop(0)
                 else:
+                    goal_prompt = self._next_goal_prompt()
+                    if goal_prompt:
+                        self._execute_user_turn(goal_prompt, True)
+                        continue
                     text = self._read_input()
                 if text is None:
                     break
@@ -624,6 +629,7 @@ class ChatSession:
         async def _session():
             self._fs_loop = asyncio.get_running_loop()
             app_task = asyncio.create_task(app.run_async())
+            next_goal_check = 0.0
             try:
                 while not app_task.done():
                     await asyncio.sleep(0.03)
@@ -631,6 +637,11 @@ class ChatSession:
                         text = self._fs_submitted.pop(0)
                         running_state["queued_input_items"] = list(self._fs_submitted)
                         await self._fs_run_turn(text, running_state, app)
+                    if self._active and not self._fs_submitted and not self._fs_in_turn and time.monotonic() >= next_goal_check:
+                        goal_prompt = self._next_goal_prompt()
+                        next_goal_check = time.monotonic() + 0.5
+                        if goal_prompt:
+                            await self._fs_run_turn(goal_prompt, running_state, app, goal_turn=True)
                     if not self._active and app.is_running and not app.is_done:
                         app.exit()
             finally:
@@ -776,7 +787,7 @@ class ChatSession:
             # area can show that the new input was queued behind the active turn.
             running_state["queued_input_items"] = list(self._fs_submitted)
 
-    async def _fs_run_turn(self, text: str, running_state: dict, app) -> None:
+    async def _fs_run_turn(self, text: str, running_state: dict, app, goal_turn: bool = False) -> None:
         import asyncio
 
         if text.startswith("/"):
@@ -820,7 +831,7 @@ class ChatSession:
 
         self._fs_in_turn = True
         self._fs_command_lines = []
-        if not self._tui_fullscreen:
+        if not self._tui_fullscreen and not goal_turn:
             from prompt_toolkit.application import run_in_terminal
             await run_in_terminal(lambda: _user_msg(self.console, text))
         running_state["task_active"] = True
@@ -832,9 +843,10 @@ class ChatSession:
         running_state["current_task_id"] = None
         self._fs_external_app = app
         try:
-            await asyncio.get_running_loop().run_in_executor(
-                None, self._execute_user_turn, text
-            )
+            if goal_turn:
+                await asyncio.get_running_loop().run_in_executor(None, self._execute_user_turn, text, True)
+            else:
+                await asyncio.get_running_loop().run_in_executor(None, self._execute_user_turn, text)
         finally:
             self._fs_external_app = None
             self._fs_in_turn = False
@@ -900,6 +912,7 @@ class ChatSession:
             "/theme": self._cmd_theme,
             "/skills": self._cmd_skills,
             "/history": self._cmd_history,
+            "/goal": self._cmd_goal,
             "/resume": self._cmd_resume,
             "/fork": self._cmd_fork,
             "/provider": self._cmd_provider,
@@ -916,6 +929,47 @@ class ChatSession:
         else:
             _error_msg(self.console, f"Unknown command: {cmd}")
         self.console.print()
+
+    def _next_goal_prompt(self) -> str:
+        from . import thread_goals
+        from .prompt_assembly import goal_continuation_prompt
+
+        goal = thread_goals.get_goal(self.session_name)
+        if not goal or goal["status"] != "active" or goal["surface"] != "cli_chat_rich":
+            self._pending_goal_snapshot = None
+            return ""
+        self._pending_goal_snapshot = (goal["goal_id"], goal["revision"])
+        return goal_continuation_prompt(goal["objective"])
+
+    def _cmd_goal(self, text: str = ""):
+        from . import thread_goals
+
+        value = text[len("/goal"):].strip()
+        current = thread_goals.get_goal(self.session_name)
+        try:
+            if not value or value == "status":
+                goal = current
+            elif value in {"pause", "resume"}:
+                goal = thread_goals.update_goal(self.session_name, "paused" if value == "pause" else "active", by_user=True)
+            elif value == "clear":
+                thread_goals.clear_goal(self.session_name)
+                self.console.print("Цель удалена.", markup=False)
+                return
+            elif value.startswith("edit "):
+                goal = thread_goals.edit_goal(self.session_name, value[5:].strip())
+            elif value == "edit":
+                raise ValueError("после /goal edit укажите новый текст цели")
+            else:
+                goal = thread_goals.create_goal(self.session_name, value, surface="cli_chat_rich")
+            if goal is None:
+                self.console.print("Цель не задана. Используйте /goal и текст цели.", markup=False)
+                return
+            usage = str(goal["tokens_used"])
+            if goal["token_budget"] is not None:
+                usage += " / " + str(goal["token_budget"])
+            self.console.print(f"Цель: {goal['objective']}\nСтатус: {goal['status']} · токены: {usage}", markup=False)
+        except ValueError as exc:
+            self.console.print(f"Не удалось изменить цель: {exc}", markup=False)
 
     def _cmd_help(self, text: str = ""):
         _print_help(self.console)
@@ -1606,7 +1660,16 @@ class ChatSession:
 
     # ── task execution ─────────────────────────────────────────
 
-    def _execute_user_turn(self, text: str):
+    def _execute_user_turn(self, text: str, goal_turn: bool = False):
+        from . import thread_goals
+
+        goal = thread_goals.get_goal(self.session_name)
+        if goal_turn:
+            expected = getattr(self, "_pending_goal_snapshot", None)
+            if (not goal or goal["status"] != "active" or goal["surface"] != "cli_chat_rich"
+                    or (expected is not None and expected != (goal["goal_id"], goal["revision"]))):
+                return
+        bound_goal = goal if goal and goal["status"] == "active" and goal["surface"] == "cli_chat_rich" else None
         sp = self.session_path
         self._snapshot_viewer_items()
         if self._tui_fullscreen:
@@ -1628,7 +1691,7 @@ class ChatSession:
             self._print_attached_files(attached_files)
         prompt_user_text = (prompt_text.strip() or
                             ("[attached image]" if attached_files else text))
-        if self._tui_fullscreen:
+        if self._tui_fullscreen and not goal_turn:
             # In fullscreen the transcript is rendered in-app, so the user's
             # message must be part of the committed cells to be visible.
             self.widget.committed_cells.append(
@@ -1642,6 +1705,10 @@ class ChatSession:
             "session": self.session_name, "cwd": self.cwd,
             "approved_session_rules": list(self.approved_session_rules),
         }
+        if bound_goal:
+            meta.update(goal_id=bound_goal["goal_id"], goal_revision=bound_goal["revision"])
+            if goal_turn:
+                meta["goal_continuation"] = True
         if self.model_override:
             meta["model_override"] = self.model_override
         from .runtime import profile_stable_prompt_prefix
@@ -1659,7 +1726,7 @@ class ChatSession:
                 if str(e.get("text") or "").strip()
             ]
 
-        turn_user_persisted = False
+        turn_user_persisted = goal_turn
         last_approval_history_text = ""
         approval_context_messages: list[dict] = []
         last_worked_for = self.last_worked_for
@@ -1668,6 +1735,12 @@ class ChatSession:
             task = self._execute_one_turn(prompt, meta, attached_files)
 
             if task is None:
+                if goal_turn and bound_goal:
+                    try:
+                        thread_goals.update_goal(self.session_name, "blocked", expected_goal_id=bound_goal["goal_id"],
+                                                 expected_revision=bound_goal["revision"])
+                    except (ValueError, thread_goals.GoalConflict):
+                        pass
                 self.pending_inputs.extend(self.mq.drain_all())
                 return
 
@@ -1800,6 +1873,17 @@ class ChatSession:
             _append_entry(sp, role="user", text=text)
         _append_entry(sp, role="assistant", text=at, task_id=task_id,
                        status=status, extra={"memory_writes": persisted})
+
+        if bound_goal and task_id:
+            tokens = max(0, int(task.get("usage_prompt") or 0)) + max(0, int(task.get("usage_completion") or 0))
+            started, completed = task.get("started_at"), task.get("completed_at")
+            seconds = max(0, int(completed) - int(started)) if started and completed else 0
+            try:
+                thread_goals.account_usage(self.session_name, bound_goal["goal_id"], task_id,
+                                           tokens=tokens, seconds=seconds, empty=status == "ok" and not at.strip(),
+                                           failed=status != "ok", revision=bound_goal["revision"])
+            except thread_goals.GoalConflict:
+                pass
 
         if getattr(self, "_fs_external_app", None) is None:
             if not task.get("_had_streaming_output"):

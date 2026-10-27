@@ -197,6 +197,7 @@ class MobileBridge:
         # Requeue the same task when it finished before queued session messages
         # could be delivered to its active turn.
         self.service.resume_pending_steers()
+        self.service.advance_goals()
         return appended
 
     def start(self) -> None:
@@ -517,7 +518,8 @@ class MobileRequestHandler(BaseHTTPRequestHandler):
                 ))
                 return
             if route == ["session-options"] and method == "GET":
-                self._send_json(200, self.bridge.service.session_options())
+                model_profile = (query.get('model_profile') or [''])[0]
+                self._send_json(200, self.bridge.service.session_options(model_profile=model_profile))
                 return
             if route == ["external-sessions"] and method == "GET":
                 source = (query.get("source") or [""])[0]
@@ -596,6 +598,28 @@ class MobileRequestHandler(BaseHTTPRequestHandler):
                 return
             if len(route) == 2 and route[0] == "sessions" and method == "GET":
                 self._send_json(200, self.bridge.service.get_session(route[1]))
+                return
+            if len(route) == 3 and route[0] == "sessions" and route[2] == "goal" and method == "POST":
+                from ..thread_goals import GoalConflict
+
+                body = self._read_json_body()
+                if (set(body) - {"action", "objective", "goal_id", "token_budget", "activate_profile"}
+                        or not isinstance(body.get("action"), str)
+                        or not isinstance(body.get("objective", ""), str)
+                        or not isinstance(body.get("goal_id", ""), str)
+                        or not isinstance(body.get("activate_profile", False), bool)):
+                    raise MobileInvalid("Invalid goal action")
+                try:
+                    result = self.bridge.service.goal_action(
+                        route[1], body["action"], objective=body.get("objective", ""),
+                        goal_id=body.get("goal_id") or None, token_budget=body.get("token_budget"),
+                        activate_profile=body.get("activate_profile", False),
+                    )
+                except GoalConflict as exc:
+                    raise MobileConflict(str(exc)) from exc
+                except ValueError as exc:
+                    raise MobileInvalid(str(exc)) from exc
+                self._send_json(200, result)
                 return
             if len(route) == 3 and route[0] == 'sessions' and route[2] == 'profile' and method == 'POST':
                 body = self._read_json_body()
@@ -1057,6 +1081,8 @@ class MobileRequestHandler(BaseHTTPRequestHandler):
             else []
         )
         raw_plan_mode = body.get("plan_mode")
+        if "plan_mode" in body and not isinstance(raw_plan_mode, bool):
+            raise MobileInvalid("plan_mode must be a boolean")
         plan_mode = raw_plan_mode if isinstance(raw_plan_mode, bool) else False
         result = self.bridge.service.send_message(
             session_id,

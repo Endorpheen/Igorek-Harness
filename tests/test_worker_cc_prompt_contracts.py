@@ -9,6 +9,21 @@ from test_worker_execution_contracts import task
 from test_worker_execution_contracts import worker_factory as worker_factory
 
 
+@pytest.mark.parametrize("backend", ["codex", "claude"])
+def test_goal_continuation_stops_if_backend_lacks_goal_tools(worker_factory, backend):
+    worker = worker_factory(backend)
+    result = worker.execute_task(task(metadata={"goal_continuation": True}))
+    assert result["status"] == "fail"
+    assert "requires a backend with goal tools" in result["error"]
+
+
+@pytest.mark.parametrize("backend", ["codex", "claude"])
+def test_plan_mode_never_runs_on_backends_without_enforced_read_only_tools(worker_factory, backend):
+    result = worker_factory(backend).execute_task(task(metadata={"plan_mode": True}))
+    assert result["status"] == "fail"
+    assert "Plan mode is not supported" in result["error"]
+
+
 @pytest.fixture
 def cc(worker_factory,tmp_path,monkeypatch):
     worker=worker_factory();worker.config.update(provider='openrouter',api_format='openai',enabled_toolsets=['all'])
@@ -37,6 +52,21 @@ def test_supported_surfaces_and_stable_prefix_control_wire_tool_availability(cc,
     assert 'VaultStore' not in names
     assert packet['user_message']=='fixture user text'
     assert 'fixture foundation' in packet['system_prompt']
+
+
+def test_goal_tools_and_guidance_are_only_attached_to_current_goal_turn(cc):
+    from factory.core import thread_goals
+
+    goal = thread_goals.create_goal('goal-session', 'Finish the work')
+    metadata = {'source': 'mobile_bridge', 'session': 'goal-session',
+                'goal_id': goal['goal_id'], 'goal_revision': goal['revision']}
+    _, packet = cc.run(metadata=metadata)
+    assert {'get_goal', 'update_goal'} <= {item['name'] for item in packet['enabled_tools']}
+    assert 'user explicitly set an ongoing goal' in packet['system_prompt']
+    thread_goals.update_goal('goal-session', 'paused', by_user=True)
+    _, packet = cc.run(metadata=metadata)
+    assert {'get_goal', 'update_goal'}.isdisjoint({item['name'] for item in packet['enabled_tools']})
+    assert 'user explicitly set an ongoing goal' not in packet['system_prompt']
 
 
 @pytest.mark.parametrize('stable',[False,True])

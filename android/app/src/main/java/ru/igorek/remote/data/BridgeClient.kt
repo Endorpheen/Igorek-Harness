@@ -237,6 +237,17 @@ class BridgeClient(
         return execute(requestBuilder("/sessions$query").get().build()) { parse(it) }
     }
 
+    fun goalAction(sessionId: String, action: String, goalId: String? = null, objective: String? = null): GoalResponse {
+        val payload = buildJsonObject {
+            put("action", action)
+            if (action == "create") put("activate_profile", true)
+            if (goalId != null) put("goal_id", goalId)
+            if (objective != null) put("objective", objective)
+        }
+        val path = "/sessions/" + URLEncoder.encode(sessionId, "UTF-8") + "/goal"
+        return execute(requestBuilder(path).post(payload.toString().toRequestBody(JSON_MEDIA)).build()) { parse(it) }
+    }
+
     fun sessions(archivedOnly: Boolean = false): List<SessionSummary> =
         sessionListing(archivedOnly).sessions
 
@@ -266,8 +277,10 @@ class BridgeClient(
     fun deleteSchedule(id: String): SchedulesResponse = executeWithClient(schedulesHttp,
         requestBuilder("/schedules/" + URLEncoder.encode(id, "UTF-8")).delete().build()) { parse(it) }
 
-    fun sessionOptions(): SessionOptionsResponse =
-        execute(requestBuilder("/session-options").get().build()) { parse(it) }
+    fun sessionOptions(modelProfile: String = ""): SessionOptionsResponse {
+        val query = if (modelProfile.isBlank()) "" else "?model_profile=" + URLEncoder.encode(modelProfile, "UTF-8")
+        return execute(requestBuilder("/session-options" + query).get().build()) { parse(it) }
+    }
 
     fun mcp(action: String, fields: JsonObject): JsonObject {
         val payload = buildJsonObject { put("action", action); put("fields", fields) }
@@ -494,6 +507,7 @@ class BridgeClient(
         idempotencyKey: String?,
         uploadIds: List<String> = emptyList(),
         skillIds: List<String> = emptyList(),
+        planMode: Boolean = false,
     ): SendMessageResponse {
         val payload = json.encodeToString(
             SendMessageRequest.serializer(),
@@ -503,6 +517,7 @@ class BridgeClient(
                 uploadIds = uploadIds,
                 skillIds = skillIds,
                 activateProfile = true,
+                planMode = planMode,
             ),
         )
         val request = requestBuilder("/sessions/$sessionId/messages")

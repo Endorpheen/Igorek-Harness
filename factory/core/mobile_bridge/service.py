@@ -62,6 +62,7 @@ from ..isolation.status import (
 )
 from ..isolation.workspace import resolve_workspace_cwd
 from ..memory_manager import MemoryManager
+from ..thread_goals import get_goal
 from .. import subagents as subagent_journal
 from ..bash_sandbox_settings import sandbox_status, set_sandbox_enabled
 from ..mobile_approval_settings import (
@@ -698,7 +699,7 @@ class MobileService:
                         'image_busy': 'Дождитесь завершения подготовки окружения.'}
             raise MobileInvalid(messages.get(error, 'Не удалось запустить выбранный профиль.'))
 
-    def session_options(self, *, workdir_limit: int = 20) -> dict[str, Any]:
+    def session_options(self, *, workdir_limit: int = 20, model_profile: str = '') -> dict[str, Any]:
         """Return safe, server-derived choices for the Android new-chat form."""
         profiles: list[str] = []
         # Runtime profiles (~/.igorek-agent-factory/profiles) plus profiles bundled with the package (factory/config/profiles); otherwise bundled profiles are not visible in the form.
@@ -751,9 +752,19 @@ class MobileService:
         elif workdirs:
             default_cwd = workdirs[0]
         control = self.profile_control('catalog', '') if self.profile_control else {}
+        profile_catalog = [dict(item) for item in control.get('profiles', [])]
+        if model_profile and self.profile_control:
+            selected = next((item for item in profile_catalog if item.get('name') == model_profile), None)
+            if selected is not None:
+                models = self.profile_control('models', model_profile)
+                if models.get('models_status') in {'ready', 'unavailable', 'unsupported'}:
+                    selected.update({key: models[key] for key in ('models', 'model_labels', 'models_status') if key in models})
+                    if models.get('models_status') == 'unavailable':
+                        default = selected.get('model', '')
+                        selected['models'] = [default] if default and default != 'select-model' else []
         return {
             "profiles": profiles,
-            "profile_catalog": control.get('profiles', []),
+            "profile_catalog": profile_catalog,
             "profile_switch_supported": control.get('can_switch', False),
             "workdirs": workdirs,
             "default_profile": self.profile if self.profile in profiles else (profiles[0] if profiles else ""),
@@ -960,9 +971,32 @@ class MobileService:
                 raise MobileConflict('Дождитесь завершения текущей задачи перед переключением модели.')
             if meta.get('profile') != profile:
                 raise MobileConflict('Профиль чата изменился. Обновите список моделей.')
+        models = self.profile_control('models', profile)
+        fallback = models.get('models_status') == 'unavailable'
+        if not fallback and models.get('models_status') != 'ready':
+            raise MobileInvalid('Не удалось загрузить доступные модели. Повторите позже.')
+        if not fallback and model not in models.get('models', []):
+            raise MobileInvalid('Модель недоступна для этого профиля.')
+        with self._approval_lock, self._session_lock:
+            path = _session_path(session_id)
+            if not path.is_file():
+                raise MobileNotFound(f'session not found: {session_id}')
+            meta = _read_session_meta(path) or {}
+            if meta.get('agent_session') or meta.get('demo'):
+                raise MobileInvalid('Для этой сессии переключение модели недоступно.')
+            if self._active_task_id_for_session(session_id):
+                raise MobileConflict('Дождитесь завершения текущей задачи перед переключением модели.')
+            if meta.get('profile') != profile:
+                raise MobileConflict('Профиль чата изменился. Обновите список моделей.')
             catalog = self.profile_control('catalog', '')
             selected = next((p for p in catalog.get('profiles', []) if p.get('name') == profile), None)
-            if not catalog.get('can_switch') or not selected or model not in selected.get('models', []):
+            if not catalog.get('can_switch') or not selected:
+                raise MobileInvalid('Модель недоступна для этого профиля.')
+            current_models = self.profile_control('models', profile)
+            if current_models.get('models_status') == 'unavailable':
+                if model != selected.get('model') or model == 'select-model':
+                    raise MobileInvalid('Не удалось загрузить доступные модели. Повторите позже.')
+            elif current_models.get('models_status') != 'ready' or model not in current_models.get('models', []):
                 raise MobileInvalid('Модель недоступна для этого профиля.')
             update_session_meta(path, {'model': model, 'model_override': model})
             return self.get_session(session_id)
@@ -1663,6 +1697,7 @@ class MobileService:
             "context_window": _profile_context_window(str(meta.get("profile") or ""), context_model),
             "model": context_model,
             "session_id": session_id,
+            "goal": get_goal(session_id),
             "isolation": self._isolation_status_value(str(meta.get("profile") or "")),
             "meta": meta,
             "messages": messages,
@@ -1680,6 +1715,122 @@ class MobileService:
                 for task in related[:20]
             ],
         }
+
+    def goal_action(self, session_id: str, action: str, *, objective: str = "",
+                    goal_id: str | None = None, token_budget: int | None = None,
+                    activate_profile: bool = False) -> dict:
+        from .. import thread_goals
+
+        if not _session_path(session_id).exists():
+            raise MobileNotFound(f"session not found: {session_id}")
+        with self._message_request_lock(session_id, scope="session"):
+            if action == "create":
+                if activate_profile:
+                    meta = _read_session_meta(_session_path(session_id)) or {}
+                    self.activate_profile(str(meta.get("profile") or self.profile))
+                goal = thread_goals.create_goal(session_id, objective, token_budget=token_budget)
+            elif action == "edit":
+                goal = thread_goals.edit_goal(session_id, objective, expected_goal_id=goal_id)
+            elif action in {"pause", "resume"}:
+                goal = thread_goals.update_goal(session_id, "paused" if action == "pause" else "active",
+                                                expected_goal_id=goal_id, by_user=True)
+            elif action == "clear":
+                thread_goals.clear_goal(session_id, expected_goal_id=goal_id)
+                goal = None
+            else:
+                raise ValueError("unknown goal action")
+            payload = {"goal": goal}
+            seq = self.store.append_event(kind="goal.updated", payload=payload, session_id=session_id)
+            self._publish_event(kind="goal.updated", payload=payload, session_id=session_id, task_id=None, seq=seq)
+            return payload
+
+    def advance_goals(self) -> int:
+        from ..thread_goals import list_active_goals
+
+        return sum(self._advance_goal(goal) for goal in list_active_goals("mobile_bridge"))
+
+    def _advance_goal(self, snapshot: dict) -> int:
+        from .. import thread_goals
+        from ..prompt_assembly import goal_continuation_prompt
+
+        session_id = snapshot["session_id"]
+        with self._message_request_lock(session_id, scope="session"):
+            path = _session_path(session_id)
+            meta = _read_session_meta(path) if path.exists() else None
+            if not meta or meta.get("archived"):
+                return 0
+            profile = str(meta.get("profile") or self.profile).strip()
+            self._require_available_profile(profile)
+            workdir = str(meta.get("cwd") or self.workdir)
+            history = _load_entries(path)
+            working_history = self._working_history(session_id)
+            text = goal_continuation_prompt(snapshot["objective"])
+            prompt = _build_prompt(history, text, foundation_context=self._foundation_context())
+            changed_goal = None
+            task_id = None
+            created = False
+            with open_db(get_db_path()) as conn:
+                conn.execute("BEGIN IMMEDIATE")
+                current = thread_goals._read(conn, session_id)
+                if (not current or current["status"] != "active"
+                        or current["goal_id"] != snapshot["goal_id"]
+                        or current["revision"] != snapshot["revision"]):
+                    return 0
+                placeholders = ", ".join("?" for _ in ACTIVE_STATUSES)
+                running = conn.execute(
+                    f"SELECT task_id, metadata FROM tasks WHERE status IN ({placeholders}) AND json_valid(metadata) "
+                    "AND json_extract(metadata, '$.session') = ? LIMIT 1",
+                    (*tuple(sorted(ACTIVE_STATUSES)), session_id),
+                ).fetchone()
+                pending = conn.execute(
+                    "SELECT 1 FROM session_steer_messages WHERE session_id = ? AND consumed_at IS NULL LIMIT 1",
+                    (session_id,),
+                ).fetchone()
+                if pending:
+                    return 0
+                if running:
+                    running_metadata = _loads(running[1], {})
+                    if running_metadata.get("goal_id") != current["goal_id"]:
+                        return 0
+                    task_id = str(running[0])
+                else:
+                    previous = conn.execute(
+                        "SELECT status, metadata FROM tasks WHERE json_valid(metadata) "
+                        "AND json_extract(metadata, '$.session') = ? AND json_extract(metadata, '$.goal_id') = ? "
+                        "ORDER BY rowid DESC LIMIT 1", (session_id, current["goal_id"]),
+                    ).fetchone()
+                    if previous:
+                        previous_metadata = _loads(previous[1], {})
+                        if not previous_metadata.get("session_finalized"):
+                            return 0
+                        if previous[0] != "ok" and previous_metadata.get("goal_revision") == current["revision"]:
+                            conn.execute("UPDATE thread_goals SET status = 'blocked', updated_at = ? WHERE session_id = ?",
+                                         (int(time.time()), session_id))
+                            changed_goal = thread_goals._read(conn, session_id)
+                    if changed_goal is None:
+                        metadata = {"source": "mobile_bridge", "platform": "desktop", "session": session_id,
+                                    "cwd": workdir, "original_message_text": text, "session_user_message": text,
+                                    "history_messages": working_history, "structured_session_history": True,
+                                    "goal_id": current["goal_id"], "goal_revision": current["revision"],
+                                    "goal_continuation": True}
+                        if meta.get("model_override"):
+                            metadata["model_override"] = meta["model_override"]
+                        if meta.get("profile_generation"):
+                            metadata["profile_generation"] = meta["profile_generation"]
+                        task = create_task(text=prompt, profile=profile, metadata=metadata, _connection=conn)
+                        task_id = str(task["task_id"])
+                        created = True
+            if changed_goal is not None:
+                payload = {"goal": changed_goal}
+                seq = self.store.append_event(kind="goal.updated", payload=payload, session_id=session_id)
+                self._publish_event(kind="goal.updated", payload=payload, session_id=session_id, task_id=None, seq=seq)
+                return 0
+            payload = {"task_id": task_id, "session_id": session_id, "text": "", "goal_id": snapshot["goal_id"]}
+            seq = self.store.append_event(kind="task.submitted", payload=payload, session_id=session_id,
+                                          task_id=task_id, src_line=-4)
+            if seq is not None:
+                self._publish_event(kind="task.submitted", payload=payload, session_id=session_id, task_id=task_id, seq=seq)
+            return int(created)
 
     def session_processes(self, session_id: str) -> list[dict]:
         self._session_workdir(session_id)
@@ -2086,6 +2237,9 @@ class MobileService:
         if not effective_profile:
             raise MobileInvalid("profile is not configured for this session")
 
+        if plan_mode and self._profile_backend(effective_profile) != "cc-backend":
+            raise MobileInvalid("plan mode is not supported by this profile")
+
         selected_skills = self._validate_selected_skills(list(skill_ids or []), effective_profile)
 
         workdir = str(cwd or meta.get("cwd") or self.workdir)
@@ -2117,6 +2271,9 @@ class MobileService:
             "structured_session_history": True,
             "session_user_message": task_message,
         }
+        goal = get_goal(session_id)
+        if goal and goal["status"] == "active" and goal["surface"] == "mobile_bridge":
+            metadata.update(goal_id=goal["goal_id"], goal_revision=goal["revision"])
         if meta.get('profile_generation'):
             metadata['profile_generation'] = meta['profile_generation']
         if effective_profile == meta.get('profile') and meta.get('model_override'):
@@ -2163,6 +2320,10 @@ class MobileService:
         # its executor consume them without allocating a new task ID.
         active_task_id = self._active_task_id_for_session(session_id)
         if active_task_id:
+            active_task = get_task(active_task_id) or {}
+            active_metadata = active_task.get("metadata") if isinstance(active_task.get("metadata"), dict) else {}
+            if plan_mode or active_metadata.get("plan_mode") is True:
+                raise MobileConflict("wait for the current task before changing plan mode")
             if key:
                 payload = {'task_id': active_task_id, 'message_id': message_id,
                            'session_id': session_id, 'text': message, 'entry_text': entry_text,
@@ -2386,6 +2547,40 @@ class MobileService:
         with self._approval_lock:
             return self._finalize_turns()
 
+    def _account_goal_turn(self, task: dict, metadata: dict) -> None:
+        from .. import thread_goals
+
+        goal_id = metadata.get("goal_id")
+        session_id = str(metadata.get("session") or "")
+        if not isinstance(goal_id, str) or not goal_id or not session_id:
+            return
+        task_id = str(task.get("task_id") or "")
+        with open_db(get_db_path()) as conn:
+            row = conn.execute(
+                "SELECT usage_prompt, usage_completion, started_at, completed_at FROM tasks WHERE task_id = ?",
+                (task_id,),
+            ).fetchone()
+        if row is None:
+            return
+        tokens = max(0, int(row[0] or 0)) + max(0, int(row[1] or 0))
+        seconds = max(0, int(row[3] or 0) - int(row[2] or 0)) if row[2] and row[3] else 0
+        turn_id = task_id + ":" + str(metadata.get("session_turn_id") or "initial")
+        try:
+            status = str(task.get("status") or "")
+            goal = thread_goals.account_usage(
+                session_id, goal_id, turn_id, tokens=tokens, seconds=seconds,
+                empty=status == "ok" and not str(task.get("output_text") or "").strip(),
+                failed=status != "ok", revision=metadata.get("goal_revision"),
+            )
+        except thread_goals.GoalConflict:
+            return
+        line = -100 - int.from_bytes(hashlib.sha256(turn_id.encode()).digest()[:7], "big")
+        payload = {"goal": goal}
+        seq = self.store.append_event(kind="goal.updated", payload=payload, session_id=session_id,
+                                      task_id=task_id, src_line=line)
+        if seq is not None:
+            self._publish_event(kind="goal.updated", payload=payload, session_id=session_id, task_id=task_id, seq=seq)
+
     def _finalize_turns(self) -> int:
         """Review memory changes and append completed mobile turns to sessions."""
         finalized = 0
@@ -2396,6 +2591,8 @@ class MobileService:
                 if str(metadata.get("source") or "") != "mobile_bridge":
                     continue
                 if metadata.get("session_finalized"):
+                    if str(task.get("status") or "") in FINAL_STATUSES:
+                        self._account_goal_turn(task, metadata)
                     if metadata.get('demo_run'):
                         from .demo import complete
                         complete(self, task)
@@ -2423,6 +2620,7 @@ class MobileService:
                         self.store.append_event(kind="message.files", payload={"files": files},
                             session_id=session_id, task_id=str(task["task_id"]), src_line=-3)
                     self._merge_task_metadata(task["task_id"], {"session_finalized": True})
+                    self._account_goal_turn(task, metadata)
                     if metadata.get('demo_run'):
                         from .demo import complete
                         complete(self, task)
@@ -2475,6 +2673,7 @@ class MobileService:
                         session_id=session_id, task_id=str(task["task_id"]),
                         src_line=-3)
                 self._merge_task_metadata(task["task_id"], {"session_finalized": True})
+                self._account_goal_turn(task, metadata)
                 if metadata.get('demo_run'):
                     from .demo import complete
                     with self._approval_lock:
@@ -2583,6 +2782,15 @@ class MobileService:
                     )]
                     if current_ids != [item["id"] for item in items]:
                         continue
+                    from ..thread_goals import _read as read_goal
+
+                    current_goal = read_goal(conn, session_id)
+                    if current_goal and current_goal["status"] == "active" and current_goal["surface"] == "mobile_bridge":
+                        metadata["goal_id"] = current_goal["goal_id"]
+                        metadata["goal_revision"] = current_goal["revision"]
+                    else:
+                        metadata.pop("goal_id", None)
+                        metadata.pop("goal_revision", None)
                     cursor = conn.execute(
                         "UPDATE tasks SET input_text = ?, status = 'queued', started_at = NULL, "
                         "completed_at = NULL, error_message = NULL, updated_at = ?, metadata = ? "

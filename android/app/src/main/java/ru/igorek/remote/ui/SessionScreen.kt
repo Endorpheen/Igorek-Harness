@@ -23,6 +23,14 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
+import ru.igorek.remote.data.matchingSlashCommands
+import ru.igorek.remote.data.LocalChatCommand
+import ru.igorek.remote.data.parseLocalChatCommand
+import ru.igorek.remote.data.parseSessionGoalCommand
+import ru.igorek.remote.data.chatStatusLines
+import ru.igorek.remote.data.QuotaState
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -259,15 +267,23 @@ fun SessionScreen(
     val detail by Bridge.sessionDetail.collectAsState()
     val sessions by Bridge.sessions.collectAsState()
     val connection by Bridge.connection.collectAsState()
+    val serverUrl by Bridge.serverUrl.collectAsState()
+    val savedConnections by Bridge.savedConnections.collectAsState()
     val sessionChanges by Bridge.sessionChanges.collectAsState()
     val sessionChangesDiff by Bridge.sessionChangesDiff.collectAsState()
     val extensions by Bridge.extensions.collectAsState()
     val securitySettings by Bridge.securitySettings.collectAsState()
+    val contextUsage by Bridge.contextUsage.collectAsState()
+    val quota by Bridge.quota.collectAsState()
     val switchingProfile by Bridge.profileSwitching.collectAsState()
     val listState = rememberLazyListState()
 
     var draft by rememberSaveable(sessionId) { mutableStateOf("") }
+    var commandDialog by rememberSaveable(sessionId) { mutableStateOf<LocalChatCommand?>(null) }
+    val activeConnectionId = savedConnections.firstOrNull { it.active }?.id.orEmpty()
+    var planMode by remember(sessionId, serverUrl, activeConnectionId) { mutableStateOf(Bridge.planModeEnabled(sessionId)) }
     var sending by remember { mutableStateOf(false) }
+    var goalBusy by remember(sessionId) { mutableStateOf(false) }
     var stopMenu by remember { mutableStateOf(false) }
     var attachMenu by remember { mutableStateOf(false) }
     var emojiPicker by remember { mutableStateOf(false) }
@@ -311,6 +327,11 @@ fun SessionScreen(
     var pending by remember { mutableStateOf<List<PendingAttachment>>(emptyList()) }
     var selectedSkillIds by rememberSaveable(sessionId) { mutableStateOf<List<String>>(emptyList()) }
     var attachError by remember(sessionId) { mutableStateOf<String?>(null) }
+    fun setPlanMode(value: Boolean) {
+        val failure = runCatching { Bridge.setPlanModeEnabled(sessionId, value) }.exceptionOrNull()
+        if (failure == null) planMode = value
+        else attachError = ru.igorek.remote.data.AppLocale.text("Не удалось сохранить режим плана", "Could not save plan mode")
+    }
     var busyApproval by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -445,6 +466,7 @@ fun SessionScreen(
         confirmButton = { TextButton(onClick = { microphoneError = false }) { Text("OK") } },
     )
     var composerFocused by remember { mutableStateOf(false) }
+    var composerEditing by remember(sessionId) { mutableStateOf(TextFieldValue()) }
     val currentDetail = detail?.takeIf { it.sessionId == sessionId }
     val profile = (currentDetail?.meta?.get("profile") as? JsonPrimitive)?.content ?: summary?.profile.orEmpty()
     val composerModel = (currentDetail?.meta?.get("model") as? JsonPrimitive)?.content?.takeIf { it.isNotBlank() }
@@ -455,6 +477,12 @@ fun SessionScreen(
     val runningTaskId = if (summary != null) summary.runningTaskId
         else detail?.takeIf { it.sessionId == sessionId }?.runningTaskId
     val sessionActive = summary?.active == true || runningTaskId != null
+    commandDialog?.let { command ->
+        val weekly = (quota as? QuotaState.Ready)?.usage?.weekly?.percent
+        val cwd = (currentDetail?.meta?.get("cwd") as? JsonPrimitive)?.content.orEmpty().ifBlank { summary?.cwd.orEmpty() }
+        LocalCommandDialog(command, chatStatusLines(sessionId, cwd, composerModel, contextUsage,
+            currentDetail?.contextWindow, weekly)) { commandDialog = null }
+    }
     val streaming = timeline.any { item ->
         when (item) {
             is TimelineItem.AssistantText -> item.streaming
@@ -517,6 +545,14 @@ fun SessionScreen(
                     connection = connection,
                     work = work,
                     compactStatus = true,
+                    compactIndicator = {
+                        PlanModeButton(planMode) { value ->
+                            setPlanMode(value)
+                            if (planMode == value && (sessionActive || streaming)) Toast.makeText(context,
+                                ru.igorek.remote.data.AppLocale.text("Изменение режима действует после текущей задачи", "The mode changes after the current task"),
+                                Toast.LENGTH_SHORT).show()
+                        }
+                    },
                     showNotifications = false,
                     onMenu = onMenu,
                     actions = {
@@ -665,6 +701,12 @@ fun SessionScreen(
                                 }
                             }
                         }
+                        if (selectedMcp == null) {
+                            SlashCommandMenu(matchingSlashCommands(draft, currentDetail?.goal), enabled = !sending) { completion ->
+                                draft = completion
+                                composerEditing = TextFieldValue(completion, TextRange(completion.length))
+                            }
+                        }
                         if (skillToken != null) {
                             Surface(
                                 modifier = Modifier.fillMaxWidth(),
@@ -727,15 +769,20 @@ fun SessionScreen(
                                     }
                                 }
                                 BasicTextField(
-                                    value = draft,
-                                    onValueChange = { draft = it },
+                                    value = if (composerEditing.text == draft) composerEditing
+                                        else TextFieldValue(draft, TextRange(draft.length)),
+                                    onValueChange = { composerEditing = it; draft = it.text },
                                     modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(horizontal = 12.dp, vertical = 8.dp).onFocusChanged { composerFocused = it.isFocused },
                                     textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+                                    visualTransformation = if (selectedMcp == null) {
+                                        val commandColor = MaterialTheme.colorScheme.primary
+                                        remember(commandColor) { SlashCommandVisualTransformation(commandColor) }
+                                    } else androidx.compose.ui.text.input.VisualTransformation.None,
                                     cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary),
                                     maxLines = 5,
                                     decorationBox = { inner ->
                                         Box {
-                                            if (draft.isEmpty()) Text(uiText("Сообщение Игорьку", "Message Igorek"), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            if (draft.isEmpty()) Text(uiText("Сообщение или /команда", "Message or /command"), color = MaterialTheme.colorScheme.onSurfaceVariant)
                                             inner()
                                         }
                                     },
@@ -806,7 +853,25 @@ fun SessionScreen(
                                             val outgoingSkills = selectedSkillIds
                                             if (text.isEmpty() && outgoingAttachments.isEmpty()) return@FilledIconButton
                                             val mcp = selectedMcp
+                                            val localCommand = if (mcp == null) parseLocalChatCommand(text) else null
+                                            if (localCommand != null) {
+                                                if (outgoingAttachments.isNotEmpty() || outgoingSkills.isNotEmpty()) {
+                                                    attachError = ru.igorek.remote.data.AppLocale.text("Отправьте команду без вложений и навыков", "Send the command without attachments or skills")
+                                                    return@FilledIconButton
+                                                }
+                                                when (localCommand) {
+                                                    LocalChatCommand.Help -> commandDialog = localCommand
+                                                    LocalChatCommand.Status -> { Bridge.refreshQuota(); commandDialog = localCommand }
+                                                }
+                                                attachError = null
+                                                draft = ""
+                                                return@FilledIconButton
+                                            }
                                             if (mcp != null) {
+                                                if (planMode) {
+                                                    attachError = ru.igorek.remote.data.AppLocale.text("Отключите режим плана для запроса к MCP", "Disable plan mode to send an MCP request")
+                                                    return@FilledIconButton
+                                                }
                                                 if (outgoingAttachments.isNotEmpty() || outgoingSkills.isNotEmpty()) {
                                                     attachError = "Уберите вложения и скиллы для сообщения выбранному MCP."
                                                     return@FilledIconButton
@@ -856,6 +921,12 @@ fun SessionScreen(
                                                 }
                                                 return@FilledIconButton
                                             }
+                                            val isGoalCommand = parseSessionGoalCommand(text, currentDetail?.goal) != null
+                                            if (planMode && !isGoalCommand && (sessionActive || streaming || extensions.profile != profile || extensions.backend != "cc-backend")) {
+                                                attachError = ru.igorek.remote.data.AppLocale.text("План можно отправить только после завершения задачи с поддерживаемым исполнителем", "A plan requires an idle session and a supported executor")
+                                                return@FilledIconButton
+                                            }
+                                            val outgoingPlan = planMode && !isGoalCommand
                                             sending = true
                                             attachError = null
                                             scope.launch {
@@ -891,6 +962,7 @@ fun SessionScreen(
                                                             if (item.mimeType.startsWith("image/")) "image" else "file")
                                                     },
                                                     skillIds = outgoingSkills,
+                                                    planMode = outgoingPlan,
                                                 ) { error ->
                                                     sending = false
                                                     if (error != null) {
@@ -921,6 +993,15 @@ fun SessionScreen(
                 Column(Modifier.fillMaxSize()) {
                     if (securityBadgeVisible(securitySettings)) {
                         SecurityWeakenedBanner(securitySettings)
+                    }
+                    detail?.takeIf { it.sessionId == sessionId }?.goal?.let { goal ->
+                        GoalStatusCard(goal, goalBusy) { action, objective ->
+                            goalBusy = true
+                            Bridge.goalAction(sessionId, action, goal.goalId, objective) { error ->
+                                goalBusy = false
+                                if (error != null) attachError = error.message ?: ru.igorek.remote.data.AppLocale.text("Не удалось изменить цель", "Could not update the goal")
+                            }
+                        }
                     }
                     LazyColumn(
                         state = listState,

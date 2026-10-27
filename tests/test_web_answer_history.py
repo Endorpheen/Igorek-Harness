@@ -51,14 +51,16 @@ function fn(name){const start=source.indexOf('async function '+name+'(');const e
 (async()=>{
  const state={selected:'old',session:{meta:{session_id:'old'}},selectGeneration:0,items:[],panel:{open:true},sessions:[],
   seenSeq:new Set(),textStreamRounds:new Map(),textStreams:new Map(),reasoningStreams:new Map(),toolItems:new Map(),knownAssistantText:new Set(),closedStreams:new Map(),lateDeltas:new Map(),activeTasks:new Set(),finishedTasks:new Set(),startedTasks:new Set(),taskStarts:new Map(),finishNotes:new Map()};
- const ctx={releaseAttachmentPreviews(){},state,window:{dispatchEvent(){},IgorekVoice:{onSessionChanged(){}}},Event:function(){},
+ const goalUpdates=[];
+ const ctx={releaseAttachmentPreviews(){},state,goalPanel:{setGoal(goal){goalUpdates.push(goal)}},window:{dispatchEvent(){},IgorekVoice:{onSessionChanged(){}}},Event:function(){},
   ui:{welcome:{},conversation:{},timeline:{replaceChildren(){}},composer:{},title:{}},t:x=>x,encode:x=>x,
-  api:async path=>path.endsWith('/cursor')?{seq:7}:{session_id:'new',meta:{session_id:'new',profile:'codexpro'},messages:[]},
+  api:async path=>path.endsWith('/cursor')?{seq:7}:{session_id:'new',meta:{session_id:'new',profile:'codexpro'},messages:[],goal:{objective:'new session goal'}},
   refreshPanel(){assert.equal(state.session.meta.session_id,state.selected,'journal started before the new messages were loaded');},
   renderContext(){},renderTimeline(){},renderSessions(){},renderAgentNavigation(){},setRuntime(){},
   resetPanelData(){},stopStream(){},stopMic(){},showMainView(){},resetMentionState(){},setIndicator(){},renderAttachments(){},clearMessageRail(){},
   document:{body:{classList:{remove(){}}}},sessionMessageItems:()=>[],loadApprovals:async()=>{},startStream(){},loadSessionJournal:async()=>{},loadSubagents:async()=>{},loadOpenCodeUsage:async()=>{},loadSessions:async()=>{},toast(){throw Error('unexpected select error')}};
  vm.createContext(ctx);vm.runInContext(fn('selectSession'),ctx);await ctx.selectSession('new');
+ assert.equal(goalUpdates[0],null);assert.equal(goalUpdates[1].objective,'new session goal');
  let finish,applied=0,scanned=0;state.selected='same';state.plan={loading:false,status:'idle'};
  Object.assign(ctx,{JOURNAL_PAGE_LIMIT:500,newJournalHistory:()=>({}),renderPlanSection(){},api:()=>new Promise(r=>finish=r),
   scanJournalEvent(){scanned++},collectJournalHistory(){scanned++},buildHistoryEntries:()=>[],applyHistoryEntries(){applied++}});

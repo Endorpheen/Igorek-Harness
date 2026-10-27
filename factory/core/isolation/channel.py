@@ -193,6 +193,8 @@ class MessageKind(StrEnum):
     WEB_REPLY = "web_reply"
     SESSION_SEARCH_REQUEST = "session_search_request"
     SESSION_SEARCH_REPLY = "session_search_reply"
+    GOAL_REQUEST = "goal_request"
+    GOAL_REPLY = "goal_reply"
     VAULT_STORE_REQUEST = "vault_store_request"
     VAULT_STORE_REPLY = "vault_store_reply"
     MEMORY_FORGET_REQUEST = "memory_forget_request"
@@ -226,6 +228,8 @@ def display_envelope_key(kind: MessageKind) -> str | None:
             | MessageKind.WEB_REPLY
             | MessageKind.SESSION_SEARCH_REQUEST
             | MessageKind.SESSION_SEARCH_REPLY
+            | MessageKind.GOAL_REQUEST
+            | MessageKind.GOAL_REPLY
             | MessageKind.VAULT_STORE_REQUEST
             | MessageKind.VAULT_STORE_REPLY
             | MessageKind.MEMORY_FORGET_REQUEST
@@ -370,6 +374,12 @@ class _PayloadPolicy:
         elif kind is MessageKind.SESSION_SEARCH_REPLY:
             self._validate_session_search_reply(payload)
             return
+        elif kind is MessageKind.GOAL_REQUEST:
+            self._validate_goal_request(payload)
+            return
+        elif kind is MessageKind.GOAL_REPLY:
+            self._validate_session_search_reply(payload)
+            return
         elif kind is MessageKind.VAULT_STORE_REQUEST:
             from ..vault.agent_values import validate_request
             try:
@@ -467,6 +477,20 @@ class _PayloadPolicy:
             raise ChannelError("session_search_request_invalid", "invalid role filter", fatal=False)
         if not isinstance(mode, str) or mode not in {"lexical", "semantic", "hybrid"}:
             raise ChannelError("session_search_request_invalid", "invalid search mode", fatal=False)
+
+    @staticmethod
+    def _validate_goal_request(payload: Mapping[str, JsonValue]) -> None:
+        request_id, args = payload.get("request_id"), payload.get("args")
+        if (set(payload) != {"request_id", "args"} or not isinstance(request_id, str)
+                or not re.fullmatch(r"[0-9a-f-]{36}", request_id) or not isinstance(args, dict)):
+            raise ChannelError("goal_request_invalid", "invalid request", fatal=False)
+        operation = args.get("operation")
+        if operation == "get" and set(args) == {"operation"}:
+            return
+        if (operation == "update" and set(args) == {"operation", "status"}
+                and isinstance(args.get("status"), str) and args["status"] in {"complete", "blocked", "paused"}):
+            return
+        raise ChannelError("goal_request_invalid", "invalid goal action", fatal=False)
 
     @staticmethod
     def _validate_session_search_reply(payload: Mapping[str, JsonValue]) -> None:

@@ -1333,6 +1333,7 @@ def execute_cc_backend_task(
     session_search_provider: Callable[[dict[str, Any]], str] | None = None,
     vault_store_provider: Callable[[dict[str, Any]], str] | None = None,
     memory_forget_provider: Callable[[dict[str, Any]], str] | None = None,
+    goal_control_provider: Callable[[dict[str, Any]], str] | None = None,
     data_root: str | None = None,
 ) -> dict[str, Any]:
     """Run the full tool-use loop against the CC backend.
@@ -2098,6 +2099,7 @@ def execute_cc_backend_task(
                     session_search_provider=session_search_provider,
                     vault_store_provider=vault_store_provider,
                     memory_forget_provider=memory_forget_provider,
+                    **({"goal_control_provider": goal_control_provider} if goal_control_provider is not None else {}),
                     user_message=user_message,
                 )
                 if forced_name == "suggest_enable_mcp":
@@ -2364,6 +2366,7 @@ def execute_cc_backend_task(
                                 session_search_provider=session_search_provider,
                                 vault_store_provider=vault_store_provider,
                     memory_forget_provider=memory_forget_provider,
+                    **({"goal_control_provider": goal_control_provider} if goal_control_provider is not None else {}),
                     user_message=user_message,
                             )
                             if pending_name == "suggest_enable_mcp":
@@ -3534,6 +3537,7 @@ def execute_cc_backend_task(
                                 session_search_provider=session_search_provider,
                                 vault_store_provider=vault_store_provider,
                     memory_forget_provider=memory_forget_provider,
+                    **({"goal_control_provider": goal_control_provider} if goal_control_provider is not None else {}),
                     user_message=user_message,
                             )
                             if effective_name == "suggest_enable_mcp":

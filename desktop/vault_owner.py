@@ -10,6 +10,8 @@ import os
 import hashlib
 import hmac
 import secrets
+import threading
+import time
 
 from factory.core.vault.lifecycle import (
     VaultLifecycle, VaultAuthenticationError, VaultBusyError,
@@ -38,6 +40,10 @@ class OwnerVault:
         self.providers = ProviderSetup(self.service)
         from chatgpt_connection import ChatGPTConnection
         self.chatgpt = ChatGPTConnection(root, self.lifecycle)
+        self._models_lock = threading.Lock()
+        self._models_cache = {}
+        self._models_pending = {}
+        self._models_warming = set()
         from codex_quota import CodexQuotaConnection
         self.codex_quota=CodexQuotaConnection(root,self.lifecycle,lambda:not self.interface_locked)
         self.lifecycle.codex_quota=self.codex_quota
@@ -68,10 +74,70 @@ class OwnerVault:
         if profile and is_loopback_provider(profile["config"]) and self.execution.mode != "off":
             return 'local_requires_host_mode'
         self.agent.start(credential_id)
+        if profile and profile['config'].get('api_format') == 'openai-responses':
+            self._warm_chatgpt_models(profile)
         return None
 
+    def _chatgpt_models(self, profile):
+        identity = profile['credential_id']
+        with self._models_lock:
+            cached = self._models_cache.get(identity)
+            if cached and cached['expires'] > time.monotonic():
+                return {key: value for key, value in cached.items() if key != 'expires'}
+            event = self._models_pending.get(identity)
+            leader = event is None
+            if leader:
+                event = self._models_pending[identity] = threading.Event()
+        if not leader:
+            if not event.wait(22):
+                return {'models': [], 'model_labels': {}, 'models_status': 'unavailable'}
+            with self._models_lock:
+                cached = self._models_cache.get(identity, {})
+                return {key: value for key, value in cached.items() if key != 'expires'}
+        try:
+            rows = self.chatgpt.catalog(identity).get('models', [])
+            models, labels = [], {}
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                model = row.get('id')
+                if not isinstance(model, str) or not model or len(model) > 256 or any(ord(c) < 33 for c in model) or model in labels:
+                    continue
+                label = str(row.get('name') or model)[:256]
+                models.append(model)
+                labels[model] = label
+                if len(models) >= 256:
+                    break
+            if not models:
+                raise ValueError('Empty model catalog')
+            result = {'models': models, 'model_labels': labels, 'models_status': 'ready'}
+            ttl = 60
+        except Exception:
+            result = {'models': [], 'model_labels': {}, 'models_status': 'unavailable'}
+            ttl = 10
+        with self._models_lock:
+            self._models_cache[identity] = {**result, 'expires': time.monotonic() + ttl}
+            self._models_pending.pop(identity, None)
+            event.set()
+        return result
+
+    def _warm_chatgpt_models(self, profile):
+        identity = profile['credential_id']
+        with self._models_lock:
+            cached = self._models_cache.get(identity)
+            if identity in self._models_warming or identity in self._models_pending or (cached and cached['expires'] > time.monotonic()):
+                return
+            self._models_warming.add(identity)
+        def warm():
+            try:
+                self._chatgpt_models(profile)
+            finally:
+                with self._models_lock:
+                    self._models_warming.discard(identity)
+        threading.Thread(target=warm, name='igorek-model-catalog', daemon=True).start()
+
     def mobile_profile_control(self, operation, name):
-        if operation not in {'catalog', 'activate'} or not isinstance(name, str) or len(name) > 40:
+        if operation not in {'catalog', 'activate', 'models'} or not isinstance(name, str) or len(name) > 40:
             return {'error': 'invalid_request'}
         if self.service.status()['state'] != 'unlocked':
             return {'error': 'vault_locked'}
@@ -82,15 +148,33 @@ class OwnerVault:
         if not self.agent:
             return {'error': 'agent_unavailable'}
         if operation == 'catalog':
-            model_pair = ('gpt-6.1-sol', 'gpt-6.1-terra')
-            return {'profiles': [{'name': p['config']['name'], 'model': p['config']['model'],
-                                   'local': is_loopback_provider(p['config']),
-                                   'models': list(model_pair) if p['config'].get('api_format') == 'openai-responses'
-                                   and p['config'].get('model') in model_pair else []} for p in profiles],
-                    'active_profile': self.agent.status().get('profile', ''), 'can_switch': True}
+            active = self.agent.status().get('profile', '')
+            items = []
+            for profile in profiles:
+                config = profile['config']
+                item = {'name': config['name'], 'model': config['model'], 'local': is_loopback_provider(config)}
+                if config.get('api_format') == 'openai-responses':
+                    with self._models_lock:
+                        cached = dict(self._models_cache.get(profile['credential_id']) or {})
+                    if cached.get('models_status') == 'ready':
+                        item.update({key: value for key, value in cached.items() if key != 'expires'})
+                        if cached.get('expires', 0) <= time.monotonic():
+                            item['models_status'] = 'loading'
+                    else:
+                        default = config.get('model', '')
+                        item.update({'models': [default] if default and default != 'select-model' else [],
+                                     'model_labels': {}, 'models_status': cached.get('models_status', 'loading')})
+                    if config['name'] == active:
+                        self._warm_chatgpt_models(profile)
+                items.append(item)
+            return {'profiles': items, 'active_profile': active, 'can_switch': True}
         profile = next((p for p in profiles if p['config']['name'] == name), None)
         if profile is None:
             return {'error': 'profile_not_verified'}
+        if operation == 'models':
+            if profile['config'].get('api_format') != 'openai-responses':
+                return {'models': [], 'model_labels': {}, 'models_status': 'unsupported'}
+            return self._chatgpt_models(profile)
         with self.agent.control_lock:
             active = self.agent.status().get('profile', '')
             if active and active != name and self.browser_service.has_pending_profile_tasks(active):

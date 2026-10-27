@@ -129,6 +129,45 @@ const LANG_STORAGE_KEY = "igorek-web:lang";
 const SUPPORTED_LANGS = ["ru", "en"];
 const DEFAULT_LANG = "ru";
 let lang = DEFAULT_LANG;
+const goalPanel = window.IgorekGoalPanel.mount(byId("goal-card"), {
+  language: () => lang,
+  action: (action, values) => performGoalAction(action, values),
+  error: (error) => toast(error.message, "error"),
+});
+
+async function performGoalAction(action, values = {}) {
+  const sessionId = state.selected;
+  if (!sessionId) throw new Error(lang === "en" ? "Select a chat first" : "Сначала выберите чат");
+  if (action === "create" && window.IgorekAgent && !(await window.IgorekAgent.ensureProfile(state.session?.meta?.profile))) return null;
+  if (state.selected !== sessionId) return null;
+  const result = await api("/api/sessions/" + encode(sessionId) + "/goal", {
+    method: "POST", body: JSON.stringify({action, ...values}),
+  });
+  if (state.selected === sessionId && state.session) {
+    state.session.goal = result.goal;
+    goalPanel.setGoal(result.goal);
+  }
+  return result;
+}
+
+async function handleGoalCommand(text) {
+  const value = text.slice(5).trim();
+  const goal = state.session?.goal;
+  if (!value) {
+    if (goal) byId("goal-card").focus();
+    else toast(lang === "en" ? "Use /goal followed by an objective" : "Напишите /goal и текст цели");
+    return Boolean(goal);
+  }
+  if (["pause", "resume", "clear"].includes(value)) {
+    if (!goal) throw new Error(lang === "en" ? "No goal in this chat" : "В этом чате нет цели");
+    return Boolean(await performGoalAction(value, {goal_id: goal.goal_id}));
+  } else if (value.startsWith("edit ")) {
+    if (!goal) throw new Error(lang === "en" ? "No goal in this chat" : "В этом чате нет цели");
+    return Boolean(await performGoalAction("edit", {goal_id: goal.goal_id, objective: value.slice(5).trim()}));
+  } else {
+    return Boolean(await performGoalAction("create", {objective: value}));
+  }
+}
 
 const I18N = {
   ru: {
@@ -774,7 +813,7 @@ const I18N = {
     "agents.chip.tool_result": "Результат инструмента",
     "agents.chip.web_search": "Поиск в интернете",
     "agents.chip.attachment": "Файл",
-    "mention.aria": "Подсказки $ для скиллов и @ для файлов",
+    "mention.aria": "Подсказки / для команд, $ для скиллов и @ для файлов",
     "mention.head_skills": "Скиллы · {profile}",
     "mention.head_files": "Файлы · {path}",
     "mention.empty": "Ничего не найдено",
@@ -1429,7 +1468,7 @@ const I18N = {
     "agents.chip.tool_result": "Tool result",
     "agents.chip.web_search": "Web search",
     "agents.chip.attachment": "File",
-    "mention.aria": "Type $ for skills and @ for files",
+    "mention.aria": "Type / for commands, $ for skills and @ for files",
     "mention.head_skills": "Skills · {profile}",
     "mention.head_files": "Files · {path}",
     "mention.empty": "Nothing found",
@@ -1545,6 +1584,7 @@ function setLanguage(next) {
   lang = value;
   storageWrite(LANG_STORAGE_KEY, lang);
   syncLanguage();
+  goalPanel.render();
 }
 
 function renderLanguageSettings() {
@@ -2491,6 +2531,7 @@ async function selectSession(sessionId) {
   const generation = Number(state.selectGeneration || 0) + 1;
   state.selectGeneration = generation;
   state.selected = sessionId;
+  goalPanel.setGoal(null);
   window.IgorekSummary?.sync();
   state.pinned = true;
   state.items = [];
@@ -2524,6 +2565,7 @@ async function selectSession(sessionId) {
     const session = await api("/api/sessions/" + encode(sessionId));
     if (state.selected !== sessionId || state.selectGeneration !== generation) return;
     state.session = session;
+    goalPanel.setGoal(session.goal);
     renderAgentNavigation();
     ui.composer.hidden = Boolean(session.meta?.agent_session);
     window.IgorekCompletionSound?.watch(session.meta?.agent_session ? null : session.running_task_id);
@@ -3684,6 +3726,12 @@ function handleEvent(event) {
   const data = event.payload || {};
   const taskId = event.task_id || data.task_id || "task";
   switch (event.kind) {
+    case "goal.updated":
+      if (state.session && event.session_id === state.selected) {
+        state.session.goal = data.goal || null;
+        goalPanel.setGoal(state.session.goal);
+      }
+      break;
     case "opencode.message":
       upsert({id:"opencode-"+data.message_id,type:"assistant",text:data.text||"",ts:event.ts,task_id:taskId});
       break;
@@ -4187,6 +4235,20 @@ async function sendMessage(event) {
   ui.send.disabled = true;
   const sessionId = state.selected;
   try {
+    if (["/help", "/status"].includes(text)) {
+      if (state.attachments.length) throw new Error(lang === "en" ? "Send commands without attachments" : "Отправьте команду без вложений");
+      showSlashCommandDialog(text, sessionId, state.session);
+      ui.message.value = ""; ui.message.style.height = "auto"; closeMentionMenu();
+      return;
+    }
+    if (/^\/goal(?:\s|$)/.test(text)) {
+      if (state.attachments.length) throw new Error(lang === "en" ? "Send /goal without attachments" : "Отправьте /goal без вложений");
+      if (await handleGoalCommand(text) && state.selected === sessionId && ui.message.value.trim() === text) {
+        ui.message.value = "";
+        ui.message.style.height = "auto";
+      }
+      return;
+    }
     if(window.IgorekAgent&&!(await window.IgorekAgent.ensureProfile(state.session?.meta?.profile)))return;
     if(state.selected!==sessionId)return;
     const failed = [];
@@ -4327,6 +4389,118 @@ function toggleMic() {
 // In Composer references: «$» denotes included skills from the session profile, «@» denotes files
 // from the session's working directory. Visible text is not replaced: the skill is passed as «$id» and
 // added to skill_ids, while the file is inserted with its relative path unchanged.
+function slashCommandSuggestions(draft, goal, language) {
+  const value = String(draft || "");
+  if (/[\r\n]/.test(value)) return [];
+  const query = value.trimStart();
+  if (!query.startsWith("/")) return [];
+  if (query.endsWith(" ") && query.trimEnd().includes(" ")) return [];
+  const en = language === "en";
+  const label = (ru, english) => en ? english : ru;
+  const commands = [
+    {command:"/help", description:label("Справка по командам", "Show command help")},
+    {command:"/status", description:label("Состояние чата и контекста", "Show chat and context status")},
+    {command:"/goal", description:goal ? label("Показать текущую цель", "Show the current goal") : label("Задать цель: /goal текст цели", "Set a goal: /goal objective")},
+    {command:"/demo", description:label("Познакомиться с Игорьком", "Explore Igorek")},
+  ];
+  if (goal) {
+    if (goal.status === "active") commands.push({command:"/goal pause", description:label("Приостановить цель", "Pause the goal")});
+    if (["paused", "blocked", "usage_limited"].includes(goal.status)) commands.push({command:"/goal resume", description:label("Продолжить цель", "Resume the goal")});
+    commands.push({command:"/goal edit", description:label("Изменить цель: /goal edit новый текст", "Edit the goal: /goal edit new objective")});
+    commands.push({command:"/goal clear", description:label("Убрать цель из чата", "Remove the goal from this chat")});
+  }
+  const lower = query.toLowerCase();
+  return commands.filter(item => item.command.startsWith(lower));
+}
+
+function showSlashCommandDialog(command, sessionId, session) {
+  const en = lang === "en", label = (ru, english) => en ? english : ru;
+  const dialog = element("dialog", "session-dialog");
+  const title = command === "/help" ? label("Команды чата", "Chat commands") : command === "/goal" ? label("Цель чата", "Chat goal") : label("Статус чата", "Chat status");
+  dialog.setAttribute("aria-label", title);
+  const head = element("div", "dialog-head");
+  head.append(element("h2", "", title));
+  dialog.append(head);
+  const body = element("div", "slash-command-details");
+  const meta = session?.meta || {};
+  const unknown = label("Нет данных", "Unavailable");
+  let rows;
+  if (command === "/help") {
+    rows = [["/help", label("Показать эту справку", "Show this help")],
+      ["/status", label("Показать данные чата и контекста", "Show chat and context details")],
+      ["/goal", label("Задать или изменить цель чата", "Set or edit the chat goal")],
+      ["/demo", label("Познакомиться с Игорьком", "Explore Igorek")]];
+  } else if (command === "/goal") {
+    rows = [[label("Цель", "Goal"), session?.goal?.objective || unknown],
+      [label("Состояние", "Status"), session?.goal?.status || unknown]];
+  } else {
+    const selected = sessionId === state.selected;
+    const used = selected && state.plan?.session === sessionId ? state.plan?.usage?.lastInput : null;
+    const windowSize = selected ? modelContextWindow() : null;
+    const context = Number.isFinite(used) && Number.isFinite(windowSize) && windowSize > 0
+      ? label(`Осталось ${formatCount(Math.max(0, windowSize-used))} из ${formatCount(windowSize)} токенов`, `${formatCount(Math.max(0, windowSize-used))} of ${formatCount(windowSize)} tokens remaining`) : unknown;
+    const weekly = selected && state.quota?.profile === String(meta.profile || "") ? state.quota?.data?.weekly?.percent : null;
+    const quota = typeof weekly === "number" && Number.isFinite(weekly)
+      ? label(`Осталось ${Math.floor(Math.max(0, Math.min(100, 100-weekly)))}%`, `${Math.floor(Math.max(0, Math.min(100, 100-weekly)))}% remaining`) : unknown;
+    rows = [[label("Чат", "Chat"), sessionId], [label("Каталог", "Directory"), meta.cwd || unknown],
+      [label("Модель", "Model"), meta.model || session?.model || unknown],
+      [label("Контекст", "Context"), context], [label("Лимит за неделю", "Weekly limit"), quota]];
+  }
+  for (const [name, value] of rows) {
+    const row = element("div", "slash-command-detail");
+    row.append(element("strong", "", name), element("div", "dialog-description", value));
+    body.append(row);
+  }
+  const actions = element("div", "dialog-actions"), close = element("button", "secondary-button", label("Закрыть", "Close"));
+  close.type = "button"; close.addEventListener("click", () => dialog.close()); actions.append(close);
+  dialog.append(body, actions); dialog.addEventListener("close", () => dialog.remove(), {once:true});
+  document.body.append(dialog); dialog.showModal();
+}
+
+function attachWorkspaceSlashMenu(input, form, goal, changed) {
+  const menu = element("div", "mention-menu workspace-slash-menu"), head = element("div", "mention-head"), rows = element("div", "mention-rows");
+  menu.hidden = true; rows.setAttribute("role", "listbox");
+  rows.setAttribute("aria-label", lang === "en" ? "Chat commands" : "Команды чата");
+  menu.append(head, rows); form.prepend(menu);
+  let items = [], active = 0;
+  function close() { menu.hidden = true; items = []; rows.replaceChildren(); }
+  function choose(index) {
+    const item = items[index]; if (!item) return;
+    const prefix = input.value.match(/^[^\S\r\n]*/)?.[0] || "";
+    input.value = prefix + item.command + " ";
+    input.setSelectionRange(input.value.length, input.value.length);
+    changed(); close(); input.focus();
+  }
+  function refresh() {
+    if (input.selectionStart !== input.selectionEnd || input.selectionStart !== input.value.length) { close(); return; }
+    items = slashCommandSuggestions(input.value, goal(), lang); active = 0;
+    if (!items.length) { close(); return; }
+    head.textContent = lang === "en" ? "Chat commands" : "Команды чата";
+    rows.replaceChildren(); menu.hidden = false;
+    items.forEach((item, index) => {
+      const button = element("button", "mention-row" + (index === 0 ? " active" : ""));
+      button.type = "button"; button.setAttribute("role", "option");
+      button.setAttribute("aria-selected", index === 0 ? "true" : "false");
+      button.append(element("span", "mention-row-name", item.command), element("span", "mention-row-meta", item.description));
+      button.addEventListener("mousedown", event => event.preventDefault());
+      button.addEventListener("click", () => choose(index)); rows.append(button);
+    });
+  }
+  function keydown(event) {
+    if (menu.hidden || event.isComposing || event.ctrlKey || event.metaKey || event.altKey) return false;
+    if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close(); return true; }
+    if (["ArrowDown", "ArrowUp"].includes(event.key)) {
+      event.preventDefault(); active = (active + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+      Array.from(rows.children).forEach((row, index) => { row.classList.toggle("active", index === active); row.setAttribute("aria-selected", String(index === active)); });
+      rows.children[active]?.scrollIntoView?.({block:"nearest"}); return true;
+    }
+    if ((event.key === "Enter" || event.key === "Tab") && !event.shiftKey) { event.preventDefault(); choose(active); return true; }
+    return false;
+  }
+  input.addEventListener("blur", close);
+  return {refresh, keydown, close};
+}
+
 const MENTION_MAX_ROWS = 60;
 const MENTION_MAX_SKILLS = 5;
 const MENTION_TREE_TTL_MS = 15000;
@@ -4346,6 +4520,10 @@ function mentionContext() {
   const caret = Number(ui.message.selectionStart ?? value.length);
   let start = caret;
   while (start > 0 && !/\s/.test(value[start - 1])) start -= 1;
+  if (caret === value.length && ui.message.selectionEnd === caret) {
+    const commands = slashCommandSuggestions(value, state.session?.goal, lang);
+    if (commands.length) return {trigger:"/", query:value.trimStart(), start:0, caret, commands};
+  }
   const token = value.slice(start, caret);
   if (!token) return null;
   const trigger = token[0];
@@ -4453,7 +4631,10 @@ function replaceMentionToken(replacement) {
 function acceptMention(index) {
   const row = mentionModel().items[index];
   if (!row) return;
-  if (row.kind === "skill") {
+  if (row.kind === "slash") {
+    replaceMentionToken(row.command + " ");
+    closeMentionMenu();
+  } else if (row.kind === "skill") {
     if (!mentionModel().skillsTracked.has(row.id) && mentionModel().skillsTracked.size >= MENTION_MAX_SKILLS) {
       toast(t("mention.skills_limit"));
       return;
@@ -4477,12 +4658,18 @@ function refreshMention() {
     closeMentionMenu();
     return;
   }
-  if (ctx.trigger === "$") openSkillMention(ctx);
+  if (ctx.trigger === "/") {
+    mentionModel().mode = "commands";
+    window.clearTimeout(mentionTimer);
+    renderMentionFrame("commands", lang === "en" ? "Chat commands" : "Команды чата");
+    renderMentionRows(ctx.commands.map(item => ({kind:"slash", command:item.command, label:item.command, meta:item.description})));
+  } else if (ctx.trigger === "$") openSkillMention(ctx);
   else openFileMention(ctx);
 }
 function mentionKeydown(event) {
   const model = mentionModel();
   if (model.menu === "closed") return;
+  if (model.menu === "commands" && (event.isComposing || event.shiftKey || event.ctrlKey || event.metaKey || event.altKey)) return;
   if (event.key === "ArrowDown") {
     event.preventDefault();
     if (model.items.length) setMentionActive((model.active + 1) % model.items.length);
@@ -8772,6 +8959,7 @@ function buildWorkspaceChat(host, tab) {
   actions.append(meta,stop,send);bottom.append(left,actions);form.append(attachments,row,note,bottom);status.setAttribute('role','status');wrap.append(status,form,element('div','composer-caption',t('composer.caption')));host.append(head,messages,wrap);
   tab.attachments=tab.attachments||[];
   let loading=false,snapshot=null,sending=false,sessionGeneration=0,pending=false;
+  const slashMenu=attachWorkspaceSlashMenu(input,form,()=>snapshot?.goal,()=>{tab.draft=input.value;resize();sync();});
   const nodes=new Map(),generation=++workspaceChatGeneration;
   const valid=()=>workspaceChatGeneration===generation&&state.panel.open&&state.panel.workspace.active===tab;
   const resize=()=>{input.style.height='auto';input.style.height=Math.min(input.scrollHeight,170)+'px';};
@@ -8804,7 +8992,7 @@ function buildWorkspaceChat(host, tab) {
     }renderFiles();
   };
   attach.addEventListener('click',()=>fileInput.click());fileInput.addEventListener('change',()=>{addFiles(fileInput.files||[]);fileInput.value='';});input.addEventListener('paste',event=>{const files=clipboardPasteFiles(event);if(files.length){event.preventDefault();addFiles(files);}});
-  input.addEventListener('input',()=>{tab.draft=input.value;resize();sync();});input.addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();if(!send.disabled)form.requestSubmit();}});
+  input.addEventListener('input',()=>{tab.draft=input.value;resize();sync();slashMenu.refresh();});input.addEventListener('click',()=>slashMenu.refresh());input.addEventListener('keydown',event=>{if(slashMenu.keydown(event))return;if(event.key==='Enter'&&!event.shiftKey&&!event.isComposing){event.preventDefault();if(!send.disabled)form.requestSubmit();}});
   plan.addEventListener('click',()=>{tab.planMode=true;sync();});execute.addEventListener('click',()=>{tab.planMode=false;sync();});
   const draw=data=>{
     const pinned=messages.scrollHeight-messages.scrollTop-messages.clientHeight<60;
@@ -8852,6 +9040,33 @@ function buildWorkspaceChat(host, tab) {
     event.preventDefault();const id=tab.session,text=input.value.trim(),files=tab.attachments.slice(),planMode=Boolean(tab.planMode);if(!id||send.disabled||window.IgorekComposerProfiles?.busy(id)||snapshot?.meta?.agent_session)return;
     sending=true;renderFiles();
     try{
+      if (["/help", "/status"].includes(text)) {
+        if (files.length) throw Error(lang === "en" ? "Send commands without attachments" : "Отправьте команду без вложений");
+        showSlashCommandDialog(text,id,snapshot); tab.draft=''; input.value=''; slashMenu.close(); resize(); return;
+      }
+      if (/^\/goal(?:\s|$)/.test(text)) {
+        if (files.length) throw Error(lang === "en" ? "Send /goal without attachments" : "Отправьте /goal без вложений");
+        const value=text.slice(5).trim(), goal=snapshot?.goal;
+        if (!value) {
+          if (!goal) throw Error(lang === "en" ? "Use /goal followed by an objective" : "Напишите /goal и текст цели");
+          showSlashCommandDialog('/goal',id,snapshot);
+        } else {
+          let action,values;
+          if (["pause","resume","clear"].includes(value)) { action=value; values={goal_id:goal?.goal_id}; }
+          else if (value.startsWith("edit ")) { action="edit"; values={goal_id:goal?.goal_id,objective:value.slice(5).trim()}; }
+          else { action="create"; values={objective:value}; }
+          if (action!=="create"&&!goal) throw Error(lang === "en" ? "No goal in this chat" : "В этом чате нет цели");
+          if (action==="create"&&window.IgorekAgent&&!(await window.IgorekAgent.ensureProfile(snapshot?.meta?.profile)))return;
+          if (!valid()||tab.session!==id)return;
+          const result=await api('/api/sessions/'+encode(id)+'/goal',{method:'POST',body:JSON.stringify({action,...values})});
+          if (!valid()||tab.session!==id)return;
+          snapshot.goal=result.goal;
+          if(state.selected===id&&state.session){state.session.goal=result.goal;goalPanel.setGoal(result.goal);}
+          load();
+        }
+        if(input.value.trim()===text){tab.draft=''; input.value='';}
+        slashMenu.close(); resize(); return;
+      }
       if(window.IgorekAgent&&!(await window.IgorekAgent.ensureProfile(snapshot?.meta?.profile)))return;
       if(!valid()||tab.session!==id)return;
       for(const item of files){if(item.uploadId)continue;item.status='uploading';renderFiles();const result=await api('/api/sessions/'+encode(id)+'/uploads',{method:'POST',body:item.file,headers:{'Content-Type':item.file.type||'application/octet-stream','X-File-Name':encodeURIComponent(item.name)}});item.uploadId=String(result.upload_id||'');item.status=item.uploadId?'uploaded':'error';if(!item.uploadId)throw Error(t('attachments.error'));if(!valid()||tab.session!==id)return;}

@@ -64,6 +64,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+import re
 from typing import Any, Final
 
 from .channel import JsonValue
@@ -148,6 +149,8 @@ class RehydratedTaskMetadata:
     model_context_window: int | None = None
     restrict_tools_to: tuple[str, ...] = ()
     block_tool_names: tuple[str, ...] = ()
+    goal_id: str | None = None
+    goal_revision: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """The executor ``metadata`` dict; empty fields are omitted (off-mode parity)."""
@@ -160,6 +163,9 @@ class RehydratedTaskMetadata:
             metadata["restrict_tools_to"] = list(self.restrict_tools_to)
         if self.block_tool_names:
             metadata["block_tool_names"] = list(self.block_tool_names)
+        if self.goal_id is not None and self.goal_revision is not None:
+            metadata["goal_id"] = self.goal_id
+            metadata["goal_revision"] = self.goal_revision
         if self.approval_context_messages:
             metadata["approval_context_messages"] = [
                 dict(item)
@@ -191,7 +197,14 @@ class RehydratedTaskMetadata:
         """Parse a v2 ``task_metadata`` section; a wrong shape is refused."""
         if not isinstance(value, dict):
             raise PayloadError(REASON_METADATA_INVALID, "task_metadata")
+        goal_id = value.get("goal_id")
+        goal_revision = _positive_int(value.get("goal_revision"), "goal_revision")
+        if ((goal_id is None) != (goal_revision is None)
+                or (goal_id is not None and (not isinstance(goal_id, str) or not re.fullmatch(r"[0-9a-f]{32}", goal_id)))):
+            raise PayloadError(REASON_METADATA_INVALID, "goal_id")
         return cls(
+            goal_id=goal_id,
+            goal_revision=goal_revision,
             must_write_skills=_text_tuple(value.get("must_write_skills"), "must_write_skills"),
             approved_tool_calls=_text_tuple(
                 value.get("approved_tool_calls"), "approved_tool_calls"

@@ -929,6 +929,26 @@ class RunTaskTest(ManagerHarness):
             replies[0][1],
         )
 
+    def test_run_task_relays_goal_update_using_host_task_binding(self) -> None:
+        from factory.core import thread_goals
+
+        with patch.dict(os.environ, {"IGOREK_FACTORY_HOME": str(self.root)}):
+            goal = thread_goals.create_goal("sess-1", "Finish the work")
+            request = ChannelMessage(kind=MessageKind.GOAL_REQUEST, seq=1, payload={
+                "request_id": "12345678-1234-1234-1234-123456789abc",
+                "args": {"operation": "update", "status": "complete"},
+            })
+            endpoint = FakeEndpoint([request, result_message()])
+            self.registry.endpoints["sess-1"] = endpoint
+            manager = self.build_manager()
+            metadata = {"goal_id": goal["goal_id"], "goal_revision": goal["revision"]}
+            result = manager.run_task(self.task(), str(self.workspace), dispatch_payload(metadata=metadata))
+            self.assertEqual(result["status"], "ok")
+            replies = [body for kind, body in endpoint.sent if kind is MessageKind.GOAL_REPLY]
+            self.assertEqual(len(replies), 1)
+            self.assertEqual(json.loads(replies[0]["result"])["goal"]["status"], "complete")
+            self.assertEqual(thread_goals.get_goal("sess-1")["status"], "complete")
+
     def test_run_task_relays_steer_request_and_maps_attachment_paths(self) -> None:
         attachment = self.workspace / ".igorek_uploads" / "session-a" / "image.png"
         attachment.parent.mkdir(parents=True)

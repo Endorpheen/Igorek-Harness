@@ -2444,6 +2444,8 @@ try:
 except Exception as _exc:
     print(f"[cc_backend_tools] Skills tools init skipped: {_exc}", file=sys.stderr)
 
+from . import goal_tools as _goal_tools
+
 
 # ---------------------------------------------------------------------------
 # Public API — thin wrappers around the registry
@@ -2455,7 +2457,7 @@ def get_tool_schemas() -> list[dict[str, Any]]:
 
     Delegates to the registry which filters by check_fn availability.
     """
-    definitions = registry.get_definitions()
+    definitions = [item for item in registry.get_definitions() if item.get("name") not in {"get_goal", "update_goal"}]
     if sys.platform == 'win32':
         return [item for item in definitions if item.get('name', '').lower() != 'bash']
     return definitions

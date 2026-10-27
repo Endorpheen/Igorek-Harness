@@ -21,6 +21,8 @@ def setup(tmp_path, monkeypatch):
     monkeypatch.setenv('IGOREK_FACTORY_HOME', str(tmp_path / 'runtime'))
     monkeypatch.setenv('FACTORY_DATA_DIR', str(tmp_path / 'runtime'))
     initialize_database(get_db_path())
+    from factory.web_ui import server as web_server
+    monkeypatch.setattr(web_server, '_profile_context_window', lambda *_: None)
     owner = OwnerVault(tmp_path / 'owner')
     owner.service.create('fixture-profile-password')
     saved = {}

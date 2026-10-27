@@ -17,6 +17,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -41,14 +42,15 @@ internal fun SessionProfilePicker(sessionId: String, profile: String, model: Str
     var options by remember(sessionId) { mutableStateOf<SessionOptionsResponse?>(null) }
     var failure by remember(sessionId) { mutableStateOf<String?>(null) }
     val request = remember(sessionId) { longArrayOf(0) }
-    DisposableEffect(sessionId) { onDispose { request[0]++ } }
+    DisposableEffect(sessionId, profile) { onDispose { request[0]++ } }
+    LaunchedEffect(profile) { expanded = false; loading = false; options = null; failure = null }
     fun load() {
         expanded = true
         loading = true
         failure = null
         options = null
         val generation = ++request[0]
-        Bridge.loadSessionOptions { result, error ->
+        Bridge.loadSessionOptions(profile) { result, error ->
             if (request[0] == generation) {
                 loading = false
                 options = result
@@ -102,11 +104,14 @@ internal fun SessionProfilePicker(sessionId: String, profile: String, model: Str
                         }
                     })
             }
-            options?.switchableProfiles?.firstOrNull { it.name == profile }?.models.orEmpty().let { models ->
+            val currentChoice = options?.switchableProfiles?.firstOrNull { it.name == profile }
+            if (currentChoice?.modelsStatus == "unavailable") Text(uiText("Не удалось загрузить модели аккаунта. Повторите позже.",
+                "Could not load account models. Try again later."), Modifier.padding(16.dp), style = MaterialTheme.typography.bodyMedium)
+            currentChoice?.models.orEmpty().let { models ->
                 if (models.isNotEmpty()) Text(uiText("Модель для этого чата", "Model for this chat"),
                     Modifier.padding(start = 16.dp, top = 12.dp), style = MaterialTheme.typography.labelMedium)
                 models.forEach { choice ->
-                    DropdownMenuItem(text = { Text(modelDisplayName(choice)) },
+                    DropdownMenuItem(text = { Text(currentChoice?.modelLabels?.get(choice) ?: modelDisplayName(choice)) },
                         trailingIcon = { if (choice == model) Icon(Icons.Default.Check,
                             contentDescription = uiText("Выбран", "Selected")) }, enabled = !busy && !switching,
                         onClick = {
