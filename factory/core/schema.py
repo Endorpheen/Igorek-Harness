@@ -185,6 +185,33 @@ CREATE TABLE IF NOT EXISTS session_steer_messages (
 )
 """
 
+CREATE_THREAD_GOALS_TABLE = """
+CREATE TABLE IF NOT EXISTS thread_goals (
+    session_id TEXT PRIMARY KEY NOT NULL,
+    surface TEXT NOT NULL DEFAULT 'mobile_bridge',
+    goal_id TEXT UNIQUE NOT NULL,
+    objective TEXT NOT NULL,
+    revision INTEGER NOT NULL DEFAULT 1,
+    status TEXT NOT NULL CHECK(status IN (
+        'active', 'paused', 'blocked', 'usage_limited', 'budget_limited', 'complete'
+    )),
+    token_budget INTEGER,
+    tokens_used INTEGER NOT NULL DEFAULT 0,
+    time_used_seconds INTEGER NOT NULL DEFAULT 0,
+    empty_turns INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+)
+"""
+
+CREATE_THREAD_GOAL_USAGE_TABLE = """
+CREATE TABLE IF NOT EXISTS thread_goal_usage (
+    goal_id TEXT NOT NULL,
+    turn_id TEXT NOT NULL,
+    PRIMARY KEY (goal_id, turn_id)
+)
+"""
+
 
 def _ensure_columns(
     conn: sqlite3.Connection, table_name: str, columns: list[tuple[str, str]]
@@ -211,7 +238,12 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
     conn.execute(CREATE_SECURITY_EVENTS_TABLE)
     conn.execute(CREATE_USER_INPUT_REQUESTS_TABLE)
     conn.execute(CREATE_SESSION_STEER_MESSAGES_TABLE)
+    conn.execute(CREATE_THREAD_GOALS_TABLE)
+    conn.execute(CREATE_THREAD_GOAL_USAGE_TABLE)
     _ensure_columns(conn, "tasks", TASK_COLUMNS)
+    _ensure_columns(conn, "thread_goals", [("revision", "INTEGER NOT NULL DEFAULT 1"),
+                                           ("surface", "TEXT NOT NULL DEFAULT 'mobile_bridge'"),
+                                           ("empty_turns", "INTEGER NOT NULL DEFAULT 0")])
     _ensure_columns(conn, "events", EVENT_COLUMNS)
     _ensure_columns(conn, "settings", SETTINGS_COLUMNS)
     conn.execute(

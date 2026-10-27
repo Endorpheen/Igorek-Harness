@@ -13,6 +13,8 @@ def catalog(setup):
     owner, service, agent, saved, workdir = setup
     original = service.profile_control
     def control(operation, name):
+        if operation == 'models':
+            return {'models': ['gpt-6.1-sol', 'gpt-6.1-terra'], 'models_status': 'ready'} if name == 'cloud' else {'models': [], 'models_status': 'unsupported'}
         result = original(operation, name)
         if operation == 'catalog':
             for entry in result.get('profiles', []):
@@ -89,8 +91,12 @@ def test_catalog_exposes_pair_only_for_compatible_verified_profile(setup, monkey
     monkeypatch.setattr(owner.providers, 'list_profiles', lambda: [
         entry('compatible', 'gpt-6.1-sol'), entry('other-format', 'gpt-6.1-sol', 'openai'),
         entry('other-model', 'unrelated-model'), entry('unverified', 'gpt-6.1-sol', status='unverified')])
+    monkeypatch.setattr(owner.chatgpt, 'catalog', lambda _: {'models': [{'id':'fixture-new','name':'New model'}]})
+    live = owner.mobile_profile_control('models', 'compatible')
+    assert live['models'] == ['fixture-new'] and live['models_status'] == 'ready'
     result = owner.mobile_profile_control('catalog', '')
     items = {item['name']: item for item in result['profiles']}
-    assert items['compatible']['models'] == ['gpt-6.1-sol', 'gpt-6.1-terra']
-    assert items['other-format']['models'] == [] and items['other-model']['models'] == []
+    assert items['compatible']['models'] == ['fixture-new']
+    assert items['other-format'].get('models', []) == []
+    assert owner.mobile_profile_control('models', 'other-model')['models'] == ['fixture-new']
     assert 'unverified' not in items

@@ -57,6 +57,15 @@ class Prefs(context: Context) {
 
     internal fun mcpChat(sessionId: String): String = prefs.getString(mcpChatKey(sessionId), "") ?: ""
 
+    internal fun planModeEnabled(sessionId: String): Boolean =
+        prefs.getBoolean(planModePreferenceKey(activeConnectionId, baseUrl, sessionId), false)
+
+    internal fun setPlanModeEnabled(sessionId: String, enabled: Boolean) {
+        check(prefs.edit().putBoolean(planModePreferenceKey(activeConnectionId, baseUrl, sessionId), enabled).commit()) {
+            "Plan mode could not be saved"
+        }
+    }
+
     internal fun saveMcpChat(sessionId: String, encoded: String) {
         check(prefs.edit().putString(mcpChatKey(sessionId), encoded).commit()) { "MCP history could not be saved" }
     }

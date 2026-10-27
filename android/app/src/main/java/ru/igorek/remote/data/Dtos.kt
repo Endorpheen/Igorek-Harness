@@ -75,6 +75,8 @@ data class ProfileChoice(
     val model: String = "",
     val local: Boolean = false,
     val models: List<String> = emptyList(),
+    @SerialName("model_labels") val modelLabels: Map<String, String> = emptyMap(),
+    @SerialName("models_status") val modelsStatus: String = "",
 )
 
 @Serializable
@@ -268,6 +270,20 @@ data class TaskBriefDto(
 )
 
 @Serializable
+data class SessionGoal(
+    @SerialName("goal_id") val goalId: String,
+    val objective: String,
+    val status: String,
+    val revision: Int = 1,
+    @SerialName("token_budget") val tokenBudget: Long? = null,
+    @SerialName("tokens_used") val tokensUsed: Long = 0,
+    @SerialName("time_used_seconds") val timeUsedSeconds: Long = 0,
+)
+
+@Serializable
+data class GoalResponse(val goal: SessionGoal? = null)
+
+@Serializable
 data class SessionDetail(
     val model: String = "",
     @SerialName("context_window") val contextWindow: Long? = null,
@@ -277,6 +293,7 @@ data class SessionDetail(
     @SerialName("running_task_id") val runningTaskId: String? = null,
     val tasks: List<TaskBriefDto> = emptyList(),
     val isolation: String? = null,
+    val goal: SessionGoal? = null,
 )
 
 @Serializable
@@ -450,6 +467,7 @@ data class SendMessageRequest(
     @SerialName("upload_ids") val uploadIds: List<String> = emptyList(),
     @SerialName("skill_ids") val skillIds: List<String> = emptyList(),
     @SerialName("activate_profile") val activateProfile: Boolean = false,
+    @SerialName("plan_mode") val planMode: Boolean = false,
 )
 
 @Serializable

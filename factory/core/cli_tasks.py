@@ -63,8 +63,9 @@ def create_task(
     metadata: dict | None = None,
     parent_id: str | None = None,
     input_files: list[str] | None = None,
+    _connection: sqlite3.Connection | None = None,
 ) -> dict:
-    db_path = initialize_database(get_db_path())
+    db_path = initialize_database(get_db_path()) if _connection is None else None
     task_id = str(uuid.uuid4())
     now = int(time.time())
     normalized_metadata = dict(
@@ -97,8 +98,7 @@ def create_task(
         "updated_at": now,
     }
 
-    with closing(sqlite3.connect(db_path, timeout=10)) as conn:
-        conn.execute("PRAGMA busy_timeout = 10000")
+    def insert(conn):
         cursor = conn.cursor()
         columns = list(payload.keys())
         placeholders = ", ".join(["?"] * len(columns))
@@ -106,7 +106,14 @@ def create_task(
             f"INSERT INTO tasks ({', '.join(columns)}) VALUES ({placeholders})",
             [payload[column] for column in columns],
         )
-        conn.commit()
+
+    if _connection is not None:
+        insert(_connection)
+    else:
+        with closing(sqlite3.connect(db_path, timeout=10)) as conn:
+            conn.execute("PRAGMA busy_timeout = 10000")
+            insert(conn)
+            conn.commit()
 
     return {
         "task_id": task_id,

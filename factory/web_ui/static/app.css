@@ -5274,6 +5274,18 @@ body.sidebar-open .sidebar-scrim {
 .composer-mcp-chip { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:6px 0 12px; padding:9px 12px; border:1px solid #66d6b144; border-radius:10px; color:var(--mint); background:#66d6b10b; font-size:12px }
 .composer-mcp-chip button { background:none; border:0; color:inherit; cursor:pointer; font-size:20px }
 .mcp-task-card { margin:0 0 12px; padding:16px 18px; border:1px solid var(--line2); border-radius:16px; background:var(--panel) }
+.goal-card { margin:0 0 10px; padding:10px 13px; border:1px solid var(--line2); border-radius:13px; background:var(--panel); }
+.goal-card[hidden] { display:none; }
+.goal-card-heading { display:flex; align-items:center; gap:8px; }
+.goal-card-title { color:var(--lime); font-size:12px; }
+.goal-card-status { color:var(--muted); font-size:11px; }
+.goal-card-objective { margin-top:5px; overflow-wrap:anywhere; font-size:13px; max-height:4.5em; overflow:auto; }
+.goal-card-usage { color:var(--quiet); font-size:11px; margin-top:4px; }
+.goal-card-actions { display:flex; flex-wrap:wrap; gap:5px; margin-top:7px; }
+.goal-card-button { padding:4px 8px; border:1px solid var(--line2); border-radius:8px; background:var(--panel2); color:var(--muted); cursor:pointer; font-size:11px; }
+.goal-card-button:hover { color:var(--text); border-color:var(--lime); }
+.goal-card-button:disabled { opacity:.5; cursor:wait; }
+.goal-card-editor { width:100%; min-height:62px; margin-top:7px; padding:7px; border:1px solid var(--line2); border-radius:8px; resize:vertical; color:var(--text); background:var(--bg); }
 .mcp-task-head { display:flex; align-items:center; justify-content:space-between; gap:10px; color:var(--mint); font-size:13px }
 .mcp-task-head button { background:none; border:0; color:var(--muted); cursor:pointer; font:inherit }
 #composer-mcp-status { margin:12px 0; color:var(--muted); font-size:12px; line-height:1.5 }

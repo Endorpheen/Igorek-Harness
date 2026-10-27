@@ -88,6 +88,7 @@ ROUTES=[
     ('POST','/api/voice/hangup','/voice/hangup',{}),
     ('POST','/api/tasks/task-123/user-input/request-123','/tasks/task-123/user-input/request-123',{'answers':{}}),
     ('POST','/api/sessions/session-123/profile','/sessions/session-123/profile',{'profile':'fixture'}),
+    ('POST','/api/sessions/session-123/goal','/sessions/session-123/goal',{'action':'pause','goal_id':'fixture-goal'}),
     ('GET','/api/sessions/session-123/agents','/sessions/session-123/agents',None),
     ('GET','/api/sessions/session-123/sources','/sessions/session-123/sources',None),
     ('GET','/api/sessions/session-123/checkpoints/revision-123/changes','/sessions/session-123/checkpoints/revision-123/changes',None),
@@ -257,3 +258,12 @@ def test_real_http_upgrade_and_masked_frame_refuse_unauthorized_terminal_open(pr
         assert closes and struct.unpack('>H',closes[0][:2])[0]==close_code
         assert not EchoBridge.records
     finally:client.close()
+
+
+def test_session_options_forwards_only_a_valid_model_profile(proxy):
+    status, _, body = proxy.request('GET', '/api/session-options?model_profile=codexpro')
+    assert status == 200
+    assert json.loads(body)['echo_path'] == '/mobile/v1/session-options?model_profile=codexpro'
+    status, _, _ = proxy.request('GET', '/api/session-options?model_profile=%2Foutside')
+    assert status == 400
+    assert len(EchoBridge.records) == 1

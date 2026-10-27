@@ -116,6 +116,7 @@
               </div>
               <nav class="message-rail" id="message-rail" data-i18n-aria-label="composer.rail_aria" aria-label="Навигация по вашим сообщениям" hidden></nav>
               <div class="composer-wrap">
+                <section id="goal-card" class="goal-card" hidden tabindex="-1" aria-live="polite"></section>
                 <section id="composer-mcp-task" class="mcp-task-card" hidden aria-label="Отдельная задача MCP">
                   <div class="mcp-task-head"><strong>Подключение MCP</strong><button id="composer-mcp-clear" type="button">Остановить и очистить</button></div>
                   <p id="composer-mcp-status" role="status" aria-live="polite"></p><div id="composer-mcp-result" class="message-text mcp-result"></div>
@@ -364,6 +365,7 @@
     <script src="/plugins.js" defer></script>
     <script src="/session-agent.js" defer></script>
     <script src="/composer-profiles.js" defer></script>
+    <script src="/goal-panel.js" defer></script>
     <script src="/downloads.js" defer></script>
     <script src="/workspace-tabs.js" defer></script>
     <script src="/opencode-panel.js" defer></script>

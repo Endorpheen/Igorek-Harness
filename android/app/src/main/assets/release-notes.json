@@ -1,15 +1,35 @@
 {
-  "versionName": "0.1.127",
-  "versionCode": 128,
+  "versionName": "0.1.133",
+  "versionCode": 134,
   "changes": [
     {
       "ru": {
-        "title": "Исправлено отображение Пепе",
-        "text": "Анимированные Пепе с подчёркиваниями в имени правильно отображаются в сообщениях."
+        "title": "Команды и цели",
+        "text": "Подсказки команд и управление целью доступны в чате."
       },
       "en": {
-        "title": "Fixed Pepe emoji display",
-        "text": "Animated Pepe emoji with underscores in their names display correctly in messages."
+        "title": "Commands and goals",
+        "text": "Command suggestions and goal controls are available in chat."
+      }
+    },
+    {
+      "ru": {
+        "title": "Режим плана",
+        "text": "Режим плана включается кнопкой и сохраняется до выключения."
+      },
+      "en": {
+        "title": "Plan mode",
+        "text": "Enable plan mode with the button; it stays active until disabled."
+      }
+    },
+    {
+      "ru": {
+        "title": "Выбор модели",
+        "text": "Список моделей подключения обновляется при выборе в чате."
+      },
+      "en": {
+        "title": "Model selection",
+        "text": "The connection’s model list is refreshed when selecting a model in chat."
       }
     }
   ]

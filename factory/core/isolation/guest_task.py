@@ -191,6 +191,7 @@ class GuestTask:
         user_input_provider: UserInputProvider | None = None,
         web_tool_provider: Callable[[str, dict[str, Any]], str] | None = None,
         session_search_provider: Callable[[dict[str, Any]], str] | None = None,
+        goal_control_provider: Callable[[dict[str, Any]], str] | None = None,
         vault_store_provider: Callable[[dict[str, Any]], str] | None = None,
         memory_forget_provider: Callable[[dict[str, Any]], str] | None = None,
         pending_steer_provider: Callable[[], list[dict[str, Any]]] | None = None,
@@ -252,6 +253,8 @@ class GuestTask:
             kwargs["web_tool_provider"] = web_tool_provider
         if session_search_provider is not None:
             kwargs["session_search_provider"] = session_search_provider
+        if goal_control_provider is not None:
+            kwargs["goal_control_provider"] = goal_control_provider
         if vault_store_provider is not None:
             kwargs["vault_store_provider"] = vault_store_provider
         if memory_forget_provider is not None:

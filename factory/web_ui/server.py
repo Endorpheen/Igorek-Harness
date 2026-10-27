@@ -87,6 +87,7 @@ _STATIC_TYPES = {
     "plugins.js": "text/javascript; charset=utf-8",
     "session-agent.js": "text/javascript; charset=utf-8",
     "composer-profiles.js": "text/javascript; charset=utf-8",
+    "goal-panel.js": "text/javascript; charset=utf-8",
     "changes.js": "text/javascript; charset=utf-8",
     "voice.js": "text/javascript; charset=utf-8",
     "render.js": "text/javascript; charset=utf-8",
@@ -835,7 +836,12 @@ class _Handler(BaseHTTPRequestHandler):
                 self._proxy(method, "/mcp", body)
             return
         if path == "/api/session-options" and method == "GET":
-            self._proxy(method, "/session-options")
+            profile = urllib.parse.parse_qs(parsed.query).get('model_profile', [''])[0]
+            if profile and not _PROFILE_NAME.fullmatch(profile):
+                self._json(400, {'error': 'Некорректный профиль'})
+                return
+            suffix = '?' + urllib.parse.urlencode({'model_profile': profile}) if profile else ''
+            self._proxy(method, "/session-options" + suffix)
             return
         if path == '/api/diagnostics' and method == 'GET':
             self._proxy(method, '/diagnostics')
@@ -989,6 +995,11 @@ class _Handler(BaseHTTPRequestHandler):
                 self._json(400, {"error": "Некорректный идентификатор сессии"})
                 return
             quoted = urllib.parse.quote(session_id, safe="")
+            if len(parts) == 4 and parts[3] == "goal" and method == "POST":
+                body = self._body()
+                if body is not None:
+                    self._proxy(method, f"/sessions/{quoted}/goal", body)
+                return
             if len(parts) == 4 and parts[3] == 'profile' and method == 'POST':
                 body = self._body()
                 if body is None:

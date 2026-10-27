@@ -23,6 +23,11 @@ async function run(){
   await until('typeof selectSession==="function"&&state.paired');
   await window.webContents.executeJavaScript(`selectSession(${JSON.stringify(config.session)})`);
   await until('document.querySelector("#composer-model").textContent.includes("cloud")');
+  await window.webContents.executeJavaScript(`window.__profileFetch=window.fetch;window.__releaseCatalog=null;window.fetch=async(...args)=>{const response=await window.__profileFetch(...args);if(String(args[0]).includes('model_profile=cloud'))await new Promise(resolve=>window.__releaseCatalog=resolve);return response;};void 0;`);
+  await click('#composer-model');await until('Boolean(window.__releaseCatalog)');
+  await window.webContents.executeJavaScript(`state.session.meta.profile='local';window.__releaseCatalog();void 0;`);
+  await until('!document.querySelector(".composer-profile-menu")');
+  await window.webContents.executeJavaScript(`state.session.meta.profile='cloud';window.fetch=window.__profileFetch;renderContext(state.session);void 0;`);
   await click('#composer-model');await until(`Boolean(document.querySelector('.composer-profile-option[data-model="gpt-6.1-terra"]'))`);
   await click('.composer-profile-option[data-model="gpt-6.1-terra"]');
   await until('state.session.meta.model==="gpt-6.1-terra"&&!document.querySelector(".composer-profile-menu")');

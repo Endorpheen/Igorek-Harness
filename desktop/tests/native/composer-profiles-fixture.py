@@ -54,6 +54,8 @@ owner.agent = agent
 owner.browser_service = service
 service.available_profiles = lambda: [agent.active]
 def fixture_profile_control(operation, name):
+    if operation == 'models' and name == 'cloud':
+        return {'models': ['gpt-6.1-sol', 'gpt-6.1-terra'], 'model_labels': {}, 'models_status': 'ready'}
     result = owner.mobile_profile_control(operation, name)
     if operation == 'catalog':
         for profile in result.get('profiles', []):

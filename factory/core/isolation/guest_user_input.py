@@ -191,6 +191,12 @@ class VaultStoreBridge(SessionSearchBridge):
     reply_kind = MessageKind.VAULT_STORE_REPLY
 
 
+class GoalBridge(SessionSearchBridge):
+    """Send goal operations to the host-bound session."""
+    request_kind = MessageKind.GOAL_REQUEST
+    reply_kind = MessageKind.GOAL_REPLY
+
+
 @dataclass(slots=True)
 class _MemoryForgetPending:
     event: threading.Event = field(default_factory=threading.Event)

@@ -240,6 +240,39 @@ MAX_WEB_RESULT_BYTES = 512 * 1024
 MAX_SESSION_SEARCH_REQUESTS_PER_TASK = 20
 MAX_SESSION_SEARCH_RESULT_BYTES = 512 * 1024
 MAX_MEMORY_FORGET_REQUESTS_PER_TASK = 10
+MAX_GOAL_REQUESTS_PER_TASK = 20
+
+
+class GoalRelay:
+    """Apply guest goal requests to the host-bound session and goal revision."""
+
+    def __init__(self, current_session: str | None, metadata: object) -> None:
+        self._context = {"current_session": current_session, "delegate_metadata": metadata}
+        self._replies: dict[str, dict[str, JsonValue]] = {}
+        self._request_count = 0
+
+    def handle_request(self, message: ChannelMessage) -> dict[str, JsonValue] | None:
+        if message.kind is not MessageKind.GOAL_REQUEST:
+            return None
+        request_id, args = message.payload.get("request_id"), message.payload.get("args")
+        if not isinstance(request_id, str) or not isinstance(args, dict):
+            return None
+        if request_id in self._replies:
+            return dict(self._replies[request_id])
+        self._request_count += 1
+        from .. import goal_tools
+
+        if self._request_count > MAX_GOAL_REQUESTS_PER_TASK:
+            result = '{"error":"goal request limit reached"}'
+        elif args == {"operation": "get"}:
+            result = goal_tools.get_goal({}, **self._context)
+        elif set(args) == {"operation", "status"} and args.get("operation") == "update":
+            result = goal_tools.update_goal({"status": args.get("status")}, **self._context)
+        else:
+            result = '{"error":"invalid goal request"}'
+        reply: dict[str, JsonValue] = {"request_id": request_id, "result": result}
+        self._replies[request_id] = reply
+        return dict(reply)
 
 
 class MemoryForgetRelay:
@@ -1675,6 +1708,7 @@ class IsolationManager:
         vault_store_relay = VaultStoreRelay(self._seams.vault_value_writer, workdir=mapping.host_root,
             task_id=_payload_text(payload, 'task_id'), session_id=_optional_text(payload, 'current_session') or session_id,
             profile=_optional_text(payload, 'profile') or '')
+        goal_relay = GoalRelay(_optional_text(payload, "current_session"), payload.get("metadata"))
         last_activity = time.monotonic()
         while True:
             if cancel_check is not None and cancel_check():
@@ -1745,6 +1779,10 @@ class IsolationManager:
                     reply = session_search_relay.handle_request(message)
                     if reply is not None:
                         endpoint.send(MessageKind.SESSION_SEARCH_REPLY, reply)
+                case MessageKind.GOAL_REQUEST:
+                    reply = goal_relay.handle_request(message)
+                    if reply is not None:
+                        endpoint.send(MessageKind.GOAL_REPLY, reply)
                 case MessageKind.VAULT_STORE_REQUEST:
                     reply = vault_store_relay.handle_request(message)
                     if reply is not None:
@@ -1809,6 +1847,7 @@ class IsolationManager:
                     | MessageKind.STEER_REQUEST
                     | MessageKind.STEER_REPLY
                     | MessageKind.SESSION_SEARCH_REPLY
+                    | MessageKind.GOAL_REPLY
                     | MessageKind.CANCEL
                 ):
                     raise IsolationError(
@@ -2133,6 +2172,8 @@ class IsolationManager:
                     | MessageKind.STEER_REQUEST
                     | MessageKind.STEER_REPLY
                     | MessageKind.SESSION_SEARCH_REPLY
+                    | MessageKind.GOAL_REQUEST
+                    | MessageKind.GOAL_REPLY
                     | MessageKind.MEMORY_FORGET_REQUEST
                     | MessageKind.MEMORY_FORGET_REPLY
                     | MessageKind.HEARTBEAT
@@ -2472,9 +2513,16 @@ def _host_task_metadata(
     if not isinstance(metadata, Mapping):
         return RehydratedTaskMetadata()
     resume = resume_wire_metadata(metadata, mapping)
+    goal_id = metadata.get("goal_id")
+    goal_revision = _metadata_positive_int(metadata, "goal_revision")
+    if ((goal_id is None) != (goal_revision is None)
+            or (goal_id is not None and (not isinstance(goal_id, str) or not re.fullmatch(r"[0-9a-f]{32}", goal_id)))):
+        raise IsolationError("task_metadata_invalid", "goal binding is invalid")
     calls = resume.get("approved_tool_calls")
     rules = resume.get("approved_session_rules")
     return RehydratedTaskMetadata(
+        goal_id=goal_id,
+        goal_revision=goal_revision,
         must_write_skills=tuple(
             item
             for item in _metadata_items(metadata, "must_write_skills")

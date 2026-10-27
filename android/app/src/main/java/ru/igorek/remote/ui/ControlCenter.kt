@@ -343,6 +343,7 @@ internal fun ControlTopBar(
     work: WorkPhase = WorkPhase.Idle,
     compactStatus: Boolean = false,
     showNotifications: Boolean = true,
+    compactIndicator: @Composable () -> Unit = {},
     onMenu: () -> Unit,
     actions: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {},
 ) {
@@ -350,7 +351,7 @@ internal fun ControlTopBar(
         TopAppBar(
             title = {
                 if (compactStatus) {
-                    CompactConnectionStatus(title, subtitle, connection, work)
+                    CompactConnectionStatus(title, subtitle, connection, work, compactIndicator)
                 } else {
                     Column(Modifier.fillMaxWidth()) {
                         Row(
@@ -408,6 +409,7 @@ private fun CompactConnectionStatus(
     subtitle: String?,
     connection: String?,
     work: WorkPhase,
+    indicator: @Composable () -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
     val statusColor = connectionStatusColor(connection)
@@ -439,6 +441,7 @@ private fun CompactConnectionStatus(
                 )
             }
         }
+        indicator()
         if (work != WorkPhase.Idle) {
             WorkStatusDot(work)
         }

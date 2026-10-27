@@ -454,6 +454,9 @@ class SendMessageTest(ServiceTestCase):
         self.assertEqual(_history_tail(entries, 20, None), entries)
 
     def test_plan_mode_is_stored_in_task_metadata(self):
+        profiles = Path(self._tmp.name) / "profiles"
+        profiles.mkdir(exist_ok=True)
+        (profiles / "cc-local-8081.json").write_text(json.dumps({"backend": "cc-backend"}))
         result = self.service.send_message(self.session_id, "составь план", plan_mode=True)
 
         metadata = json.loads(self._task_row(result["task_id"])["metadata"])

@@ -247,7 +247,7 @@ function renderOnboarding() {
   el('onboarding-profile').replaceChildren();
   for (const profile of state === 'unlocked' && profilesState === 'ready' ? onboardingProfiles() : []) {
     const option = document.createElement('option'); option.value = profile.credential_id;
-    option.textContent = profile.config.name + ' · ' + profile.config.model;
+    option.textContent = profile.config.api_format === 'openai-responses' ? profile.config.name : profile.config.name + ' · ' + profile.config.model;
     el('onboarding-profile').append(option);
   }
   el('onboarding-profile').value = selectedProfileId || '';
@@ -703,6 +703,7 @@ el('profile-url').addEventListener('input', updateKeyRequirement);
 function setPresetView() {
   const preset = el('profile-preset').value;
   const chatgpt = el('profile-format').value === 'openai-responses';
+  el('profile-model-caption').textContent = chatgpt ? 'Модель по умолчанию' : 'Идентификатор модели';
   el('profile-catalog').hidden = !chatgpt && (!providerPresets[preset] || preset === 'local');
   el('profile-key-label').hidden = chatgpt;
   el('profile-url-field').hidden = chatgpt;
@@ -743,7 +744,9 @@ async function loadModels() {
         : chatgpt ? chatgptError(reply.error) : 'Не удалось загрузить каталог. Проверьте ключ и сеть, повторите загрузку или укажите модель вручную.'; return;
     }
     catalogModels = reply.result.models; renderCatalog();
-    el('model-catalog-status').textContent = reply.result.note;
+    const selected = el('profile-model').value;
+    el('model-catalog-status').textContent = reply.result.note + (chatgpt && selected && !catalogModels.some(model => model.id === selected)
+      ? ' Сохранённая модель отсутствует в актуальном списке. Выберите новую модель по умолчанию.' : '');
   } catch {
     if (generation === catalogGeneration) el('model-catalog-status').textContent = 'Нет ответа от приложения. Можно указать модель вручную.';
   } finally { if (generation === catalogGeneration) el('load-models').disabled = false; }
@@ -1121,7 +1124,7 @@ function modelProfileCard(profile, reveal=false) {
     {label:'Удалить профиль',run:()=>openProfileManagement(profile,'deleteProfile'),disabled:running,destructive:true});
   let hint=profile.status==='failed'?checkReason(profile.check):voiceOnly?'Голосовое подключение':indicator.label;
   if (profile.check?.checked_at) hint+=' · '+new Date(profile.check.checked_at).toLocaleString();
-  return compactSettingsCard({name:profile.config.name,description:profile.config.model,provider,indicator,hint,
+  return compactSettingsCard({name:profile.config.name,description:chatgpt?'По умолчанию · '+profile.config.model:profile.config.model,provider,indicator,hint,
     menuTitle:provider.name+(profile.chatgpt?.email?' · '+profile.chatgpt.email:''),actions});
 }
 function renderProfiles(profiles) {

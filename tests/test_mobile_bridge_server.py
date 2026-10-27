@@ -505,6 +505,9 @@ class SessionRoutesTest(ServerTestCase):
 
     def test_send_message_carries_plan_mode_into_task_metadata(self):
         token = self._pair()
+        profiles = Path(self._tmp.name) / "profiles"
+        profiles.mkdir(exist_ok=True)
+        (profiles / "cc-local-8081.json").write_text(json.dumps({"backend": "cc-backend"}))
 
         def finish(task_id: str) -> None:
             with sqlite3.connect(get_db_path()) as conn:
@@ -532,20 +535,20 @@ class SessionRoutesTest(ServerTestCase):
             body={"text": "не булево", "plan_mode": "yes"},
             token=token,
         )
-        self.assertEqual(status, 202, invalid)
+        self.assertEqual(status, 400, invalid)
 
         with sqlite3.connect(get_db_path()) as conn:
             rows = {
                 row[0]: json.loads(row[1])
                 for row in conn.execute(
-                    "SELECT task_id, metadata FROM tasks WHERE task_id IN (?, ?, ?)",
-                    (plan["task_id"], execute["task_id"], invalid["task_id"]),
+                    "SELECT task_id, metadata FROM tasks WHERE task_id IN (?, ?)",
+                    (plan["task_id"], execute["task_id"]),
                 )
             }
         self.assertNotEqual(plan["task_id"], execute["task_id"])
         self.assertIs(rows[plan["task_id"]]["plan_mode"], True)
         self.assertNotIn("plan_mode", rows[execute["task_id"]])
-        self.assertNotIn("plan_mode", rows[invalid["task_id"]])
+        self.assertEqual(len(rows), 2)
 
     def test_send_message_is_idempotent(self):
         token = self._pair()

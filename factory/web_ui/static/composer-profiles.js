@@ -5,11 +5,11 @@
     ru: {title:'Профиль и модель', hint:'Выбор запускает исполнителя для этого чата.', loading:'Загружаю профили…',
       empty:'Нет проверенных подключений. Добавьте и проверьте модель в настройках.',
       unavailable:'Переключение профиля в этом подключении недоступно.', current:'В этом чате', running:'Исполнитель запущен',
-      starting:'Запускаю профиль…', switchingModel:'Переключаю модель…', busy:'Дождитесь завершения текущей задачи.', failed:'Не удалось переключить профиль.', choose:'Выбрать профиль и запустить исполнителя'},
+      starting:'Запускаю профиль…', switchingModel:'Переключаю модель…', modelsUnavailable:'Не удалось загрузить модели аккаунта. Повторите позже.', busy:'Дождитесь завершения текущей задачи.', failed:'Не удалось переключить профиль.', choose:'Выбрать профиль и запустить исполнителя'},
     en: {title:'Profile and model', hint:'Selecting a profile starts its worker for this chat.', loading:'Loading profiles…',
       empty:'No verified connections. Add and check a model in settings.', unavailable:'Profile switching is unavailable for this connection.',
       current:'This chat', running:'Worker running', starting:'Starting profile…', busy:'Wait for the current task to finish.',
-      failed:'Could not switch the profile.', switchingModel:'Switching model…', choose:'Choose a profile and start its worker'},
+      failed:'Could not switch the profile.', switchingModel:'Switching model…', modelsUnavailable:'Could not load account models. Try again later.', choose:'Choose a profile and start its worker'},
   };
   const text = key => labels[document.documentElement.lang.startsWith('en') ? 'en' : 'ru'][key];
   function node(tag, className, value='') {
@@ -48,7 +48,9 @@
         rows[index].focus();
       });
       try {
-        const catalog=await options.api('/api/session-options');if(!valid())return;
+        const currentProfile=String(options.profile()||'');
+        const catalog=await options.api('/api/session-options'+(currentProfile?'?model_profile='+encodeURIComponent(currentProfile):''));if(!valid())return;
+        if(currentProfile!==String(options.profile()||'')){close();return;}
         if(!catalog.profile_switch_supported){status.textContent=text('unavailable');return;}
         const profiles=Array.isArray(catalog.profile_catalog)?catalog.profile_catalog:[];
         if(!profiles.length){status.textContent=text('empty');return;}
@@ -84,14 +86,16 @@
           list.append(row);
         }
         const active=profiles.find(profile=>profile.name===options.profile());
+        if(active?.models_status==='unavailable'&&!blocked())status.textContent=text('modelsUnavailable');
         if(Array.isArray(active?.models)&&active.models.length){
           list.append(node('strong','composer-profile-label',document.documentElement.lang.startsWith('en')?'Model for this chat':'Модель для этого чата'));
           for(const model of active.models){
             const row=node('button','composer-profile-option');row.type='button';row.disabled=blocked();row.dataset.model=model;
             row.setAttribute('role','menuitemradio');row.setAttribute('aria-checked',String(model===options.model?.()));
-            row.append(node('span','composer-profile-label',model));
+            row.append(node('span','composer-profile-label',active.model_labels?.[model]||model));row.title=model;
             row.addEventListener('click',async()=>{
               if(!valid()||blocked())return;
+              if(model===options.model?.()){close(true);return;}
               pending.add(id);options.changing?.(true);status.textContent=text('switchingModel');
               for(const entry of list.querySelectorAll('button'))entry.disabled=true;
               try{

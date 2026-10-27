@@ -19,7 +19,7 @@ settings in one workspace. Igorek Remote for Android controls the same agent
 from your phone. Terminal, local Web UI, Telegram, and ACP interfaces are also
 available.
 
-Documentation updated **October 15, 2026**. The Python/desktop version is in
+Documentation updated **October 27, 2026**. The Python/desktop version is in
 [`pyproject.toml`](pyproject.toml); Android has its own version in
 [`android/app/build.gradle.kts`](android/app/build.gradle.kts).
 
@@ -79,6 +79,8 @@ See [Desktop](#desktop) for packaging and Electron sandbox requirements.
 - **Models and connections.** ChatGPT/Codex sign-in, API profiles, and local
   OpenAI-/Anthropic-compatible servers. Save, verify, edit, rename, or disable
   connections. Subscription, API, and voice connections are configured separately.
+  Available ChatGPT/Codex models can be selected per chat; the profile retains
+  its default model when the live catalog is unavailable.
 - **Agent tools.** File reading, writing and editing, search, commands,
   web tools, skills, and MCP. Action approvals and checkpoints provide
   control over execution and file changes.

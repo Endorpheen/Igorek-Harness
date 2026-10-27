@@ -107,6 +107,7 @@ from .guest_user_input import (
     UserInputReply,
     SteerBridge,
     SessionSearchBridge,
+    GoalBridge,
     VaultStoreBridge,
     MemoryForgetBridge,
     WebToolBridge,
@@ -177,6 +178,7 @@ class _RunState:
     vault_store: VaultStoreBridge
     memory_forget: MemoryForgetBridge
     steer: SteerBridge
+    goal_control: GoalBridge | None = None
     cancel: threading.Event = field(default_factory=threading.Event)
     inbox: queue.Queue[ChannelMessage | None] = field(default_factory=queue.Queue)
 
@@ -350,6 +352,7 @@ class GuestRunner:
             ),
             web_tools=WebToolBridge(self._session.send, timeout_s=90.0),
             session_search=SessionSearchBridge(self._session.send, timeout_s=90.0),
+            goal_control=GoalBridge(self._session.send, timeout_s=90.0),
             vault_store=VaultStoreBridge(self._session.send, timeout_s=90.0),
             memory_forget=MemoryForgetBridge(self._session.send, timeout_s=_reply_timeout_s(task)),
             steer=SteerBridge(self._session.send, timeout_s=90.0),
@@ -418,6 +421,7 @@ class GuestRunner:
                         user_input_provider=state.user_input.request,
                         web_tool_provider=state.web_tools.request,
                         session_search_provider=state.session_search.request,
+                        goal_control_provider=state.goal_control.request if state.goal_control else None,
                         vault_store_provider=state.vault_store.request,
                         memory_forget_provider=state.memory_forget.request,
                         pending_steer_provider=state.steer.request,
@@ -486,6 +490,9 @@ class GuestRunner:
                     state.web_tools.deliver(message)
                 case MessageKind.SESSION_SEARCH_REPLY:
                     state.session_search.deliver(message)
+                case MessageKind.GOAL_REPLY:
+                    if state.goal_control:
+                        state.goal_control.deliver(message)
                 case MessageKind.VAULT_STORE_REPLY:
                     state.vault_store.deliver(message)
                 case MessageKind.MEMORY_FORGET_REPLY:

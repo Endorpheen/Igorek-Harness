@@ -71,4 +71,13 @@ class BridgeProfileSwitchTest {
         assertThrows(IllegalArgumentException::class.java) { client.switchSessionProfile("../other", "local") }
         assertThrows(IllegalArgumentException::class.java) { client.switchSessionProfile("chat", " ") }
     }
+
+    @Test fun `account catalog request selects the current profile and uses authenticated transport`() {
+        serve(200, """{"profile_catalog":[{"name":"codexpro","models":["fixture-new"],"model_labels":{"fixture-new":"New model"},"models_status":"ready"}],"profile_switch_supported":true}""") { client, requests ->
+            val options = client.sessionOptions("codexpro")
+            assertEquals("GET /mobile/v1/session-options?model_profile=codexpro HTTP/1.1", requests[0])
+            assertEquals("Authorization: Bearer fixture-profile-token", requests[1])
+            assertEquals("New model", options.switchableProfiles.single().modelLabels["fixture-new"])
+        }
+    }
 }
