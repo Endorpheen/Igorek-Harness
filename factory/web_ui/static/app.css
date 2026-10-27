@@ -2305,6 +2305,17 @@ button.composer-model:focus-visible { outline:2px solid var(--mint);outline-offs
 .composer-profile-status:empty { display:none; }
 .composer-profile-status[role="alert"] { color:#ffb4a4; }
 .composer-profile-list { display:flex;flex-direction:column;gap:5px; }
+.composer-profile-toggle { display:flex;align-items:center;justify-content:space-between;width:100%;
+  border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:#ffffff06;
+  color:var(--muted);font:12px var(--sans,sans-serif);text-align:left;cursor:pointer; }
+.composer-profile-toggle::after { content:'⌄';font-size:15px;line-height:1; }
+.composer-profile-toggle[aria-expanded="true"]::after { transform:rotate(180deg); }
+.composer-profile-toggle:hover,.composer-profile-toggle:focus-visible { color:var(--text);border-color:var(--mint);outline:none; }
+.composer-profile-others { display:flex;flex-direction:column;gap:5px;max-height:200px;overflow-y:auto; }
+.composer-profile-others[hidden] { display:none; }
+.composer-profile-icon { display:inline-flex;align-items:center;justify-content:center;flex:0 0 22px;
+  width:22px;height:22px;border-radius:6px;background:#ffffff0a;color:var(--muted); }
+.composer-profile-icon svg { display:block;width:15px;height:15px; }
 .composer-profile-option { display:flex;flex-wrap:wrap;align-items:center;gap:5px 10px;text-align:left;
   border:1px solid transparent;border-radius:8px;padding:10px;background:transparent;color:inherit;cursor:pointer; }
 .composer-profile-option:hover,.composer-profile-option:focus-visible { background:#ffffff09;border-color:var(--line);outline:none; }

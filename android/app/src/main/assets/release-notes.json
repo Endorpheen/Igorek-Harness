@@ -1,35 +1,25 @@
 {
-  "versionName": "0.1.133",
-  "versionCode": 134,
+  "versionName": "0.1.134",
+  "versionCode": 135,
   "changes": [
     {
       "ru": {
-        "title": "Команды и цели",
-        "text": "Подсказки команд и управление целью доступны в чате."
+        "title": "Компактный выбор профиля",
+        "text": "Текущий профиль и модели видны сразу, остальные профили раскрываются отдельно."
       },
       "en": {
-        "title": "Commands and goals",
-        "text": "Command suggestions and goal controls are available in chat."
+        "title": "Compact profile picker",
+        "text": "The current profile and models are shown first; other profiles expand separately."
       }
     },
     {
       "ru": {
-        "title": "Режим плана",
-        "text": "Режим плана включается кнопкой и сохраняется до выключения."
+        "title": "Значки провайдеров",
+        "text": "В раскрытом списке профилей появились небольшие значки провайдеров."
       },
       "en": {
-        "title": "Plan mode",
-        "text": "Enable plan mode with the button; it stays active until disabled."
-      }
-    },
-    {
-      "ru": {
-        "title": "Выбор модели",
-        "text": "Список моделей подключения обновляется при выборе в чате."
-      },
-      "en": {
-        "title": "Model selection",
-        "text": "The connection’s model list is refreshed when selecting a model in chat."
+        "title": "Provider icons",
+        "text": "Small provider icons appear in the expanded profile list."
       }
     }
   ]

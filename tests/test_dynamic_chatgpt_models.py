@@ -10,6 +10,22 @@ from test_mobile_profile_switch import setup as setup
 from factory.core.chatgpt_auth import ChatGPTAuthError
 from factory.core.mobile_bridge.service import MobileInvalid
 from factory.core.runtime import get_db_path
+from vault_owner import _profile_provider_icon
+
+
+@pytest.mark.parametrize(('url', 'api_format', 'expected'), [
+    ('https://api.openai.com/v1', 'openai', 'openai'),
+    ('https://provider.invalid/v1', 'openai-responses', 'openai'),
+    ('https://openrouter.ai/api/v1', 'openai', 'openrouter'),
+    ('https://opencode.ai/zen/go/v1', 'openai', 'opencode'),
+    ('https://api.z.ai/api/coding/paas/v4', 'openai', 'zai'),
+    ('https://api.inceptionlabs.ai/v1', 'openai', 'inception'),
+    ('http://127.0.0.1:8081/v1', 'openai', 'local'),
+    ('https://api.openai.com.attacker.invalid/v1', 'openai', 'custom'),
+    ('http://[malformed', 'openai', 'custom'),
+])
+def test_provider_icons_use_connection_identity_without_guessing_from_names(url, api_format, expected):
+    assert _profile_provider_icon({'base_url': url, 'api_format': api_format, 'name': 'openai'}) == expected
 
 
 @pytest.fixture
@@ -37,6 +53,9 @@ def test_model_choices_come_from_live_account_and_reuse_cache(chatgpt):
     result = service.session_options(model_profile='cloud')
     row = next(item for item in result['profile_catalog'] if item['name'] == 'cloud')
     assert row['model'] == 'fixture-default'
+    assert row['provider_icon'] == 'openai'
+    assert next(item for item in result['profile_catalog'] if item['name'] == 'local')['provider_icon'] == 'local'
+    assert all('base_url' not in item for item in result['profile_catalog'])
     assert row['models'] == ['fixture-default', 'fixture-new']
     assert row['model_labels']['fixture-new'] == 'New model'
     assert row['models_status'] == 'ready'

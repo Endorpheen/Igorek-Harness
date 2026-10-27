@@ -59,4 +59,12 @@ class ProfileChoicesTest {
         assertEquals("", legacy.switchableProfiles.single().modelsStatus)
         assertTrue(legacy.switchableProfiles.single().modelLabels.isEmpty())
     }
+
+    @Test
+    fun providerIconsAreOptionalAndRoundTrip() {
+        val options = json.decodeFromString<SessionOptionsResponse>("""{"profile_catalog":[{"name":"router","provider_icon":"openrouter"},{"name":"legacy"}],"profile_switch_supported":true}""")
+        assertEquals("openrouter", options.switchableProfiles[0].providerIcon)
+        assertEquals("", options.switchableProfiles[1].providerIcon)
+        assertEquals(options, json.decodeFromString<SessionOptionsResponse>(json.encodeToString(options)))
+    }
 }

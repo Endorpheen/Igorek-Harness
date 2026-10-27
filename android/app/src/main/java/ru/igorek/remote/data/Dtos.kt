@@ -77,6 +77,7 @@ data class ProfileChoice(
     val models: List<String> = emptyList(),
     @SerialName("model_labels") val modelLabels: Map<String, String> = emptyMap(),
     @SerialName("models_status") val modelsStatus: String = "",
+    @SerialName("provider_icon") val providerIcon: String = "",
 )
 
 @Serializable

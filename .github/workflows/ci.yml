@@ -262,6 +262,12 @@ jobs:
           grep -q 'INSTRUMENTATION_CODE: 0' test-results/android-charts/instrumentation.log
           "$adb" -s emulator-5554 exec-out run-as ru.igorek.remote cat cache/chart-qa/android-chart.png > test-results/android-charts/chart.png
           python3 -c "from pathlib import Path; assert Path('test-results/android-charts/chart.png').read_bytes().startswith(bytes([137,80,78,71]))"
+          (cd android && ./gradlew --no-daemon -PigorekTestRunner=ru.igorek.remote.ProfileMenuInstrumentation assembleDebugAndroidTest)
+          "$adb" -s emulator-5554 install -r android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+          mkdir -p test-results/android-profiles
+          "$adb" -s emulator-5554 shell am instrument -w \
+            ru.igorek.remote.test/ru.igorek.remote.ProfileMenuInstrumentation > test-results/android-profiles/instrumentation.log
+          grep -q 'PROFILE_MENU_PASS:' test-results/android-profiles/instrumentation.log
 
       - name: Keep test reports
         if: always()
@@ -274,6 +280,7 @@ jobs:
             test-results/android-context/
             test-results/android-notifications/
             test-results/android-charts/
+            test-results/android-profiles/
           if-no-files-found: warn
           retention-days: 7
 
