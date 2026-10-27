@@ -324,6 +324,23 @@ class OffModeBaselineTest(WorkerSeamHarness):
         self.assertEqual(self.build_prompt_calls[0]['foundation_context'], '')
         self.assertEqual(self.build_prompt_calls[0]['skills_text'], '')
 
+    def test_opencode_go_selected_model_routes_to_its_protocol(self):
+        self.worker.config = {'provider': 'custom', 'base_url': 'https://opencode.ai/zen/go/v1', 'api_format': 'openai'}
+        self.task['metadata']['model_override'] = 'selected-model'
+        resolve_model = worker_module._effective_cc_backend_model
+        for api_format, base in [('openai', 'https://opencode.ai/inference/go/openai/v1'),
+                                 ('opencode-responses', 'https://opencode.ai/inference/go/openai/v1'),
+                                 ('anthropic', 'https://opencode.ai/inference/go/anthropic/v1'),
+                                 ('google', 'https://opencode.ai/inference/go/google/v1beta')]:
+            with self.subTest(api_format=api_format), self.seam_env():
+                with patch.object(worker_module, '_effective_cc_backend_model', side_effect=resolve_model), \
+                     patch('factory.core.opencode_go_catalog.get_opencode_go_routes',
+                           return_value={'selected-model': (api_format, base, 'Selected')}):
+                    self.run_worker()
+                    kwargs = self.executor.call_args.kwargs
+                    self.assertEqual((kwargs['api_format'], kwargs['base_url'], kwargs['model']),
+                                     (api_format, base, 'selected-model'))
+
     def test_desktop_navigation_instruction_preserves_the_normal_toolset(self):
         with self.seam_env():
             self.run_worker()
@@ -436,6 +453,26 @@ class OffModeBaselineTest(WorkerSeamHarness):
 
 
 class KvmModeDispatchTest(WorkerSeamHarness):
+    def test_opencode_go_selected_routes_reach_isolation_manager(self):
+        self.worker.isolation_manager = self.manager
+        self.worker.config = {'provider': 'custom', 'base_url': 'https://opencode.ai/zen/go/v1', 'api_format': 'openai'}
+        self.task['metadata']['model_override'] = 'selected-model'
+        resolve_model = worker_module._effective_cc_backend_model
+        for api_format, base in [('openai', 'https://opencode.ai/inference/go/openai/v1'),
+                                 ('opencode-responses', 'https://opencode.ai/inference/go/openai/v1'),
+                                 ('anthropic', 'https://opencode.ai/inference/go/anthropic/v1'),
+                                 ('google', 'https://opencode.ai/inference/go/google/v1beta')]:
+            self.manager.calls.clear()
+            with self.subTest(api_format=api_format), self.seam_env():
+                with patch.object(worker_module, '_effective_cc_backend_model', side_effect=resolve_model), \
+                     patch('factory.core.opencode_go_catalog.get_opencode_go_routes',
+                           return_value={'selected-model': (api_format, base, 'Selected')}), \
+                     patch('factory.core.cc_backend_executor.resolve_host_context_window', return_value=128000):
+                    self.run_worker()
+                    payload = self.manager.calls[-1]['payload']
+                    self.assertEqual((payload['api_format'], payload['base_url'], payload['model']),
+                                     (api_format, base, 'selected-model'))
+
     def test_injected_desktop_manager_routes_to_guest_with_global_mode_off(self):
         self.worker.isolation_manager = self.manager
         with self.seam_env(isolation_env="off"):

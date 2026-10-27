@@ -73,6 +73,7 @@ async function verifyOnboardingEntry({ runtime, config, dataDir, appRoot, root, 
     await clickNative(settings, '#submit');
     await until(() => settings.webContents.executeJavaScript("!document.getElementById('onboarding-alternatives').hidden"), 'Independent onboarding actions remained hidden after unlock');
     await unchanged();
+    await until(() => settings.webContents.executeJavaScript("!document.getElementById('onboarding-later').disabled"), 'Defer model setup did not become available');
     await clickNative(settings, '#onboarding-later');
     await until(() => settings.isDestroyed(), 'Defer model setup did not return to the main window');
     await unchanged();
@@ -81,6 +82,7 @@ async function verifyOnboardingEntry({ runtime, config, dataDir, appRoot, root, 
     await clickNative(settings, '#onboarding-opencode');
     await until(() => settings.isDestroyed(), 'OpenCode entry did not close settings');
     await until(() => main.webContents.executeJavaScript("Boolean(document.getElementById('workspace-opencode-surface')?.isConnected)"), 'OpenCode tab was not mounted without a model');
+    await until(() => operations.includes('manual') && operations.includes('status'), 'OpenCode entry requests did not complete');
     assert.ok(operations.includes('manual') && operations.includes('status'));
     await unchanged();
     await main.webContents.session.cookies.flushStore();

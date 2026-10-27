@@ -55,7 +55,7 @@ def _text(value):
     return value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)
 
 
-def build_request(payload):
+def build_request(payload, *, generic=False):
     """Translate only supported fields; never forward Chat Completions knobs."""
     inputs, instructions = [], []
     if payload.get("system"):
@@ -94,8 +94,9 @@ def build_request(payload):
                 source = block["image_url"]
                 parts.append({"type": "input_image", "image_url": source["url"], "detail": source.get("detail", "auto")})
             elif kind == "tool_use" and block["id"] not in raw_call_ids:
-                calls.append({"type": "function_call", "call_id": block["id"], "namespace": NAMESPACE,
-                              "name": block["name"], "arguments": json.dumps(block.get("input", {}), ensure_ascii=False)})
+                calls.append({"type": "function_call", "call_id": block["id"],
+                              **({} if generic else {"namespace": NAMESPACE}), "name": block["name"],
+                              "arguments": json.dumps(block.get("input", {}), ensure_ascii=False)})
             elif kind == "tool_result":
                 result = block.get("content", "")
                 if isinstance(result, list):
@@ -112,7 +113,7 @@ def build_request(payload):
             inputs.append({"role": role, "content": parts})
         for call in message.get("tool_calls") or []:
             if call["id"] not in raw_call_ids:
-                calls.append({"type": "function_call", "namespace": NAMESPACE, "call_id": call["id"],
+                calls.append({"type": "function_call", **({} if generic else {"namespace": NAMESPACE}), "call_id": call["id"],
                               "name": call["function"]["name"], "arguments": call["function"]["arguments"]})
         inputs.extend(calls)
         inputs.extend(results)
@@ -123,8 +124,9 @@ def build_request(payload):
                           "description": function.get("description", ""),
                           "parameters": function.get("parameters", function.get("input_schema", {"type": "object"})),
                           "strict": False})
-    request = {"model": payload["model"], "input": inputs, "store": False, "stream": True,
-               "include": ["reasoning.encrypted_content"]}
+    request = {"model": payload["model"], "input": inputs, "store": False, "stream": True}
+    if not generic:
+        request['include'] = ['reasoning.encrypted_content']
     if instructions:
         request["instructions"] = "\n\n".join(instructions)
     if functions:
@@ -139,7 +141,7 @@ def build_request(payload):
             request['tool_choice'] = 'required'
         elif choice in {'auto', 'required', 'none'}:
             request['tool_choice'] = choice
-        request["tools"] = [{"type": "namespace", "name": NAMESPACE,
+        request["tools"] = functions if generic else [{"type": "namespace", "name": NAMESPACE,
                              "description": "Igorek application tools", "tools": functions}]
     return request
 
@@ -192,7 +194,7 @@ def completed_response(response, output_items):
     return {**response, 'status': 'completed', 'output': [merged[index] for index in sorted(merged)]}
 
 
-def _failure(error, status=None, request_id=None):
+def _failure(error, status=None, request_id=None, *, generic=False):
     code = error.get("code") if isinstance(error, dict) else None
     details = {}
     if isinstance(status, int) and 100 <= status <= 599:
@@ -205,11 +207,13 @@ def _failure(error, status=None, request_id=None):
             details['provider_error_code'] = provider_code
         if isinstance(error.get('param'), str) and error['param'] in ERROR_PARAMS:
             details['error_param'] = error['param']
+    if generic and (status in {401, 403} or isinstance(code, str) and code in {'invalid_api_key', 'invalid_token', 'access_denied'}):
+        return {'error': 'OpenCode отклонил запрос. Проверьте ключ и доступ к модели.', 'error_code': 'authentication', **details}
     if isinstance(code, str) and code in ERRORS:
         return {"error": ERRORS[code], "error_code": code, **details}
     if status in {401, 403}:
         return {"error": "Вход OpenAI отклонён. Войдите снова в настройках подключения.", "error_code": "authentication", **details}
-    return {"error": "Запрос OpenAI не завершён" + (f" (HTTP {status})" if status else "") + ". Повторите попытку.",
+    return {"error": ("Запрос OpenCode не завершён" if generic else "Запрос OpenAI не завершён") + (f" (HTTP {status})" if status else "") + ". Повторите попытку.",
             "error_code": "responses_failed", **details}
 
 
@@ -251,9 +255,12 @@ def post(url, payload, headers, timeout_s, *, trace_dir=None, round_num=0, paren
                 return
     watcher = threading.Thread(target=watch, daemon=True)
     try:
-        request = build_request(payload)
+        generic = bool(headers.get('__igorek_generic_responses__'))
+        request = build_request(payload, generic=generic)
         phase = 'credentials'
         current = headers.current() if isinstance(headers, RenewingHeaders) else headers
+        if generic:
+            current = {key: value for key, value in current.items() if key != '__igorek_generic_responses__'}
         if cancel_check and cancel_check():
             return {"__interrupted__": True}, 0
         watcher.start()
@@ -285,7 +292,7 @@ def post(url, payload, headers, timeout_s, *, trace_dir=None, round_num=0, paren
                 error = json.loads(response.read(65536)).get("error")
             except Exception:
                 error = None
-            return {**_failure(error, response.status, response.getheader('x-request-id')), 'transport_phase': phase,
+            return {**_failure(error, response.status, response.getheader('x-request-id'), generic=generic), 'transport_phase': phase,
                 **({'retry_after_s':response_details['retry_after_s']} if 'retry_after_s' in response_details else {})}, int((time.monotonic() - start) * 1000)
         # Validate the actual SSE envelope, not the advisory media type. Some
         # gateways preserve SSE events while replacing or omitting this header.
@@ -309,7 +316,7 @@ def post(url, payload, headers, timeout_s, *, trace_dir=None, round_num=0, paren
                     if len(raw) <= 65536:
                         value = json.loads(raw)
                         if isinstance(value, dict) and isinstance(value.get('error'), dict):
-                            return {**_failure(value['error'], response.status, response.getheader('x-request-id')),
+                            return {**_failure(value['error'], response.status, response.getheader('x-request-id'), generic=generic),
                                     **response_details, 'transport_phase': phase}, int((time.monotonic() - start) * 1000)
                     raise ValueError('responses_invalid_content_type')
                 if not (line.startswith(b':') or line.split(b':', 1)[0].rstrip(b'\r\n') in
@@ -350,8 +357,9 @@ def post(url, payload, headers, timeout_s, *, trace_dir=None, round_num=0, paren
                 if aborted.is_set() or cancel_check and cancel_check():
                     return {"__interrupted__": True}, int((time.monotonic() - start) * 1000)
                 phase = 'response_validation'
-                body = to_anthropic(completed_response(event.get('response'), output_items),
-                    {f["name"] for t in request.get("tools", []) for f in t["tools"]})
+                names = ({tool['name'] for tool in request.get('tools', [])} if generic else
+                         {f['name'] for tool in request.get('tools', []) for f in tool['tools']})
+                body = to_anthropic(completed_response(event.get('response'), output_items), names)
                 return body, int((time.monotonic() - start) * 1000)
             if kind in {"response.failed", "response.incomplete", "error"}:
                 terminal_details={'terminal_event':kind}
@@ -360,7 +368,7 @@ def post(url, payload, headers, timeout_s, *, trace_dir=None, round_num=0, paren
                 if isinstance(incomplete,dict) and isinstance(incomplete.get('reason'),str) and incomplete['reason'] in {'max_output_tokens','content_filter'}:
                     terminal_details['incomplete_reason']=incomplete['reason']
                 return {**_failure(event.get("response", {}).get("error") or event.get("error") or event,
-                    request_id=response.getheader('x-request-id')), **response_details,
+                    request_id=response.getheader('x-request-id'), generic=generic), **response_details,
                     'transport_phase': 'response_terminal',**terminal_details}, int((time.monotonic() - start) * 1000)
             if trace_dir and kind in {"response.output_text.delta", "response.reasoning_summary_text.delta"}:
                 text = event.get("delta")

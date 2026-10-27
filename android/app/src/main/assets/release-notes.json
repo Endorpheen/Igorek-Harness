@@ -1,25 +1,15 @@
 {
-  "versionName": "0.1.134",
-  "versionCode": 135,
+  "versionName": "0.1.138",
+  "versionCode": 139,
   "changes": [
     {
       "ru": {
-        "title": "Компактный выбор профиля",
-        "text": "Текущий профиль и модели видны сразу, остальные профили раскрываются отдельно."
+        "title": "Модели OpenCode Go",
+        "text": "Выбирайте модели OpenCode Go в меню чата после обновления десктопа."
       },
       "en": {
-        "title": "Compact profile picker",
-        "text": "The current profile and models are shown first; other profiles expand separately."
-      }
-    },
-    {
-      "ru": {
-        "title": "Значки провайдеров",
-        "text": "В раскрытом списке профилей появились небольшие значки провайдеров."
-      },
-      "en": {
-        "title": "Provider icons",
-        "text": "Small provider icons appear in the expanded profile list."
+        "title": "OpenCode Go models",
+        "text": "Choose OpenCode Go models from the chat menu after updating the desktop app."
       }
     }
   ]

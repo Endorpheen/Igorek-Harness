@@ -137,7 +137,7 @@ internal fun SessionProfileMenuContent(options: SessionOptionsResponse?, profile
                 if (shownModel.isNotBlank()) Text(modelDisplayName(shownModel),
                     style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
-        }, leadingIcon = if (showIcon) {{ ProfileLogo(choice.providerIcon) }} else null,
+        }, leadingIcon = if (showIcon) {{ ProfileLogo(choice.displayProviderIcon) }} else null,
             trailingIcon = { if (choice.name == profile) Icon(Icons.Default.Check,
             contentDescription = uiText("Выбран", "Selected")) }, enabled = !busy && !switching,
             onClick = {
@@ -157,10 +157,10 @@ internal fun SessionProfileMenuContent(options: SessionOptionsResponse?, profile
             otherChoices.forEach { ProfileItem(it, true) }
         }
     }
-    if (currentChoice?.modelsStatus == "unavailable") Text(uiText("Не удалось загрузить модели аккаунта. Повторите позже.",
-        "Could not load account models. Try again later."), Modifier.padding(16.dp), style = MaterialTheme.typography.bodyMedium)
+    if (currentChoice?.modelsStatus == "unavailable") Text(uiText("Не удалось загрузить модели провайдера. Повторите позже.",
+        "Could not load provider models. Try again later."), Modifier.padding(16.dp), style = MaterialTheme.typography.bodyMedium)
     currentChoice?.models.orEmpty().let { models ->
-        if (models.isNotEmpty()) Text(uiText("Модель для этого чата", "Model for this chat"),
+        if (models.isNotEmpty()) Text(uiText("Модели провайдера", "Provider models"),
             Modifier.padding(start = 16.dp, top = 12.dp), style = MaterialTheme.typography.labelMedium)
         models.forEach { choice ->
             DropdownMenuItem(text = { Text(currentChoice?.modelLabels?.get(choice) ?: modelDisplayName(choice)) },
@@ -179,7 +179,7 @@ private fun ProfileLogo(provider: String) {
     val resource = when (provider) {
         "openai" -> R.drawable.provider_openai
         "anthropic" -> R.drawable.provider_anthropic
-        "opencode" -> R.drawable.provider_opencode
+        "opencode" -> R.drawable.provider_opencode_mark
         "openrouter" -> R.drawable.provider_openrouter
         "zai" -> R.drawable.provider_zai
         "minimax" -> R.drawable.provider_minimax
@@ -187,7 +187,7 @@ private fun ProfileLogo(provider: String) {
         "moonshotai" -> R.drawable.provider_moonshotai
         "google" -> R.drawable.provider_google
         "xai" -> R.drawable.provider_xai
-        "inception" -> R.drawable.provider_inception
+        "inception" -> R.drawable.provider_inception_mark
         "local" -> R.drawable.provider_local
         else -> R.drawable.provider_custom
     }

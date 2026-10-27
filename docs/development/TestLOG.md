@@ -1,3 +1,27 @@
+## 2026-10-27 — OpenCode Go routing verification
+
+The first PR native Linux run exposed a race in the onboarding test: it checked the two asynchronous OpenCode operations immediately after mounting the view. The test now waits for both operations and retains the original assertion. A local packaged Linux native run passed after the change. A second CI run exposed another timing issue: the test clicked the defer button after its group became visible but before the button was enabled. The test now also waits for the enabled state, and the packaged native run passed locally again. Neither failed CI run is counted as a pass; the updated commit requires a fresh native run.
+
+Focused tests covered catalog route validation, selected-model preservation, desktop session selection, Google streaming and tool calls, generic Responses tool calls, and host/KVM dispatch and credential proxy seams. The locked Python run covered 589 files in two groups: seven required a short `/tmp` path, while 582 ran with an external temporary directory. Together they collected 11,557 tests: 11,536 passed, 21 were skipped, and 914 subtests passed, with no failures. Fifteen skips require live KVM or vsock prerequisites, and six require Windows; they are not passes. Two native coverage data paths could not be combined, so the coverage total is not claimed as a reliable aggregate. This run preceded the final small Vault and streaming error/cancellation changes; separate targeted runs passed 96 Vault/catalog tests and 76 Responses/Google tests, followed by the final generic-response and Google cancellation regressions. Exact-commit CI is still required.
+
+The locked Desktop suite passed 531 tests. A native Electron run exercised profile selection and scrolling to the end of a 37-model list. Android unit tests passed 506 cases, lint passed, and APK 0.1.138 (139) built with the previous debug signer. A separate Android emulator did not finish booting; no local Android native or physical-device acceptance is claimed. Earlier full Python attempts failed because of temporary-disk quota, Git checkout context, and long Unix socket paths; a provider compatibility regression was fixed and retested. An earlier Desktop run used stale local dependencies and failed security checks. None of these attempts is counted as a passing run. No live OpenCode subscription inference or real KVM acceptance has been performed.
+
+## 2026-10-27 — OpenCode Go model menu, partial implementation
+
+The shared session-options path exposes live OpenCode Go model IDs matching the configured profile transport. Focused catalog and session tests passed 23 cases, including unavailable-catalog and unsupported-transport rejection. The catalog is public and does not establish account-specific entitlement. Cross-transport routing and Google/Responses API models remain unimplemented and no real provider inference or installed-app acceptance was performed.
+
+## 2026-10-27 — Mercury profile icon
+
+Android `ProfileChoicesTest` passed with Mercury fallback and explicit server identity precedence. Debug APK 0.1.137 (138) built successfully with the Inception vector mark; package version was verified. No emulator or physical-device visual check was performed.
+
+## 2026-10-27 — OpenCode profile mark
+
+Android debug APK 0.1.136 (137) built successfully with the OpenCode mark geometry checked against the upstream logo component. The package version was verified; no emulator or physical-device visual check was performed.
+
+## 2026-10-27 — Android provider labels and icons
+
+The Android `ProfileChoicesTest` suite passed, including legacy OpenRouter and OpenCode icon fallback and server-provided identity precedence. Kotlin compilation and release-note validation passed. No emulator or physical-device check was performed for this change.
+
 ## 2026-10-27 — Compact profile menus
 
 Desktop native Electron acceptance exercised collapsed and expanded profile lists with thirteen alternatives, bounded scrolling, model and profile selection, keyboard navigation, busy rejection and preserved drafts. The provider icon and session model checks passed 53 Python tests across three files. Android unit tests passed 505 cases and lint passed; a separate Android 14 emulator acceptance verified compact and expanded menus, profile/model selection and non-empty pixels in all 13 provider icons. The first visual inspection revealed transparent Android icon images; these were corrected before the successful emulator check. No physical-device acceptance is claimed.

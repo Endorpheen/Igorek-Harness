@@ -53,6 +53,21 @@ class ProfileMenuInstrumentation : Instrumentation() {
         while (current != null && !current.isClickable) current = current.parent
         check(current?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true) { "Cannot click $text" }
     }
+    private fun scrollTo(text: String) {
+        fun scrollable(value: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+            if (value == null) return null
+            if (value.isVisibleToUser && value.isScrollable) return value
+            for (index in 0 until value.childCount) scrollable(value.getChild(index))?.let { return it }
+            return null
+        }
+        repeat(20) {
+            if (node(text) != null) return
+            val scroll = uiAutomation.windows.firstNotNullOfOrNull { scrollable(it.root) }
+            check(scroll?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) == true) { "Cannot scroll to $text" }
+            Thread.sleep(100)
+        }
+        waitFor(text)
+    }
     private fun screenshot(name: String) {
         Thread.sleep(250)
         uiAutomation.takeScreenshot()?.let { bitmap ->
@@ -70,7 +85,7 @@ class ProfileMenuInstrumentation : Instrumentation() {
             }
             val activity = startActivitySync(Intent(targetContext, UiAcceptanceActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as ComponentActivity
-            val current = ProfileChoice(name = "cloud", model = "default-model", models = listOf("model-a", "model-b"),
+            val current = ProfileChoice(name = "cloud", model = "default-model", models = listOf("model-a", "model-b") + (1..35).map { "go-model-$it" },
                 modelLabels = mapOf("model-a" to "Model A", "model-b" to "Model B"), providerIcon = "openai")
             val others = (1..12).map { ProfileChoice(name = "local-$it", model = "fixture", providerIcon = "local") }
             val options = SessionOptionsResponse(profileCatalog = listOf(current) + others, profileSwitchSupported = true)
@@ -102,6 +117,7 @@ class ProfileMenuInstrumentation : Instrumentation() {
             click("local-1"); check(selected == "local-1")
             click("Other profiles · 12"); waitFor("local-1", false); waitFor("Model B")
             click("Model B"); check(selected == "model-b")
+            scrollTo("go-model-35"); click("go-model-35"); check(selected == "go-model-35")
             sendStatus(0, Bundle().apply { putString("stream", "PROFILE_MENU_PASS: compact menu, expandable profiles, model and profile selection\n") })
             finish(Activity.RESULT_OK, Bundle())
         } catch (error: Throwable) {

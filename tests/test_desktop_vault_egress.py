@@ -43,12 +43,61 @@ def request(plan, suffix='/chat/completions'):
     url = f'http://127.0.0.1:{plan.proxy_bind[1]}' + urlsplit(plan.guest_base_url).path.rstrip('/') + suffix
     payload = urllib.request.Request(url, data=b'{"stream":false}', headers={
         'Authorization':'Bearer forged-guest', 'x-api-key':'forged-guest',
+        'x-goog-api-key':'forged-guest',
         'Content-Type':'application/json', 'anthropic-version':'2023-06-01'}, method='POST')
     try:
         with urllib.request.urlopen(payload, timeout=3) as reply:
             return reply.status, reply.read()
     except urllib.error.HTTPError as error:
         return error.code, error.read()
+
+
+def test_verified_opencode_profile_authorizes_supported_protocol_headers_only(setup):
+    owner, bind, _ = setup
+    profile = owner.providers.save('go', 'fixture', 'https://opencode.ai/zen/go/v1', 'openai', 'test-only-key')
+    owner.service.check_provider_profile(profile['credential_id'], lambda *_: {'status': 'verified', 'reason': 'ok'})
+    get = lambda fmt: owner.lifecycle.provider_runtime_headers(profile['credential_id'], profile['config'], fmt)
+    assert get('openai') == {'Authorization': 'Bearer test-only-key'}
+    assert get('openai-responses') == {'Authorization': 'Bearer test-only-key'}
+    assert get('anthropic') == {'x-api-key': 'test-only-key'}
+    assert get('google') == {'x-goog-api-key': 'test-only-key'}
+    with pytest.raises(ValueError):
+        get('unexpected')
+    other, _ = bind()
+    with pytest.raises(ValueError):
+        owner.lifecycle.provider_runtime_headers(other['credential_id'], other['config'], 'anthropic')
+
+
+def test_go_proxy_routes_remain_bound_to_verified_profile(setup, monkeypatch):
+    owner, bind, received = setup
+    from factory.core.isolation import egress_auth
+    local, _ = bind()
+    monkeypatch.setattr(egress_auth, '_upstream_url', lambda base, target: local['config']['base_url'] + target)
+    profile = owner.providers.save('go', 'fixture', 'https://opencode.ai/zen/go/v1', 'openai', 'test-only-key')
+    owner.service.check_provider_profile(profile['credential_id'], lambda *_: {'status': 'verified', 'reason': 'ok'})
+    proxy = DesktopVaultEgress(owner.lifecycle, profile['credential_id'], profile['config'])
+    urls = ['https://opencode.ai/inference/go/openai/v1', 'https://opencode.ai/inference/go/anthropic/v1',
+            'https://opencode.ai/inference/go/google/v1beta']
+    try:
+        plans = [proxy.plan(url) for url in urls]
+        assert all(plan.mode == 'proxy' and not plan.guest_env for plan in plans)
+        assert len({plan.proxy_bind for plan in plans}) == len(urls)
+        assert [plan.upstream_base_url for plan in plans] == urls
+        assert all('test-only-key' not in repr(plan) for plan in plans)
+        for index, plan in enumerate(plans):
+            assert request(plan)[0] == 200
+            headers = {key.lower(): value for key, value in received[-1]['headers'].items()}
+            expected = [('authorization', 'Bearer test-only-key'), ('x-api-key', 'test-only-key'),
+                        ('x-goog-api-key', 'test-only-key')][index]
+            assert headers.get(expected[0]) == expected[1]
+            assert 'forged-guest' not in json.dumps(headers)
+        with pytest.raises(IsolationError):
+            proxy.plan('https://opencode.ai.attacker.invalid/inference/go/openai/v1')
+        owner.service.lock()
+        with pytest.raises(IsolationError):
+            proxy.plan(urls[0])
+    finally:
+        proxy.close()
 
 
 @pytest.mark.parametrize('api_format', ['openai', 'anthropic'])

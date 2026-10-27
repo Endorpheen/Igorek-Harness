@@ -53,13 +53,14 @@ agent = Agent()
 owner.agent = agent
 owner.browser_service = service
 service.available_profiles = lambda: [agent.active]
+fixture_models = ['gpt-6.1-sol', 'gpt-6.1-terra'] + [f'go-model-{i}' for i in range(1, 36)]
 def fixture_profile_control(operation, name):
     if operation == 'models' and name == 'cloud':
-        return {'models': ['gpt-6.1-sol', 'gpt-6.1-terra'], 'model_labels': {}, 'models_status': 'ready'}
+        return {'models': fixture_models, 'model_labels': {}, 'models_status': 'ready'}
     result = owner.mobile_profile_control(operation, name)
     if operation == 'catalog':
         for profile in result.get('profiles', []):
-            profile['models'] = ['gpt-6.1-sol', 'gpt-6.1-terra'] if profile['name'] == 'cloud' else []
+            profile['models'] = fixture_models if profile['name'] == 'cloud' else []
     return result
 
 

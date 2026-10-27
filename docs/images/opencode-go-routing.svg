@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="455" viewBox="0 0 1200 455">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#53657a"/></marker>
+  </defs>
+  <rect width="1200" height="455" rx="20" fill="#f5f7fa"/>
+  <g font-family="Arial, sans-serif" fill="#17283b">
+    <text x="38" y="54" font-size="30" font-weight="700">OpenCode Go in Igorek</text>
+    <text x="40" y="105" font-size="23" font-weight="700">Before</text>
+    <g fill="#fff" stroke="#bdc9d6" stroke-width="2">
+      <rect x="40" y="124" width="260" height="70" rx="12"/>
+      <rect x="443" y="124" width="280" height="70" rx="12"/>
+      <rect x="865" y="124" width="290" height="70" rx="12"/>
+    </g>
+    <g font-size="18" text-anchor="middle">
+      <text x="170" y="154">Desktop / Android chat</text><text x="170" y="178" font-size="15">Profile model only</text>
+      <text x="583" y="154">Igorek executor</text><text x="583" y="178" font-size="15">Configured API format</text>
+      <text x="1010" y="154">OpenCode Go</text><text x="1010" y="178" font-size="15">Configured endpoint</text>
+    </g>
+    <text x="40" y="250" font-size="23" font-weight="700">After</text>
+    <g fill="#fff" stroke="#94aec9" stroke-width="2">
+      <rect x="40" y="275" width="260" height="75" rx="12"/>
+      <rect x="443" y="275" width="280" height="75" rx="12"/>
+      <rect x="865" y="265" width="290" height="95" rx="12"/>
+      <rect x="443" y="381" width="280" height="48" rx="12"/>
+    </g>
+    <g font-size="18" text-anchor="middle">
+      <text x="170" y="304">Desktop / Android chat</text><text x="170" y="328" font-size="15">Select model for this chat</text>
+      <text x="583" y="304">Igorek executor</text><text x="583" y="328" font-size="15">Route selected model</text>
+      <text x="1010" y="293">OpenCode Go APIs</text><text x="1010" y="318" font-size="15">Chat / Responses / Anthropic / Google</text><text x="1010" y="340" font-size="15">Access depends on Go settings</text>
+      <text x="583" y="411" font-size="17">models.dev catalog (OpenCode)</text>
+    </g>
+    <rect x="302" y="157" width="123" height="4" fill="#53657a"/>
+    <rect x="725" y="157" width="122" height="4" fill="#53657a"/>
+    <rect x="302" y="310" width="123" height="4" fill="#53657a"/>
+    <rect x="725" y="310" width="122" height="4" fill="#53657a"/>
+    <rect x="581" y="368" width="4" height="11" fill="#53657a"/>
+    <path d="M425 153L435 159L425 165Z M847 153L857 159L847 165Z M425 306L435 312L425 318Z M847 306L857 312L847 318Z M577 368L583 358L589 368Z" fill="#53657a"/>
+    <text x="747" y="405" font-size="15" fill="#53657a">KVM: credentials stay in the host proxy</text>
+  </g>
+</svg>

@@ -64,6 +64,46 @@ def test_model_choices_come_from_live_account_and_reuse_cache(chatgpt):
     assert owner.mobile_profile_control('models', 'local').get('models', []) == []
 
 
+def test_opencode_go_choices_include_models_for_all_catalog_transports(setup, monkeypatch):
+    from factory.core import opencode_go_catalog
+    owner, service, agent, _, workdir = setup
+    original = owner.providers.list_profiles
+    def profiles():
+        rows = original()
+        for row in rows:
+            if row['config']['name'] == 'cloud':
+                row['config'].update(base_url='https://opencode.ai/zen/go/v1', api_format='openai')
+        return rows
+    monkeypatch.setattr(owner.providers, 'list_profiles', profiles)
+    fetch = mock.Mock(return_value={
+        'deepseek-v4.1-flash': ('openai', 'https://opencode.ai/inference/go/openai/v1', 'DeepSeek'),
+        'qwen3.8-max': ('anthropic', 'https://opencode.ai/inference/go/anthropic/v1', 'Qwen'),
+    })
+    monkeypatch.setattr(opencode_go_catalog, 'get_opencode_go_routes', fetch)
+    row = next(item for item in service.session_options(model_profile='cloud')['profile_catalog'] if item['name'] == 'cloud')
+    assert row['models'] == ['deepseek-v4.1-flash', 'qwen3.8-max']
+    assert row['model_labels'] == {'deepseek-v4.1-flash': 'DeepSeek', 'qwen3.8-max': 'Qwen'}
+    sid = service.create_session(profile='cloud', cwd=str(workdir))['session_id']
+    assert service.switch_session_model(sid, 'cloud', 'deepseek-v4.1-flash')['meta']['model'] == 'deepseek-v4.1-flash'
+    assert service.switch_session_model(sid, 'cloud', 'qwen3.8-max')['meta']['model'] == 'qwen3.8-max'
+    with pytest.raises(MobileInvalid):
+        service.switch_session_model(sid, 'cloud', 'unknown')
+    assert fetch.call_count == 1 and agent.starts == []
+    owner._models_cache.clear()
+    fetch.return_value = {}
+    row = next(item for item in service.session_options(model_profile='cloud')['profile_catalog'] if item['name'] == 'cloud')
+    assert row['models_status'] == 'unavailable'
+    with pytest.raises(MobileInvalid):
+        service.switch_session_model(sid, 'cloud', 'deepseek-v4.1-flash')
+    fetch.return_value = {
+        'qwen3.8-max': ('anthropic', 'https://opencode.ai/inference/go/anthropic/v1', 'Qwen')}
+    owner._models_cache.clear()
+    task = service.send_message(sid, 'Next task')
+    with sqlite3.connect(get_db_path()) as db:
+        metadata = json.loads(db.execute('SELECT metadata FROM tasks WHERE task_id=?', (task['task_id'],)).fetchone()[0])
+    assert metadata['model_override'] == 'qwen3.8-max'
+
+
 def test_selected_model_reaches_next_task_without_restarting_worker(chatgpt):
     _, service, agent, workdir, _ = chatgpt
     sid = service.create_session(profile='cloud', cwd=str(workdir))['session_id']

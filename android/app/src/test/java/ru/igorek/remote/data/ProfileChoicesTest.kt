@@ -67,4 +67,14 @@ class ProfileChoicesTest {
         assertEquals("", options.switchableProfiles[1].providerIcon)
         assertEquals(options, json.decodeFromString<SessionOptionsResponse>(json.encodeToString(options)))
     }
+
+    @Test
+    fun legacyNamedProvidersUseTheirIconsWithoutOverridingServerIdentity() {
+        assertEquals("openrouter", ProfileChoice("openrouter").displayProviderIcon)
+        assertEquals("opencode", ProfileChoice("OpenCode").displayProviderIcon)
+        assertEquals("inception", ProfileChoice("mercury").displayProviderIcon)
+        assertEquals("custom", ProfileChoice("mercury", providerIcon = "custom").displayProviderIcon)
+        assertEquals("custom", ProfileChoice("openrouter", providerIcon = "custom").displayProviderIcon)
+        assertEquals("", ProfileChoice("other").displayProviderIcon)
+    }
 }

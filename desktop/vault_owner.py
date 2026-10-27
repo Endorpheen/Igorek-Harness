@@ -50,6 +50,11 @@ def _profile_provider_icon(config):
     }.get(host, 'custom')
 
 
+def _is_opencode_go(config):
+    from factory.core.opencode_go_catalog import is_opencode_go_url
+    return is_opencode_go_url(str(config.get('base_url') or ''))
+
+
 class OwnerVault:
     def __init__(self, root: Path):
         self.root = root
@@ -195,6 +200,20 @@ class OwnerVault:
         if profile is None:
             return {'error': 'profile_not_verified'}
         if operation == 'models':
+            if _is_opencode_go(profile['config']):
+                from factory.core.opencode_go_catalog import get_opencode_go_routes
+                identity = 'opencode-go:' + profile['credential_id'] + ':' + str(profile['config'].get('api_format'))
+                with self._models_lock:
+                    cached = self._models_cache.get(identity, {})
+                    if cached.get('expires', 0) > time.monotonic():
+                        return {key: value for key, value in cached.items() if key != 'expires'}
+                routes = get_opencode_go_routes()
+                models = list(routes)
+                result = {'models': models, 'model_labels': {model: routes[model][2] for model in models},
+                          'models_status': 'ready' if models else 'unavailable'}
+                with self._models_lock:
+                    self._models_cache[identity] = {**result, 'expires': time.monotonic() + (60 if models else 10)}
+                return result
             if profile['config'].get('api_format') != 'openai-responses':
                 return {'models': [], 'model_labels': {}, 'models_status': 'unsupported'}
             return self._chatgpt_models(profile)
