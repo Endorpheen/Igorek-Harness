@@ -81,6 +81,7 @@ async function verifyOnboardingEntry({ runtime, config, dataDir, appRoot, root, 
     await clickNative(settings, '#onboarding-opencode');
     await until(() => settings.isDestroyed(), 'OpenCode entry did not close settings');
     await until(() => main.webContents.executeJavaScript("Boolean(document.getElementById('workspace-opencode-surface')?.isConnected)"), 'OpenCode tab was not mounted without a model');
+    await until(() => operations.includes('manual') && operations.includes('status'), 'OpenCode entry requests did not complete');
     assert.ok(operations.includes('manual') && operations.includes('status'));
     await unchanged();
     await main.webContents.session.cookies.flushStore();
