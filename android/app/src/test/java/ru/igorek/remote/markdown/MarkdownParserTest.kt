@@ -227,4 +227,35 @@ class MarkdownParserTest {
         assertTrue(plain.contains("1 | 2"))
         assertTrue(!plain.contains("---"))
     }
+
+    @Test
+    fun `pepe tokens stay intact next to ordinary formatting`() {
+        val spans = MarkdownParser.parseInline("Да, я тут! :pepe_happy_clap: и :pepe_think: _важно_")
+        assertEquals("Да, я тут! :pepe_happy_clap: и :pepe_think: важно", spans.joinToString("") { it.text })
+        assertEquals(listOf("важно"), spans.filterIsInstance<MdSpan.Italic>().map { it.text })
+    }
+
+    @Test
+    fun `italic text can contain pepe token without breaking it`() {
+        val spans = MarkdownParser.parseInline("_Привет :pepe_happy_clap: друг_")
+        assertEquals(listOf(MdSpan.Italic("Привет :pepe_happy_clap: друг")), spans)
+    }
+
+    @Test
+    fun `pepe tokens in inline code remain literal`() {
+        val spans = MarkdownParser.parseInline("`:pepe_happy_clap:` и :pepe_happy_clap:")
+        assertEquals(":pepe_happy_clap:", spans.filterIsInstance<MdSpan.CodeSpan>().single().text)
+        assertEquals(" и :pepe_happy_clap:", spans.filterIsInstance<MdSpan.Plain>().single().text)
+    }
+
+    @Test
+    fun `all bundled pepe names survive parsing together`() {
+        val ids = listOf("bongo", "think", "happy_clap", "happy_dance", "laugh", "love",
+            "give_love", "happy_blanket", "clap", "cry", "sad_rain", "sad_vibes",
+            "sleep", "sip_spin", "no_u", "brain_scratch")
+        val text = ids.joinToString(" ") { ":pepe_$it:" }
+        val spans = MarkdownParser.parseInline(text)
+        assertEquals(text, spans.joinToString("") { it.text })
+        assertTrue(spans.all { it is MdSpan.Plain })
+    }
 }

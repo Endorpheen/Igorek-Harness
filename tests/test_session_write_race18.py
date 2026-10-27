@@ -95,3 +95,25 @@ def test_concurrent_metadata_updates_keep_both_changes(tmp_path):
         if process.is_alive():
             process.terminate()
             process.join(10)
+
+
+def test_append_preserves_valid_last_record_without_trailing_newline(tmp_path):
+    import json
+
+    path = tmp_path / 'chat.jsonl'
+    original = json.dumps({'role': 'user', 'text': 'before'}, ensure_ascii=False).encode('utf-8')
+    path.write_bytes(original)
+    cli_chat._append_entry(path, 'assistant', 'после')
+    assert path.read_bytes().startswith(original + b'\n')
+    assert [entry['text'] for entry in cli_chat._load_entries(path)] == ['before', 'после']
+
+
+def test_metadata_update_preserves_history_when_utf8_is_damaged(tmp_path):
+    path = tmp_path / 'chat.jsonl'
+    cli_chat._write_session_meta(path, session_id='chat')
+    with path.open('ab') as stream:
+        stream.write(b'{"role":"user","text":"\xd0')
+    before = path.read_bytes()
+    with pytest.raises(UnicodeDecodeError):
+        cli_chat.update_session_meta(path, {'title': 'renamed'})
+    assert path.read_bytes() == before

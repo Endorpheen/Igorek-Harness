@@ -101,7 +101,8 @@ def run_file(path: Path, index: int, output: Path, timeout: int, coverage: bool)
               "seconds": round(time.monotonic() - started, 2),
               "passed": 0, "failed": 0, "errors": 0, "skipped": 0,
               "collected": 0, "subtests_passed": 0}
-    if xml.exists():
+    report_error = ""
+    try:
         for suite in ET.parse(xml).getroot().iter("testsuite"):
             tests, failures, errors, skipped = (int(suite.get(k, 0)) for k in
                                                 ("tests", "failures", "errors", "skipped"))
@@ -109,6 +110,8 @@ def run_file(path: Path, index: int, output: Path, timeout: int, coverage: bool)
             result["failed"] += failures
             result["errors"] += errors
             result["skipped"] += skipped
+    except (OSError, ET.ParseError, ValueError) as error:
+        report_error = f"Invalid or missing JUnit report: {error}"
     text = (root / "output.log").read_text(errors="replace")
     collected = re.search(r"collected (\d+) items?", text)
     result["collected"] = int(collected[1]) if collected else 0
@@ -120,6 +123,11 @@ def run_file(path: Path, index: int, output: Path, timeout: int, coverage: bool)
                            ("subtests_passed", "subtests passed")):
             match = re.search(r"\b(\d+) " + label + r"\b", summary)
             result[key] = int(match[1]) if match else 0
+    if report_error:
+        result["report_error"] = report_error
+        result["errors"] = max(1, result["errors"])
+        if result["exit_code"] == 0:
+            result["exit_code"] = 1
     return result
 
 

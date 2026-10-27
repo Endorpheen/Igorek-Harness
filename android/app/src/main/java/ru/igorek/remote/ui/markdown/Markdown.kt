@@ -25,6 +25,7 @@ object MarkdownParser {
     private val NUMBERED = Regex("""^\d+[.)]\s+""")
     private val RULE = Regex("""^(-{3,}|\*{3,}|_{3,})$""")
     private val DELIMITER_CELL = Regex("""^:?-{2,}:?$""")
+    private val PEPE_TOKEN = Regex(":pepe_[a-z_]{1,32}:")
     private const val NOTE_PREFIX = "▸ "
 
     fun tableCells(line: String): List<String>? {
@@ -133,6 +134,8 @@ object MarkdownParser {
     fun parseInline(text: String): List<MdSpan> {
         val spans = mutableListOf<MdSpan>()
         val plain = StringBuilder()
+        val pepeRanges = PEPE_TOKEN.findAll(text).map { it.range }.toList()
+        val pepeStarts = pepeRanges.associateBy { it.first }
 
         fun flushPlain() {
             if (plain.isNotEmpty()) {
@@ -153,6 +156,12 @@ object MarkdownParser {
                     index += url.length
                     continue
                 }
+            }
+            val pepe = pepeStarts[index]
+            if (pepe != null) {
+                plain.append(text.substring(pepe.first, pepe.last + 1))
+                index = pepe.last + 1
+                continue
             }
             when {
                 rest.startsWith("**") -> {
@@ -190,7 +199,13 @@ object MarkdownParser {
                 }
                 rest.startsWith("*") || rest.startsWith("_") -> {
                     val marker = rest[0]
-                    val end = text.indexOf(marker, index + 1)
+                    var end = text.indexOf(marker, index + 1)
+                    if (marker == '_') {
+                        while (end >= 0) {
+                            val token = pepeRanges.firstOrNull { end in it } ?: break
+                            end = text.indexOf(marker, token.last + 1)
+                        }
+                    }
                     if (end > index + 1) {
                         flushPlain()
                         spans += MdSpan.Italic(text.substring(index + 1, end))

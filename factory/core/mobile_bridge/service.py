@@ -8,6 +8,7 @@ as TUI and Telegram.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -16,6 +17,7 @@ import time
 import threading
 import uuid
 from collections.abc import Callable
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +31,7 @@ from ..cli_chat import (
     _load_entries,
     _read_session_meta,
     _session_path,
+    _session_write_lock,
     _write_session_meta,
     generate_session_name,
     list_sessions,
@@ -258,27 +261,28 @@ def _reassign_journal_task_id(
     The file is rewritten in full (JSONL), so lines that `_load_entries` does not return
     (e.g., the `meta` header) are saved as-is.
     """
-    if not message_ids or not path.exists():
-        return
-    rewritten: list[str] = []
-    changed = False
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if not line.strip():
-            continue
-        try:
-            entry = json.loads(line)
-        except json.JSONDecodeError:
-            rewritten.append(line)
-            continue
-        if isinstance(entry, dict) and str(entry.get("message_id") or "") in message_ids:
-            entry["task_id"] = task_id
-            changed = True
-        rewritten.append(json.dumps(entry, ensure_ascii=False))
-    if not changed:
-        return
-    tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text("\n".join(rewritten) + "\n", encoding="utf-8")
-    os.replace(tmp, path)
+    with _session_write_lock(path):
+        if not message_ids or not path.exists():
+            return
+        rewritten: list[str] = []
+        changed = False
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                rewritten.append(line)
+                continue
+            if isinstance(entry, dict) and str(entry.get("message_id") or "") in message_ids:
+                entry["task_id"] = task_id
+                changed = True
+            rewritten.append(json.dumps(entry, ensure_ascii=False))
+        if not changed:
+            return
+        tmp = path.with_name(path.name + ".tmp")
+        tmp.write_text("\n".join(rewritten) + "\n", encoding="utf-8")
+        os.replace(tmp, path)
 
 
 class MobileService:
@@ -1936,8 +1940,24 @@ class MobileService:
         except (OSError, ValueError) as exc:
             raise MobileInvalid(str(exc)) from exc
 
+    @contextmanager
+    def _message_request_lock(self, key: str, *, scope: str = "request"):
+        if not key:
+            yield
+            return
+        from ..platform_support import exclusive_lock
+        directory = Path(get_db_path()).parent / "mobile-request-locks"
+        directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+        name = hashlib.sha256((scope + "\0" + key).encode("utf-8")).hexdigest() + ".lock"
+        descriptor = exclusive_lock(directory / name, blocking=True)
+        try:
+            yield
+        finally:
+            os.close(descriptor)
+
     def send_message(self, session_id, text, *, activate_profile=False, **kwargs):
-        with self._approval_lock:
+        request_key = str(kwargs.get('idempotency_key') or '').strip()
+        with self._approval_lock, self._message_request_lock(str(session_id or ""), scope="session"), self._message_request_lock(request_key):
             from . import demo
             command = str(text or '').strip()
             if command == '/demo':
@@ -1969,6 +1989,67 @@ class MobileService:
                     'session_id': record.get('session_id') or '', 'task_id': record.get('task_id') or '',
                     'receipt': record.get('receipt') or {}}
 
+    def _recover_keyed_steer(self, session_id: str, key: str, *, duplicate: bool = True) -> dict | None:
+        recovery = self.store.keyed_steer(key, session_id)
+        if recovery is None:
+            return None
+        task_id, message_id = recovery['task_id'], recovery['message_id']
+        payload = recovery['payload']
+        path = _session_path(session_id)
+        self.get_session(session_id)
+        if not any(entry.get('message_id') == message_id for entry in _load_entries(path)):
+            extra = {'message_id': message_id, 'steer': True}
+            if payload['attachments']:
+                extra['attachments'] = payload['attachments']
+            if payload['selected_skills']:
+                extra['skills'] = payload['selected_skills']
+            _append_entry(path, role='user', text=payload['entry_text'], task_id=task_id,
+                          status='queued', extra=extra)
+        event_payload = {k: v for k, v in payload.items() if k != 'entry_text'}
+        seq = self.store.record_keyed_steer_event(key)
+        if seq is not None:
+            self._publish_event(kind='task.message_added', payload=event_payload,
+                                session_id=session_id, task_id=task_id, seq=seq)
+        receipt = {'task_id': task_id, 'message_id': message_id, 'status': 'queued', 'steered': True}
+        self.store.remember_request(key, kind='message', session_id=session_id, task_id=task_id, receipt=receipt)
+        return {**receipt, 'duplicate': duplicate}
+
+    def _recover_keyed_submission(self, session_id: str, key: str) -> dict | None:
+        with open_db(get_db_path()) as conn:
+            row = conn.execute(
+                "SELECT task_id, metadata FROM tasks WHERE json_valid(metadata) "
+                "AND json_extract(metadata, '$.idempotency_key') = ? "
+                "AND json_extract(metadata, '$.session') = ? "
+                "AND json_extract(metadata, '$.submission.message_id') IS NOT NULL "
+                "ORDER BY created_at DESC LIMIT 1", (key, session_id),
+            ).fetchone()
+        if row is None:
+            return None
+        task_id = str(row[0])
+        submission = _loads(row[1], {}).get('submission', {})
+        message_id = submission['message_id']
+        entry_text = submission['text']
+        selected_skills = submission['skills']
+        visible_attachments = submission['attachments']
+        attachment_names = submission['attachment_names']
+        path = _session_path(session_id)
+        self.get_session(session_id)
+        if not any(entry.get('message_id') == message_id for entry in _load_entries(path)):
+            extra = {'message_id': message_id}
+            if visible_attachments:
+                extra['attachments'] = visible_attachments
+            if selected_skills:
+                extra['skills'] = selected_skills
+            _append_entry(path, role='user', text=entry_text, task_id=task_id, status='queued', extra=extra)
+        payload = {'task_id': task_id, 'message_id': message_id, 'session_id': session_id,
+                   'text': entry_text, 'selected_skills': selected_skills,
+                   'attachment_names': attachment_names, 'attachments': visible_attachments}
+        self.store.append_event(kind='task.submitted', payload=payload, session_id=session_id,
+                                task_id=task_id, src_line=-4)
+        receipt = {'task_id': task_id, 'message_id': message_id, 'status': 'queued', 'steered': False}
+        self.store.remember_request(key, kind='message', session_id=session_id, task_id=task_id, receipt=receipt)
+        return {**receipt, 'duplicate': True}
+
     def _send_message(
         self,
         session_id: str,
@@ -1988,6 +2069,12 @@ class MobileService:
         message = str(text or "").strip()
         key = str(idempotency_key or "").strip()
         if key:
+            recovered = self._recover_keyed_steer(session_id, key)
+            if recovered is not None:
+                return recovered
+            recovered = self._recover_keyed_submission(session_id, key)
+            if recovered is not None:
+                return recovered
             existing = self.store.lookup_request(key)
             if existing and existing.get("task_id"):
                 return {**existing.get('receipt', {}), "task_id": existing["task_id"], "status": "queued", "duplicate": True}
@@ -2076,6 +2163,14 @@ class MobileService:
         # its executor consume them without allocating a new task ID.
         active_task_id = self._active_task_id_for_session(session_id)
         if active_task_id:
+            if key:
+                payload = {'task_id': active_task_id, 'message_id': message_id,
+                           'session_id': session_id, 'text': message, 'entry_text': entry_text,
+                           'selected_skills': selected_skills, 'attachment_names': attachment_names,
+                           'attachments': visible_attachments}
+                self.store.enqueue_keyed_steer(key, session_id, active_task_id, message_id,
+                                               task_message, current_input_files, selected_skills, payload)
+                return self._recover_keyed_steer(session_id, key, duplicate=False)
             entry_extra: dict[str, Any] = {"message_id": message_id, "steer": True}
             if visible_attachments:
                 entry_extra["attachments"] = visible_attachments
@@ -2146,6 +2241,10 @@ class MobileService:
                 + current_input_files
             )
         )
+        if key:
+            metadata['submission'] = {'message_id': message_id, 'text': entry_text,
+                                      'skills': selected_skills, 'attachments': visible_attachments,
+                                      'attachment_names': attachment_names}
         created = create_task(
             text=prompt,
             profile=effective_profile,
@@ -2167,9 +2266,6 @@ class MobileService:
             status="queued",
             extra=task_id_extra,
         )
-        if key:
-            self.store.remember_request(key, kind="message", session_id=session_id, task_id=task_id,
-                receipt={'task_id':task_id,'message_id':message_id,'status':'queued','steered':False})
         self.store.append_event(
             kind="task.submitted",
             payload={
@@ -2183,7 +2279,11 @@ class MobileService:
             },
             session_id=session_id,
             task_id=task_id,
+            src_line=-4 if key else None,
         )
+        if key:
+            self.store.remember_request(key, kind="message", session_id=session_id, task_id=task_id,
+                receipt={'task_id':task_id,'message_id':message_id,'status':'queued','steered':False})
         return {
             "task_id": task_id,
             "status": "queued",
@@ -2290,75 +2390,96 @@ class MobileService:
         """Review memory changes and append completed mobile turns to sessions."""
         finalized = 0
         for task in self._scan_tasks():
-            metadata = task.get("metadata") if isinstance(task.get("metadata"), dict) else {}
-            if str(metadata.get("source") or "") != "mobile_bridge":
-                continue
-            if metadata.get("session_finalized"):
+            with self._message_request_lock(str(task.get("task_id") or ""), scope="finalize"):
+                task = self._task_row(str(task.get("task_id") or "")) or task
+                metadata = task.get("metadata") if isinstance(task.get("metadata"), dict) else {}
+                if str(metadata.get("source") or "") != "mobile_bridge":
+                    continue
+                if metadata.get("session_finalized"):
+                    if metadata.get('demo_run'):
+                        from .demo import complete
+                        complete(self, task)
+                    continue
+                status = str(task.get("status") or "")
+                if status not in FINAL_STATUSES:
+                    continue
+                if task.get("approval_blocked_tools"):
+                    continue
+                session_id = self._session_of(task)
+                if not session_id:
+                    continue
+
+                path = _session_path(session_id)
+                turn_id = str(metadata.get("session_turn_id") or "initial")
+                written_entry = next((
+                    entry for entry in _load_entries(path)
+                    if entry.get("role") == "assistant"
+                    and str(entry.get("task_id") or "") == str(task["task_id"])
+                    and entry.get("mobile_turn_id") == turn_id
+                ), None) if path.exists() else None
+                if written_entry is not None:
+                    files = written_entry.get("files") or []
+                    if files:
+                        self.store.append_event(kind="message.files", payload={"files": files},
+                            session_id=session_id, task_id=str(task["task_id"]), src_line=-3)
+                    self._merge_task_metadata(task["task_id"], {"session_finalized": True})
+                    if metadata.get('demo_run'):
+                        from .demo import complete
+                        complete(self, task)
+                    finalized += 1
+                    continue
+
+                raw_text = str(task.get("output_text") or task.get("error_message") or "").strip()
+                text = raw_text
+                memory_writes: list[dict[str, Any]] = []
+                if status == "ok" and not metadata.get('demo_workspace'):
+                    text, requested_writes = extract_memory_write_blocks(raw_text)
+                    text = strip_memory_status_lines(text)
+                    if requested_writes:
+                        memory_writes = self._memory_manager.review_turn(
+                            user_text=str(metadata.get("original_message_text") or ""),
+                            assistant_text=text,
+                            profile=str(task.get("profile") or self.profile),
+                            data_dir=self.data_dir,
+                            legacy_raw_text=raw_text,
+                            log_fn=lambda message: logger.info("mobile memory review: %s", message),
+                        )
+                        changed_writes = [
+                            item for item in memory_writes
+                            if not item.get("rejected") and (item.get("changed") or item.get("saved"))
+                        ]
+                        memory_message = self._memory_manager.format_memory_update_message(changed_writes)
+                        if memory_message:
+                            self.store.append_event(
+                                kind="model.round_response",
+                                payload={"round": 0, "text": f"▸ {memory_message}"},
+                                session_id=session_id,
+                                task_id=str(task["task_id"]),
+                            )
+
+                files = []
+                if path.exists() and text:
+                    base = Path(metadata.get("cwd") or self.workdir).expanduser().resolve()
+                    workspace_id = str(metadata.get("workspace_task_id") or task["task_id"])
+                    files = [info for info, _ in collect_files(base, text, [], workspace_id)][:10]
+                    _append_entry(
+                        path,
+                        role="assistant",
+                        text=text,
+                        task_id=task["task_id"],
+                        status=status,
+                        extra={"memory_writes": memory_writes, "files": files, "mobile_turn_id": turn_id},
+                    )
+                if files:
+                    self.store.append_event(kind="message.files", payload={"files": files},
+                        session_id=session_id, task_id=str(task["task_id"]),
+                        src_line=-3)
+                self._merge_task_metadata(task["task_id"], {"session_finalized": True})
                 if metadata.get('demo_run'):
                     from .demo import complete
-                    complete(self, task)
-                continue
-            status = str(task.get("status") or "")
-            if status not in FINAL_STATUSES:
-                continue
-            if task.get("approval_blocked_tools"):
-                continue
-            session_id = self._session_of(task)
-            if not session_id:
-                continue
-
-            raw_text = str(task.get("output_text") or task.get("error_message") or "").strip()
-            text = raw_text
-            memory_writes: list[dict[str, Any]] = []
-            if status == "ok" and not metadata.get('demo_workspace'):
-                text, requested_writes = extract_memory_write_blocks(raw_text)
-                text = strip_memory_status_lines(text)
-                if requested_writes:
-                    memory_writes = self._memory_manager.review_turn(
-                        user_text=str(metadata.get("original_message_text") or ""),
-                        assistant_text=text,
-                        profile=str(task.get("profile") or self.profile),
-                        data_dir=self.data_dir,
-                        legacy_raw_text=raw_text,
-                        log_fn=lambda message: logger.info("mobile memory review: %s", message),
-                    )
-                    changed_writes = [
-                        item for item in memory_writes
-                        if not item.get("rejected") and (item.get("changed") or item.get("saved"))
-                    ]
-                    memory_message = self._memory_manager.format_memory_update_message(changed_writes)
-                    if memory_message:
-                        self.store.append_event(
-                            kind="model.round_response",
-                            payload={"round": 0, "text": f"▸ {memory_message}"},
-                            session_id=session_id,
-                            task_id=str(task["task_id"]),
-                        )
-
-            path = _session_path(session_id)
-            files = []
-            if path.exists() and text:
-                base = Path(metadata.get("cwd") or self.workdir).expanduser().resolve()
-                workspace_id = str(metadata.get("workspace_task_id") or task["task_id"])
-                files = [info for info, _ in collect_files(base, text, [], workspace_id)][:10]
-                _append_entry(
-                    path,
-                    role="assistant",
-                    text=text,
-                    task_id=task["task_id"],
-                    status=status,
-                    extra={"memory_writes": memory_writes, "files": files},
-                )
-            if files:
-                self.store.append_event(kind="message.files", payload={"files": files},
-                    session_id=session_id, task_id=str(task["task_id"]),
-                    src_line=-3)
-            self._merge_task_metadata(task["task_id"], {"session_finalized": True})
-            if metadata.get('demo_run'):
-                from .demo import complete
-                with self._approval_lock:
-                    complete(self, task)
-            finalized += 1
+                    with self._approval_lock:
+                        complete(self, task)
+                finalized += 1
         return finalized
 
     def resume_pending_steers(self) -> int:
@@ -2372,110 +2493,121 @@ class MobileService:
         """
         resumed = 0
         for task_id, queued_items in pending_steer_sessions().items():
-            row = self._task_row(task_id)
-            if not row:
-                # The task has disappeared from the `tasks` list, but its steer messages remain.
-                # Delivery is no one's responsibility: `finalize_turns` and the main branch below
-                # only operate on task strings. Without this branch, messages would hang in the queue forever.
-                if queued_items and self._deliver_orphan_steers(task_id, queued_items):
-                    resumed += 1
-                continue
-            status = str(row.get("status") or "")
-            if status in ACTIVE_STATUSES:
-                # The active executor will consume these messages itself.
-                continue
-            if status not in FINAL_STATUSES:
-                continue
-            # _task_row normally returns decoded metadata.
-            metadata = row.get("metadata")
-            if not isinstance(metadata, dict):
-                metadata = _loads(row.get("metadata"), {})
-            if str(metadata.get("source") or "") != "mobile_bridge":
-                continue
-            session_id = str(metadata.get("session") or "")
-            if not session_id:
-                continue
-            path = _session_path(session_id)
-            if not path.exists():
-                continue
-            if metadata.get("infra_failure") is True:
-                # Infrastructure loss keeps its terminal error visible; the
-                # pending message runs as a new task in the same session.
-                if queued_items and self._deliver_orphan_steers(task_id, queued_items):
-                    resumed += 1
-                continue
-            # Drain first because these messages are embedded into the rebuilt
-            # prompt and must not be delivered to the executor a second time.
-            items = drain_steer(task_id)
-            if not items:
-                continue
-            if status == "cancelled":
-                # Do not revive a task explicitly cancelled by the user. Journal
-                # entries remain available to the next session turn.
-                continue
-            undelivered = {
-                str(item.get("message_id") or "")
-                for item in items
-                if str(item.get("message_id") or "")
-            }
-            entries = _load_entries(path)
-            # Exclude queued journal entries from history because they are added
-            # below as the new user message.
-            history_entries = [
-                entry
-                for entry in entries
-                if not (
-                    undelivered
-                    and entry.get("steer")
-                    and str(entry.get("message_id") or "") in undelivered
-                )
-            ]
-            history = history_entries
-            working_history = self._working_history(session_id, exclude_message_ids=undelivered)
-            message_text = "\n\n".join(
-                str(item.get("text") or "").strip()
-                for item in items
-                if str(item.get("text") or "").strip()
-            )
-            if not message_text:
-                continue
-            prompt = _build_prompt(
-                history,
-                message_text,
-                foundation_context=self._foundation_context(),
-            )
-            now = int(time.time())
-            with open_db(get_db_path()) as conn:
-                cursor = conn.execute(
-                    "UPDATE tasks SET input_text = ?, status = 'queued', started_at = NULL, "
-                    "completed_at = NULL, error_message = NULL, updated_at = ? "
-                    "WHERE task_id = ? AND status = ?",
-                    (prompt, now, task_id, status),
-                )
-                if cursor.rowcount <= 0:
+            with self._message_request_lock(task_id, scope="finalize"):
+                row = self._task_row(task_id)
+                if not row:
+                    # The task has disappeared from the `tasks` list, but its steer messages remain.
+                    # Delivery is no one's responsibility: `finalize_turns` and the main branch below
+                    # only operate on task strings. Without this branch, messages would hang in the queue forever.
+                    if queued_items and self._deliver_orphan_steers(task_id, queued_items):
+                        resumed += 1
                     continue
-            metadata["history_messages"] = working_history
-            metadata["structured_session_history"] = True
-            metadata["session_user_message"] = message_text
-            metadata["original_message_text"] = message_text
-            metadata["session_finalized"] = False
-            metadata["pending_steer_resume"] = True
-            metadata["pending_steer_ids"] = sorted(undelivered)
-            metadata.pop("approved_tool_calls", None)
-            self._merge_task_metadata(task_id, metadata)
-            self.store.append_event(
-                kind="task.requeued",
-                payload={
-                    "task_id": task_id,
-                    "session_id": session_id,
-                    "reason": "pending_steer_messages",
-                    "messages": len(items),
-                    "message_ids": sorted(undelivered),
-                },
-                session_id=session_id,
-                task_id=task_id,
-            )
-            resumed += 1
+                status = str(row.get("status") or "")
+                if status in ACTIVE_STATUSES:
+                    # The active executor will consume these messages itself.
+                    continue
+                if status not in FINAL_STATUSES:
+                    continue
+                # _task_row normally returns decoded metadata.
+                metadata = row.get("metadata")
+                if not isinstance(metadata, dict):
+                    metadata = _loads(row.get("metadata"), {})
+                if str(metadata.get("source") or "") != "mobile_bridge":
+                    continue
+                session_id = str(metadata.get("session") or "")
+                if not session_id:
+                    continue
+                path = _session_path(session_id)
+                if not path.exists():
+                    continue
+                if metadata.get("infra_failure") is True:
+                    # Infrastructure loss keeps its terminal error visible; the
+                    # pending message runs as a new task in the same session.
+                    if queued_items and self._deliver_orphan_steers(task_id, queued_items):
+                        resumed += 1
+                    continue
+                if status == "cancelled":
+                    # Do not revive a task explicitly cancelled by the user. Journal
+                    # entries remain available to the next session turn.
+                    drain_steer(task_id)
+                    continue
+                items = queued_items
+                if not items:
+                    continue
+                undelivered = {
+                    str(item.get("message_id") or "")
+                    for item in items
+                    if str(item.get("message_id") or "")
+                }
+                entries = _load_entries(path)
+                # Exclude queued journal entries from history because they are added
+                # below as the new user message.
+                history_entries = [
+                    entry
+                    for entry in entries
+                    if not (
+                        undelivered
+                        and entry.get("steer")
+                        and str(entry.get("message_id") or "") in undelivered
+                    )
+                ]
+                history = history_entries
+                working_history = self._working_history(session_id, exclude_message_ids=undelivered)
+                message_text = "\n\n".join(
+                    str(item.get("text") or "").strip()
+                    for item in items
+                    if str(item.get("text") or "").strip()
+                )
+                if not message_text:
+                    continue
+                prompt = _build_prompt(
+                    history,
+                    message_text,
+                    foundation_context=self._foundation_context(),
+                )
+                metadata["history_messages"] = working_history
+                metadata["structured_session_history"] = True
+                metadata["session_user_message"] = message_text
+                metadata["original_message_text"] = message_text
+                metadata["session_finalized"] = False
+                metadata["session_turn_id"] = uuid.uuid4().hex
+                metadata["pending_steer_resume"] = True
+                metadata["pending_steer_ids"] = sorted(undelivered)
+                metadata.pop("approved_tool_calls", None)
+                now = int(time.time())
+                with open_db(get_db_path()) as conn:
+                    conn.execute("BEGIN IMMEDIATE")
+                    current_ids = [row[0] for row in conn.execute(
+                        "SELECT id FROM session_steer_messages "
+                        "WHERE task_id = ? AND consumed_at IS NULL ORDER BY id", (task_id,)
+                    )]
+                    if current_ids != [item["id"] for item in items]:
+                        continue
+                    cursor = conn.execute(
+                        "UPDATE tasks SET input_text = ?, status = 'queued', started_at = NULL, "
+                        "completed_at = NULL, error_message = NULL, updated_at = ?, metadata = ? "
+                        "WHERE task_id = ? AND status = ?",
+                        (prompt, now, json.dumps(metadata, ensure_ascii=False), task_id, status),
+                    )
+                    if cursor.rowcount <= 0:
+                        continue
+                    conn.execute(
+                        "UPDATE session_steer_messages SET consumed_at = ? "
+                        "WHERE task_id = ? AND consumed_at IS NULL", (now, task_id)
+                    )
+                self.store.append_event(
+                    kind="task.requeued",
+                    payload={
+                        "task_id": task_id,
+                        "session_id": session_id,
+                        "reason": "pending_steer_messages",
+                        "messages": len(items),
+                        "message_ids": sorted(undelivered),
+                    },
+                    session_id=session_id,
+                    task_id=task_id,
+                )
+                resumed += 1
         return resumed
 
     def _deliver_orphan_steers(
@@ -2498,6 +2630,23 @@ class MobileService:
         )
         if not session_id:
             return False
+        pending_by_id = {int(item["id"]): item for item in items}
+        recovered_task_id = ""
+        with open_db(get_db_path()) as conn:
+            rows = conn.execute(
+                "SELECT task_id, metadata FROM tasks WHERE json_valid(metadata) "
+                "AND json_extract(metadata, '$.orphan_source_task_id') = ? "
+                "AND json_extract(metadata, '$.session') = ? ORDER BY created_at, task_id",
+                (task_id, session_id),
+            ).fetchall()
+        for candidate_id, raw_metadata in rows:
+            candidate = _loads(raw_metadata, {})
+            saved_ids = candidate.get("orphan_queue_ids") if isinstance(candidate, dict) else None
+            if (isinstance(saved_ids, list) and saved_ids
+                    and all(isinstance(value, int) and value in pending_by_id for value in saved_ids)):
+                recovered_task_id = str(candidate_id)
+                items = [pending_by_id[value] for value in saved_ids]
+                break
         path = _session_path(session_id)
         if not path.exists():
             return False
@@ -2550,7 +2699,7 @@ class MobileService:
             message_text,
             foundation_context=self._foundation_context(),
         )
-        created = create_task(
+        created = None if recovered_task_id else create_task(
             text=prompt,
             profile=profile,
             metadata={
@@ -2563,12 +2712,19 @@ class MobileService:
                 "session": session_id,
                 "cwd": workdir,
                 "original_message_text": message_text,
+                "orphan_source_task_id": task_id,
+                "orphan_queue_ids": [int(item["id"]) for item in items],
             },
             input_files=input_files,
         )
-        new_task_id = str(created["task_id"])
+        new_task_id = recovered_task_id or str(created["task_id"])
         _reassign_journal_task_id(path, message_ids, new_task_id)
-        drain_steer(task_id)
+        with open_db(get_db_path()) as conn:
+            conn.executemany(
+                "UPDATE session_steer_messages SET consumed_at = ? "
+                "WHERE task_id = ? AND id = ? AND consumed_at IS NULL",
+                [(int(time.time()), task_id, int(item["id"])) for item in items],
+            )
         self.store.append_event(
             kind="task.requeued",
             payload={

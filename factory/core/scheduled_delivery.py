@@ -62,7 +62,7 @@ def report_result(task_id, fields):
 
 
 def deliver_result(service, task, source_session, *, quiet=False):
-    from .cli_chat import _session_path, _append_entry
+    from .cli_chat import _session_path, _session_write_lock, _append_entry_unlocked
     from .session_history import read_history
 
     task_id = task["task_id"]
@@ -85,19 +85,20 @@ def deliver_result(service, task, source_session, *, quiet=False):
     journal = _session_path(source_session)
     message_id = "schedule-" + task_id
     with service._session_lock:
-        existing = next((entry for entry in read_history(journal) if entry.get("message_id") == message_id), None)
-        if existing is None:
-            for item in files:
-                with open_file_safely(Path(item["path"]), item["info"]):
-                    pass
-            _append_entry(journal, role="assistant", text=text, task_id=task_id, status="ok", extra={
-                "message_id": message_id, "files": [item["info"] for item in files],
-                "output_files": [item["path"] for item in files],
-                "workspace_task_id": task_id,
-            })
-        else:
-            text = existing["text"]
-            files = [{"info": info} for info in existing.get("files", [])]
+        with _session_write_lock(journal):
+            existing = next((entry for entry in read_history(journal) if entry.get("message_id") == message_id), None)
+            if existing is None:
+                for item in files:
+                    with open_file_safely(Path(item["path"]), item["info"]):
+                        pass
+                _append_entry_unlocked(journal, role="assistant", text=text, task_id=task_id, status="ok", extra={
+                    "message_id": message_id, "files": [item["info"] for item in files],
+                    "output_files": [item["path"] for item in files],
+                    "workspace_task_id": task_id,
+                })
+            else:
+                text = existing["text"]
+                files = [{"info": info} for info in existing.get("files", [])]
         payload = {"message_id": message_id, "text": text, "files": [item["info"] for item in files]}
         # A reserved negative source line gives restart-safe event idempotency.
         seq = service.store.append_event(kind="schedule.delivered", payload=payload,

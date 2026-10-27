@@ -1,3 +1,181 @@
+## 2026-10-27 — Release 0.2.27 preparation
+
+Python and Desktop were advanced to 0.2.27 with matching Russian Desktop notes; the separately changed Android application is 0.1.127 (128) with matching Russian and English notes. After the version change, 58 selected recovery, installation, staging and runner cases passed. Offline lock consistency and publication contracts passed, and the reviewed source snapshot passed the secret scanner. The earlier full local Python run preceded the version and release-note changes; release acceptance requires checks on the exact release commit.
+
+## 2026-10-27 — Isolated current Python package acceptance
+
+A wheel was built from an independently copied tracked-source inventory; all 511 copied files still matched the working tree. Its 405 Python modules match the source bytes, no Python source outside the excluded test package was missing, and all six changed runtime modules were present. `igorek_agent_factory-0.2.26-py3-none-any.whl` SHA-256: `443f5aecd7ce91f5a5aa3ddad1c54d6fb768d7aec99dc9c3a2c260d9b2987005`. The wheel was installed into a separate environment synchronized from the lockfile; imports were verified to resolve inside that environment, CLI help and dependency compatibility passed, and ten mobile recovery tests passed against the installed package. The first import attempt omitted the disposable data directory and failed to open a database; it was not counted as a pass. No owner installation or service was changed. This is not a Desktop installer update/rollback or Windows acceptance.
+
+## 2026-10-27 — Final split Python run
+
+An isolated environment was synchronized with `uv sync --locked --dev`. Both Python roots ran as 577 files in two groups: six guest-path-sensitive files with one worker under `/tmp`, and 571 files with two workers under a separate short temporary directory. Results: **11,434 collected, 11,413 passed, 21 skipped, 906 subtests passed, zero failures or errors**. Hashes of 1,550 source files remained unchanged. The temporary directory was removed after completion. This is not CI's four-worker execution. Fifteen skips concern live KVM/vsock requirements and six concern native Windows. The coverage report exists but two native data files could not be combined, so its percentage is not a reliable aggregate comparison. Detailed summaries and source hashes are in `build/verification-testing-quality-20261027/split-final-current/`.
+
+## 2026-10-27 — Final locked Desktop suite
+
+In a separate source copy, `npm ci` installed the lockfile dependencies and `npm test` passed **521 tests**, with zero failures or skips, under Node 24.19.0. The first run used a long workspace temporary path and had 511 passes and ten `EINVAL` Unix-socket path failures; the unchanged suite passed with a separate short temporary directory, which was removed after completion. npm audit reported zero known vulnerabilities at installation time. This is a Node suite, not native Electron or Windows installation acceptance. Logs: `build/verification-testing-quality-20261027/desktop-final.log` and `desktop-final-short.log`.
+
+## 2026-10-27 — Configuration and documentation risk review
+
+Configuration, publication and Git safety contracts passed 53 tests; eleven Wiki import/citation tests passed in the existing documentation environment. The first Wiki unittest attempt using the Python test environment failed one module import due to missing BeautifulSoup; it was not counted as a pass. Offline `uv lock --check` passed. A strict Wiki build in a separate directory and local-link check passed with 77 HTML pages and 6,312 checked links. Wiki content was not modified or published; browser and external link availability were not verified. All eleven map areas now have a selected-risk review and explicit limitations, not an exhaustive all-path acceptance.
+
+## 2026-10-27 — Packaging and update risk review
+
+Five focused install, staging-inventory, runner and package files passed 107 tests in an isolated project temporary directory. An initial `/tmp` run had 10 failures and 38 errors when fixtures encountered `EDQUOT`; its 59 passes do not make it a successful run. Afterward only the 112 MiB temporary directory from that failed run and the 778 MiB test-owned successful fixture directory were removed. Synthetic installation and rollback checks are not clean installation of the current build or native Windows acceptance. Ten of eleven areas now have a documented review.
+
+## 2026-10-27 — Tool-server and integration risk review
+
+MCP stdio/provider-error contracts, Telegram allowlist denial and ACP execution/session cases passed 74 tests with controlled providers and local data. No real external messages were sent. The risk map records that live outages and all external side effects are not established by this focused set. Nine of eleven areas now have a documented review.
+
+## 2026-10-27 — Android risk review
+
+All 199 tracked Android files in the current working tree match the isolated copy used for the earlier 483-test JVM, lint and debug-assembly baseline. Existing endpoint checks include a real local TLS redirect to a separate plaintext listener and verify that the bearer request does not reach it. No new Android mutation or device acceptance is claimed. Eight of eleven map areas now have a documented review.
+
+## 2026-10-27 — Desktop updater mutation and risk review
+
+The existing foreign-redirect test passed even when the allowlist check was removed: the artificial server kept redirecting until the separate hop limit failed. A new assertion verifies that the updater makes no request to the foreign destination. In a copied source, both selected tests passed unmodified; after removing the allowlist condition, the old test still passed and the new test failed (five requests instead of one). All 16 updater tests passed on the original working tree under Node 24.19.0. The mutation uses a synthetic fetch and the locally installed dependencies, not the earlier clean locked baseline of 520 Desktop tests. An initial Node invocation with a name filter matched no individual tests and was not counted as evidence. Seven of eleven map areas now have a documented review.
+
+## 2026-10-27 — Web UI and CLI risk review
+
+Focused hostile-origin, missing-pairing, path traversal, approval state, terminal route and native CLI working-directory checks passed 31 tests and 32 subtests. CLI acceptance used an isolated real POSIX PTY with geometry and cursor responses; the chat body was substituted. Browser behavior and all WebSocket lifecycle paths are not established by these checks. Six of eleven areas now have a documented review.
+
+## 2026-10-27 — Mobile bridge and API risk review
+
+On the current source, selected submission recovery, finalization, local worker/provider, foreign approval and bridge server cases passed 139 tests with temporary data. The risk map identifies the current source hashes and distinguishes these local checks from physical-device and deployed-gateway acceptance. Five of eleven mapped areas now have a documented review.
+
+## 2026-10-27 — Orphan mobile message recovery
+
+When the source task was deleted, failure after creating its replacement but before reassigning the history caused a retry to create two tasks for the same queued message. A regression reproduced two tasks before the fix. The replacement now records the source task and queue row identifiers so retry can reuse it, including after a child process exits at that boundary. History reassignment uses the session write lock, and only the selected queue rows are consumed: a message arriving after the snapshot remains pending. The related mobile, queue and worker suite passed 135 tests and five subtests, followed by ten focused recovery tests. The full current tree and interruption after queue consumption but before publishing the requeue event remain unverified.
+
+## 2026-10-27 — Isolation risk review
+
+Three structural isolation suites passed 95 tests and 103 subtests with ten live probes skipped using short `/tmp` paths. A first run with the long project temporary path produced three Unix-socket path-length failures (92 passed, ten skipped, 103 subtests); the unchanged assertions passed on rerun. The previously attempted KVM guest still did not boot, so real guest isolation remains unverified. Four of eleven risk areas now have a documented review.
+
+## 2026-10-27 — Security, vault and approval risk review
+
+Selected API authorization, execution-policy, private-file and artifact failure checks passed 39 tests; separate vault lifecycle, secret-redaction and foreign-approval checks passed 85. The risk map records the selected scenarios, earlier targeted mutations and limits. This is a focused review rather than a security certification. Three of eleven areas now have a documented review.
+
+## 2026-10-27 — Worker and workflow risk review
+
+The selected heartbeat race, worker death, queue lifecycle, stream failures, workflow guards and local-provider mobile-to-worker checks passed 27 tests using Python 3.14.4 and requests 2.34.2. The first attempt using `.venv` failed collection because requests was absent; it is not counted as a pass. Prior controlled mutations and bounded repetitions are documented with their limits in the risk map. Two of eleven map areas now have a documented review.
+
+## 2026-10-27 — History and scheduling risk review
+
+Rechecked the existing and new history, archive, delivery and corrupt-result cases together: 33 passed on Linux using isolated temporary data. This records the selected failure boundaries and remaining power-loss limitation in `docs/development/reports/repository-risk-map-2026-10-27.md`. The previously measured bounded race repetitions and targeted mutations remain separate evidence. This is one reviewed area of eleven, not an assertion that every history or scheduler path is verified.
+
+## 2026-10-27 — Pending mobile message resumption
+
+A failure while building a requeued task prompt reproduced a lost pending message: the queue item was already marked consumed although the task remained finished. Existing resumption tests covered successful requeueing, not this interruption. The pending snapshot is now checked and consumption commits in the same SQLite transaction as the task and its round metadata; a process-shared task lock also serializes this transition with mobile finalization. A prompt failure preserves the item, and a SQLite trigger rejecting consumption rolls back the task transition. Both cases allow a successful retry. The related mobile, queue, worker, media and recovery suites passed 149 tests and five subtests. This does not cover power failure, the separate orphan-task path, or prove all concurrent interleavings.
+
+## 2026-10-27 — Mobile response finalization recovery
+
+A simulated metadata failure reproduced a duplicate assistant response on retry. The prior repeat-finalization test covered only successful calls. Finalization now records a turn identifier with the response and checks it on recovery; follow-up rounds get distinct identifiers committed with requeueing. The regression passes after an actual child process exits at the same boundary, and a failed attachment event is replayed. Identical responses in two legitimate rounds remain separate. The related recovery, mobile service, media, submission and worker suites passed 139 tests and five subtests. The latest complete Python run predates these source changes. The checks do not establish power-loss durability or exactly-once memory-provider effects before the response is recorded.
+
+## 2026-10-27 — Full Python run and test uniqueness audit
+
+Before the test-only deduplication below, all 576 files ran in two groups: 11,425 collected, 11,404 passed, 21 skipped, 906 subtests passed, zero failures or errors; 1,549 source hashes stayed unchanged. Six guest-path files used `/tmp` with one worker and 570 used a separate short directory with two workers. This differs from CI's four-worker run. Two native coverage data files could not be combined, so coverage is not a reliable comparison. The temporary directory was removed after all processes exited.
+
+Compared selected earlier and new tests on four identical fault injections. All four faults survived the selected earlier tests and were detected by the corresponding new checks. One redundant new thread-based delivery test was removed; the retained process test's readiness synchronization and child source-path checks were strengthened. Both retained delivery tests passed; the process test passed on original code and failed on the no-lock mutation. These test-only changes postdate the full-run snapshot and were validated separately, not by another full run. Details: `docs/development/reports/test-uniqueness-audit-2026-10-27.md`.
+
+## 2026-10-27 — Partial UTF-8 history recovery
+
+A truncated multibyte UTF-8 character caused history and metadata reads to fail before a retry could recover a message. History readers now process records by line and skip undecodable records without rewriting the original bytes; metadata reading decodes only its own line. Tests cover the first and follow-up message, both ASCII and truncated UTF-8 fragments, and refusal to rewrite damaged bytes during metadata updates. Related checks passed 53 tests; the five history write tests passed separately. Two targeted mutations disabling recovery in either reader were each detected. This extends the existing partial-history defect, rather than adding another independent defect to the count.
+
+## 2026-10-27 — Recovery after partial history write
+
+A partial JSONL record without a terminating newline caused the next recovered message to be concatenated to the malformed fragment and disappear from history. Both initial and follow-up mobile submissions reproduced the loss. Appending now separates an unterminated final line while retaining its existing bytes. A valid final record without a newline is also retained. The focused history/recovery suite passed 51 tests. In a controlled copy, removing the separator caused all three relevant cases to fail; the baseline passed. The full passing Python run predates this change.
+
+## 2026-10-27 — Full split Python run after fixture isolation
+
+All 576 test files ran in two groups: 11,419 collected, 11,398 passed, 21 skipped, 906 subtests passed, no failures or errors. Six guest-path tests used `/tmp` and one worker; the other 570 used an isolated short temporary directory and two workers. Source hashes for 1,549 files were unchanged. This differs from CI's four-worker run. Six skips require Windows and 15 require live KVM/vsock conditions. Two native coverage data files could not be combined; the reported coverage percentage is not a reliable comparison.
+
+A concise before/after inventory is in `docs/development/reports/testing-progress-2026-10-27.md`; group summaries, hash inventory and combined output are in `build/verification-testing-quality-20261027/split-full-run2/`. The test-owned temporary directory was removed after all processes exited.
+
+## 2026-10-27 — Split full run and schedule fixture isolation
+
+A 576-file Python run used six guest-path-sensitive files with `/tmp` and 570 files with a separate short temporary directory. Source hashes for 1,549 files did not change. The six files passed (167 passed, one live-vsock skip, 35 subtests); the other group had 11,230 passed, one error, 20 skips and 871 subtests. The error was a 60-second timeout while the schedule fixture fetched a real external model catalogue; this was not a clean full run. Two native coverage data files could not be combined.
+
+The schedule fixture now substitutes unavailable local catalogue responses for both external catalogue fetches; it retains the schedule, storage and delivery assertions. Schedule/recovery-related checks subsequently passed 52 tests. This fixture change was made after the full-run source snapshot, so the earlier run is not a full verification of the changed tree.
+
+## 2026-10-27 — Complete two-worker Python run with nonstandard temporary root
+
+The full 576-file run completed with two workers: 11,419 collected, 11,359 passed, 38 failed, 22 skipped, 906 subtests passed. It is not a passing full run. All failures were in six files: one browser path-length assertion and 37 isolation scenarios whose test fixtures passed the nonstandard `/home` temporary path across a boundary that denies host paths. The same six files were rerun without changing assertions using the usual `/tmp`: 167 passed, one real-vsock check skipped, 35 subtests passed. A real VM or vsock smoke was not performed. Two native coverage data files could not be combined, so coverage is not reliable for comparison. The test runner's job count was reduced from CI's four to two to limit peak disk use. Results: `build/verification-testing-quality-20261027/full-worker-run/results5/summary.json`; the owned external temporary directory was removed after completion.
+
+## 2026-10-27 — Concurrent messages in one session
+
+Two independent services submitting different messages to the same idle session could both observe no active task and create separate tasks. A deterministic test reproduced the race. Submission now uses a process-shared session lock as well as the request-key lock. Checks with two spawned processes confirm one task plus one steer; a separate-session test confirms independent sessions do not wait on that lock. Removing the session lock in an isolated copy causes the process test to fail.
+
+Mobile service, store, events, steer, failure recovery and local end-to-end checks: 188 passed and five subtests passed. Full-suite acceptance remains unconfirmed due to the documented quota limitation. Mutation logs: `build/verification-testing-quality-20261027/session-mutation-*.log`.
+
+## 2026-10-27 — Separate mobile store compatibility
+
+A regression test showed the initial steer recovery fix put a keyed message into the wrong database when `MobileService` used a separate `MobileStore`. The queue and its recovery record now share the worker task database; the event and its deduplication marker commit together in the mobile store database. This preserves the injectable separate-store configuration without claiming atomicity across the two databases. Retries bridge the commit boundary.
+
+Combined mobile/queue/event/end-to-end checks: 183 passed, five subtests passed. Separate tests for atomic event-marker rollback passed in both shared and separate database configurations (2 passed). A mutation disabling the new event-marker check caused a uniqueness error and was detected; the attempted event was rolled back, so this result demonstrates failed recovery, not duplicate delivery. Full-suite acceptance remains blocked by quota.
+
+## 2026-10-27 — Keyed follow-up recovery
+
+Keyed follow-up messages now store the steer queue row and its recovery data in one SQLite transaction. Recovery writes missing history, records its event once and restores the receipt, including when the steer has already been consumed. Tests cover database rollback, history/event/receipt failures, concurrent keyed submissions, already-consumed messages and actual process termination. The combined mobile/service/store/events/queue/end-to-end checks passed 179 tests and five subtests.
+
+A mutation that removes the event-deduplication guard was detected by the event-after-failure case. An initial apparent survivor was invalid because pytest imported the original checkout; the repeated experiment explicitly asserts the imported source path. The full suite after these changes is not confirmed because of the recorded disk quota. Logs: `build/verification-testing-quality-20261027/steer-mutation-*.log`.
+
+## 2026-10-27 — Partial mobile submission recovery
+
+For a new keyed task, persist the original submission data with the task, serialize same-key senders across processes, recover missing history, event and receipt without deleting or cancelling the task, and make the submission event idempotent. Eight focused scenarios passed, including history/event/receipt failures, two service instances, process death and already-processing or completed task status. A broader compatibility run before the last three cases passed 144 tests and five subtests.
+
+The analogous failure for a follow-up steer message remains open: a failure after enqueue but before history write leads to two queued steer entries on retry. The explicit regression currently fails and is retained. This patch does not cover that case and has not passed a full suite; disk quota limitations remain.
+
+## 2026-10-27 — Mobile submission interrupted after enqueue (open defect)
+
+A controlled failure of the session history append after a mobile task is created reproduces an issue: retrying the same idempotency key finds the still-active task and enqueues the same text again as a steer message. The database contains one task and the history shows one message, but the steer queue contains an unintended duplicate. Regression `tests/test_mobile_submission_failure_recovery.py` currently fails and is intentionally retained. No fix or full-suite pass is claimed. The recovery design must account for task creation, journal append, event and receipt boundaries, including concurrent senders and already-running tasks; deleting or cancelling an already claimed task would risk data loss.
+
+## 2026-10-27 — Mobile submission to worker with local provider
+
+Added a full local path using the actual `MobileService`, SQLite queue and separate `Worker` process, with an isolated loopback OpenAI-compatible synthetic provider. Normal streamed output is persisted and an idempotent repeat does not create another task or user message. A stream ending without a terminal event is not reported as success. Both cases and related worker/stream tests passed: 20 tests. No real model or external service was contacted.
+
+A deliberate removal of the stream-terminal check caused the interrupted-stream scenario to fail, while the normal scenario passed. The first mutation attempt was invalid because the spawned worker imported the original source, rather than the temporary mutant; its result is discarded. The test now checks the worker's actual source path before execution. Experiment logs: `build/verification-testing-quality-20261027/e2e-*.log`. The latest additions have not yet had a successful full-suite run due to the recorded quota limitation.
+
+## 2026-10-27 — Short-path full-run attempt and focused recheck
+
+A private temporary directory under `/home/end0` avoided long AF_UNIX paths: 43 selected socket tests passed. The subsequent 574-file run was interrupted after `dpkg-deb` reported disk quota exhaustion on that filesystem; it is not a successful full run. Its owned temporary processes were stopped and its temporary directory removed. A focused recheck of worker recovery, heartbeat races, session and scheduled delivery, and the runner passed 49 tests. Full post-change validation remains outstanding.
+
+## 2026-10-27 — Worker heartbeat race and test runner resilience
+
+A deterministic SQLite/process interleaving reproduced incorrect finalization of a live task when a heartbeat arrived after stale selection. Both `processing` and `cancelling` failed before the fix. Cleanup now rechecks the timestamp, status and profile in the update and reports the number actually finalized. Focused worker tests: 36 passed; the two race cases passed ten repetitions (20 executions); independently removing either freshness condition produced its intended failure. A separate actual child process claimed a task and was terminated; artificially aging its timestamp led to dead-letter without losing its input or touching another profile (1 passed).
+
+An actual disk quota failure exposed a second problem: missing or invalid JUnit XML could crash the runner, or a missing report could be counted as success. Three new cases reproduced the failure; the runner now records a report error and nonzero status. Targeted runner/coverage tests: 6 passed.
+
+Full validation after the changes is not complete: attempts hit a user `/tmp` quota, and a long project-based temporary path caused AF_UNIX path-length failures. The socket case passed when rerun with the normal short path. These runs must not be recorded as successful; the previous 11,366-pass run predates the worker and runner changes. Logs and mutations: `build/verification-testing-quality-20261027/`.
+
+## 2026-10-27 — Isolated Android baseline
+
+An isolated source copy matching all 199 tracked Android files in the current working tree, including pre-existing user changes, passed offline `testDebugUnitTest`, `lintDebug` and `assembleDebug` with Java 17/Gradle 9.8.1: 483 unit tests, 65 suites, no failures, errors or skips. The first incomplete-copy run was interrupted after its missing shared emoji assets were noticed; the successful run included the shared emoji, renderer and diagnostic fixtures. Gradle reported deprecation warnings. No emulator, physical device, installation, signing or delivery was performed. The generated build and lint reports are in `build/verification-testing-quality-20261027/android-source/`.
+
+## 2026-10-27 — Locked desktop dependency baseline
+
+An initial Node run against the existing desktop `node_modules` failed dependency security checks; installed Electron 44.7.0, Undici 7.30.0 and fast-uri 3.1.8 differ from the lockfile. An isolated copy of tracked source then ran `npm ci` with Node 24.11.0/npm 11.6.1 and the committed lockfile: 234 packages installed, npm audit reported zero known vulnerabilities, and `npm test` passed all 520 tests with no skips or failures. The original installation was not modified. The earlier failure is not evidence that the locked source or a published package is vulnerable; the local installation remains stale. This is a Node test run, not a native Electron UI or Windows acceptance. Log: `build/verification-testing-quality-20261027/desktop-locked.log`.
+
+## 2026-10-27 — Repository risk inventory and HTTP authorization mutations
+
+Inventoried 1,741 tracked files across factory, desktop, Android, tests, tools, documentation, workflows and root configuration; component boundaries and pending evidence are recorded in `docs/development/reports/repository-risk-map-2026-10-27.md`. This is an inventory and risk plan, not a claim that every component has been reviewed.
+
+An isolated copy of the actual HTTP handler passed 11 selected tests with a local HTTP server. Five targeted mutations in key verification, GET/POST authentication and origin policy were each detected by their intended assertions. The route handlers were synthetic. Detailed original and mutation logs are in `build/verification-testing-quality-20261027/security-*.log`. No production behavior changed in this experiment.
+
+## 2026-10-27 — Scheduled delivery race and recovery
+
+Two independent service instances could append the same scheduled message concurrently. The shared cross-process session lock now covers the history check and append. Three targeted tests pass, including two spawned processes and forced process death after the history write; five consecutive runs passed (15 executions). Removing the lock in a temporary copy makes both concurrency checks fail.
+
+Full isolated Python run after the fix: 572 files, 11,387 collected, 11,366 passed, 21 skipped, 906 subtests passed, no failures or errors. Two native coverage data files could not be combined; do not compare its percentage with earlier runs.
+
+A separate synthetic KVM attempt failed before guest startup: libguestfs/supermin cannot read the host's root-only kernel. Its own cleanup receipt reported no leftovers. This is not a live isolation pass. Details and progress: `docs/development/reports/testing-quality-2026-10-27.md`.
+
+## 2026-10-27 — Risk-focused file resilience and mutation sampling
+
+Both Python roots: 571 files, 11,384 collected, 11,363 passed, 21 skipped, 906 subtests passed, no failures or errors. The run used an isolated environment from `uv sync --locked --dev`; two native coverage data files could not be combined, so its coverage percentage is not a reliable comparison. The final POSIX-only mode assertion adjustment was rechecked with all three focused tests and the mutation experiment after the full runner had already executed that file.
+
+Four manually selected mutations: the selected old cases caught one; after the new cases all four were caught. Ten repetitions of the three new and three existing cross-process tests passed (60 executions). Focused isolation and process checks: 55 passed, 20 subtests passed, 10 live KVM checks skipped. Initial sandbox run could not use local sockets; the successful repeat was outside the sandbox. The web UI file completed after a long tail; no hang was established. Desktop npm tests were not run because npm is unavailable in this environment. No Windows, live VM or power-loss acceptance was performed.
+
+Details, fault models and limitations: `docs/development/reports/testing-quality-2026-10-27.md`. No runtime code was changed.
+
 ## 2026-10-26 — Per-chat model selection and final coverage pass
 
 Original 448-file Python goal scope: **88.5871% → 88.5875%**. The isolated Python run collected 11,381 tests: 11,360 passed, 21 skipped, 906 subtests, no failures or errors. The skips require their respective platforms.

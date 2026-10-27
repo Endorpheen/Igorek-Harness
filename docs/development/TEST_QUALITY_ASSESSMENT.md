@@ -1,5 +1,7 @@
 # Risk-based testing assessment
 
+This is a historical assessment. For the current methodology, see [Testing methodology](TESTING_METHODOLOGY.md).
+
 ## Evidence and principles
 
 * [Google: Code Coverage Best Practices](https://testing.googleblog.com/2020/08/code-coverage-best-practices.html): use coverage to locate neglected behavior; execution of a line is not proof of a useful assertion. Once the agreed 90% line-coverage milestone is reached, keep recording coverage but do not add low-value cases merely to raise it.

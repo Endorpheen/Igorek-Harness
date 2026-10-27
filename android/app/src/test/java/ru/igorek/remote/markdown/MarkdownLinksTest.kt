@@ -83,4 +83,23 @@ class MarkdownLinksTest {
             assertTrue(text.getStringAnnotations(WEB_LINK_TAG, 0, text.length).isEmpty())
         }
     }
+
+    @Test
+    fun `pepe token reaches inline renderer without breaking links or code`() {
+        val field = ru.igorek.remote.ui.PepeEmojis::class.java.getDeclaredField("entries")
+        field.isAccessible = true
+        val previous = field.get(null)
+        try {
+            val id = "pepe_happy_clap"
+            val entry = ru.igorek.remote.ui.PepeEntry(id, "Happy clap", "Хлопает", "pepe/$id.gif")
+            field.set(null, mapOf(id to entry))
+            val text = annotated("Привет :pepe_happy_clap: [ссылка](https://example.org) `:pepe_happy_clap:`")
+            val stickers = text.getStringAnnotations(ru.igorek.remote.ui.PEPE_TAG, 0, text.length)
+            assertEquals(1, stickers.size)
+            assertEquals(id, stickers.single().item)
+            assertEquals(1, text.getStringAnnotations(WEB_LINK_TAG, 0, text.length).size)
+        } finally {
+            field.set(null, previous)
+        }
+    }
 }
