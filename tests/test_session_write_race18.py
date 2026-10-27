@@ -104,7 +104,7 @@ def test_append_preserves_valid_last_record_without_trailing_newline(tmp_path):
     original = json.dumps({'role': 'user', 'text': 'before'}, ensure_ascii=False).encode('utf-8')
     path.write_bytes(original)
     cli_chat._append_entry(path, 'assistant', 'после')
-    assert path.read_bytes().startswith(original + b'\n')
+    assert path.read_bytes().startswith(original + os.linesep.encode('ascii'))
     assert [entry['text'] for entry in cli_chat._load_entries(path)] == ['before', 'после']
 
 
