@@ -3,7 +3,7 @@ const emoji=require('../../factory/web_ui/static/emoji.js');
 const catalog=JSON.parse(fs.readFileSync(path.join(__dirname,'../../factory/web_ui/static/emoji/catalog.json'),'utf8'));
 const tool=result=>({name:'mcp__igorek__render_emoji',result:JSON.stringify(result)});
 test('all sixteen reactions use stable local paths and round-trip tokens',()=>{
- emoji.install(catalog);assert.equal(emoji.list().length,16);
+ emoji.install(catalog);assert.equal(emoji.list().length,32);
  for(const row of catalog.emojis){assert.deepEqual(emoji.match(':'+row.id+':'),{id:row.id,token:':'+row.id+':'});assert.equal(emoji.match('hello :'+row.id+':',6).id,row.id);}
  assert.equal(emoji.match(':pepe_unknown:'),null);assert.equal(emoji.match(':pepe_think'),null);
 });
@@ -18,7 +18,7 @@ test('receipt requires confirmed successful versioned emoji output',()=>{
 test('catalog installation is atomic and cannot supply remote asset URLs',()=>{
  emoji.install(catalog);
  for(const row of [{...catalog.emojis[0],file:'https://example.invalid/track.gif'},{...catalog.emojis[0],id:'../private'},{...catalog.emojis[0],label:null},{...catalog.emojis[0],id:['pepe_think']}]){
-  assert.throws(()=>emoji.install({...catalog,emojis:[row]}));assert.equal(emoji.list().length,16);
+  assert.throws(()=>emoji.install({...catalog,emojis:[row]}));assert.equal(emoji.list().length,32);
  }
  assert.throws(()=>emoji.install({...catalog,emojis:[catalog.emojis[0],catalog.emojis[0]]}));
  const copy=emoji.list();copy[0].id='changed';assert.equal(emoji.match(':'+catalog.emojis[0].id+':').id,catalog.emojis[0].id);

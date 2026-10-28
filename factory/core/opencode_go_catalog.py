@@ -14,7 +14,7 @@ OPENCODE_GO_MODELS_URL = os.environ.get(
     "FACTORY_OPENCODE_GO_MODELS_URL",
     "https://opencode.ai/zen/go/v1/models",
 )
-OPENCODE_GO_MODELS_TTL = int(os.environ.get("FACTORY_OPENCODE_GO_MODELS_TTL", "3600"))
+OPENCODE_GO_MODELS_TTL = int(os.environ.get("FACTORY_OPENCODE_GO_MODELS_TTL", "60"))
 MODELS_DEV_URL = "https://models.dev/api.json"
 _GO_API_ROUTES = {
     ("@ai-sdk/openai-compatible", "https://opencode.ai/inference/go/openai/v1"): "openai",
@@ -68,10 +68,10 @@ def fetch_opencode_go_routes() -> dict[str, tuple[str, str, str]]:
         return {}
 
 
-def get_opencode_go_routes() -> dict[str, tuple[str, str, str]]:
+def get_opencode_go_routes(*, force: bool = False) -> dict[str, tuple[str, str, str]]:
     global _routes_cached, _routes_expire
     with _routes_lock:
-        if time.monotonic() >= _routes_expire:
+        if force or time.monotonic() >= _routes_expire:
             fetched = fetch_opencode_go_routes()
             if fetched:
                 _routes_cached = fetched
@@ -80,10 +80,26 @@ def get_opencode_go_routes() -> dict[str, tuple[str, str, str]]:
                 _routes_expire = time.monotonic() + 10
         return dict(_routes_cached)
 
+
+def canonical_opencode_go_model(model: str) -> str:
+    """Migrate the confirmed provider ID rename without changing model families."""
+    return {'deepseek-v4-flash': 'deepseek-v4.1-flash'}.get(model, model)
+
+
+def active_opencode_go_routes() -> dict[str, tuple[str, str, str]]:
+    active = [item.id for item in list_opencode_go_models()]
+    if not active:
+        return {}
+    routes = get_opencode_go_routes()
+    if any(model not in routes for model in active):
+        routes = get_opencode_go_routes(force=True)
+    return {model: routes[model] for model in active if model in routes}
+
 # Transport assignments come from the official OpenCode Go endpoint table.
 # The /models API currently returns IDs only, so unknown new IDs remain visible
 # but are never auto-recommended until their transport is known.
 _MODEL_TRANSPORTS = {
+    "deepseek-v4.1-flash": "openai",
     "glm-5.1": "openai",
     "glm-5": "openai",
     "kimi-k2.5": "openai",
@@ -103,32 +119,9 @@ _MODEL_TRANSPORTS = {
     "qwen3.5-plus": "anthropic",
 }
 
-_FALLBACK_MODEL_IDS = (
-    "minimax-m3",
-    "minimax-m2.7",
-    "minimax-m2.5",
-    "MiniMax-M3",
-    "MiniMax-M2.7",
-    "MiniMax-M2.5",
-    "kimi-k2.6",
-    "kimi-k2.5",
-    "glm-5.1",
-    "glm-5",
-    "deepseek-v4-pro",
-    "deepseek-v4-flash",
-    "qwen3.7-max",
-    "qwen3.6-plus",
-    "qwen3.5-plus",
-    "mimo-v2-pro",
-    "mimo-v2-omni",
-    "mimo-v2.5-pro",
-    "mimo-v2.5",
-    "hy3-preview",
-)
-
 _RECOMMENDATION_PRIORITY = (
     "deepseek-v4-pro",
-    "deepseek-v4-flash",
+    "deepseek-v4.1-flash",
     "kimi-k2.6",
     "mimo-v2.5-pro",
     "glm-5.1",
@@ -213,12 +206,11 @@ def list_opencode_go_models() -> list[OpenCodeGoModel]:
     model_ids = cached
     if is_stale:
         fetched = _fetch_model_ids()
+        model_ids = fetched
         if fetched:
-            model_ids = fetched
             _write_cache(cache_path, fetched)
-    if not model_ids:
-        model_ids = list(_FALLBACK_MODEL_IDS)
-    return [OpenCodeGoModel(item, _MODEL_TRANSPORTS.get(item)) for item in model_ids]
+    return [OpenCodeGoModel(item, _MODEL_TRANSPORTS.get(item)) for item in model_ids
+            if canonical_opencode_go_model(item) == item]
 
 
 def compatible_opencode_go_models(api_format: str | None) -> list[OpenCodeGoModel]:

@@ -107,6 +107,8 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -797,7 +799,12 @@ fun SessionScreen(
                                             Icon(Icons.Default.Add, contentDescription = uiText("Прикрепить файл", "Attach file"))
                                         }
                                         DropdownMenu(expanded = attachMenu, onDismissRequest = { attachMenu = false }) {
-                                            DropdownMenuItem(text = { Text(uiText("Эмодзи Пепе", "Pepe emoji")) },
+                                            val emojiMenuDescription = uiText("Выбрать эмодзи", "Choose emoji")
+                                            DropdownMenuItem(text = {
+                                                AnimatedPepe("pepe_laugh", Modifier.size(36.dp))
+                                            }, modifier = Modifier.semantics(mergeDescendants = true) {
+                                                contentDescription = emojiMenuDescription
+                                            },
                                                 onClick = { attachMenu = false; emojiPicker = true })
 
                                             DropdownMenuItem(

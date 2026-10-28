@@ -82,5 +82,75 @@
   {
     "input": {},
     "code": "INTERNAL.UNEXPECTED"
+  },
+  {
+    "input": {
+      "native_code": "EDQUOT",
+      "status": 500
+    },
+    "code": "STORAGE.QUOTA_EXCEEDED"
+  },
+  {
+    "input": {
+      "native_code": "EROFS",
+      "status": 500
+    },
+    "code": "STORAGE.READ_ONLY"
+  },
+  {
+    "input": {
+      "native_code": "EIO",
+      "status": 500
+    },
+    "code": "STORAGE.IO_ERROR"
+  },
+  {
+    "input": {
+      "native_code": "SQLITE_FULL",
+      "status": 500
+    },
+    "code": "STORAGE.FULL"
+  },
+  {
+    "input": {
+      "native_code": "SQLITE_READONLY",
+      "status": 500
+    },
+    "code": "STORAGE.READ_ONLY"
+  },
+  {
+    "input": {
+      "native_code": "SQLITE_BUSY",
+      "status": 500
+    },
+    "code": "DATABASE.BUSY"
+  },
+  {
+    "input": {
+      "native_code": "SQLITE_LOCKED",
+      "status": 500
+    },
+    "code": "DATABASE.BUSY"
+  },
+  {
+    "input": {
+      "native_code": "SQLITE_IOERR",
+      "status": 500
+    },
+    "code": "STORAGE.IO_ERROR"
+  },
+  {
+    "input": {
+      "native_code": "SQLITE_CORRUPT",
+      "status": 500
+    },
+    "code": "DATABASE.INVALID"
+  },
+  {
+    "input": {
+      "native_code": "SQLITE_NOTADB",
+      "status": 500
+    },
+    "code": "DATABASE.INVALID"
   }
 ]

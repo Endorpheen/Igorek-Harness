@@ -12,6 +12,20 @@ import java.security.cert.CertificateException
 import java.net.SocketTimeoutException
 
 class ErrorDiagnosticsTest {
+    @Test fun storageAdviceNamesTheBridgeHostAndRetainsItsCause() {
+        val error = sanitizeDiagnostic(ErrorObservation(code="STORAGE.FULL", component="bridge",
+            endpointRole="client_to_bridge", reasonCode="SQLITE_FULL"))
+        val ru = diagnosticExplanation(error, AppLanguage.Russian)
+        assertTrue(ru.contains("На компьютере с Игорьком:"))
+        assertTrue(ru.contains("Освободите место"))
+        assertTrue(ru.contains("SQLITE_FULL"))
+        assertTrue(diagnosticExplanation(error, AppLanguage.English).contains("On the computer running Igorek:"))
+        assertFalse(diagnosticExplanation(error.copy(component="mobile", endpointRole="local_ui"), AppLanguage.Russian).contains("На компьютере"))
+        val busy = diagnosticExplanation(error.copy(code="DATABASE.BUSY", reasonCode="SQLITE_BUSY"), AppLanguage.Russian)
+        assertTrue(busy.contains("занята другим подключением"))
+        assertFalse(busy.contains("Освободите место"))
+    }
+
     @Test fun sharedNativeAndHttpFixture() {
         val text=javaClass.classLoader!!.getResourceAsStream("classification.json")!!.bufferedReader().readText()
         for(row in Json.parseToJsonElement(text).jsonArray) {

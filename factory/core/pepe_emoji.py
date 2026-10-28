@@ -107,7 +107,7 @@ def render_emoji(arguments, **kwargs):
 
 SCHEMA = {
     "name": "render_emoji",
-    "description": "Show a small animated Pepe reaction in the chat. Use sparingly when appropriate or requested. In ordinary answer text you can instead insert the matching :pepe_name: token. Available reactions: bongo, think, happy_clap, happy_dance, laugh, love, give_love, happy_blanket, clap, cry, sad_rain, sad_vibes, sleep, sip_spin, no_u, brain_scratch. IDs use the pepe_ prefix. Never invent IDs or write HTML. Do not repeat the JSON result in your answer.",
+    "description": "Show a small animated Pepe reaction in the chat. Use sparingly when appropriate or requested. In ordinary answer text you can instead insert the matching :pepe_name: token. Available reactions: bongo, think, happy_clap, happy_dance, laugh, love, give_love, happy_blanket, clap, cry, sad_rain, sad_vibes, sleep, sip_spin, no_u, brain_scratch, wave, thumbs_up, thumbs_down, angry, surprised, scared, hug, kiss, pray, salute, suspicious, confused, sorry, blush, wide_eyes, blink. IDs use the pepe_ prefix. Never invent IDs or write HTML. Do not repeat the JSON result in your answer.",
     "input_schema": {
         "type": "object",
         "properties": {

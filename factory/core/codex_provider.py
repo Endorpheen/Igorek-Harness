@@ -53,7 +53,7 @@ _MODEL_SUGGESTIONS = {
     ],
     "opencode-go": [
         "deepseek-v4-pro",
-        "deepseek-v4-flash",
+        "deepseek-v4.1-flash",
         "kimi-k2.6",
         "kimi-k2.5",
         "minimax-m2.7",

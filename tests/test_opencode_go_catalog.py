@@ -22,9 +22,9 @@ class OpenCodeGoCatalogTest(unittest.TestCase):
         from factory.core.worker import _desktop_opencode_go_route
         config = {'provider': 'custom', 'base_url': 'https://opencode.ai/zen/go/v1'}
         route = ('anthropic', 'https://opencode.ai/inference/go/anthropic/v1', 'Model')
-        with patch.object(opencode_go_catalog, 'get_opencode_go_routes', return_value={'model': route}):
+        with patch.object(opencode_go_catalog, 'active_opencode_go_routes', return_value={'model': route}):
             self.assertEqual(_desktop_opencode_go_route(config, 'model', True), route[:2])
-            self.assertIsNone(_desktop_opencode_go_route(config, 'model', False))
+            self.assertEqual(_desktop_opencode_go_route(config, 'model', False), route[:2])
             self.assertIsNone(_desktop_opencode_go_route({**config, 'base_url': 'https://other.invalid/v1'}, 'model', True))
             with self.assertRaises(ValueError):
                 _desktop_opencode_go_route(config, 'missing', True)
@@ -96,7 +96,7 @@ class OpenCodeGoCatalogTest(unittest.TestCase):
         fetch.assert_not_called()
         self.assertEqual([item.id for item in models], ["qwen3.7-max"])
 
-    def test_fallback_catalog_is_used_when_fetch_fails_without_cache(self):
+    def test_failed_catalog_does_not_revive_static_fallback_models(self):
         with tempfile.TemporaryDirectory() as tmp:
             with (
                 patch.dict(os.environ, {"FACTORY_DATA_DIR": tmp}, clear=False),
@@ -104,8 +104,7 @@ class OpenCodeGoCatalogTest(unittest.TestCase):
             ):
                 models = opencode_go_catalog.list_opencode_go_models()
 
-        self.assertIn("qwen3.7-max", [item.id for item in models])
-        self.assertIn("minimax-m3", [item.id for item in models])
+        self.assertEqual(models, [])
 
     def test_minimax_m3_uses_anthropic_transport(self):
         with patch.object(
@@ -128,3 +127,46 @@ class OpenCodeGoCatalogTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_live_go_catalog_removal_wins_over_routing_metadata(monkeypatch):
+    route = ('openai', 'https://opencode.ai/inference/go/openai/v1', 'Current model')
+    monkeypatch.setattr(opencode_go_catalog, 'list_opencode_go_models', lambda: [
+        opencode_go_catalog.OpenCodeGoModel('deepseek-v4.1-flash', 'openai')])
+    monkeypatch.setattr(opencode_go_catalog, 'get_opencode_go_routes', lambda: {
+        'deepseek-v4-flash': route, 'deepseek-v4.1-flash': route, 'another-retired-model': route})
+    assert opencode_go_catalog.active_opencode_go_routes() == {'deepseek-v4.1-flash': route}
+
+
+def test_failed_live_go_catalog_does_not_expose_routing_only_models(monkeypatch):
+    monkeypatch.setattr(opencode_go_catalog, 'list_opencode_go_models', lambda: [])
+    monkeypatch.setattr(opencode_go_catalog, 'get_opencode_go_routes', lambda: (_ for _ in ()).throw(AssertionError('No active models')))
+    assert opencode_go_catalog.active_opencode_go_routes() == {}
+
+
+def test_stale_go_cache_is_not_revived_when_provider_is_unavailable(tmp_path, monkeypatch):
+    cache = tmp_path/'cache/opencode_go_models.json'
+    cache.parent.mkdir()
+    cache.write_text(json.dumps({'data': [{'id': 'retired-model'}]}))
+    os.utime(cache, (0, 0))
+    monkeypatch.setenv('FACTORY_DATA_DIR', str(tmp_path))
+    monkeypatch.setattr(opencode_go_catalog, '_fetch_model_ids', lambda: [])
+    assert opencode_go_catalog.list_opencode_go_models() == []
+    assert opencode_go_catalog.list_opencode_go_models() == []
+
+
+def test_confirmed_retired_deepseek_id_is_filtered_even_from_fresh_cache(tmp_path, monkeypatch):
+    cache = tmp_path/'cache/opencode_go_models.json';cache.parent.mkdir()
+    cache.write_text(json.dumps({'data': [{'id': 'deepseek-v4-flash'}, {'id': 'deepseek-v4-pro'}]}))
+    monkeypatch.setenv('FACTORY_DATA_DIR', str(tmp_path))
+    monkeypatch.setattr(opencode_go_catalog, '_fetch_model_ids', lambda: (_ for _ in ()).throw(AssertionError('Fresh cache')))
+    assert [m.id for m in opencode_go_catalog.list_opencode_go_models()] == ['deepseek-v4-pro']
+
+
+def test_legacy_deepseek_wire_id_changes_only_for_opencode_go():
+    from factory.core import worker
+    old = 'deepseek-v4-flash'
+    args = {'provider': 'custom', 'configured_model': old, 'task_metadata': {}, 'base_url': 'https://opencode.ai/zen/go/v1'}
+    assert worker._effective_cc_backend_model(**args) == 'deepseek-v4.1-flash'
+    assert worker._effective_cc_backend_model(**{**args, 'task_metadata': {'model_override': old}}) == 'deepseek-v4.1-flash'
+    assert worker._effective_cc_backend_model(**{**args, 'provider': 'openrouter', 'base_url': 'https://openrouter.ai/api/v1'}) == old

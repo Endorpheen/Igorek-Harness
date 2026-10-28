@@ -74,7 +74,7 @@ def desktop_openai_voice_key(lifecycle):
 
 
 PRESETS = {
-    "opencode-go": ("https://opencode.ai/zen/go/v1", "deepseek-v4-flash"),
+    "opencode-go": ("https://opencode.ai/zen/go/v1", "deepseek-v4.1-flash"),
     "opencode-zen": ("https://opencode.ai/zen/v1", "big-pickle"),
     "zai-coding-plan": ("https://api.z.ai/api/coding/paas/v4", "glm-5.3-flash"),
     "openrouter": ("https://openrouter.ai/api/v1", ""),

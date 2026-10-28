@@ -754,11 +754,11 @@ def _effective_cc_backend_model(
     requested_model = str(task_metadata.get("model_override") or configured_model or "").strip()
     if provider == 'custom':
         try:
-            from .opencode_go_catalog import is_opencode_go_url
+            from .opencode_go_catalog import canonical_opencode_go_model, is_opencode_go_url
         except ImportError:
-            from opencode_go_catalog import is_opencode_go_url
+            from opencode_go_catalog import canonical_opencode_go_model, is_opencode_go_url
         if is_opencode_go_url(base_url):
-            return requested_model
+            return canonical_opencode_go_model(requested_model)
     if provider in {"opencode", "opencode-go", "openrouter", "minimax", "glm", "wally"}:
         return requested_model
     return _resolve_cc_backend_model(base_url, requested_model)
@@ -780,15 +780,15 @@ def _resolve_cc_backend_api_format(config: dict, model: str) -> str:
 
 
 def _desktop_opencode_go_route(config: dict, model: str, overridden: bool):
-    if not overridden or config.get('provider') != 'custom':
+    if config.get('provider') != 'custom':
         return None
     try:
-        from .opencode_go_catalog import get_opencode_go_routes, is_opencode_go_url
+        from .opencode_go_catalog import active_opencode_go_routes, is_opencode_go_url
     except ImportError:
-        from opencode_go_catalog import get_opencode_go_routes, is_opencode_go_url
+        from opencode_go_catalog import active_opencode_go_routes, is_opencode_go_url
     if not is_opencode_go_url(str(config.get('base_url') or '')):
         return None
-    route = get_opencode_go_routes().get(model)
+    route = active_opencode_go_routes().get(model)
     if not route:
         raise ValueError('OpenCode Go model route unavailable')
     return route[0], route[1]

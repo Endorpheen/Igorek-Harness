@@ -1,4 +1,5 @@
 import http.client
+import errno
 import json
 import os
 import sqlite3
@@ -68,6 +69,42 @@ class ServerTestCase(unittest.TestCase):
 
 
 class AuthFlowTest(ServerTestCase):
+    def test_sqlite_full_reaches_client_even_when_the_diagnostic_journal_cannot_write(self):
+        token = self._pair()
+        with sqlite3.connect(':memory:') as db:
+            db.execute('PRAGMA page_size=512')
+            db.execute('PRAGMA max_page_count=2')
+            db.execute('CREATE TABLE items(value)')
+            with self.assertRaises(sqlite3.OperationalError) as failed:
+                db.execute('INSERT INTO items VALUES (zeroblob(4096))')
+        self.assertEqual(failed.exception.sqlite_errorcode, sqlite3.SQLITE_FULL)
+        failed.exception.args = ('EXCLUDED private database path',)
+        original_open = Path.open
+        journal_tmp = self.bridge.diagnostics.path.with_suffix('.tmp')
+
+        def open_with_full_journal(path, *args, **kwargs):
+            if path == journal_tmp:
+                raise OSError(errno.ENOSPC, 'EXCLUDED')
+            return original_open(path, *args, **kwargs)
+
+        with patch.object(self.bridge.service, 'sessions_overview', side_effect=failed.exception):
+            with patch.object(Path, 'open', open_with_full_journal):
+                status, body = self._request('GET', f'{API_PREFIX}/sessions', token=token)
+        self.assertEqual(status, 500, body)
+        self.assertEqual(body['diagnostic']['code'], 'STORAGE.FULL')
+        self.assertEqual(body['diagnostic']['reason_code'], 'SQLITE_FULL')
+        self.assertEqual(body['diagnostic']['native_code'], 'OperationalError')
+        self.assertEqual(body['diagnostic']['http_request_id'], body['http_request_id'])
+        snapshot = self.bridge.diagnostics.snapshot()
+        self.assertGreater(snapshot['health']['write_failures'], 0)
+        self.assertEqual(snapshot['incidents'][-1]['error']['reason_code'], 'SQLITE_FULL')
+        self.assertNotIn('EXCLUDED', json.dumps([body, snapshot]))
+        status, body = self._request('GET', f'{API_PREFIX}/sessions', token=token)
+        self.assertEqual(status, 200, body)
+        incident = self.bridge.diagnostics.snapshot()['incidents'][-1]
+        self.assertEqual(incident['state'], 'recovered')
+        self.assertEqual(incident['recovery_proof'], 'operation_completed')
+
     def test_receipt_lookup_is_read_only_scoped_and_requires_authentication(self):
         token=self._pair();key='fixture-operation-123'
         self.bridge.store.remember_request(key,kind='message',session_id=self.session_id,task_id='fixture-task',
