@@ -1,3 +1,7 @@
+## 2026-10-28 — Native Go catalogue fixture correction before release
+
+The first frozen-source Linux native job passed onboarding, first task, restart and the basic composer, then failed the profile-switch scenario with a 500 catalogue response. Its local provider already served /models, but the harness redirected only route metadata and generation: the new active-model lookup still reached the public provider and could not match synthetic fixture IDs. The native fixture now points OPENCODE_GO_MODELS_URL at its own existing local /models endpoint. No assertions, production checks or timeouts were weakened. The complete real Electron/main/IPC/backend/Vault/Worker profile-switch and scheduled-job scenario passes locally after the correction. This is controlled provider acceptance, not live account inference. New immutable hosted checks are required; the earlier failed CI run is retained.
+
 ## 2026-10-28 — Active Go models and shared agent reaction catalogue
 
 The observed provider rejection used the retired deepseek-v4-flash ID. The official Go list now contains deepseek-v4.1-flash. The confirmed rename is applied only to OpenCode Go wire IDs and session readback; provider credentials/configuration and stored history are not rewritten. New Go setup defaults use the current ID. Other providers retain their model IDs.
