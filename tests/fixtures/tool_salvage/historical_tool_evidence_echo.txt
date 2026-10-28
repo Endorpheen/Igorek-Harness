@@ -1,0 +1,2 @@
+[Historical tool evidence; already executed]
+{"name":"desktop_browser","input":{"action":"open","url":"https://example.test/drawing"},"output":"{\"auth\":\"not_checked\",\"url\":\"https://example.test/drawing\",\"title\":\"Fixture drawing page\",\"elements\":[{\"ref\":\"fixture-canvas\",\"tag\":\"canvas\"}]}","status":"done","stored_path":null}

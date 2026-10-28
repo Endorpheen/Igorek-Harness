@@ -70,5 +70,5 @@ extra_javascript:
   - assets/diagram-zoom.js
 extra:
   generator: false
-  documentation_version: '0.2.34'
-copyright: 'Igorek Harness · Documentation for 0.2.34 · English / Русский'
+  documentation_version: '0.2.35'
+copyright: 'Igorek Harness · Documentation for 0.2.35 · English / Русский'

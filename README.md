@@ -8,7 +8,7 @@
 
 # Igorek Harness
 
-Documentation reviewed: 2026-10-28.
+Documentation reviewed: 2026-10-29.
 
 **A personal AI agent: Electron desktop, Android, and terminal.**
 
@@ -21,9 +21,11 @@ settings in one workspace. Igorek Remote for Android controls the same agent
 from your phone. Terminal, local Web UI, Telegram, and ACP interfaces are also
 available.
 
-Documentation updated **October 28, 2026**. The Python/desktop version is in
+Documentation updated **October 29, 2026**. The Python/desktop version is in
 [`pyproject.toml`](pyproject.toml); Android has its own version in
 [`android/app/build.gradle.kts`](android/app/build.gradle.kts).
+
+Local llama.cpp connections use live server capabilities to withhold unsupported image input. Internal history records accidentally echoed by a local model are withheld from visible answers, with one corrective attempt. Remote model transports keep their existing behavior.
 
 ## What defines Igorek
 
