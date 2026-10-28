@@ -2,6 +2,7 @@ const { app, BrowserWindow, WebContentsView, session: electronSession, Notificat
 const { pathToFileURL } = require('node:url');
 const { isOwnerFrame, shouldRefreshProfiles, ownedDataLocations, ownerOpenCodeHandler } = require('./owner-policy.cjs');
 const { installedImage } = require('./installed-image.cjs');
+const { SettingsView } = require('./settings-view.cjs');
 const { updateDialog } = require('./release-updates-ui.cjs');
 const { createUpdatePresentation } = require('./release-progress.cjs');
 const { launchInstallation, showInstallationResult } = require('./release-install.cjs');
@@ -178,7 +179,10 @@ ipcMain.handle('igorek:window-control', (event, action) => {
   const target = trustedChromeWindow(event);
   if (action === 'minimize') target.minimize();
   else if (action === 'maximize') target.isMaximized() ? target.unmaximize() : target.maximize();
-  else if (action === 'close') target.close();
+  else if (action === 'close') {
+    if (event.sender === ownerWindow?.webContents) ownerWindow.close();
+    else target.close();
+  }
   else throw new Error('Недопустимое действие.');
 });
 ipcMain.handle('igorek:window-menu', (event, label, x, y) => {
@@ -333,7 +337,7 @@ function updateApplicationMenu() {
   for (const { target } of chromeWindows.values()) if (!target.isDestroyed()) target.setMenuBarVisibility(false);
 }
 
-function installContextMenu(target) {
+function installContextMenu(target, parent = target) {
   target.webContents.on('context-menu', (_, params) => {
     const items = [];
     if (params.isEditable) {
@@ -343,27 +347,37 @@ function installContextMenu(target) {
       items.push({ role: 'paste', label: 'Вставить', enabled: params.editFlags.canPaste },
         { role: 'selectAll', label: 'Выделить всё' });
     } else if (params.selectionText) items.push({ role: 'copy', label: 'Копировать' });
-    if (items.length) Menu.buildFromTemplate(items).popup({ window: target });
+    if (items.length) Menu.buildFromTemplate(items).popup({ window: parent });
   });
+}
+function settingsOverlayActive(parent) {
+  return sessionOverlays.has(parent) || Boolean(ownerWindow && !ownerWindow.isDestroyed() && ownerWindow.parent === parent);
+}
+function refreshEmbeddedSurfaces() {
+  desktopBrowser?.layout();
+  chatgptWorkspace?.layout().catch(() => {});
+  if (workspaceBrowser?.parent) workspaceBrowser.action(workspaceBrowser.parent, 'layout').catch(() => {});
+  opencodeWorkspace?.layout().catch(() => {});
 }
 function openOwnerWindow(panel, plugin) {
   if (!managed || !runtime || !window) return;
+  const parent = chatTarget(BrowserWindow.getFocusedWindow());
+  if (!parent || parent.isDestroyed()) return;
   const selectPanel = target => { if (settingsPanels.has(panel) && target && !target.isDestroyed()) target.webContents.send('igorek:owner-panel', plugin ? {panel,plugin} : panel); };
-  if (ownerWindow && !ownerWindow.isDestroyed()) { ownerWindow.focus(); selectPanel(ownerWindow); return; }
-  ownerWindow = new BrowserWindow({ icon:APP_ICON, parent: window, title: 'Настройка хранилища', width: 1280, height: 900, minWidth: 720, minHeight: 600, frame: false, autoHideMenuBar: false,
-    backgroundColor: '#171b1a', webPreferences: { preload: join(__dirname, 'owner-preload.cjs'),
-      nodeIntegration: false, contextIsolation: true, sandbox: true, webSecurity: true,
-      partition: 'igorek-desktop-owner-settings' } });
-  installWindowChrome(ownerWindow, url => url === ownerUrl);
-  installContextMenu(ownerWindow);
-  ownerWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-  ownerWindow.webContents.on('will-navigate', event => event.preventDefault());
-  ownerWindow.webContents.on('will-redirect', event => event.preventDefault());
-  ownerWindow.webContents.on('will-attach-webview', event => event.preventDefault());
-  ownerWindow.webContents.session.setPermissionRequestHandler((_, __, callback) => callback(false));
-  ownerWindow.webContents.session.setPermissionCheckHandler(() => false);
-  ownerWindow.on('closed', () => { ownerWindow = null; runtime.requestOwner('private_mcp_clear').catch(() => {}); });
-  ownerWindow.loadURL(ownerUrl).then(() => selectPanel(ownerWindow)).catch(() => ownerWindow?.close());
+  if (ownerWindow && !ownerWindow.isDestroyed() && ownerWindow.parent === parent) { ownerWindow.focus(); selectPanel(ownerWindow); return; }
+  ownerWindow?.close();
+  const target = new SettingsView({ parent, WebContentsView, preload: join(__dirname, 'owner-preload.cjs'), url: ownerUrl });
+  ownerWindow = target;
+  chromeWindows.set(target.webContents, { target: parent, urlCheck: url => url === ownerUrl });
+  installContextMenu(target, parent);
+  refreshEmbeddedSurfaces();
+  target.on('closed', () => {
+    chromeWindows.delete(target.webContents);
+    if (ownerWindow === target) ownerWindow = null;
+    runtime.requestOwner('private_mcp_clear').catch(() => {});
+    refreshEmbeddedSurfaces();
+  });
+  target.loadURL(ownerUrl).then(() => selectPanel(target)).catch(() => target.close());
 }
 
 function refreshChatProfiles() {
@@ -378,12 +392,13 @@ ipcMain.handle('igorek:owner-return-to-chat', event => {
   if (!managed || !isOwnerFrame(event, ownerWindow?.webContents, ownerUrl))
     throw new Error('Доступ запрещён.');
   refreshChatProfiles();
+  const parent = ownerWindow.parent;
   ownerWindow.close();
-  window.focus();
+  parent.focus();
   return true;
 });
 ipcMain.handle('igorek:owner-open-opencode', ownerOpenCodeHandler({
-  owner: () => ownerWindow, main: () => window, ownerUrl, origin: () => config?.origin, sameOrigin,
+  owner: () => ownerWindow, main: () => ownerWindow?.parent || window, ownerUrl, origin: () => config?.origin, sameOrigin,
   available: () => Boolean(managed && runtime && opencodeService && opencodeWorkspace),
   requestStatus: () => runtime.requestOwner('status'),
 }));
@@ -639,14 +654,14 @@ ipcMain.handle('igorek:owner-workspace', async (event, action) => {
     if (status.result?.state !== 'unlocked') return { error: 'vault_locked' };
   if (action === 'choose') {
     if (action === 'recover_image_file') {
-      const confirm = await dialog.showMessageBox(ownerWindow, {
+      const confirm = await dialog.showMessageBox(ownerWindow.parent, {
         type: 'question', buttons: ['Отмена', 'Восстановить'], defaultId: 0, cancelId: 0,
         message: 'Восстановить базовый образ из проверенного файла?',
         detail: 'Текущий образ будет сохранён отдельно. История и рабочие файлы не изменятся.',
       });
       if (confirm.response !== 1) return { canceled: true };
     }
-    const selected = await dialog.showOpenDialog(ownerWindow, {
+    const selected = await dialog.showOpenDialog(ownerWindow.parent, {
       title: 'Папка для работы Игорька', properties: ['openDirectory'],
     });
     if (selected.canceled) return { canceled: true };
@@ -659,13 +674,16 @@ ipcMain.handle('igorek:owner-workspace', async (event, action) => {
     selectedWorkspace = path;
     return { result: { path } };
   }
+  if (!isOwnerFrame(event, ownerWindow?.webContents, ownerUrl)) throw new Error('Owner closed');
+  const target = ownerWindow.parent;
   if (!selectedWorkspace) return { error: 'workspace_required' };
   if (!status.result?.agent?.running) return { error: 'agent_not_running' };
-  if (!window || window.isDestroyed() || !sameOrigin(window.webContents.getURL(), config.origin))
+  if (!target || target.isDestroyed() || !sameOrigin(target.webContents.getURL(), config.origin))
     return { error: 'operation_failed' };
   const detail = JSON.stringify({ cwd: selectedWorkspace });
-  await window.webContents.executeJavaScript(`window.dispatchEvent(new CustomEvent('igorek:workspace-selected', { detail: ${detail} }));`);
-  ownerWindow.close(); window.focus();
+  await target.webContents.executeJavaScript(`window.dispatchEvent(new CustomEvent('igorek:workspace-selected', { detail: ${detail} }));`);
+  if (!isOwnerFrame(event, ownerWindow?.webContents, ownerUrl)) throw new Error('Owner closed');
+  ownerWindow.close(); target.focus();
   return { result: { opened: true } };
 });
 
@@ -678,7 +696,7 @@ ipcMain.handle('igorek:owner-vault', async (event, action, fields) => {
     if (!fields || Object.keys(fields).length !== 1 || typeof fields.password !== 'string') return {error:'invalid_request'};
     const status = await runtime.requestOwner('status');
     if (status.result?.interface_locked || status.result?.state !== 'unlocked') return {error:'vault_locked'};
-    const selected = await dialog.showOpenDialog(ownerWindow, {title:'Выбрать Google OAuth client типа Desktop app', properties:['openFile'], filters:[{name:'Google OAuth client',extensions:['json']}]});
+    const selected = await dialog.showOpenDialog(ownerWindow.parent, {title:'Выбрать Google OAuth client типа Desktop app', properties:['openFile'], filters:[{name:'Google OAuth client',extensions:['json']}]});
     if (selected.canceled) return {canceled:true};
     if (!isOwnerFrame(event, ownerWindow?.webContents, ownerUrl)) return {error:'vault_locked'};
     return runtime.requestOwner(action === 'calendar_configure_file' ? 'calendar_configure' : 'gmail_configure', {source:selected.filePaths?.[0],password:fields.password});
@@ -687,7 +705,7 @@ ipcMain.handle('igorek:owner-vault', async (event, action, fields) => {
     if (fields !== undefined) return {error:'invalid_request'};
     const status = await runtime.requestOwner('status');
     if (status.result?.interface_locked || status.result?.state !== 'unlocked') return {error:'vault_locked'};
-    const selected = await dialog.showOpenDialog(ownerWindow, {title:'Выбрать файл переменных .env', properties:['openFile','showHiddenFiles'], filters:[{name:'Файлы переменных',extensions:['env','local','example','txt']},{name:'Все файлы',extensions:['*']}]});
+    const selected = await dialog.showOpenDialog(ownerWindow.parent, {title:'Выбрать файл переменных .env', properties:['openFile','showHiddenFiles'], filters:[{name:'Файлы переменных',extensions:['env','local','example','txt']},{name:'Все файлы',extensions:['*']}]});
     if (selected.canceled) return {canceled:true};
     if (!isOwnerFrame(event, ownerWindow?.webContents, ownerUrl)) return {error:'vault_locked'};
     const reply = await runtime.requestOwner('prepare_env_import', {source:selected.filePaths?.[0]});
@@ -702,7 +720,7 @@ ipcMain.handle('igorek:owner-vault', async (event, action, fields) => {
     const status = await runtime.requestOwner('status');
     if (status.result?.interface_locked) return { error: 'interface_locked' };
     if (status.result?.state !== 'unlocked') return { error: 'vault_locked' };
-    const selected = await dialog.showOpenDialog(ownerWindow, {
+    const selected = await dialog.showOpenDialog(ownerWindow.parent, {
       title: 'Перенести параметры старого профиля', properties: ['openFile'],
       filters: [{ name: 'Профиль Игорька', extensions: ['json'] }],
     });
@@ -725,7 +743,7 @@ ipcMain.handle('igorek:owner-vault', async (event, action, fields) => {
         return runtime.requestOwner('prepare_image', { source });
       }
     }
-    const selected = await dialog.showOpenDialog(ownerWindow, {
+    const selected = await dialog.showOpenDialog(ownerWindow.parent, {
       title: 'Выбрать базовый образ Игорька', properties: ['openFile'],
       filters: [{ name: 'Образ KVM', extensions: ['qcow2'] }],
     });
@@ -747,8 +765,8 @@ ipcMain.handle('igorek:owner-vault', async (event, action, fields) => {
         : action === 'restore_recovery_file' ? 'Восстановить хранилище из копии' : 'Проверить копию восстановления',
         filters: [{ name: 'Копия Vault', extensions: ['json'] }] };
       const selected = action === 'save_recovery'
-        ? await dialog.showSaveDialog(ownerWindow, { ...options, defaultPath: join(app.getPath('documents'), 'igorek-vault-recovery.json') })
-        : await dialog.showOpenDialog(ownerWindow, { ...options, properties: ['openFile'] });
+        ? await dialog.showSaveDialog(ownerWindow.parent, { ...options, defaultPath: join(app.getPath('documents'), 'igorek-vault-recovery.json') })
+        : await dialog.showOpenDialog(ownerWindow.parent, { ...options, properties: ['openFile'] });
       if (selected.canceled) return { canceled: true };
       if (!isOwnerFrame(event, ownerWindow?.webContents, ownerUrl)) throw new Error('Owner closed');
       const path = selected.filePath || selected.filePaths?.[0];
@@ -917,12 +935,12 @@ app.whenReady().then(async () => {
       if (production.includes(resolve(options.dataDir))) throw new Error('Выберите отдельный каталог для прототипа.');
       runtime = new OwnedRuntime(options);
       desktopBrowser = new DesktopBrowser({ root: join(app.getPath('userData'), 'browser-profiles', 'agent'), parent:() => window,
-        overlayActive: parent => sessionOverlays.has(parent),
+        overlayActive: settingsOverlayActive,
         BrowserWindow, WebContentsView, session: electronSession,
         notify: reason => { if (Notification.isSupported()) new Notification({title:'Браузер Игорька', body:reason === 'challenge' ? 'Сайт просит пройти проверку. Чтение приостановлено.' : 'Сайту нужен вход. Открой браузер Игорька и войди вручную.'}).show(); } });
       desktopBrowser.lock();
-      chatgptWorkspace=new ChatGPTWorkspace({root:join(app.getPath('userData'),'browser-profiles','chatgpt'),BrowserWindow,WebContentsView,session:electronSession,dialog,shell,menu:Menu,overlayActive:parent=>sessionOverlays.has(parent),sidebarShortcut:(input,parent)=>{if(!matchesShortcut(input,shortcutStore.keys('sidebar')))return false;parent.webContents.executeJavaScript("document.getElementById('igorek-toggle-sidebar')?.click()").catch(()=>{});return true;}});
-      workspaceBrowser=new WorkspaceBrowser({root:join(app.getPath('userData'),'browser-profiles','workspace'),BrowserWindow,WebContentsView,session:electronSession,dialog,shell,menu:Menu,overlayActive:parent=>sessionOverlays.has(parent),sidebarShortcut:(input,parent)=>{if(!matchesShortcut(input,shortcutStore.keys('sidebar')))return false;parent.webContents.executeJavaScript("document.getElementById('igorek-toggle-sidebar')?.click()").catch(()=>{});return true;}});
+      chatgptWorkspace=new ChatGPTWorkspace({root:join(app.getPath('userData'),'browser-profiles','chatgpt'),BrowserWindow,WebContentsView,session:electronSession,dialog,shell,menu:Menu,overlayActive:settingsOverlayActive,sidebarShortcut:(input,parent)=>{if(!matchesShortcut(input,shortcutStore.keys('sidebar')))return false;parent.webContents.executeJavaScript("document.getElementById('igorek-toggle-sidebar')?.click()").catch(()=>{});return true;}});
+      workspaceBrowser=new WorkspaceBrowser({root:join(app.getPath('userData'),'browser-profiles','workspace'),BrowserWindow,WebContentsView,session:electronSession,dialog,shell,menu:Menu,overlayActive:settingsOverlayActive,sidebarShortcut:(input,parent)=>{if(!matchesShortcut(input,shortcutStore.keys('sidebar')))return false;parent.webContents.executeJavaScript("document.getElementById('igorek-toggle-sidebar')?.click()").catch(()=>{});return true;}});
       try{
         opencodeService=new OpenCodeService(join(app.getPath('userData'),'integrations','opencode'),{python:loadBundle(options.bundle).python,bundle:options.bundle,profilesControl:async(operation,value)=>{
           const reply=await runtime.requestOwner('opencode_profiles',{operation,config:JSON.stringify(value)});
@@ -936,7 +954,7 @@ app.whenReady().then(async () => {
           if(operation==='grant'&&reply.result?.socket!==join(runtime.dataDir,'opencode-services','api.sock'))throw Error('Недопустимый канал локальных сервисов.');
           return reply.result;
         }});
-        opencodeWorkspace=new OpenCodeWorkspace({root:join(app.getPath('userData'),'browser-profiles','opencode'),service:opencodeService,BrowserWindow,WebContentsView,session:electronSession,dialog,shell,overlayActive:parent=>sessionOverlays.has(parent)});
+        opencodeWorkspace=new OpenCodeWorkspace({root:join(app.getPath('userData'),'browser-profiles','opencode'),service:opencodeService,BrowserWindow,WebContentsView,session:electronSession,dialog,shell,overlayActive:settingsOverlayActive});
         opencodeTasks=new OpenCodeTasks({manual:opencodeService,root:join(app.getPath('userData'),'integrations','opencode-tasks'),
           allowed:()=>opencodeUnlocked,
           createService:(root,assignedProject,consumer)=>new OpenCodeService(root,{python:opencodeService.python,bundle:opencodeService.bundle,binaryRoot:opencodeService.binaryRoot,assignedProject,

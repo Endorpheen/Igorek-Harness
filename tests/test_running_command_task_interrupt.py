@@ -21,6 +21,9 @@ pytestmark = pytest.mark.skipif(os.name != 'posix' or not Path('/proc/self/stat'
 def context(tmp_path, monkeypatch):
     monkeypatch.setenv('IGOREK_FACTORY_HOME', str(tmp_path / 'data'))
     monkeypatch.setenv('IGOREK_BASH_SANDBOX', 'off')
+    from factory.core import opencode_models, openrouter_pricing
+    monkeypatch.setattr(opencode_models, '_fetch_models', lambda: None)
+    monkeypatch.setattr(openrouter_pricing, '_fetch_models', lambda timeout_s: None)
     initialize_database(get_db_path())
     return tmp_path
 

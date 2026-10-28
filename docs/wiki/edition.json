@@ -1,7 +1,7 @@
 {
-  "version": "0.2.16",
-  "reviewed_on": "2026-10-19",
-  "release_commit": "v0.2.16",
+  "version": "0.2.33",
+  "reviewed_on": "2026-10-28",
+  "release_commit": "v0.2.33",
   "historical_pages": [
     "5-OpenCode-Delegation-Subsystem/5-OpenCode-Delegation-Subsystem.md",
     "5-OpenCode-Delegation-Subsystem/5.1-OpenCodeService-and-Task-Lifecycle.md",

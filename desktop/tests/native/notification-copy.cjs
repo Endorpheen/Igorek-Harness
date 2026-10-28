@@ -31,8 +31,8 @@ async function verifyNotificationCopy({BrowserWindow, Menu, clipboard, root, out
     await window.webContents.executeJavaScript("document.querySelector('.igorek-notification-row').open=true");
     await pause(100);
     const source = fs.readFileSync(path.join(appRoot, 'main.cjs'), 'utf8');
-    const start = source.indexOf('function installContextMenu(target)');
-    const end = source.indexOf('function openOwnerWindow', start);
+    const start = source.indexOf('function installContextMenu(');
+    const end = source.indexOf('\nfunction ', start + 1);
     assert.ok(start >= 0 && end > start);
     const install = vm.runInNewContext(source.slice(start, end) + '; installContextMenu', {
       Menu:{buildFromTemplate:items => { template=items; menu=Menu.buildFromTemplate(items); return menu; }},
