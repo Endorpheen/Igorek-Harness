@@ -2318,17 +2318,14 @@ byId("schedule-form").addEventListener("submit",async event=>{
   finally{button.disabled=false;state.schedulesBusy=false;if(state.workspaceView==="scheduled")loadSchedules();}
 });
 
-async function loadOptions() {
+async function loadOptions({preferRunning=false}={}) {
   const generation = state.optionsGeneration = (state.optionsGeneration || 0) + 1;
   const button = byId("create-session-button");
   button.disabled = true;
   let loaded = false;
   try {
     const result = await api("/api/session-options");
-    if(window.IgorekDesktop?.agent){
-      const catalog=await window.IgorekDesktop.agent('catalog');
-      if(!catalog.error)result.profiles=[...new Set([...(result.profiles||[]),...(catalog.profiles||[])])];
-    }
+    if(window.IgorekDesktop)result.profiles=[...new Set([...(result.profiles||[]),...(result.profile_catalog||[]).map(profile=>profile.name)])];
     if (generation !== state.optionsGeneration) return;
     const selected = ui.profile.value;
     const profiles = result.profiles || [];
@@ -2339,25 +2336,53 @@ async function loadOptions() {
       option.textContent = name;
       ui.profile.append(option);
     }
-    ui.profile.value = profiles.includes(selected) ? selected : profiles.includes(state.session?.meta?.profile) ? state.session.meta.profile : profiles.includes(result.default_profile) ? result.default_profile : profiles[0] || "";
+    const preferred=preferRunning?result.default_profile:selected;
+    ui.profile.value = profiles.includes(preferred) ? preferred : profiles.includes(result.default_profile) ? result.default_profile : profiles[0] || "";
     state.workdirs = (result.workdirs || []).map((path) => String(path));
     if (!ui.cwd.value.trim()) {
       sessionCwdCombo.setValue(result.default_cwd || state.workdirs[0] || "");
     }
     sessionCwdCombo.render();
     loaded = true;
+    return result;
   } finally {
     if (generation === state.optionsGeneration) button.disabled = !loaded || !ui.profile.options.length;
   }
 }
 window.addEventListener("igorek:profiles-changed", () => {
-  loadOptions().catch((error) => { ui.sessionError.textContent = error.message; });
+  loadOptions().then(async options=>{
+    const id=state.selected,session=state.session;
+    if(!id||session?.session_id!==id)return;
+    const valid=()=>state.selected===id&&state.session===session&&!state.sending&&!state.activeTasks.size;
+    const updated=await followDesktopProfile(session,options,valid);
+    if(valid()&&updated!==session)window.dispatchEvent(new CustomEvent('igorek-profile-changed',{detail:updated}));
+  }).catch((error) => { ui.sessionError.textContent = error.message; });
   if (window.IgorekDesktop && state.paired) {
     window.clearTimeout(state.quota.retryTimer);
     state.quota = {profile:currentSessionProfile(),provider:'',status:'idle',data:null,fetchedAt:0};
     loadOpenCodeUsage().catch(() => {});
   }
 });
+
+async function followDesktopProfile(session, options, valid) {
+  const pending=window.IgorekComposerProfiles?.synchronization(session?.session_id);
+  if(pending)return await pending||session;
+  if(!window.IgorekDesktop||!session?.meta||session.running_task_id||session.meta.agent_session||session.meta.demo
+    ||window.IgorekComposerProfiles?.busy(session.session_id)||!valid())return session;
+  options??=await api('/api/session-options');
+  const concurrent=window.IgorekComposerProfiles?.synchronization(session.session_id);
+  if(concurrent)return await concurrent||session;
+  const profile=options.default_profile;
+  if(!valid()||window.IgorekComposerProfiles?.busy(session.session_id)||!options.profile_switch_supported||!profile||!(options.profiles||[]).includes(profile)
+    ||profile===session.meta.profile)return session;
+  ui.send.disabled=true;
+  try{
+    return await window.IgorekComposerProfiles.synchronize(session.session_id,()=>
+      api('/api/sessions/'+encode(session.session_id)+'/profile',{
+        method:'POST',body:JSON.stringify({profile,expected_profile:session.meta.profile}),
+      }))||session;
+  }finally{ui.send.disabled=state.sending||window.IgorekComposerProfiles.busy(state.selected);}
+}
 
 // The directory selection component: field + button + hint list. The same component is used in the new session dialog and external history import, so
 // the list of working directories (`state.workdirs`) is shared.
@@ -2508,7 +2533,7 @@ function openNewSession() {
   showMainView();
   ui.sessionError.textContent = "";
   if (!ui.dialog.open) ui.dialog.showModal();
-  loadOptions().catch((error) => { ui.sessionError.textContent = error.message; });
+  loadOptions({preferRunning:true}).catch((error) => { ui.sessionError.textContent = error.message; });
 }
 window.addEventListener("igorek:workspace-selected", (event) => {
   const cwd = event.detail?.cwd;
@@ -2562,7 +2587,8 @@ async function selectSession(sessionId) {
   document.body.classList.remove("sidebar-open");
   try {
     const cursor = await api("/api/sessions/" + encode(sessionId) + "/cursor");
-    const session = await api("/api/sessions/" + encode(sessionId));
+    let session = await api("/api/sessions/" + encode(sessionId));
+    session=await followDesktopProfile(session,null,()=>state.selected===sessionId&&state.selectGeneration===generation);
     if (state.selected !== sessionId || state.selectGeneration !== generation) return;
     state.session = session;
     goalPanel.setGoal(session.goal);

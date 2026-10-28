@@ -1206,7 +1206,7 @@ async function agentOperation(action, profile) {
     agent = reply.result.agent;
     renderProfiles(reply.result.profiles);
     el('profile-status').textContent = agent.running
-      ? 'Исполнитель запущен. Нажмите «Перейти в чат» на карточке профиля и создайте новую сессию с этим профилем. Список обновляется автоматически; прежние сессии сохраняют свой профиль.'
+      ? 'Исполнитель запущен. При переходе в чат будет выбран этот профиль; история сообщений сохранится.'
       : 'Исполнитель остановлен. История и очередь сохранены; для продолжения запустите профиль снова.';
   } catch { el('error').textContent = 'Нет ответа от приложения. Проверьте состояние хранилища.'; }
   finally { for (const button of document.querySelectorAll('button')) button.disabled = button.dataset.unavailable === 'true'; }

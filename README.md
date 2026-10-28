@@ -19,7 +19,7 @@ settings in one workspace. Igorek Remote for Android controls the same agent
 from your phone. Terminal, local Web UI, Telegram, and ACP interfaces are also
 available.
 
-Documentation updated **October 27, 2026**. The Python/desktop version is in
+Documentation updated **October 28, 2026**. The Python/desktop version is in
 [`pyproject.toml`](pyproject.toml); Android has its own version in
 [`android/app/build.gradle.kts`](android/app/build.gradle.kts).
 
@@ -51,6 +51,9 @@ python3 /path/to/igorek-desktop/install-linux.py --snapshot /path/to/igorek-desk
 Open or create a Vault, add a model connection, select a workspace, and start
 the executor. Send a small task in the chat and check its result. Provider
 credentials are configured inside the application.
+Idle desktop chats follow the executor started in settings. The composer switches
+profiles and then shows their models. A running executor cannot be replaced
+while it has queued or active work.
 
 Development from a fresh checkout requires Linux x86_64, `uv`, and Node.js/npm:
 

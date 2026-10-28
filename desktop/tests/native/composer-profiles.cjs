@@ -9,6 +9,8 @@ const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function until(expression){for(let i=0;i<200;i++){if(await window.webContents.executeJavaScript(expression))return;await pause(50);}throw Error('Condition failed: '+expression);}
 async function click(selector){const point=await window.webContents.executeJavaScript(`(()=>{const e=document.querySelector(${JSON.stringify(selector)});if(!e||e.disabled)return null;const b=e.getBoundingClientRect();return b.width&&b.height?{x:Math.round(b.x+b.width/2),y:Math.round(b.y+b.height/2)}:null})()`);assert.ok(point,selector);window.focus();window.webContents.sendInputEvent({type:'mouseDown',button:'left',clickCount:1,...point});window.webContents.sendInputEvent({type:'mouseUp',button:'left',clickCount:1,...point});}
 async function revealOtherProfiles(){await until('Boolean(document.querySelector(".composer-profile-toggle"))');await click('.composer-profile-toggle');await until('document.querySelector(".composer-profile-toggle").getAttribute("aria-expanded")==="true"');}
+async function switchedProfile(name){await until(`state.session.meta.profile===${JSON.stringify(name)}&&!window.IgorekComposerProfiles.busy(state.selected)&&Boolean(document.querySelector('.composer-profile-option[data-profile="'+${JSON.stringify(name)}+'"][aria-checked=true]'))`);assert.equal(await window.webContents.executeJavaScript('Boolean(document.querySelector(".composer-profile-menu"))'),true);window.webContents.sendInputEvent({type:'keyDown',keyCode:'Escape'});window.webContents.sendInputEvent({type:'keyUp',keyCode:'Escape'});await until('!document.querySelector(".composer-profile-menu")');}
+
 async function run(){
   const repo=path.resolve(__dirname,'../../..');
   server=spawn(process.env.IGOREK_TEST_PYTHON||path.join(repo,'.venv/bin/python'),[path.join(__dirname,'composer-profiles-fixture.py'),path.join(root,'runtime')],{cwd:repo,stdio:['pipe','pipe','pipe']});
@@ -42,7 +44,7 @@ async function run(){
   assert.equal(await window.webContents.executeJavaScript(`document.querySelectorAll('.composer-profile-others [data-profile] .composer-profile-icon svg').length`),13);
   assert.equal(await window.webContents.executeJavaScript(`document.querySelector('.composer-profile-option[data-profile=local] .composer-profile-icon').getAttribute('aria-hidden')`),'true');
   assert.equal(await window.webContents.executeJavaScript(`(()=>{const e=document.querySelector('.composer-profile-others');return e.scrollHeight>e.clientHeight&&e.clientHeight<=200})()`),true);
-  await click('.composer-profile-toggle');
+  await click('.composer-profile-toggle');await until('document.querySelector(".composer-profile-others").hidden');
   assert.equal(await window.webContents.executeJavaScript(`document.querySelector('.composer-profile-others').hidden`),true);
   await window.webContents.executeJavaScript(`document.querySelector('.composer-profile-toggle').focus();document.querySelector('.composer-profile-toggle').dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true,cancelable:true}));void 0;`);
   assert.equal(await window.webContents.executeJavaScript(`document.activeElement.dataset.model`),'gpt-6.1-sol');
@@ -63,7 +65,7 @@ async function run(){
   await click('#composer-model');await until('Boolean(document.querySelector(".composer-profile-option[data-profile=local]"))');await revealOtherProfiles();
   fs.writeFileSync(path.join(output,'profile-menu.png'),(await window.webContents.capturePage()).toPNG());
   await click('.composer-profile-option[data-profile=local]');
-  await until('document.querySelector("#composer-model").textContent.includes("local")&&!document.querySelector(".composer-profile-menu")');
+  await switchedProfile('local');
   const stateAfter=await window.webContents.executeJavaScript(`({session:state.selected,profile:state.session.meta.profile,draft:document.querySelector('#message-input').value,history:document.querySelector('#timeline').textContent})`);
   assert.equal(stateAfter.session,config.session);assert.equal(stateAfter.profile,'local');assert.equal(stateAfter.draft,'Retained draft');assert.match(stateAfter.history,/Retained fixture response/);
   await window.webContents.executeJavaScript(`(()=>{const tab=state.panel.workspace.open('chat');tab.session=${JSON.stringify(config.session)};tab.draft='Retained side draft';activateWorkspaceTab(tab);openPanel();})()`);
@@ -76,15 +78,15 @@ async function run(){
   await pause(100);
   assert.equal(await window.webContents.executeJavaScript('window.__messageRequests'),0);
   await window.webContents.executeJavaScript('window.__releaseProfile();window.fetch=window.__nativeFetch;void 0;');
-  await until('state.session.meta.profile==="cloud"&&!document.querySelector(".composer-profile-menu")');
+  await switchedProfile('cloud');
   assert.ok(await window.webContents.executeJavaScript('document.querySelector(".workspace-chat-compose .composer-model").textContent.includes("cloud")'));
   assert.equal(await window.webContents.executeJavaScript('document.querySelector(".workspace-chat-compose textarea").value'),'Retained side draft');
   await click('.workspace-chat-compose .composer-model');await until('Boolean(document.querySelector(".composer-profile-option[data-profile=local]"))');await revealOtherProfiles();
-  await click('.composer-profile-option[data-profile=local]');await until('state.session.meta.profile==="local"&&!document.querySelector(".composer-profile-menu")');
+  await click('.composer-profile-option[data-profile=local]');await switchedProfile('local');
   assert.ok(await window.webContents.executeJavaScript('document.querySelector(".workspace-chat-compose .composer-model").textContent.includes("local")'));
   assert.equal(await window.webContents.executeJavaScript('document.querySelector("#message-input").value'),'Retained draft');
   await click('#composer-model');await until('Boolean(document.querySelector(".composer-profile-option[data-profile=cloud]"))');await revealOtherProfiles();
-  await click('.composer-profile-option[data-profile=cloud]');await until('state.session.meta.profile==="cloud"&&!document.querySelector(".composer-profile-menu")');
+  await click('.composer-profile-option[data-profile=cloud]');await switchedProfile('cloud');
   await window.webContents.executeJavaScript(`(async()=>{const other=await api('/api/sessions',{method:'POST',body:JSON.stringify({profile:'cloud'})});await api('/api/sessions/'+other.session_id+'/messages',{method:'POST',body:JSON.stringify({text:'Queued fixture; no worker runs'})});})()`);
   await click('#composer-model');await until('Boolean(document.querySelector(".composer-profile-option[data-profile=local]"))');await revealOtherProfiles();await click('.composer-profile-option[data-profile=local]');
   await until('document.querySelector(".composer-profile-status")?.getAttribute("role")==="alert"');

@@ -88,6 +88,7 @@ ROUTES=[
     ('POST','/api/voice/hangup','/voice/hangup',{}),
     ('POST','/api/tasks/task-123/user-input/request-123','/tasks/task-123/user-input/request-123',{'answers':{}}),
     ('POST','/api/sessions/session-123/profile','/sessions/session-123/profile',{'profile':'fixture'}),
+    ('POST','/api/sessions/session-123/profile','/sessions/session-123/profile',{'profile':'fixture','expected_profile':'previous'}),
     ('POST','/api/sessions/session-123/goal','/sessions/session-123/goal',{'action':'pause','goal_id':'fixture-goal'}),
     ('GET','/api/sessions/session-123/agents','/sessions/session-123/agents',None),
     ('GET','/api/sessions/session-123/sources','/sessions/session-123/sources',None),
@@ -125,6 +126,8 @@ def test_route_without_connection_never_contacts_bridge(proxy,method,path,target
     ('/api/sessions/session-123/profile',{'profile':'../private'}),
     ('/api/sessions/session-123/profile',{'profile':None}),
     ('/api/sessions/session-123/profile',{'profile':'fixture','extra':True}),
+    ('/api/sessions/session-123/profile',{'profile':'fixture','expected_profile':None}),
+    ('/api/sessions/session-123/profile',{'profile':'fixture','expected_profile':'../private'}),
     ('/api/sessions/session-123/cancel',{'mode':'unknown'}),
 ])
 def test_invalid_mutation_is_rejected_before_upstream(proxy,path,body):
