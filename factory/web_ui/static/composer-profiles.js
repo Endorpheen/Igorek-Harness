@@ -85,7 +85,9 @@ SOFTWARE.
         index=event.key==='Home'?0:event.key==='End'?rows.length-1:(index+(event.key==='ArrowUp'?-1:1)+rows.length)%rows.length;
         rows[index].focus();
       });
-      try {
+      async function loadCatalog() {
+        list.replaceChildren();status.textContent=text('loading');status.setAttribute('role','status');
+        try {
         const currentProfile=String(options.profile()||'');
         const catalog=await options.api('/api/session-options'+(currentProfile?'?model_profile='+encodeURIComponent(currentProfile):''));if(!valid())return;
         if(currentProfile!==String(options.profile()||'')){close();return;}
@@ -113,6 +115,8 @@ SOFTWARE.
           if(profile.name===catalog.default_profile)row.append(node('small','',text('running')));
           row.addEventListener('click',async()=>{
             if(!valid()||blocked())return;
+            if(profile.name===options.profile()&&profile.name===catalog.default_profile){close(true);return;}
+            let switched=false;
             pending.add(id);options.changing?.(true);status.textContent=text('starting');
             for(const entry of list.querySelectorAll('button[data-profile],button[data-model]'))entry.disabled=true;
             try {
@@ -123,13 +127,14 @@ SOFTWARE.
               window.dispatchEvent(new CustomEvent('igorek-profile-changed',{detail:result}));
               if(!valid())return;
               await options.changed(result);
-              if(valid())close(true);
+              switched=true;
             } catch(error) {
               if(valid()){status.textContent=error.message||text('failed');status.setAttribute('role','alert');}
             } finally {
               pending.delete(id);options.changing?.(false);
               if(valid())for(const entry of list.querySelectorAll('button[data-profile],button[data-model]'))entry.disabled=blocked();
             }
+            if(switched&&valid())await loadCatalog();
           });
           return row;
         };
@@ -169,12 +174,24 @@ SOFTWARE.
       } catch(error) {
         if(valid()){status.textContent=error.message||text('failed');status.setAttribute('role','alert');}
       }
+      }
+      await loadCatalog();
     });
   }
   document.addEventListener('pointerdown',event=>{if(opened&&!opened.menu.contains(event.target)&&!opened.button.contains(event.target))close();});
   document.addEventListener('keydown',event=>{if(opened&&event.key==='Escape'){event.preventDefault();close(true);}});
   window.addEventListener('igorek-session-changed',()=>close());
+  window.addEventListener('igorek-profile-changed',event=>{
+    if(opened&&event.detail?.session_id===opened.id&&!pending.has(opened.id))close();
+  });
   window.addEventListener('pagehide',()=>close());
   window.addEventListener('resize',()=>close());
-  window.IgorekComposerProfiles={attach,busy:id=>pending.has(id)};
+  const synchronizations=new Map();
+  window.IgorekComposerProfiles={attach,busy:id=>pending.has(id),synchronization:id=>synchronizations.get(id),synchronize(id,operation){
+    if(synchronizations.has(id))return synchronizations.get(id);
+    if(pending.has(id))return null;
+    pending.add(id);
+    const promise=Promise.resolve().then(operation).finally(()=>{pending.delete(id);synchronizations.delete(id);});
+    synchronizations.set(id,promise);return promise;
+  }};
 })();

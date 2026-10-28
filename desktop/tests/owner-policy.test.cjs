@@ -87,7 +87,7 @@ function optionsHarness() {
   const { join } = require('node:path');
   const vm = require('node:vm');
   const source = readFileSync(join(__dirname, '..', '../factory/web_ui/static/app.js'), 'utf8');
-  const start = source.indexOf('async function loadOptions() {');
+  const start = source.indexOf('async function loadOptions(');
   const end = source.indexOf('//', start);
   const pending = [], handlers = {};
   const profile = { options: [], value: '', replaceChildren() { this.options = []; }, append(option) { this.options.push(option); } };
@@ -115,6 +115,13 @@ test('newest options win without replacing the chosen folder or a valid profile'
   await old;
   assert.deepEqual(c.ui.profile.options.map(o => o.value), ['keep', 'new']);
   assert.equal(c.ui.profile.value, 'keep');
+});
+
+test('opening a new chat prefers the running profile over a previous dialog selection', async () => {
+  const {context:c,pending}=optionsHarness();c.ui.profile.value='previous';
+  const loaded=c.loadOptions({preferRunning:true});
+  pending[0].resolve({profiles:['previous','running'],default_profile:'running'});await loaded;
+  assert.equal(c.ui.profile.value,'running');assert.equal(c.ui.cwd.value,'/chosen/workspace');
 });
 
 test('stop removes stale profiles and empty or failed refresh disables creation', async () => {

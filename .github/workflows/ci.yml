@@ -150,6 +150,9 @@ jobs:
           IGOREK_TEST_OUTPUT="$PWD/test-results/composer-linux" \
             xvfb-run -a "$RUNNER_TEMP/igorek-native-snapshot/igorek-desktop/electron/electron" \
               desktop/tests/native/composer-profiles.cjs
+          IGOREK_TEST_OUTPUT="$PWD/test-results/profile-switch-linux" \
+            xvfb-run -a "$RUNNER_TEMP/igorek-native-snapshot/igorek-desktop/electron/electron" \
+              desktop/tests/native/profile-switch-runtime.cjs
           IGOREK_TEST_RUNTIME="$RUNNER_TEMP/igorek-native-snapshot/igorek-desktop/app/runtime" \
           IGOREK_TEST_OUTPUT="$PWD/test-results/search-linux" \
             xvfb-run -a "$RUNNER_TEMP/igorek-native-snapshot/igorek-desktop/electron/electron" \
@@ -165,6 +168,7 @@ jobs:
             test-results/native-linux/artifact-*
             test-results/native-linux/notification-copy*
             test-results/composer-linux/summary.json
+            test-results/profile-switch-linux/summary.json
             test-results/search-linux/summary.json
           if-no-files-found: warn
           retention-days: 7

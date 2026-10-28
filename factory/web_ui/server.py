@@ -1004,7 +1004,8 @@ class _Handler(BaseHTTPRequestHandler):
                 body = self._body()
                 if body is None:
                     return
-                if set(body) != {'profile'} or not isinstance(body['profile'], str) or not _PROFILE_NAME.fullmatch(body['profile']):
+                if (not {'profile'} <= set(body) or set(body) - {'profile', 'expected_profile'}
+                        or not all(isinstance(value, str) and _PROFILE_NAME.fullmatch(value) for value in body.values())):
                     self._json(400, {'error': 'Некорректный профиль'})
                     return
                 self._proxy(method, f'/sessions/{quoted}/profile', body)

@@ -238,3 +238,18 @@ def test_http_authentication_and_revocation_gate_profile_activation(setup):
         assert agent.starts == ['local', 'cloud']
     finally:
         server.shutdown(); server.server_close(); thread.join(3)
+
+
+def test_stale_settings_profile_sync_cannot_replace_a_newer_composer_selection(setup):
+    owner, service, agent, _, workdir = setup
+    sid = service.create_session(profile='cloud', cwd=str(workdir))['session_id']
+    switched = service.switch_session_profile(sid, 'local', expected_profile='cloud')
+    generation = switched['meta']['profile_generation']
+    starts = agent.starts[:]
+    with pytest.raises(MobileConflict):
+        service.switch_session_profile(sid, 'cloud', expected_profile='cloud')
+    current = service.get_session(sid)
+    assert current['meta']['profile'] == 'local'
+    assert current['meta']['profile_generation'] == generation
+    assert agent.starts == starts
+    assert owner.dispatch({'id': 'still-open', 'action': 'status'})['result']['state'] == 'unlocked'

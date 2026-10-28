@@ -933,7 +933,7 @@ class MobileService:
             archived_only=archived_only,
         )["sessions"]
 
-    def switch_session_profile(self, session_id: str, profile: str) -> dict[str, Any]:
+    def switch_session_profile(self, session_id: str, profile: str, *, expected_profile: str | None = None) -> dict[str, Any]:
         """Activate a verified profile and retain the idle chat and its history."""
         if not isinstance(profile, str) or not profile or self.profile_control is None:
             raise MobileInvalid('Переключение профиля недоступно.')
@@ -942,6 +942,8 @@ class MobileService:
             if not path.is_file():
                 raise MobileNotFound(f'session not found: {session_id}')
             meta = _read_session_meta(path) or {}
+            if expected_profile is not None and meta.get('profile') != expected_profile:
+                raise MobileConflict('Профиль чата изменился. Обновите чат перед переключением.')
             if meta.get('agent_session') or meta.get('demo'):
                 raise MobileInvalid('Для этой сессии переключение профиля недоступно.')
             if self._active_task_id_for_session(session_id):

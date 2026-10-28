@@ -59,7 +59,7 @@ function fn(name){const start=source.indexOf('async function '+name+'(');const e
   renderContext(){},renderTimeline(){},renderSessions(){},renderAgentNavigation(){},setRuntime(){},
   resetPanelData(){},stopStream(){},stopMic(){},showMainView(){},resetMentionState(){},setIndicator(){},renderAttachments(){},clearMessageRail(){},
   document:{body:{classList:{remove(){}}}},sessionMessageItems:()=>[],loadApprovals:async()=>{},startStream(){},loadSessionJournal:async()=>{},loadSubagents:async()=>{},loadOpenCodeUsage:async()=>{},loadSessions:async()=>{},toast(){throw Error('unexpected select error')}};
- vm.createContext(ctx);vm.runInContext(fn('selectSession'),ctx);await ctx.selectSession('new');
+ vm.createContext(ctx);vm.runInContext(fn('followDesktopProfile'),ctx);vm.runInContext(fn('selectSession'),ctx);await ctx.selectSession('new');
  assert.equal(goalUpdates[0],null);assert.equal(goalUpdates[1].objective,'new session goal');
  let finish,applied=0,scanned=0;state.selected='same';state.plan={loading:false,status:'idle'};
  Object.assign(ctx,{JOURNAL_PAGE_LIMIT:500,newJournalHistory:()=>({}),renderPlanSection(){},api:()=>new Promise(r=>finish=r),

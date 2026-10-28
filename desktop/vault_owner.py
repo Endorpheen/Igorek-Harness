@@ -94,12 +94,31 @@ class OwnerVault:
         self.host_access = None
 
     def _start_agent_profile(self, credential_id):
+        service = getattr(self, 'browser_service', None)
+        held = []
+        try:
+            for lock in (getattr(service, '_approval_lock', None), getattr(self.agent, 'control_lock', None)):
+                if lock is not None:
+                    if not lock.acquire(blocking=False):
+                        raise AgentBusyError()
+                    held.append(lock)
+            return self._start_agent_profile_locked(credential_id, service)
+        finally:
+            for lock in reversed(held):
+                lock.release()
+
+    def _start_agent_profile_locked(self, credential_id, service):
         if self.image.status()["running"]:
             raise ImageSetupError("image_busy")
         from factory.core.vault.lifecycle import is_loopback_provider
         profile = next((p for p in self.providers.list_profiles() if p["credential_id"] == credential_id), None)
         if profile and is_loopback_provider(profile["config"]) and self.execution.mode != "off":
             return 'local_requires_host_mode'
+        if profile and service is not None:
+            current = self.agent.status()
+            active = current.get('profile', '') if current.get('running') else ''
+            if active and active != profile['config']['name'] and service.has_pending_profile_tasks(active):
+                raise AgentBusyError()
         self.agent.start(credential_id)
         if profile and profile['config'].get('api_format') == 'openai-responses':
             self._warm_chatgpt_models(profile)
@@ -217,21 +236,17 @@ class OwnerVault:
             if profile['config'].get('api_format') != 'openai-responses':
                 return {'models': [], 'model_labels': {}, 'models_status': 'unsupported'}
             return self._chatgpt_models(profile)
-        with self.agent.control_lock:
-            active = self.agent.status().get('profile', '')
-            if active and active != name and self.browser_service.has_pending_profile_tasks(active):
-                return {'error': 'profile_busy'}
-            try:
-                error = self._start_agent_profile(profile['credential_id'])
-                return {'error': error} if error else {'agent': self.agent.status()}
-            except AgentBusyError:
-                return {'error': 'profile_busy'}
-            except (ProfileNotVerifiedError, VaultLockedError):
-                return {'error': 'profile_not_verified'}
-            except ImageSetupError:
-                return {'error': 'image_busy'}
-            except Exception:
-                return {'error': 'profile_start_failed'}
+        try:
+            error = self._start_agent_profile(profile['credential_id'])
+            return {'error': error} if error else {'agent': self.agent.status()}
+        except AgentBusyError:
+            return {'error': 'profile_busy'}
+        except (ProfileNotVerifiedError, VaultLockedError):
+            return {'error': 'profile_not_verified'}
+        except ImageSetupError:
+            return {'error': 'image_busy'}
+        except Exception:
+            return {'error': 'profile_start_failed'}
 
     def dispatch(self, request):
         identity = request.get("id") if isinstance(request, dict) else None
