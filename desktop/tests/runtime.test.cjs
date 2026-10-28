@@ -1,5 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+const { once } = require('node:events');
 const { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, symlinkSync, chmodSync } = require('node:fs');
 const { join } = require('node:path');
 const { tmpdir } = require('node:os');
@@ -119,10 +120,12 @@ test('valid child starts, stops and remains separate from the parent', async () 
 for (const mode of ['error', 'invalid', 'timeout']) {
   test(`startup ${mode} cleans up its child`, async () => {
     const f = fixture(mode, mode === 'timeout' ? 150 : 2000);
+    const starting = f.runtime.start();
+    const closed = once(f.runtime.child, 'close');
     try {
-      await assert.rejects(f.runtime.start());
+      await assert.rejects(starting);
       assert.notEqual(f.runtime.child.exitCode, null);
-    } finally { await f.runtime.stop(); f.cleanup(); }
+    } finally { await f.runtime.stop(); await closed; f.cleanup(); }
   });
 }
 test('bundle paths cannot escape through traversal or symlinks', () => {

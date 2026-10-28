@@ -273,7 +273,14 @@ print(json.dumps({'files':True}))`;
     settings.show(); settings.focus();
     await until(() => settings.webContents.executeJavaScript("document.getElementById('onboarding-steps').children[4].classList.contains('complete')"), 'Native guide did not show first result');
     stage('https_pairing_first_task_and_native_progress');
-    await owner('lock'); assert.equal((await owner('status')).state, 'locked');
+    // The durable answer can precede release of the worker's execution lock.
+    await until(async () => {
+      const reply = await runtime.requestOwner('lock', {});
+      if (reply.error === 'agent_busy') return false;
+      if (reply.error) throw Error('Owner action lock: ' + reply.error);
+      return true;
+    }, 'Finished first task did not release its execution lock');
+    assert.equal((await owner('status')).state, 'locked');
     await owner('unlock', { password: 'fixture-password' });
     assert.deepEqual((await owner('status')).onboarding.successful_profiles, ['qa-first-task']);
     stage('lock_unlock_preserves_first_result');

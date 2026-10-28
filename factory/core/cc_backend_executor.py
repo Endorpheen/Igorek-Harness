@@ -27,6 +27,8 @@ from .cc_backend_trace import append_cc_backend_trace, scoped_agent_trace, model
 from .checkpoint_manager import CheckpointManager
 from .cc_backend_tools import execute_tool, get_tool_schemas, needs_approval
 from .multimodal_payload import build_anthropic_user_content
+from .llama_image_input import LlamaImageInput
+from .local_history_output import HistoricalToolEchoFilter, contains_historical_tool_echo, local_history_guard_enabled
 from .post_turn_guards import (
     APPROVAL_REQUIRED,
     CORRECTION_REQUIRED,
@@ -1424,6 +1426,11 @@ def execute_cc_backend_task(
         if request_headers_provider is not None:
             headers = RenewingHeaders(headers, request_headers_provider)
 
+    image_input = LlamaImageInput(
+        base_url, model, headers, enabled=api_format in {"openai", "anthropic"}
+    )
+    guard_local_history = local_history_guard_enabled(base_url, api_format)
+    local_history_rejections = 0
     messages: list[dict[str, Any]] = _build_initial_messages(
         history_messages=history_messages,
         trailing_context_text=trailing_context_text,
@@ -2620,6 +2627,10 @@ def execute_cc_backend_task(
 
             log_fn(f"[cc-backend] Round {round_num + 1}: POST {url}")
 
+            image_payload = image_input.prepare(payload)
+            if image_payload is not payload:
+                log_fn("[cc-backend] Local llama.cpp image input disabled; sending text notices instead")
+                payload = image_payload
             network_retry_count = 0
             recovery_started = time.monotonic()
             while True:
@@ -2667,6 +2678,17 @@ def execute_cc_backend_task(
                     if isinstance(body, dict)
                     else ""
                 )
+                image_payload = image_input.recover(payload, body)
+                if image_payload is not None:
+                    payload = image_payload
+                    log_fn("[cc-backend] Local llama.cpp rejected image input; retrying model request with text only")
+                    append_cc_backend_trace(artifact_workdir, {
+                        "kind": CcTraceEvent.PAYLOAD_RETRY,
+                        "round": round_num + 1,
+                        "reason": "llama_image_input_unsupported",
+                        "parent_task_id": parent_task_id or None,
+                    })
+                    continue
                 if (
                     _is_reasoning_passback_error(network_error)
                     and not reasoning_passback_forced
@@ -2797,6 +2819,7 @@ def execute_cc_backend_task(
                         reasoning_parts.append(str(block.get("text", "")))
 
             output_text_preview = "\n".join(text_parts)
+            history_echo = guard_local_history and contains_historical_tool_echo(output_text_preview)
             if not is_openai_api and not is_google_api:
                 for reasoning_text in reasoning_parts:
                     append_cc_backend_trace(
@@ -2822,11 +2845,36 @@ def execute_cc_backend_task(
                         if isinstance(block, dict)
                     ],
                     "usage": body.get("usage", {}) if isinstance(body, dict) else {},
-                    "text_len": len(output_text_preview),
-                    "text_preview": output_text_preview[:1000],
-                    "text_full": output_text_preview,
+                    "text_len": 0 if history_echo else len(output_text_preview),
+                    "text_preview": "" if history_echo else output_text_preview[:1000],
+                    "text_full": "" if history_echo else output_text_preview,
                 },
             )
+
+            if history_echo:
+                local_history_rejections += 1
+                append_cc_backend_trace(artifact_workdir, {
+                    "kind": CcTraceEvent.POST_TURN_RETRY_REQUIRED,
+                    "round": round_num + 1,
+                    "reason": "local_tool_history_echo",
+                    "attempt": local_history_rejections,
+                })
+                if local_history_rejections >= 2:
+                    message = "Модель повторно вернула служебную историю вместо ответа. Продолжение остановлено, чтобы не повторять старые действия."
+                    append_cc_backend_trace(artifact_workdir, {
+                        "kind": CcTraceEvent.TASK_FINISH, "status": "fail",
+                        "reason": "local_tool_history_echo_repeated",
+                        "rounds": round_num + 1, "tool_calls_count": tool_calls_count,
+                        "output_preview": message,
+                    })
+                    return {"status": "fail", "failure_reason": "local_tool_history_echo_repeated",
+                            "output_text": message, "usage": _current_usage(),
+                            "tool_calls_count": tool_calls_count}
+                from .prompt_assembly import local_history_echo_retry_message
+                messages.append({"role": "user", "content": [
+                    {"type": "text", "text": local_history_echo_retry_message()}
+                ]})
+                continue
 
             if not tool_use_blocks:
                 output_text = output_text_preview
@@ -4419,14 +4467,16 @@ def _http_post_streaming_openai(
     content_parts: list[str] = []
     reasoning_parts: list[str] = []
     content_splitter = TaggedReasoningSplitter()
+    history_filter = HistoricalToolEchoFilter() if local_history_guard_enabled(url) else None
 
     def accept_content(parts: list[tuple[str, str]]) -> None:
         for kind, value in parts:
             (reasoning_parts if kind == "__reasoning" else content_parts).append(value)
-            if trace_dir:
+            visible = history_filter.feed(value) if kind == "text" and history_filter else value
+            if trace_dir and visible:
                 append_cc_backend_trace(trace_dir, {
                     "kind": CcTraceEvent.MODEL_REASONING_DELTA if kind == "__reasoning" else CcTraceEvent.MODEL_TEXT_DELTA,
-                    "round": round_num + 1, "text": value,
+                    "round": round_num + 1, "text": visible,
                     "parent_task_id": parent_task_id or None,
                 })
 
@@ -4703,6 +4753,14 @@ def _http_post_streaming_openai(
         return stream_failure, int((time.time() - start) * 1000)
 
     accept_content(content_splitter.finish())
+    if history_filter:
+        visible = history_filter.finish()
+        if trace_dir and visible:
+            append_cc_backend_trace(trace_dir, {
+                "kind": CcTraceEvent.MODEL_TEXT_DELTA,
+                "round": round_num + 1, "text": visible,
+                "parent_task_id": parent_task_id or None,
+            })
     full_text = "".join(content_parts)
     if not got_done and not last_finish_reason:
         return {'error': 'Response stream ended without a terminal event; partial tool calls were not executed.',
@@ -4711,7 +4769,7 @@ def _http_post_streaming_openai(
         log_fn(
             f"[cc-backend] stream done: events={sse_event_count} "
             f"chars={len(full_text)} finish_reason={last_finish_reason!r} "
-            f"got_done={got_done} last50={full_text[-50:]!r}"
+            f"got_done={got_done} last50={('[local tool history suppressed]' if history_filter and history_filter.blocked else full_text[-50:])!r}"
         )
 
     # Assemble into OpenAI response format

@@ -38,7 +38,7 @@ def loop(tmp_path,monkeypatch):
             if isinstance(raw,Exception):raise raw
             return raw
         monkeypatch.setattr(e,'_http_post',post);monkeypatch.setattr(e,'_http_post_streaming_openai',post);monkeypatch.setattr(e,'execute_tool',execute)
-        result=e.execute_cc_backend_task(base_url='http://127.0.0.1:1',model='fixture',api_format=api,system_prompt='fixture system',user_message='Respond to fixture',workdir=str(work),artifact_workdir=str(artifact),enabled_tools=[schemas[n] for n in names],metadata={'model_context_window':65536,**(metadata or {})},approvals_enabled_provider=lambda:False,**kwargs)
+        result=e.execute_cc_backend_task(base_url=kwargs.pop('base_url','http://127.0.0.1:1'),model='fixture',api_format=api,system_prompt='fixture system',user_message='Respond to fixture',workdir=str(work),artifact_workdir=str(artifact),enabled_tools=[schemas[n] for n in names],metadata={'model_context_window':65536,**(metadata or {})},approvals_enabled_provider=lambda:False,**kwargs)
         trace=[json.loads(row) for row in (artifact/'cc_backend_trace.jsonl').read_text().splitlines()]
         return SimpleNamespace(result=result,requests=requests,calls=calls,trace=trace,work=work)
     return run
