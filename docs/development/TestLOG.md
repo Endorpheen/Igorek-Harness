@@ -1,3 +1,7 @@
+## 2026-10-28 — Native demo fixture establishes input preconditions
+
+The next 0.2.34 native Linux run reached the new autocomplete scenario but did not observe its menu after resizing. The fixture now waits for layout frames after restoring size, starts from an empty synthetic draft, waits for native textarea focus, awaits text insertion and records the observed input/menu state. Prefix, Tab selection, session retention and all eight demo assertions retain their original timeout. Application autocomplete is unchanged. Hosted CI is the acceptance authority; accepted CI packages are downloaded only for publication, without repeated local package/native/update checks.
+
 ## 2026-10-28 — Composer resize fixture follows the input form boundary
 
 The first 0.2.34 package run reached the native resize test, whose HTML extraction still used the removed composer-caption as its end marker. The fixture now ends at the closing form tag; the complete form is retained and all overlap, containment, hit-testing and draft assertions are unchanged. A real Electron/Xvfb run passed all 82 busy/idle width samples. The central composer remains caption-free; shared caption translations/styles are retained for the separate workspace side chat. The initial failed package run is retained, and publication requires fresh checks and packages from the corrected source head. Version remains 0.2.34.

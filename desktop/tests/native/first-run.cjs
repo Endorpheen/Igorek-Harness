@@ -433,9 +433,17 @@ print(json.dumps({'files':True}))`;
       report.composer_layout.push(layout);
     }
     chat.setContentSize(...originalSize);
+    await chat.webContents.executeJavaScript(`new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      const input=document.getElementById('message-input');input.value='';input.setSelectionRange(0,0);
+      input.dispatchEvent(new Event('input',{bubbles:true}));resolve();
+    })))`);
     await clickNative(chat, '#message-input');
-    chat.webContents.insertText('/de');
-    await until(()=>chat.webContents.executeJavaScript("state.mentions.menu==='commands'&&document.querySelector('#mention-rows .mention-row-name')?.textContent==='/demo'"),'Demo autocomplete did not open');
+    await until(()=>chat.webContents.executeJavaScript("document.activeElement===document.getElementById('message-input')"),'Composer did not receive native focus');
+    await chat.webContents.insertText('/de');
+    await until(async()=>{
+      report.demo_autocomplete_input=await chat.webContents.executeJavaScript("({text:document.getElementById('message-input').value,active:document.activeElement?.id,menu:state.mentions.menu,command:document.querySelector('#mention-rows .mention-row-name')?.textContent})");
+      return report.demo_autocomplete_input.text==='/de'&&report.demo_autocomplete_input.menu==='commands'&&report.demo_autocomplete_input.command==='/demo';
+    },'Demo autocomplete did not open');
     fs.writeFileSync(path.join(output, 'composer-demo-menu.png'), (await chat.webContents.capturePage()).toPNG());
     chat.webContents.sendInputEvent({type:'keyDown',keyCode:'Tab'});
     chat.webContents.sendInputEvent({type:'keyUp',keyCode:'Tab'});
