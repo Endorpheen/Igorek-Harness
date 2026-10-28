@@ -1,3 +1,7 @@
+## 2026-10-29 — Native first-result fixture waits for executor settlement
+
+The next 0.2.35 Windows installer run built successfully but its first-result lock step received the existing structured agent_busy rejection after the durable answer appeared; the instrumented diagnostic clone completed the same scenario. The native fixture now uses its existing bounded wait to retry only agent_busy at this boundary, fails immediately on every other owner error, and retains the locked-state, unlock, restart and history assertions. Production busy protection and runtime behavior are unchanged. This is a fixture ordering correction; the diagnostic clone is not counted as installer acceptance. A fresh immutable CI head is required.
+
 ## 2026-10-29 — Windows startup-failure fixture awaits child close
 
 The first 0.2.35 hosted Windows desktop run failed while deleting its temporary startup-error fixture (EPERM); startup rejection and the child exit assertion had already completed. The fixture now subscribes to the child close event immediately after starting it and awaits stream closure before deleting its directory. Startup rejection, exit-code and cleanup checks remain intact. Product runtime shutdown behavior is unchanged. All 34 lifecycle tests pass on the local Node 24 runtime. Fresh hosted Windows acceptance is required; the failed run remains part of the evidence.
