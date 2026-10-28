@@ -271,7 +271,6 @@ const I18N = {
     "welcome.meta2": "ВАШ ЛОКАЛЬНЫЙ RUNTIME",
     "composer.rail_aria": "Навигация по вашим сообщениям",
     "composer.attach_aria": "Прикрепить файл",
-    "demo.start": "Познакомиться с Игорьком · /demo",
     "demo.separate": "Отправьте /demo отдельно, без вложений.",
     "navigation.unavailable": "Этот раздел сейчас недоступен. Откройте его через меню приложения.",
     "composer.placeholder": "Напишите задачу Игорьку…",
@@ -280,7 +279,6 @@ const I18N = {
     "composer.stop": "Стоп",
     "composer.send": "Отправить",
     "composer.send_aria": "Отправить сообщение",
-    "composer.caption": "Локальная сессия · сообщения обрабатываются выбранным профилем",
     "composer.queued": "в очереди",
     "composer.force_send": "Отправить сейчас",
     "composer.force_send_title": "Доставить сообщение в текущую задачу немедленно, не дожидаясь её завершения",
@@ -926,7 +924,6 @@ const I18N = {
     "welcome.meta2": "YOUR LOCAL RUNTIME",
     "composer.rail_aria": "Navigate your messages",
     "composer.attach_aria": "Attach file",
-    "demo.start": "Meet Igorek · /demo",
     "demo.separate": "Send /demo on its own, without attachments.",
     "navigation.unavailable": "This section is currently unavailable. Open it from the application menu.",
     "composer.placeholder": "Write a task for Igorek…",
@@ -935,7 +932,6 @@ const I18N = {
     "composer.stop": "Stop",
     "composer.send": "Send",
     "composer.send_aria": "Send message",
-    "composer.caption": "Local session · messages are processed by the selected profile",
     "composer.queued": "queued",
     "composer.force_send": "Send now",
     "composer.force_send_title": "Deliver this message into the running task immediately, without waiting for it to finish",
@@ -9187,11 +9183,6 @@ window.addEventListener('igorek-profile-changed',event=>{
   state.session=data;state.mentions.skillsTracked.clear();closeMentionMenu();
   state.quota={profile:data.meta?.profile||'',provider:'',status:'idle',data:null,fetchedAt:0};
   renderContext(data);renderPlanSection();loadSessions().catch(()=>{});loadOpenCodeUsage().catch(()=>{});
-});
-document.getElementById('demo-start')?.addEventListener('click', () => {
-  if (!state.selected || state.sending || ui.message.value.trim() || state.attachments.length) return;
-  ui.message.value = '/demo';
-  ui.composer.requestSubmit();
 });
 ui.modePlan.addEventListener("click", () => setComposerMode(MODE_PLAN));
 ui.modeExecute.addEventListener("click", () => setComposerMode(MODE_EXECUTE));

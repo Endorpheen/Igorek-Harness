@@ -479,8 +479,16 @@ def test_daemon_executes_schedule_without_any_cli_client(home, monkeypatch):
     real_popen = subprocess.Popen
 
     def owned_popen(argv, *args, **kwargs):
+        daemon_child = list(argv[:3]) == [sys.executable, "-m", "factory.core.cli_daemon"]
+        if daemon_child:
+            argv = [sys.executable, "-c", (
+                "from factory.core import opencode_models, openrouter_pricing;"
+                "opencode_models._fetch_models=lambda:None;"
+                "openrouter_pricing._fetch_models=lambda timeout_s:None;"
+                "import runpy;runpy.run_module('factory.core.cli_daemon',run_name='__main__')"
+            )]
         process = real_popen(argv, *args, **kwargs)
-        if list(argv[:3]) == [sys.executable, "-m", "factory.core.cli_daemon"]:
+        if daemon_child:
             owned_processes.append(process)
         return process
 

@@ -38,6 +38,14 @@ test('descriptions follow the selected language', () => {
   assert.equal(result[0].description, 'Show chat and context status');
 });
 
+test('/demo is discoverable by prefix in both languages alongside command help', () => {
+  assert.deepEqual(names('/de'), ['/demo']);
+  assert.deepEqual(names(' /DE'), ['/demo']);
+  assert.deepEqual(names('run /demo'), []);
+  assert.equal(ctx.slashCommandSuggestions('/de', null, 'ru')[0].description, 'Познакомиться с Игорьком');
+  assert.equal(ctx.slashCommandSuggestions('/de', null, 'en')[0].description, 'Explore Igorek');
+});
+
 test('finishing a goal command preserves a new draft and a newly selected chat', async () => {
   const begin = source.indexOf('async function sendMessage(');
   const finish = source.indexOf('\n// Voice input:', begin);
