@@ -1,3 +1,7 @@
+## 2026-10-28 — Native context-menu fixture follows the settings parent signature
+
+The first hosted 0.2.33 native run stopped before notification-copy behavior: its source-fragment harness searched for the old exact installContextMenu(target) signature, while the settings change adds the optional containing-window argument. The harness now locates the function name and stops at the next top-level function. All actual selection, clipboard, snapshot/read/clear and native input assertions remain unchanged. A separate real Electron/Xvfb run passed mouse selection, native Copy, Ctrl+C, retained selection across identical/new snapshots, live badges, pending updates, expansion, immediate Read and Clear. This is a fixture correction, not a notification behavior change. A new immutable hosted head is required; the failed run remains recorded.
+
 ## 2026-10-28 — Embedded Desktop settings and retained chat navigation (0.2.33)
 
 Settings/Vault now use an isolated owner WebContentsView inside the active chat BrowserWindow. Back to chat destroys the privileged contents and retains the existing chat/draft; native pickers use the containing window. Owner frame/URL/identity guards, sandbox, context isolation, separate partition and navigation/permission denial remain in place. Other native workspaces use their existing layout APIs while settings cover them. The shared package allowlist includes the new settings module.
