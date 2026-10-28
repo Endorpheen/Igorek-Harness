@@ -25,7 +25,7 @@ internal object ErrorCatalog {
         "PROTOCOL.INVALID_RESPONSE" to ErrorDefinition("protocol", "check_response", "error", false, "Сервис вернул некорректный ответ.", "The service returned an invalid response."),
         "POLICY.DENIED" to ErrorDefinition("policy", "owner_decision", "info", false, "Действие ограничено правилами доступа.", "The action is restricted by access policy."),
         "RUNTIME.PROCESS_EXITED" to ErrorDefinition("runtime", "check_runtime", "error", false, "Исполнитель завершил работу.", "The runtime process exited."),
-        "STORAGE.FULL" to ErrorDefinition("storage", "free_space", "error", false, "Недостаточно места для сохранения.", "There is not enough storage space."),
+        "STORAGE.FULL" to ErrorDefinition("storage", "free_space", "error", false, "Недостаточно места для сохранения. Освободите место или проверьте лимиты хранилища.", "There is not enough storage space. Free up space or check storage limits."),
         "INTERNAL.UNEXPECTED" to ErrorDefinition("internal", "diagnostics", "error", false, "Произошла внутренняя ошибка. Доступны диагностические сведения.", "An internal error occurred. Diagnostic details are available."),
         "OPERATION.CANCELLED" to ErrorDefinition("operation", "none", "info", false, "Действие остановлено.", "The operation was cancelled."),
         "OPERATION.OUTCOME_UNKNOWN" to ErrorDefinition("operation", "reconcile", "error", false, "Результат действия пока не подтверждён.", "The operation outcome is not confirmed."),
@@ -37,5 +37,10 @@ internal object ErrorCatalog {
         "TOOL.EXECUTION_FAILED" to ErrorDefinition("tool", "diagnostics", "error", false, "Инструмент сообщил об ошибке выполнения.", "The tool reported an execution failure."),
         "TASK.EXECUTION_FAILED" to ErrorDefinition("operation", "diagnostics", "error", false, "Задача завершилась с ошибкой.", "The task finished with an error."),
         "CONTEXT.COMPACTION_FAILED" to ErrorDefinition("operation", "diagnostics", "error", false, "Не удалось сократить контекст задачи.", "Task context compaction failed."),
+        "STORAGE.QUOTA_EXCEEDED" to ErrorDefinition("storage", "free_space", "error", false, "Исчерпана квота хранилища. Освободите место в пределах квоты или увеличьте её.", "The storage quota is exhausted. Free space within the quota or increase it."),
+        "STORAGE.READ_ONLY" to ErrorDefinition("storage", "owner_decision", "error", false, "Хранилище доступно только для чтения. Проверьте права и режим подключения диска.", "Storage is read-only. Check permissions and the disk mount mode."),
+        "STORAGE.IO_ERROR" to ErrorDefinition("storage", "diagnostics", "error", false, "Ошибка ввода-вывода хранилища. Проверьте состояние диска и системный журнал.", "Storage input/output failed. Check disk health and the system log."),
+        "DATABASE.BUSY" to ErrorDefinition("storage", "retry", "error", true, "База данных занята другим подключением. Повторите действие после завершения текущей операции.", "Another connection is using the database. Retry after the current operation finishes."),
+        "DATABASE.INVALID" to ErrorDefinition("storage", "diagnostics", "error", false, "Файл базы данных повреждён или имеет неверный формат. Нужна проверка базы; не удаляйте её.", "The database file is corrupt or has an invalid format. It needs inspection; do not delete it."),
     )
 }

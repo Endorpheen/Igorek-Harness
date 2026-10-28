@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import logging
 import os
 import sqlite3
@@ -761,7 +762,7 @@ class MobileService:
                     selected.update({key: models[key] for key in ('models', 'model_labels', 'models_status') if key in models})
                     if models.get('models_status') == 'unavailable':
                         default = selected.get('model', '')
-                        selected['models'] = [default] if default and default != 'select-model' else []
+                        selected['models'] = [default] if default and default != 'select-model' and models.get('allow_default_fallback', True) else []
         return {
             "profiles": profiles,
             "profile_catalog": profile_catalog,
@@ -975,6 +976,8 @@ class MobileService:
                 raise MobileConflict('Профиль чата изменился. Обновите список моделей.')
         models = self.profile_control('models', profile)
         fallback = models.get('models_status') == 'unavailable'
+        if fallback and not models.get('allow_default_fallback', True):
+            raise MobileInvalid('Не удалось проверить доступные модели. Обновите список и повторите выбор.')
         if not fallback and models.get('models_status') != 'ready':
             raise MobileInvalid('Не удалось загрузить доступные модели. Повторите позже.')
         if not fallback and model not in models.get('models', []):
@@ -996,7 +999,7 @@ class MobileService:
                 raise MobileInvalid('Модель недоступна для этого профиля.')
             current_models = self.profile_control('models', profile)
             if current_models.get('models_status') == 'unavailable':
-                if model != selected.get('model') or model == 'select-model':
+                if not current_models.get('allow_default_fallback', True) or model != selected.get('model') or model == 'select-model':
                     raise MobileInvalid('Не удалось загрузить доступные модели. Повторите позже.')
             elif current_models.get('models_status') != 'ready' or model not in current_models.get('models', []):
                 raise MobileInvalid('Модель недоступна для этого профиля.')
@@ -1695,6 +1698,20 @@ class MobileService:
                 message["files"] = [info for info, _ in collect_files(base, message["text"], entry.get("output_files") or [], task_id)][:10]
         from ...web_ui.server import _profile_context_window, _profile_model
         context_model = _profile_model(str(meta.get("profile") or "")) or str(meta.get("model") or "")
+        from ..opencode_go_catalog import canonical_opencode_go_model, is_opencode_go_url
+        try:
+            profile_name = str(meta.get('profile') or '')
+            if not re.fullmatch(r'[a-z][a-z0-9-]{0,39}', profile_name):
+                raise ValueError('Invalid profile name')
+            config = json.loads(get_profile_path(profile_name).read_text(encoding='utf-8'))
+            go_profile = is_opencode_go_url(str(config.get('base_url') or ''))
+        except (OSError, ValueError, TypeError, AttributeError):
+            go_profile = False
+        if go_profile:
+            meta = dict(meta)
+            for field in ('model', 'model_override'):
+                if isinstance(meta.get(field), str):
+                    meta[field] = canonical_opencode_go_model(meta[field])
         return {
             "context_window": _profile_context_window(str(meta.get("profile") or ""), context_model),
             "model": context_model,

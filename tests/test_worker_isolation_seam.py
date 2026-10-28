@@ -23,6 +23,7 @@ import os
 import sys
 import tempfile
 import unittest
+from types import SimpleNamespace
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -335,7 +336,9 @@ class OffModeBaselineTest(WorkerSeamHarness):
             with self.subTest(api_format=api_format), self.seam_env():
                 with patch.object(worker_module, '_effective_cc_backend_model', side_effect=resolve_model), \
                      patch('factory.core.opencode_go_catalog.get_opencode_go_routes',
-                           return_value={'selected-model': (api_format, base, 'Selected')}):
+                           return_value={'selected-model': (api_format, base, 'Selected')}), \
+                     patch('factory.core.opencode_go_catalog.list_opencode_go_models',
+                           return_value=[SimpleNamespace(id='selected-model')]):
                     self.run_worker()
                     kwargs = self.executor.call_args.kwargs
                     self.assertEqual((kwargs['api_format'], kwargs['base_url'], kwargs['model']),
@@ -467,6 +470,8 @@ class KvmModeDispatchTest(WorkerSeamHarness):
                 with patch.object(worker_module, '_effective_cc_backend_model', side_effect=resolve_model), \
                      patch('factory.core.opencode_go_catalog.get_opencode_go_routes',
                            return_value={'selected-model': (api_format, base, 'Selected')}), \
+                     patch('factory.core.opencode_go_catalog.list_opencode_go_models',
+                           return_value=[SimpleNamespace(id='selected-model')]), \
                      patch('factory.core.cc_backend_executor.resolve_host_context_window', return_value=128000):
                     self.run_worker()
                     payload = self.manager.calls[-1]['payload']

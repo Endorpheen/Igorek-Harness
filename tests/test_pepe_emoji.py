@@ -37,7 +37,7 @@ def test_bundled_gif_and_tool_result_are_identified_by_same_stable_id(row):
 def test_public_catalog_is_copied_and_has_no_owner_paths():
     first = e.catalog()
     first["emojis"].clear()
-    assert len(e.catalog()["emojis"]) == 16
+    assert len(e.catalog()["emojis"]) == 32
     assert "/home/" not in json.dumps(e.catalog()) and "/tmp/" not in json.dumps(
         e.catalog()
     )
@@ -160,7 +160,7 @@ def test_reaction_guidance_is_limited_to_supported_chat_surfaces(
     )
     if platform in {"desktop", "android", "mobile"}:
         assert (
-            ":pepe_think:" in prompt
+            all(":" + row["id"] + ":" in prompt for row in SOURCE_CATALOG["emojis"])
             and "sparingly" in prompt
             and "file paths" in prompt
         )

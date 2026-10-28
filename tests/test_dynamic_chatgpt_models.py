@@ -79,7 +79,7 @@ def test_opencode_go_choices_include_models_for_all_catalog_transports(setup, mo
         'deepseek-v4.1-flash': ('openai', 'https://opencode.ai/inference/go/openai/v1', 'DeepSeek'),
         'qwen3.8-max': ('anthropic', 'https://opencode.ai/inference/go/anthropic/v1', 'Qwen'),
     })
-    monkeypatch.setattr(opencode_go_catalog, 'get_opencode_go_routes', fetch)
+    monkeypatch.setattr(opencode_go_catalog, 'active_opencode_go_routes', fetch)
     row = next(item for item in service.session_options(model_profile='cloud')['profile_catalog'] if item['name'] == 'cloud')
     assert row['models'] == ['deepseek-v4.1-flash', 'qwen3.8-max']
     assert row['model_labels'] == {'deepseek-v4.1-flash': 'DeepSeek', 'qwen3.8-max': 'Qwen'}
@@ -249,7 +249,7 @@ def test_starting_chatgpt_profile_warms_catalog_without_waiting(chatgpt, monkeyp
     finally:
         release.set()
         profile = next(item for item in owner.providers.list_profiles() if item['config']['name'] == 'cloud')
-        assert owner._chatgpt_models(profile)['models'] == ['fixture-new']
+        assert owner._profile_models(profile)['models'] == ['fixture-new']
         assert not owner._models_pending
         row = next(item for item in service.session_options()['profile_catalog'] if item['name'] == 'cloud')
         assert row['models'] == ['fixture-new']

@@ -30,7 +30,7 @@ from ..isolation.host_op_runtime import build_host_op_gate
 from ..opencode_quota import OpenCodeUsageError
 from ..realtime_voice.service import VoiceService, VoiceUnavailable
 from ..sudo_broker import SudoRequestError, deliver_decision, pending_requests
-from ..diagnostics import IncidentJournal, classify_error, observation, ActivityTracker
+from ..diagnostics import IncidentJournal, classify_error, exception_details, observation, ActivityTracker
 from pathlib import Path
 from uuid import uuid4
 import re
@@ -223,7 +223,7 @@ class MobileBridge:
             except Exception as error:
                 self._poll_ready_since = None
                 self.diagnostics.observe(observation(classify_error(error), component='bridge', operation='poll',
-                    endpoint_role='runtime_to_tool', owner='bridge-poll', native_code=type(error).__name__))
+                    endpoint_role='runtime_to_tool', owner='bridge-poll', **exception_details(error)))
             self._stop.wait(max(0.2, float(self.config.poll_interval_s)))
 
 
@@ -290,7 +290,7 @@ class MobileRequestHandler(BaseHTTPRequestHandler):
         except Exception as error:
             diagnostic = observation(classify_error(error), component='bridge', operation='read' if method in {'GET', 'HEAD'} else 'write',
                 endpoint_role='client_to_bridge', owner=self._diagnostic_owner, http_request_id=self.http_request_id,
-                client_operation_id=self.client_operation_id, native_code=type(error).__name__)
+                client_operation_id=self.client_operation_id, phase='request', **exception_details(error))
             self.bridge.diagnostics.observe(diagnostic)
             if not self._diagnostic_response_started:
                 self._send_json(500, {'error': 'Internal server error', 'diagnostic': diagnostic})

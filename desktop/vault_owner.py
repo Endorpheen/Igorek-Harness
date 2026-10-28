@@ -50,6 +50,11 @@ def _profile_provider_icon(config):
     }.get(host, 'custom')
 
 
+def _is_openrouter(config):
+    from provider_setup import PRESETS
+    return config.get('base_url') == PRESETS['openrouter'][0] and config.get('api_format') == 'openai'
+
+
 def _is_opencode_go(config):
     from factory.core.opencode_go_catalog import is_opencode_go_url
     return is_opencode_go_url(str(config.get('base_url') or ''))
@@ -120,11 +125,11 @@ class OwnerVault:
             if active and active != profile['config']['name'] and service.has_pending_profile_tasks(active):
                 raise AgentBusyError()
         self.agent.start(credential_id)
-        if profile and profile['config'].get('api_format') == 'openai-responses':
-            self._warm_chatgpt_models(profile)
+        if profile and (profile['config'].get('api_format') == 'openai-responses' or _is_openrouter(profile['config'])):
+            self._warm_profile_models(profile)
         return None
 
-    def _chatgpt_models(self, profile):
+    def _profile_models(self, profile):
         identity = profile['credential_id']
         with self._models_lock:
             cached = self._models_cache.get(identity)
@@ -141,7 +146,11 @@ class OwnerVault:
                 cached = self._models_cache.get(identity, {})
                 return {key: value for key, value in cached.items() if key != 'expires'}
         try:
-            rows = self.chatgpt.catalog(identity).get('models', [])
+            if _is_openrouter(profile['config']):
+                from provider_setup import model_catalog
+                rows = model_catalog('openrouter', '', identity, self.lifecycle).get('models', [])
+            else:
+                rows = self.chatgpt.catalog(identity).get('models', [])
             models, labels = [], {}
             for row in rows:
                 if not isinstance(row, dict):
@@ -152,7 +161,7 @@ class OwnerVault:
                 label = str(row.get('name') or model)[:256]
                 models.append(model)
                 labels[model] = label
-                if len(models) >= 256:
+                if len(models) >= (2048 if _is_openrouter(profile['config']) else 256):
                     break
             if not models:
                 raise ValueError('Empty model catalog')
@@ -167,7 +176,7 @@ class OwnerVault:
             event.set()
         return result
 
-    def _warm_chatgpt_models(self, profile):
+    def _warm_profile_models(self, profile):
         identity = profile['credential_id']
         with self._models_lock:
             cached = self._models_cache.get(identity)
@@ -176,7 +185,7 @@ class OwnerVault:
             self._models_warming.add(identity)
         def warm():
             try:
-                self._chatgpt_models(profile)
+                self._profile_models(profile)
             finally:
                 with self._models_lock:
                     self._models_warming.discard(identity)
@@ -200,7 +209,10 @@ class OwnerVault:
                 config = profile['config']
                 item = {'name': config['name'], 'model': config['model'], 'local': is_loopback_provider(config),
                         'provider_icon': _profile_provider_icon(config)}
-                if config.get('api_format') == 'openai-responses':
+                if _is_opencode_go(config):
+                    from factory.core.opencode_go_catalog import canonical_opencode_go_model
+                    item['model'] = canonical_opencode_go_model(item['model'])
+                if config.get('api_format') == 'openai-responses' or _is_openrouter(config):
                     with self._models_lock:
                         cached = dict(self._models_cache.get(profile['credential_id']) or {})
                     if cached.get('models_status') == 'ready':
@@ -212,7 +224,7 @@ class OwnerVault:
                         item.update({'models': [default] if default and default != 'select-model' else [],
                                      'model_labels': {}, 'models_status': cached.get('models_status', 'loading')})
                     if config['name'] == active:
-                        self._warm_chatgpt_models(profile)
+                        self._warm_profile_models(profile)
                 items.append(item)
             return {'profiles': items, 'active_profile': active, 'can_switch': True}
         profile = next((p for p in profiles if p['config']['name'] == name), None)
@@ -220,22 +232,22 @@ class OwnerVault:
             return {'error': 'profile_not_verified'}
         if operation == 'models':
             if _is_opencode_go(profile['config']):
-                from factory.core.opencode_go_catalog import get_opencode_go_routes
+                from factory.core.opencode_go_catalog import active_opencode_go_routes
                 identity = 'opencode-go:' + profile['credential_id'] + ':' + str(profile['config'].get('api_format'))
                 with self._models_lock:
                     cached = self._models_cache.get(identity, {})
                     if cached.get('expires', 0) > time.monotonic():
                         return {key: value for key, value in cached.items() if key != 'expires'}
-                routes = get_opencode_go_routes()
+                routes = active_opencode_go_routes()
                 models = list(routes)
                 result = {'models': models, 'model_labels': {model: routes[model][2] for model in models},
-                          'models_status': 'ready' if models else 'unavailable'}
+                          'models_status': 'ready' if models else 'unavailable', 'allow_default_fallback': False}
                 with self._models_lock:
                     self._models_cache[identity] = {**result, 'expires': time.monotonic() + (60 if models else 10)}
                 return result
-            if profile['config'].get('api_format') != 'openai-responses':
+            if profile['config'].get('api_format') != 'openai-responses' and not _is_openrouter(profile['config']):
                 return {'models': [], 'model_labels': {}, 'models_status': 'unsupported'}
-            return self._chatgpt_models(profile)
+            return self._profile_models(profile)
         try:
             error = self._start_agent_profile(profile['credential_id'])
             return {'error': error} if error else {'agent': self.agent.status()}

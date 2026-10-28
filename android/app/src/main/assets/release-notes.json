@@ -1,15 +1,35 @@
 {
-  "versionName": "0.1.138",
-  "versionCode": 139,
+  "versionName": "0.1.139",
+  "versionCode": 140,
   "changes": [
     {
       "ru": {
-        "title": "Модели OpenCode Go",
-        "text": "Выбирайте модели OpenCode Go в меню чата после обновления десктопа."
+        "title": "Модели OpenRouter",
+        "text": "Выбирайте модели OpenRouter в меню чата после обновления десктопа до 0.2.32."
       },
       "en": {
-        "title": "OpenCode Go models",
-        "text": "Choose OpenCode Go models from the chat menu after updating the desktop app."
+        "title": "OpenRouter models",
+        "text": "Choose OpenRouter models from the chat menu after updating the desktop app to 0.2.32."
+      }
+    },
+    {
+      "ru": {
+        "title": "Больше Пепе",
+        "text": "Теперь доступны 32 анимированные реакции, а в меню «+» вместо надписи показана рожица Пепе."
+      },
+      "en": {
+        "title": "More Pepe",
+        "text": "There are now 32 animated reactions, and the + menu shows a Pepe face instead of a text label."
+      }
+    },
+    {
+      "ru": {
+        "title": "Понятные ошибки хранилища",
+        "text": "После обновления десктопа нехватка места, квота и блокировка базы показываются с отдельными причинами и подсказками."
+      },
+      "en": {
+        "title": "Clear storage errors",
+        "text": "After updating the desktop app, low space, quota exhaustion and database contention show distinct causes and guidance."
       }
     }
   ]

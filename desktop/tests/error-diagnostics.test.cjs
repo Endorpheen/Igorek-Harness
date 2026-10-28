@@ -10,6 +10,17 @@ test('native/HTTP error classifications match the shared wire fixture',()=>{
   for(const row of JSON.parse(readFileSync(join(__dirname,'../../tests/fixtures/diagnostics/classification.json'),'utf8')))
     assert.equal(D.classify(row.input),row.code);
 });
+test('storage advice names the bridge host and preserves its native cause',()=>{
+  const error=D.observation('STORAGE.FULL',{component:'bridge',operation:'read',endpoint_role:'client_to_bridge',reason_code:'SQLITE_FULL'});
+  assert.match(D.message(error),/На компьютере с Игорьком:/);
+  assert.match(D.message(error),/Освободите место/);
+  assert.match(D.message(error),/SQLITE_FULL/);
+  assert.match(D.message(error,'en'),/On the computer running Igorek:/);
+  assert.doesNotMatch(D.message({...error,component:'mobile',endpoint_role:'local_ui'}),/На компьютере/);
+  const busy={...error,code:'DATABASE.BUSY',reason_code:'SQLITE_BUSY'};
+  assert.match(D.message(busy),/занята другим подключением/);
+  assert.doesNotMatch(D.message(busy),/Освободите место/);
+});
 test('incident read state is independent of stable owned recovery and a new episode',()=>{
   const root=mkdtempSync(join(tmpdir(),'igorek-error-contract-'));
   try {

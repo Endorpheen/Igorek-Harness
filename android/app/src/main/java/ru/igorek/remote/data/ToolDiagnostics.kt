@@ -99,7 +99,9 @@ internal fun diagnosticExplanation(error: ErrorObservation, language: AppLanguag
     fun text(ru: String, en: String) = if (language == AppLanguage.Russian) ru else en
     val definition = ErrorCatalog.codes[error.code] ?: ErrorCatalog.codes.getValue("ERROR.UNKNOWN")
     val context = listOf(error.toolName, error.service, error.toolAction).filter { it.isNotBlank() }.joinToString(" → ")
-    val title = if (language == AppLanguage.Russian) definition.ru else definition.en
+    val host = if (error.component == "bridge" && error.endpointRole in setOf("client_to_bridge", "runtime_to_tool") && definition.category == "storage")
+        text("На компьютере с Игорьком: ", "On the computer running Igorek: ") else ""
+    val title = host + if (language == AppLanguage.Russian) definition.ru else definition.en
     val reason = error.reasonDetail.ifBlank { when (error.reasonCode) {
         "invalid_service_fields" -> text("Передан недопустимый набор полей вызова.", "The call contains an invalid set of fields.")
         "service_method_not_allowed" -> text("Запрошенный метод сервиса недоступен.", "The requested service method is not allowed.")

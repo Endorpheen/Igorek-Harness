@@ -100,3 +100,19 @@ def test_catalog_exposes_pair_only_for_compatible_verified_profile(setup, monkey
     assert items['other-format'].get('models', []) == []
     assert owner.mobile_profile_control('models', 'other-model')['models'] == ['fixture-new']
     assert 'unverified' not in items
+
+
+def test_go_model_readback_matches_the_confirmed_wire_id_migration(setup):
+    from factory.core.runtime import get_profile_path
+    from factory.core.cli_chat import update_session_meta
+    _, service, _, _, workdir = setup
+    config = {'name': 'cloud', 'backend': 'cc-backend', 'provider': 'custom', 'api_format': 'openai',
+              'base_url': 'https://opencode.ai/zen/go/v1', 'model': 'deepseek-v4-flash', 'env': {}}
+    path = get_profile_path('cloud');path.parent.mkdir(parents=True, exist_ok=True);path.write_text(json.dumps(config))
+    sid = service.create_session(profile='cloud', cwd=str(workdir))['session_id']
+    from factory.core.cli_chat import _session_path
+    update_session_meta(_session_path(sid), {'model': 'deepseek-v4-flash', 'model_override': 'deepseek-v4-flash'})
+    result = service.get_session(sid)
+    assert result['model'] == 'deepseek-v4.1-flash'
+    assert result['meta']['model'] == 'deepseek-v4.1-flash'
+    assert result['meta']['model_override'] == 'deepseek-v4.1-flash'

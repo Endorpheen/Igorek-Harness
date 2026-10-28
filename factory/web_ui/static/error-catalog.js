@@ -159,8 +159,8 @@ window.IgorekErrorCatalog = {
       "action": "free_space",
       "severity": "error",
       "retryable": false,
-      "ru": "Недостаточно места для сохранения.",
-      "en": "There is not enough storage space."
+      "ru": "Недостаточно места для сохранения. Освободите место или проверьте лимиты хранилища.",
+      "en": "There is not enough storage space. Free up space or check storage limits."
     },
     "INTERNAL.UNEXPECTED": {
       "category": "internal",
@@ -249,6 +249,46 @@ window.IgorekErrorCatalog = {
       "retryable": false,
       "ru": "Не удалось сократить контекст задачи.",
       "en": "Task context compaction failed."
+    },
+    "STORAGE.QUOTA_EXCEEDED": {
+      "category": "storage",
+      "action": "free_space",
+      "severity": "error",
+      "retryable": false,
+      "ru": "Исчерпана квота хранилища. Освободите место в пределах квоты или увеличьте её.",
+      "en": "The storage quota is exhausted. Free space within the quota or increase it."
+    },
+    "STORAGE.READ_ONLY": {
+      "category": "storage",
+      "action": "owner_decision",
+      "severity": "error",
+      "retryable": false,
+      "ru": "Хранилище доступно только для чтения. Проверьте права и режим подключения диска.",
+      "en": "Storage is read-only. Check permissions and the disk mount mode."
+    },
+    "STORAGE.IO_ERROR": {
+      "category": "storage",
+      "action": "diagnostics",
+      "severity": "error",
+      "retryable": false,
+      "ru": "Ошибка ввода-вывода хранилища. Проверьте состояние диска и системный журнал.",
+      "en": "Storage input/output failed. Check disk health and the system log."
+    },
+    "DATABASE.BUSY": {
+      "category": "storage",
+      "action": "retry",
+      "severity": "error",
+      "retryable": true,
+      "ru": "База данных занята другим подключением. Повторите действие после завершения текущей операции.",
+      "en": "Another connection is using the database. Retry after the current operation finishes."
+    },
+    "DATABASE.INVALID": {
+      "category": "storage",
+      "action": "diagnostics",
+      "severity": "error",
+      "retryable": false,
+      "ru": "Файл базы данных повреждён или имеет неверный формат. Нужна проверка базы; не удаляйте её.",
+      "en": "The database file is corrupt or has an invalid format. It needs inspection; do not delete it."
     }
   },
   "support_email": "igorek-dot@tutamail.com"

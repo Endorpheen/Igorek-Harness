@@ -9,6 +9,7 @@ from pathlib import Path
 import random
 import re
 import socket
+import sqlite3
 import ssl
 import threading
 import time
@@ -63,14 +64,58 @@ def classify_error(error=None, *, native_code='', status=None, phase='unknown'):
         return 'INTERNAL.UNEXPECTED'
 
 
+def _exception_chain(error):
+    seen = set()
+    for _ in range(5):
+        if not isinstance(error, BaseException) or id(error) in seen:
+            break
+        seen.add(id(error))
+        yield error
+        error = (getattr(error, 'reason', None) or error.__cause__ or
+                 (None if error.__suppress_context__ else error.__context__))
+
+
+def _storage_error(error):
+    if isinstance(error, sqlite3.Error):
+        number = getattr(error, 'sqlite_errorcode', None)
+        name = getattr(error, 'sqlite_errorname', '')
+        if type(number) is not int:
+            return '', ''
+        reason = name if isinstance(name, str) and name.startswith('SQLITE_') and getattr(sqlite3, name, None) == number else ''
+        code = {sqlite3.SQLITE_FULL: 'STORAGE.FULL', sqlite3.SQLITE_READONLY: 'STORAGE.READ_ONLY',
+                sqlite3.SQLITE_IOERR: 'STORAGE.IO_ERROR', sqlite3.SQLITE_BUSY: 'DATABASE.BUSY',
+                sqlite3.SQLITE_LOCKED: 'DATABASE.BUSY', sqlite3.SQLITE_CORRUPT: 'DATABASE.INVALID',
+                sqlite3.SQLITE_NOTADB: 'DATABASE.INVALID'}.get(number & 0xff, '')
+        return code, reason
+    if isinstance(error, OSError) and not isinstance(error, (ssl.SSLError, socket.gaierror, TimeoutError)):
+        reason = errno.errorcode.get(error.errno, '')
+        return {'ENOSPC': 'STORAGE.FULL', 'EDQUOT': 'STORAGE.QUOTA_EXCEEDED',
+                'EROFS': 'STORAGE.READ_ONLY', 'EIO': 'STORAGE.IO_ERROR'}.get(reason, ''), reason
+    return '', ''
+
+
+def exception_details(error):
+    """Keep only native enum identifiers, never paths, SQL or exception messages."""
+    result = {'native_code': type(error).__name__}
+    try:
+        for candidate in _exception_chain(error):
+            code, reason = _storage_error(candidate)
+            if reason:
+                if code:
+                    result['reason_code'] = reason
+                    break
+                result.setdefault('reason_code', reason)
+    except Exception:
+        pass
+    return result
+
+
 def _classify_error(error=None, *, native_code='', status=None, phase='unknown'):
     """Use native types, status and codes; never infer cause from user prose."""
-    seen = set()
-    candidate = error
-    for _ in range(5):
-        if candidate is None or id(candidate) in seen:
-            break
-        seen.add(id(candidate))
+    for candidate in _exception_chain(error):
+        storage_code, _ = _storage_error(candidate)
+        if storage_code:
+            return storage_code
         if isinstance(candidate, ssl.SSLCertVerificationError):
             return 'TLS.CERTIFICATE_REJECTED'
         if isinstance(candidate, (ssl.SSLEOFError, ssl.SSLZeroReturnError)):
@@ -85,14 +130,13 @@ def _classify_error(error=None, *, native_code='', status=None, phase='unknown')
             native_code = errno.errorcode.get(candidate.errno, native_code)
         if status is None and isinstance(getattr(candidate, 'code', None), int):
             status = candidate.code
-        next_error = getattr(candidate, 'reason', None) or getattr(candidate, '__cause__', None)
-        if isinstance(next_error, BaseException):
-            candidate = next_error
-            continue
-        break
     native = {'EAI_AGAIN': 'NET.DNS_FAILURE', 'ENOTFOUND': 'NET.DNS_FAILURE', 'ECONNREFUSED': 'NET.CONNECTION_REFUSED',
               'ECONNRESET': 'NET.CONNECTION_RESET', 'ECONNABORTED': 'NET.CONNECTION_RESET', 'EPIPE': 'NET.CONNECTION_RESET',
               'ENETUNREACH': 'NET.OFFLINE', 'ENETDOWN': 'NET.OFFLINE', 'ENOSPC': 'STORAGE.FULL',
+              'EDQUOT': 'STORAGE.QUOTA_EXCEEDED', 'EROFS': 'STORAGE.READ_ONLY', 'EIO': 'STORAGE.IO_ERROR',
+              'SQLITE_FULL': 'STORAGE.FULL', 'SQLITE_READONLY': 'STORAGE.READ_ONLY', 'SQLITE_IOERR': 'STORAGE.IO_ERROR',
+              'SQLITE_BUSY': 'DATABASE.BUSY', 'SQLITE_LOCKED': 'DATABASE.BUSY',
+              'SQLITE_CORRUPT': 'DATABASE.INVALID', 'SQLITE_NOTADB': 'DATABASE.INVALID',
               'CERTIFICATE_REJECTED': 'TLS.CERTIFICATE_REJECTED', 'INVALID_RESPONSE': 'PROTOCOL.INVALID_RESPONSE',
               'TLS_EOF': 'TLS.CONNECTION_INTERRUPTED', 'TRANSPORT_UNKNOWN': 'NET.TRANSPORT_FAILURE',
               'CANCELLED': 'OPERATION.CANCELLED'}

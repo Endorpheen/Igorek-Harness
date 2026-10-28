@@ -352,7 +352,9 @@ def _profile_model(profile: str) -> str:
     model = data.get("model") if isinstance(data, dict) else ""
     if not isinstance(model, str) or not model.strip():
         return ""
-    return profile_display_model_name(data).strip()
+    from factory.core.opencode_go_catalog import canonical_opencode_go_model, is_opencode_go_url
+    value = profile_display_model_name(data).strip()
+    return canonical_opencode_go_model(value) if is_opencode_go_url(str(data.get('base_url') or '')) else value
 
 
 def _model_context_window(model: str) -> int | None:

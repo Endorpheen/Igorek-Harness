@@ -9,6 +9,9 @@
     const native = {EAI_AGAIN:'NET.DNS_FAILURE', ENOTFOUND:'NET.DNS_FAILURE', ECONNREFUSED:'NET.CONNECTION_REFUSED',
       ECONNRESET:'NET.CONNECTION_RESET', ECONNABORTED:'NET.CONNECTION_RESET', EPIPE:'NET.CONNECTION_RESET',
       ENETUNREACH:'NET.OFFLINE', ENETDOWN:'NET.OFFLINE', ENOSPC:'STORAGE.FULL',
+      EDQUOT:'STORAGE.QUOTA_EXCEEDED', EROFS:'STORAGE.READ_ONLY', EIO:'STORAGE.IO_ERROR',
+      SQLITE_FULL:'STORAGE.FULL', SQLITE_READONLY:'STORAGE.READ_ONLY', SQLITE_IOERR:'STORAGE.IO_ERROR',
+      SQLITE_BUSY:'DATABASE.BUSY', SQLITE_LOCKED:'DATABASE.BUSY', SQLITE_CORRUPT:'DATABASE.INVALID', SQLITE_NOTADB:'DATABASE.INVALID',
       CERTIFICATE_REJECTED:'TLS.CERTIFICATE_REJECTED', INVALID_RESPONSE:'PROTOCOL.INVALID_RESPONSE', CANCELLED:'OPERATION.CANCELLED',
       TLS_EOF:'TLS.CONNECTION_INTERRUPTED', TRANSPORT_UNKNOWN:'NET.TRANSPORT_FAILURE'};
     if (native[native_code]) return native[native_code];
@@ -87,7 +90,9 @@
     const value=clean(error) || {code:'INTERNAL.UNEXPECTED'},lang=language==='en'?'en':'ru';
     const context=[value.tool_name,value.service,value.tool_action].filter(Boolean).join(' → ');
     const reason=value.reason_detail || value.reason_code || '';
-    return [context,codes[value.code][lang],reason].filter(Boolean).join('\n');
+    const host = value.component === 'bridge' && ['client_to_bridge','runtime_to_tool'].includes(value.endpoint_role) &&
+      codes[value.code].category === 'storage' ? (lang === 'ru' ? 'На компьютере с Игорьком: ' : 'On the computer running Igorek: ') : '';
+    return [context,host+codes[value.code][lang],reason].filter(Boolean).join('\n');
   }
   function retryDelay(attempt, random=Math.random()) { return Math.ceil(Math.min(10000,500*2**Math.min(Math.max(attempt-1,0),10))*(0.5+0.5*random)); }
   function confirm(items, operationId, taskId='') {
