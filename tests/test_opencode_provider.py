@@ -23,7 +23,12 @@ class OpenCodeProviderTest(unittest.TestCase):
         self.assertEqual(user_facing_codex_provider("opencode-go"), "OpenCode Go")
 
     def test_suggested_models_not_empty(self):
-        models = suggested_models_for_provider("opencode")
+        from factory.core.opencode_go_catalog import OpenCodeGoModel
+        catalog = [OpenCodeGoModel(name) for name in (
+            "deepseek-v4-pro", "qwen3.6-plus", "glm-5", "kimi-k2.6", "mimo-v2.5", "minimax-m3",
+        )]
+        with patch("factory.core.opencode_go_catalog.list_opencode_go_models", return_value=catalog):
+            models = suggested_models_for_provider("opencode")
         self.assertIn("deepseek-v4-pro", models)
         self.assertIn("qwen3.6-plus", models)
         self.assertGreater(len(models), 5)

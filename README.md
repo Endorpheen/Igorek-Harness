@@ -56,6 +56,8 @@ credentials are configured inside the application.
 Idle desktop chats follow the executor started in settings. The composer switches
 profiles and then shows their models. A running executor cannot be replaced
 while it has queued or active work.
+Type `/` in the composer for chat commands, including `/help` and the guided
+`/demo` introduction. The composer has no extra captions below the input form.
 
 Development from a fresh checkout requires Linux x86_64, `uv`, and Node.js/npm:
 

@@ -413,7 +413,44 @@ print(json.dumps({'files':True}))`;
     await clickNative(newsWindow,'#whats-new-close');await until(()=>news.window===null,'Manual release notes did not close');
     installation='synthetic-install-c';newsWindow=await news.show(chat,{automatic:true});assert.ok(newsWindow);await clickNative(newsWindow,'#whats-new-close');await until(()=>news.window===null,'Reinstalled release notes did not close');
     assert.equal(await news.show(chat,{automatic:true}),null);news.dispose();report.whats_new='passed';
-    await chat.webContents.executeJavaScript("document.getElementById('message-input').value='/demo'; document.getElementById('composer-form').requestSubmit()");
+    const originalSize = chat.getContentSize();
+    report.composer_layout = [];
+    for (const [width, height] of [[1280, 900], [960, 640]]) {
+      chat.setContentSize(width, height);
+      const layout = await chat.webContents.executeJavaScript(`new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>{
+        const form=document.getElementById('composer-form'),wrap=form.parentElement,view=wrap.parentElement;
+        const box=form.getBoundingClientRect(),outer=wrap.getBoundingClientRect(),padding=parseFloat(getComputedStyle(wrap).paddingBottom);
+        resolve({width:innerWidth,height:innerHeight,formIsLast:wrap.lastElementChild===form,
+          captions:document.querySelectorAll('.composer-caption,#demo-start').length,
+          bottomGap:outer.bottom-box.bottom,padding,viewGap:view.getBoundingClientRect().bottom-outer.bottom,
+          inputHeight:document.getElementById('message-input').getBoundingClientRect().height});
+      })))`);
+      assert.equal(layout.formIsLast, true);
+      assert.equal(layout.captions, 0);
+      assert.ok(Math.abs(layout.bottomGap-layout.padding) <= 1, JSON.stringify(layout));
+      assert.ok(Math.abs(layout.viewGap) <= 1, JSON.stringify(layout));
+      assert.ok(layout.inputHeight > 0);
+      report.composer_layout.push(layout);
+    }
+    chat.setContentSize(...originalSize);
+    await chat.webContents.executeJavaScript(`new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      const input=document.getElementById('message-input');input.value='';input.setSelectionRange(0,0);
+      input.dispatchEvent(new Event('input',{bubbles:true}));resolve();
+    })))`);
+    await clickNative(chat, '#message-input');
+    await until(()=>chat.webContents.executeJavaScript("document.activeElement===document.getElementById('message-input')"),'Composer did not receive native focus');
+    await chat.webContents.insertText('/de');
+    await until(async()=>{
+      report.demo_autocomplete_input=await chat.webContents.executeJavaScript("({text:document.getElementById('message-input').value,active:document.activeElement?.id,menu:state.mentions.menu,command:document.querySelector('#mention-rows .mention-row-name')?.textContent})");
+      return report.demo_autocomplete_input.text==='/de'&&report.demo_autocomplete_input.menu==='commands'&&report.demo_autocomplete_input.command==='/demo';
+    },'Demo autocomplete did not open');
+    fs.writeFileSync(path.join(output, 'composer-demo-menu.png'), (await chat.webContents.capturePage()).toPNG());
+    chat.webContents.sendInputEvent({type:'keyDown',keyCode:'Tab'});
+    chat.webContents.sendInputEvent({type:'keyUp',keyCode:'Tab'});
+    await until(()=>chat.webContents.executeJavaScript("document.getElementById('message-input').value==='/demo '&&state.mentions.menu==='closed'"),'Demo autocomplete was not accepted by Tab');
+    assert.equal(await chat.webContents.executeJavaScript('state.selected'), session.session_id);
+    stage('compact_composer_and_demo_keyboard_autocomplete');
+    await chat.webContents.executeJavaScript("document.getElementById('composer-form').requestSubmit()");
     let demoId;
     await until(async () => {
       demoId = await chat.webContents.executeJavaScript("state.session?.meta?.demo ? state.selected : null");

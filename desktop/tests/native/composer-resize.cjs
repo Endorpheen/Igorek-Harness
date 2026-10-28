@@ -11,11 +11,11 @@ async function run(){
   assert.ok(Number.isFinite(width)&&Number.isFinite(height)&&width>=900&&height>=600);
   window=new BrowserWindow({show:true,width,height,webPreferences:{sandbox:true,contextIsolation:true,nodeIntegration:false}});
   const html=fs.readFileSync(path.join(repo,'factory/web_ui/static/index.html'),'utf8');
-  const start=html.indexOf('<div class="composer-wrap">'),end=html.indexOf('<div class="composer-caption">',start);
+  const start=html.indexOf('<div class="composer-wrap">'),end=html.indexOf('</form>',start);
   assert.ok(start>0&&end>start);
   const css=fs.readFileSync(path.join(repo,'factory/web_ui/static/app.css'),'utf8')+fs.readFileSync(path.join(repo,'desktop/window-chrome.css'),'utf8');
   const file=path.join(root,'layout.html');
-  fs.writeFileSync(file,'<!doctype html><html lang="ru"><meta charset="utf-8"><style>'+css+'</style><body><div class="app-shell" style="display:block"><section class="conversation-view" style="display:flex;position:fixed;left:20px;top:40px;bottom:20px;width:900px;justify-content:flex-end">'+html.slice(start,end)+'</div></section></div></body></html>');
+  fs.writeFileSync(file,'<!doctype html><html lang="ru"><meta charset="utf-8"><style>'+css+'</style><body><div class="app-shell" style="display:block"><section class="conversation-view" style="display:flex;position:fixed;left:20px;top:40px;bottom:20px;width:900px;justify-content:flex-end">'+html.slice(start,end+'</form>'.length)+'</div></section></div></body></html>');
   await window.loadFile(file);
   await window.webContents.executeJavaScript(`
     document.body.classList.add('igorek-window-framed','igorek-browser-attached');

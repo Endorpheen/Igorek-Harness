@@ -40,13 +40,12 @@ test('/demo with attachments explains how to start without uploading or clearing
   assert.equal(h.state.attachments.length, 1);
 });
 
-test('the demo button preserves an existing draft', () => {
-  const begin = source.indexOf("document.getElementById('demo-start')?.addEventListener");
-  const end = source.indexOf('\n});', begin) + 4;
-  let click, submitted = 0;
-  const context = { document: { getElementById: () => ({ addEventListener: (_, callback) => click = callback }) },
-    state: { selected: 'fixture', attachments: [] }, ui: { message: { value: 'keep my draft' }, composer: { requestSubmit: () => submitted++ } } };
-  vm.runInNewContext(source.slice(begin, end), context);
-  click(); assert.equal(submitted, 0); assert.equal(context.ui.message.value, 'keep my draft');
-  context.ui.message.value = ''; click(); assert.equal(submitted, 1); assert.equal(context.ui.message.value, '/demo');
+test('the composer ends at the input form without demo or local-session captions', () => {
+  const html = fs.readFileSync(path.join(__dirname, '../../factory/web_ui/static/index.html'), 'utf8');
+  const composer = html.slice(html.indexOf('id="composer-form"'), html.indexOf('<aside class="side-panel"'));
+  assert.match(composer, /id="message-input"/);
+  assert.match(composer, /id="send-button"/);
+  assert.match(composer, /<\/form>\s*<\/div>\s*<\/div>\s*<\/section>\s*$/);
+  assert.doesNotMatch(html, /demo-start|composer-caption|composer\.caption|demo\.start/);
+  assert.doesNotMatch(source, /demo-start/);
 });
