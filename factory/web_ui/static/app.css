@@ -2249,6 +2249,13 @@ body.panel-resizing {
   font-size:9px
 }
 
+.composer-caption {
+  text-align:center;
+  margin-top:9px;
+  font:8px var(--mono);
+  color:#576061
+}
+
 .composer-meta {
   display:inline-flex;
   flex:1 1 150px;
@@ -2341,6 +2348,10 @@ button.composer-model:focus-visible { outline:2px solid var(--mint);outline-offs
   color:var(--quiet);
   font-size:10px;
   line-height:1
+}
+
+.composer-meta + .composer-caption {
+  margin-top:5px
 }
 
 
@@ -3597,6 +3608,10 @@ body.sidebar-open .sidebar-scrim {
 
   .attachment-name {
     max-width:130px
+  }
+
+.composer-caption {
+    font-size:7px
   }
 
 .composer-hint {

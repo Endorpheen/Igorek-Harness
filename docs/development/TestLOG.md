@@ -1,6 +1,10 @@
+## 2026-10-28 — Composer resize fixture follows the input form boundary
+
+The first 0.2.34 package run reached the native resize test, whose HTML extraction still used the removed composer-caption as its end marker. The fixture now ends at the closing form tag; the complete form is retained and all overlap, containment, hit-testing and draft assertions are unchanged. A real Electron/Xvfb run passed all 82 busy/idle width samples. The central composer remains caption-free; shared caption translations/styles are retained for the separate workspace side chat. The initial failed package run is retained, and publication requires fresh checks and packages from the corrected source head. Version remains 0.2.34.
+
 ## 2026-10-28 — Compact composer and slash-menu demo (0.2.34)
 
-Removed the introduction button and local-session caption below the chat composer, together with their obsolete handler, translations and styles. The input form is now the last visible element in its wrapper. The existing /demo entry remains beside /help, /status and /goal in slash suggestions.
+Removed the introduction button and local-session caption below the chat composer, together with the obsolete demo button handler and its labels. Shared caption translations/styles remain for the separate workspace side chat. The input form is now the last visible element in its wrapper. The existing /demo entry remains beside /help, /status and /goal in slash suggestions.
 
 Regression tests reject the original footer markup, retain demo session/attachment behavior and verify localized /de prefixes. All 548 Desktop tests pass. A real isolated Electron/Xvfb/SwiftShader run checked bottom alignment at 1280x900 and 960x640 (17px wrapper padding, no extra caption gap), selected /demo using Tab, then completed all eight demo steps. The native acceptance gate now requires that scenario on Linux and Windows. This local run used copied accepted 0.2.33 runtime dependencies with the three current UI files; fresh 0.2.34 package acceptance is required in hosted CI. The native-report checker passes all eight focused tests. The new markup regression fails against unchanged 0.2.33 and passes on the current UI.
 
