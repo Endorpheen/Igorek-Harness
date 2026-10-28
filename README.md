@@ -8,6 +8,8 @@
 
 # Igorek Harness
 
+Documentation reviewed: 2026-10-28.
+
 **A personal AI agent: Electron desktop, Android, and terminal.**
 
 [Quick start](#quick-start) · [Features](#features) · [Android](#android-and-web-ui) ·
@@ -171,8 +173,9 @@ publication and preliminary downloads are separate milestones.
 
 The initial setup opens or creates Vault, adds and verifies a model connection,
 and starts the executor. Profiles, conversation history, and workspaces persist.
-The settings owner window controls sensitive actions; interface locking and
-Vault locking are separate states.
+Settings and Vault open inside the main desktop window. **Back to chat** returns
+to the existing conversation and draft. Sensitive actions remain in a separate
+owner renderer; interface locking and Vault locking are separate states.
 
 `desktop/run.sh` launches the source application. `--managed` uses a prepared
 bundled runtime. The launcher reports required Electron sandbox setup on

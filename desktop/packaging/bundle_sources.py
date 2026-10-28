@@ -14,7 +14,7 @@ APP_FILES = (
     'main.cjs', 'session-preload.cjs', 'ui-navigation.cjs', 'mcp-task.cjs', 'policy.cjs', 'runtime.cjs', 'owner-policy.cjs', 'recovery-files.cjs', 'installed-image.cjs',
     'resource-monitor.cjs', 'resource-monitor.html', 'resource-monitor.css', 'resource-monitor-ui.js', 'resource-monitor-preload.cjs', 'resource-monitor-settings.js', 'diagnostics.css',
     'window-menu.cjs', 'window-chrome.js', 'window-chrome.css', 'diagnostics.html', 'diagnostics.js', 'diagnostics-preload.cjs',
-    'owner-preload.cjs', 'owner-ui.js', 'onboarding-state.cjs', 'profile-cards.cjs', 'owner.html', 'owner.css',
+    'settings-view.cjs', 'owner-preload.cjs', 'owner-ui.js', 'onboarding-state.cjs', 'profile-cards.cjs', 'owner.html', 'owner.css',
     'browser.cjs', 'browser-preload.cjs', 'browser-ui.js', 'browser.html', 'browser.css',
     'browser-interaction.cjs', 'browser-reading.cjs', 'browser-posts.cjs',
     'notifications.cjs', 'notification-ui.js', 'error-catalog.json', 'error-diagnostics.js', 'diagnostic-support.js', 'diagnostic-support.cjs',

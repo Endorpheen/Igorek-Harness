@@ -1,0 +1,8 @@
+digraph settings {
+  graph [rankdir=LR, bgcolor="white", pad="0.3", nodesep="0.5", ranksep="0.7", fontname="DejaVu Sans"];
+  node [shape=box, style="rounded,filled", fillcolor="#edf4e7", color="#527244", fontname="DejaVu Sans", margin="0.15"];
+  edge [color="#527244", fontname="DejaVu Sans", fontsize=11];
+  subgraph cluster_before { label="Before"; color="#aab5a4"; oldchat [label="Main chat window"]; oldowner [label="Separate settings window"]; oldchat -> oldowner; }
+  subgraph cluster_after { label="After"; color="#527244"; subgraph cluster_window { label="Main chat window"; chat [label="Chat renderer\nConversation and draft"]; owner [label="Settings renderer\nOwner preload + separate partition"]; owner -> chat [label="Back to chat\nDestroy settings contents"]; } }
+  vault [label="Owned runtime / Vault\nExisting checked IPC"]; oldowner -> vault; owner -> vault; oldchat -> chat [style=dashed, label=" "];
+}

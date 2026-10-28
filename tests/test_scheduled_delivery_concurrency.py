@@ -8,7 +8,14 @@ from factory.core.scheduled_delivery import deliver_result, report_result
 from test_scheduled_delivery import finish, launch, setup as setup
 
 
+def _isolate_child_catalogs():
+    from factory.core import opencode_models, openrouter_pricing
+    opencode_models._fetch_models = lambda: None
+    openrouter_pricing._fetch_models = lambda timeout_s: None
+
+
 def _deliver_in_process(root, source, task_id, first, entered, release, started, queue):
+    _isolate_child_catalogs()
     from factory.core import session_history as history
     from factory.core.cli_tasks import get_task as load_task
     from factory.core.mobile_bridge.service import MobileService as Service
@@ -76,6 +83,7 @@ def test_processes_serialize_delivery_check_and_history_write(setup):
 
 
 def _crash_after_history_write(root, source, task_id):
+    _isolate_child_catalogs()
     import os
     from factory.core.cli_tasks import get_task as load_task
     from factory.core.mobile_bridge.service import MobileService as Service

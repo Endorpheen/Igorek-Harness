@@ -460,6 +460,7 @@ el('interface-unlock-form').addEventListener('submit', event => { event.preventD
 el('interface-chat').addEventListener('click', () => el('return-to-chat').click());
 el('lock').addEventListener('click', () => perform('lock'));
 el('refresh').addEventListener('click', () => perform('status'));
+el('settings-back').addEventListener('click', () => el('return-to-chat').click());
 el('return-to-chat').addEventListener('click', () => {
   cancelProfileEdit(); clearPasswordFields();
   el('password').value = ''; el('repeat').value = ''; clearRecovery(); clearRestoration();

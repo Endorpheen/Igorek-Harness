@@ -273,3 +273,5 @@ main { max-width: none; margin: 0; padding: 0; min-height: 100vh; grid-template-
 .owner-release { margin:8px 0 12px; font:11px/1.5 system-ui; color:#a3b1a8; } .owner-release summary { cursor:pointer; color:#b6c7ab; } .owner-release strong { display:block; margin-top:8px; font-size:11px; font-weight:500; } .owner-release ul { margin:5px 0 0; padding-left:15px; } .owner-release li + li { margin-top:4px; }
 
 .browser-handoff-option { display:flex; align-items:center; gap:8px; font-size:13px; } .browser-handoff-option input { appearance:auto; width:14px; height:14px; margin:0; flex:none; accent-color:#c4f26c; }
+
+.settings-back { width: 100%; text-align: left; margin: 0 0 18px; }

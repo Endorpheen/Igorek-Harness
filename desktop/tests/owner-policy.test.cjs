@@ -286,18 +286,19 @@ function workspaceIpcHarness() {
   const contents = { mainFrame: frame, isDestroyed: () => false };
   const event = { sender: contents, senderFrame: frame };
   let handler, selected = { canceled: false, filePaths: ['/tmp/workspace'] }, status = { state: 'unlocked', agent: { running: true } };
-  const scripts = []; let closed = 0, dialogs = 0;
+  const scripts = []; let closed = 0, dialogs = 0, dialogParent;
   const context = vm.createContext({ managed: true, installingUpdate: false, selectedWorkspace: undefined, ownerUrl: frame.url,
     ownerWindow: { webContents: contents, close: () => closed++ }, isOwnerFrame,
     ipcMain: { handle: (_, fn) => { handler = fn; } },
     runtime: { requestOwner: async () => ({ result: status }) },
-    dialog: { showOpenDialog: async () => { dialogs++; return selected; } },
+    dialog: { showOpenDialog: async parent => { dialogParent = parent; dialogs++; return selected; } },
     stat: async () => ({ isDirectory: () => true }), access: async () => {}, constants: { R_OK: 4, W_OK: 2, X_OK: 1 },
     window: { isDestroyed: () => false, webContents: { getURL: () => 'https://127.0.0.1/chat', executeJavaScript: async code => scripts.push(code) }, focus() {} },
     config: { origin: 'https://127.0.0.1' }, sameOrigin: () => true });
+  context.ownerWindow.parent = context.window;
   vm.runInContext(source.slice(start, end), context);
   return { call: (action, input = event) => handler(input, action), setStatus: value => { status = value; },
-    setSelection: value => { selected = value; }, context, scripts, get closed() { return closed; }, get dialogs() { return dialogs; } };
+    setSelection: value => { selected = value; }, context, scripts, get closed() { return closed; }, get dialogs() { return dialogs; }, get dialogParent() { return dialogParent; } };
 }
 test('workspace picker is owner-only and session navigation requires unlocked running agent', async () => {
   const ui = workspaceIpcHarness();
@@ -309,6 +310,17 @@ test('workspace picker is owner-only and session navigation requires unlocked ru
   assert.equal((await ui.call('open-session')).error, 'agent_not_running'); assert.equal(ui.scripts.length, 0);
   ui.setStatus({ state: 'unlocked', agent: { running: true } });
   assert.equal((await ui.call('open-session')).result.opened, true); assert.equal(ui.closed, 1);
+});
+test('settings file picker and workspace return use the containing chat window', async () => {
+  const ui = workspaceIpcHarness();
+  const scripts = [];
+  const second = {isDestroyed: () => false, webContents: {getURL: () => 'https://127.0.0.1/chat', executeJavaScript: async script => scripts.push(script)}, focus() {}};
+  ui.context.ownerWindow.parent = second;
+  await ui.call('choose');
+  assert.equal(ui.dialogParent, second);
+  await ui.call('open-session');
+  assert.equal(scripts.length, 1);
+  assert.equal(ui.scripts.length, 0);
 });
 test('workspace cancellation preserves chosen directory and paths are event data, never executable code', async () => {
   const ui = workspaceIpcHarness();
