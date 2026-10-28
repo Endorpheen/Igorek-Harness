@@ -168,6 +168,7 @@ jobs:
             test-results/native-linux/artifact-*
             test-results/native-linux/notification-copy*
             test-results/composer-linux/summary.json
+            test-results/profile-switch-linux/summary.json
             test-results/search-linux/summary.json
           if-no-files-found: warn
           retention-days: 7
