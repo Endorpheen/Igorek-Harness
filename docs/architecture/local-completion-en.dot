@@ -1,0 +1,18 @@
+digraph completion {
+graph [rankdir=TB,bgcolor="white",pad="0.4",nodesep="0.25",ranksep="0.35",fontname="DejaVu Sans",fontsize=22,labelloc=t,label="Local completion control"];
+node [shape=box,style="rounded,filled",fillcolor="#eef5e9",color="#527244",fontname="DejaVu Sans",fontsize=13,margin="0.15"];
+edge [color="#527244"];
+before [label="Before: text-only response"];
+oldfinal [label="Task accepted as finished"];
+gate [label="After: confirmed backend?"];
+cloud [label="Cloud / unknown: existing loop"];
+review [label="Local: read-only completion review"];
+unfinished [label="Unfinished authorized action"];
+loop [label="Continue same task with existing results"];
+complete [label="Completed answer / genuine blocker"];
+final [label="Final answer"];
+invalid [label="Invalid review / repeated no progress"];
+failure [label="Explicit incomplete outcome"];
+note [label="Reviewer has no tools; normal permissions and output budget remain unchanged"];
+before->oldfinal;oldfinal->gate [style=dashed];gate->cloud;gate->review;review->unfinished;unfinished->loop;review->complete;complete->final;review->invalid;invalid->failure;loop->note [style=dotted];final->note [style=dotted];cloud->note [style=dotted];
+}

@@ -47,8 +47,8 @@ def test_original_echo_gets_one_correction_before_normal_answer(loop, monkeypatc
             return salvage(text, *args)
         return original_salvage(text, *args)
     monkeypatch.setattr(executor, 'try_salvage_textual_tool_call', check_salvage)
-    run = loop(api, [response(api, ECHO), response(api, 'Continued with the current task')], names=['desktop_browser'])
-    assert run.result['status'] == 'ok' and len(run.requests) == 2 and run.calls == []
+    run = loop(api, [response(api, ECHO), response(api, 'Continued with the current task'), response(api, json.dumps({'status':'complete','requires_tools':False,'evidence_ids':[]}))], names=['desktop_browser'])
+    assert run.result['status'] == 'ok' and len(run.requests) == 3 and run.calls == []
     visible = [record.get('text_full', '') for record in run.trace if record['kind'] == 'model.round_response']
     assert visible == ['', 'Continued with the current task']
     assert ECHO not in json.dumps(run.requests[1], ensure_ascii=False)
@@ -75,15 +75,15 @@ def test_remote_model_reply_and_request_are_preserved(loop, api):
 
 def test_echo_with_native_calls_is_recovered_without_replaying_old_actions(loop):
     tool = {'id': 'old-call', 'name': 'desktop_browser', 'input': {'action': 'open', 'url': 'https://example.test/old'}}
-    run = loop('openai', [response('openai', ECHO, tool), response('openai', 'Current answer')], names=['desktop_browser'])
-    assert run.result['status'] == 'ok' and run.calls == [] and len(run.requests) == 2
+    run = loop('openai', [response('openai', ECHO, tool), response('openai', 'Current answer'), response('openai', json.dumps({'status':'complete','requires_tools':False,'evidence_ids':[]}))], names=['desktop_browser'])
+    assert run.result['status'] == 'ok' and run.calls == [] and len(run.requests) == 3
 
 
 def test_recovery_can_produce_a_fresh_structured_tool_call(loop):
     tool = {'id': 'new-call', 'name': 'desktop_browser', 'input': {'action': 'read'}}
-    run = loop('openai', [response('openai', ECHO), response('openai', tool=tool), response('openai', 'Page checked')], names=['desktop_browser'])
+    run = loop('openai', [response('openai', ECHO), response('openai', tool=tool), response('openai', 'Page checked'), response('openai', json.dumps({'status':'complete','requires_tools':True,'evidence_ids':['new-call']}))], names=['desktop_browser'])
     assert run.result['status'] == 'ok' and run.calls == [('desktop_browser', {'action': 'read'})]
-    assert len(run.requests) == 3
+    assert len(run.requests) == 4
 
 
 @pytest.mark.parametrize('text', [

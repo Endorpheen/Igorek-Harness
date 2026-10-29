@@ -1,3 +1,48 @@
+## 2026-10-29 — Evidence-bound local completion recovery, 0.2.40 candidate
+
+Confirmed loopback llama.cpp models now review a candidate final answer against
+the request, visible conversation, execution policy and current-task tool
+receipts. A promise or unfinished authorized step continues the same task;
+ordinary questions, requested drafts and genuine blockers can finish normally.
+The reviewer has no tools, its control data is not streamed to the user, and
+current receipt IDs are validated. OpenAI-compatible local reviews use a JSON
+schema. Unknown/proxied/cloud backends retain their original prompt and request
+path. The same configured output budget is preserved. Each local final answer
+costs one extra provider request; semantic classification remains model-dependent.
+
+Recovery uses existing results rather than replaying tools, respects approvals,
+cancellation and new user scope, and stops explicitly after two continuations
+without progress. Invalid, interrupted, output-limited or oversized reviews do
+not become successful task completions. Review usage and verdicts are traced.
+
+New acceptance: 44 completion/control scenarios, six Apex parser scenarios and
+two actual isolated HTTP/SSE scenarios. Apex also updated one existing image
+recovery test for both APIs; its three delivered files were reviewed and adopted
+byte-for-byte. Its first two assignments ran their own unittest checks; the
+third checked syntax only, then the parent ran all 36 image tests successfully.
+Three injected in-process defects were all detected: enabling reviews for cloud
+models, accepting failed execution evidence and allowing unbounded retries.
+
+The initial full run across both Python roots covered 603 files / 11958 cases:
+11929 passed, eight failed because two existing confirmed-local fixture files
+lacked the new review reply, and 21 existing platform skips. Those fixtures
+were updated without dropping their previous assertions; scoped reruns passed
+39 history and 36 image tests. Two additional files added six passing cases;
+the final control file passed all 44 cases. The final per-file acceptance matrix
+therefore covers 605 files / 11966 cases: 11945 passed, zero unresolved failures
+or errors, 21 skips and 924 passed subtests. This matrix combines the full run
+with scoped reruns, rather than claiming a second monolithic green run.
+Full coverage emitted the existing warnings for two native child databases;
+no repository-wide completeness percentage is claimed. Evidence is retained
+in the ignored build/verification-completion-control-20261029 directory.
+
+The real transport checks used a synthetic SSE server, not a running owner
+model. Live-model completion accuracy and latency remain unmeasured. No owner
+runtime, gateway, profile or model server was replaced or restarted. Release 0.2.40 was requested after source acceptance; hosted platform/package
+checks remain publication gates. Applying the change requires a runtime update
+and a new chat. Existing cloud behavior is covered by regression
+tests, not by new paid cloud requests.
+
 ## 2026-10-29 — Embedded browser console, Desktop profile budget fix, 0.2.39
 
 The owner panel and native agent actions share an in-memory per-tab page-message
