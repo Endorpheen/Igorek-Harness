@@ -46,3 +46,32 @@ universal correctness guarantee for model answers or automatic recovery from
 promise-only replies. Verification uses synthetic provider metadata, real local
 HTTP/SSE test servers and compatibility tests; live cloud accounts and physical
 devices are separate acceptance boundaries.
+
+## Native tool history across tasks in 0.2.37
+
+![Before and after: native tool history](native-tool-history-en.png)
+
+[Editable English SVG](native-tool-history-en.svg). [Graphviz source](native-tool-history-en.dot).
+
+Durable tool-request and result events carry typed history sidecars alongside
+existing text evidence. The executor projects complete batches into native
+calls and results only for the selected model's confirmed loopback llama.cpp.
+Cloud connections, unidentified backends and Responses keep the existing text
+projection. No model/user prose is parsed into historical calls, and replaying
+history does not execute completed actions.
+
+Pairing checks task/tool identity, arguments, event order and delivery anchor.
+Wire IDs are namespaced across tasks; batch order and explicit error outcomes
+are retained. Missing, duplicated, ambiguous, interleaved or partly summarized
+batches keep their existing evidence instead of inventing a native exchange.
+Compaction tracks every original record behind a projected batch and archives
+those origins, preventing covered records from returning in later tasks.
+
+Ordinary text-only final answers remain valid. There is no promise-phrase
+filter or forced tool choice. Structural and HTTP/SSE tests establish history
+preservation; no live-model generation A/B establishes that every premature
+text-only completion disappears.
+
+![Было и стало: нативная история](native-tool-history-ru.png)
+
+[Редактируемый SVG](native-tool-history-ru.svg). [Исходник Graphviz](native-tool-history-ru.dot).

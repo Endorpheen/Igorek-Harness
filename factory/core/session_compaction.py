@@ -553,7 +553,7 @@ def _preserve_tool_pair_by_id(
         preserve_message_indexes.add(tool_result_message_by_id[tool_id])
 
 
-def archive_summary_history(messages: list[dict[str, Any]], path: Path, *, history_ids: list[str] | None = None) -> None:
+def archive_summary_history(messages: list[dict[str, Any]], path: Path, *, history_ids: list[str | tuple[str, ...]] | None = None) -> None:
     """Persist complete evidence before producing any bounded summary input."""
     from .vault.logging_redaction import redact_value
 
@@ -564,7 +564,14 @@ def archive_summary_history(messages: list[dict[str, Any]], path: Path, *, histo
             for index, message in enumerate(messages):
                 record = {"archive_line": index + 1, "message": redact_value(message)}
                 if history_ids and index < len(history_ids):
-                    record["history_id"] = history_ids[index]
+                    origins = history_ids[index]
+                    if isinstance(origins, tuple):
+                        if len(origins) > 1:
+                            record["history_ids"] = list(origins)
+                        else:
+                            record["history_id"] = origins[0] if origins else ""
+                    else:
+                        record["history_id"] = origins
                 handle.write(json.dumps(record, ensure_ascii=False) + "\n")
             handle.flush()
             os.fsync(handle.fileno())
