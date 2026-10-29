@@ -1,0 +1,18 @@
+digraph completion {
+graph [rankdir=TB,bgcolor="white",pad="0.4",nodesep="0.25",ranksep="0.35",fontname="DejaVu Sans",fontsize=22,labelloc=t,label="Контроль завершения локальных задач"];
+node [shape=box,style="rounded,filled",fillcolor="#eef5e9",color="#527244",fontname="DejaVu Sans",fontsize=13,margin="0.15"];
+edge [color="#527244"];
+before [label="Раньше: ответ без инструментов"];
+oldfinal [label="Задача считалась завершённой"];
+gate [label="Теперь: backend подтверждён?"];
+cloud [label="Облако / неизвестный: прежний цикл"];
+review [label="Локальная проверка завершения без инструментов"];
+unfinished [label="Осталось разрешённое действие"];
+loop [label="Продолжение той же задачи с прежними результатами"];
+complete [label="Готовый ответ / реальное препятствие"];
+final [label="Итоговый ответ"];
+invalid [label="Ошибка проверки / нет продвижения"];
+failure [label="Явно незавершённый результат"];
+note [label="У проверки нет инструментов; права и бюджет вывода сохраняются"];
+before->oldfinal;oldfinal->gate [style=dashed];gate->cloud;gate->review;review->unfinished;unfinished->loop;review->complete;complete->final;review->invalid;invalid->failure;loop->note [style=dotted];final->note [style=dotted];cloud->note [style=dotted];
+}

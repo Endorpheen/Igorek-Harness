@@ -31,6 +31,10 @@ from .llama_image_input import LlamaImageInput
 from .model_backend_capabilities import ModelBackendCapabilities
 from .session_history import project_history_messages
 from .local_history_output import HistoricalToolEchoFilter, contains_historical_tool_echo, local_history_guard_enabled
+from .completion_review import (
+    COMPLETION_REVIEW_SCHEMA, CompletionRecovery, completion_review_enabled,
+    parse_completion_review, review_transcript,
+)
 from .post_turn_guards import (
     APPROVAL_REQUIRED,
     RETRY_REQUIRED,
@@ -1468,6 +1472,13 @@ def execute_cc_backend_task(
     guard_local_history = local_history_guard_enabled(
         base_url, api_format, capabilities=backend_capabilities, model=model
     )
+    review_completion = completion_review_enabled(
+        base_url, api_format, backend_capabilities, model, anthropic_tools
+    )
+    if review_completion:
+        from .prompt_assembly import local_completion_guidance
+        system_prompt += "\n\n" + local_completion_guidance()
+    completion_recovery = CompletionRecovery()
     local_history_rejections = 0
     message_history_ids: dict[int, tuple[str, ...]] = {}
     messages: list[dict[str, Any]] = _build_initial_messages(
@@ -2183,6 +2194,11 @@ def execute_cc_backend_task(
                     "duration_ms": int((time.monotonic() - tool_started_at) * 1000),
                 },
             )
+            completion_recovery.record(
+                forced_tool_id, forced_name,
+                False if _tool_result_error(str(forced_result_text)) else
+                _result_indicates_success(forced_result_text, tool_name=forced_name),
+            )
             delegated_approval = _delegated_approval(forced_name, forced_result_text)
             if delegated_approval is not None:
                 return delegated_approval
@@ -2452,6 +2468,11 @@ def execute_cc_backend_task(
                                 ),
                             },
                         )
+                    completion_recovery.record(
+                        pending_tool_id, pending_name,
+                        False if _tool_result_error(str(pending_result_text)) else
+                        _result_indicates_success(pending_result_text, tool_name=pending_name),
+                    )
                     delegated_approval = _delegated_approval(pending_name, pending_result_text)
                     if delegated_approval is not None:
                         return delegated_approval
@@ -3231,16 +3252,17 @@ def execute_cc_backend_task(
                     called_tool_names=called_tool_names,
                     called_write_paths=called_write_paths,
                 )
-                append_cc_backend_trace(
-                    artifact_workdir,
-                    {
-                        "kind": CcTraceEvent.POST_TURN_VERDICT,
-                        "round": round_num + 1,
-                        "action": text_guard.action,
-                        "reason": text_guard.reason,
-                        "target": text_guard.target or "",
-                    },
-                )
+                if not (review_completion and text_guard.allowed):
+                    append_cc_backend_trace(
+                        artifact_workdir,
+                        {
+                            "kind": CcTraceEvent.POST_TURN_VERDICT,
+                            "round": round_num + 1,
+                            "action": text_guard.action,
+                            "reason": text_guard.reason,
+                            "target": text_guard.target or "",
+                        },
+                    )
 
                 if (
                     text_guard.action == APPROVAL_REQUIRED
@@ -3347,7 +3369,87 @@ def execute_cc_backend_task(
                 if _deliver_pending_steers(round_num + 1) > 0:
                     continue
 
-                # Model returned text only — done
+                if review_completion:
+                    if iteration_budget is not None and not iteration_budget.consume():
+                        append_cc_backend_trace(artifact_workdir, {
+                            "kind": CcTraceEvent.TASK_FINISH, "status": "fail",
+                            "reason": "iteration_budget_exhausted", "round": round_num + 1,
+                            "tool_calls_count": tool_calls_count,
+                        })
+                        return {"status": "fail", "failure_reason": "iteration_budget_exhausted",
+                                "output_text": "Бюджет итераций исчерпан до проверки завершения задачи.",
+                                "usage": _current_usage(), "tool_calls_count": tool_calls_count}
+                    review, review_error, add_in, add_out = _review_local_completion(
+                        url=url, model=model, system_prompt=system_prompt, messages=messages,
+                        receipts=completion_recovery.receipts, tools=anthropic_tools,
+                        headers=headers, timeout_s=timeout_s, max_tokens=max_tokens,
+                        context_window_tokens=context_window_tokens,
+                        is_openai_api=is_openai_api, reasoning_format=reasoning_format,
+                        cancel_check=lambda: is_interrupt_requested() or _is_task_cancelling(),
+                    )
+                    total_input_tokens += add_in
+                    total_output_tokens += add_out
+                    append_cc_backend_trace(artifact_workdir, {
+                        "kind": CcTraceEvent.MODEL_COMPLETION_REVIEW,
+                        "round": round_num + 1,
+                        "status": review.status if review else "invalid",
+                        "requires_tools": review.requires_tools if review else None,
+                        "evidence_ids": list(review.evidence_ids) if review else [],
+                        "error": review_error,
+                        "usage": {"input_tokens": add_in, "output_tokens": add_out},
+                    })
+                    interrupted = is_interrupt_requested() or _is_task_cancelling()
+                    if interrupted or review_error == "interrupted":
+                        review_error = "interrupted"
+                    elif _deliver_pending_steers(round_num + 1) > 0:
+                        continue
+                    if review_error:
+                        message = ("Задача остановлена пользователем." if review_error == "interrupted" else
+                                   "Не удалось проверить завершение задачи. Работа не отмечена выполненной.")
+                        append_cc_backend_trace(artifact_workdir, {
+                            "kind": CcTraceEvent.TASK_FINISH, "status": "fail",
+                            "reason": review_error, "rounds": round_num + 1,
+                            "tool_calls_count": tool_calls_count,
+                        })
+                        return {"status": "fail", "failure_reason": review_error,
+                                "output_text": message, "usage": _current_usage(),
+                                "tool_calls_count": tool_calls_count}
+                    if review.status == "continue":
+                        can_continue = completion_recovery.request_continuation()
+                        reason = "completion_blocked_unfinished_action"
+                        append_cc_backend_trace(artifact_workdir, {
+                            "kind": CcTraceEvent.POST_TURN_VERDICT,
+                            "round": round_num + 1, "action": RETRY_REQUIRED,
+                            "reason": reason, "attempt": completion_recovery.attempts,
+                        })
+                        if not can_continue:
+                            message = "Модель повторно завершила ответ без продвижения задачи после автоматического продолжения. Задача не выполнена."
+                            append_cc_backend_trace(artifact_workdir, {
+                                "kind": CcTraceEvent.TASK_FINISH, "status": "fail",
+                                "reason": "unfinished_action_repeated", "rounds": round_num + 1,
+                                "tool_calls_count": tool_calls_count,
+                            })
+                            return {"status": "fail", "failure_reason": "unfinished_action_repeated",
+                                    "output_text": message, "usage": _current_usage(),
+                                    "tool_calls_count": tool_calls_count}
+                        from .prompt_assembly import incomplete_action_retry_message
+                        append_cc_backend_trace(artifact_workdir, {
+                            "kind": CcTraceEvent.POST_TURN_RETRY_REQUIRED,
+                            "round": round_num + 1, "reason": reason,
+                            "attempt": completion_recovery.attempts,
+                        })
+                        messages.append({"role": "user", "content": [
+                            {"type": "text", "text": incomplete_action_retry_message()}
+                        ]})
+                        continue
+
+                    append_cc_backend_trace(artifact_workdir, {
+                        "kind": CcTraceEvent.POST_TURN_VERDICT,
+                        "round": round_num + 1, "action": "completion_allowed",
+                        "reason": "completion_reported_blocker" if review.status == "blocked" else "completion_allowed",
+                    })
+
+                # Model returned a completed answer or a genuine blocker.
                 log_fn(
                     f"[cc-backend] Completed after {round_num + 1} round(s), {tool_calls_count} tool calls"
                 )
@@ -3733,6 +3835,7 @@ def execute_cc_backend_task(
                 if _is_create_schedule_call(str(tool_name or "")):
                     schedule_confirmation = _schedule_created_message(raw_result_text)
                 result_succeeded = _result_indicates_success(raw_result_text, tool_name=effective_name)
+                completion_recovery.record(tool_use_id, effective_name, result_succeeded)
                 round_outcomes.append(result_succeeded)
                 result_text = maybe_persist_tool_result(
                     content=result_text,
@@ -4916,3 +5019,57 @@ def _usage(
         usage["total_tokens"] = current_context_tokens
         usage["current_usage"] = current_context_tokens
     return usage
+
+
+def _review_local_completion(*, url, model, system_prompt, messages, receipts, tools,
+                             headers, timeout_s, max_tokens, context_window_tokens,
+                             is_openai_api, reasoning_format, cancel_check):
+    """Ask the same confirmed local provider for control data, without tool authority."""
+    from .prompt_assembly import completion_review_prompt
+
+    if cancel_check():
+        return None, "interrupted", 0, 0
+    context = {
+        "execution_policy": system_prompt,
+        "conversation": review_transcript(messages),
+        "current_tool_receipts": receipts,
+        "available_tools": [{"name": tool["name"], "description": tool.get("description", "")}
+                            for tool in tools],
+    }
+    review_messages = [{"role": "user", "content": json.dumps(context, ensure_ascii=False)}]
+    prompt = completion_review_prompt()
+    if estimate_context_tokens(system_prompt=prompt, messages=review_messages, tools=[]) > context_window_tokens - max_tokens:
+        return None, "completion_review_context_exceeded", 0, 0
+    payload = {"model": model, "max_tokens": max_tokens, "system": prompt, "messages": review_messages}
+    if is_openai_api:
+        payload.pop("system")
+        payload["messages"] = [{"role": "system", "content": prompt}] + review_messages
+        payload["response_format"] = {"type": "json_schema", "json_schema": {
+            "name": "completion_review", "strict": True, "schema": COMPLETION_REVIEW_SCHEMA,
+        }}
+        if reasoning_format is not None:
+            payload["reasoning_format"] = reasoning_format
+        body, _ = _http_post_streaming_openai(
+            url, payload, headers, timeout_s, cancel_check=cancel_check,
+        )
+        if isinstance(body, dict) and not body.get("error") and not body.get("__interrupted__"):
+            body = _openai_response_to_anthropic(body, set())
+    else:
+        body, _ = _http_post(url, payload, headers, timeout_s)
+    if not isinstance(body, dict):
+        return None, "completion_review_invalid", 0, 0
+    usage = body.get("usage") or {}
+    add_in, add_out = usage.get("input_tokens", 0), usage.get("output_tokens", 0)
+    if body.get("__interrupted__") or cancel_check():
+        return None, "interrupted", add_in, add_out
+    if body.get("error") or _model_output_limited(body):
+        return None, "completion_review_failed", add_in, add_out
+    blocks = _normalize_tagged_reasoning_blocks(body.get("content", []))
+    if any(block.get("type") == "tool_use" for block in blocks):
+        return None, "completion_review_invalid", add_in, add_out
+    text = "\n".join(block.get("text", "") for block in blocks if block.get("type") == "text")
+    try:
+        review = parse_completion_review(text, receipts)
+    except ValueError:
+        return None, "completion_review_invalid", add_in, add_out
+    return review, "", add_in, add_out

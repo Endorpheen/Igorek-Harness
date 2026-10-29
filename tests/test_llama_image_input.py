@@ -169,13 +169,15 @@ def test_confirmed_llama_rejection_retries_only_model_and_filters_later_screensh
     monkeypatch.setattr(desktop_browser, "_IMAGES", {"receipt": copy.deepcopy(IMAGE)})
     first = {"id": "shot-one", "name": "desktop_browser", "input": {"action": "screenshot"}}
     later = {"id": "read-one", "name": "desktop_browser", "input": {"action": "read"}}
-    run = loop(api, [response(api, tool=first), copy.deepcopy(REJECTION), response(api, tool=later), response(api, "Page checked")],
+    run = loop(api, [response(api, tool=first), copy.deepcopy(REJECTION), response(api, tool=later), response(api, "Page checked"),
+               response(api, json.dumps({"status": "complete", "requires_tools": True, "evidence_ids": ["read-one"]}))],
                names=["desktop_browser"], raw='{"screenshot":{"id":"receipt"}}')
-    assert run.result["status"] == "ok" and len(run.calls) == 2 and len(run.requests) == 4
+    assert run.result["status"] == "ok" and len(run.calls) == 2 and len(run.requests) == 5
     assert "Zml4dHVyZQ==" in json.dumps(run.requests[1])
     assert all("Zml4dHVyZQ==" not in json.dumps(request) for request in run.requests[2:])
     assert sum(event.get("reason") == "llama_image_input_unsupported" for event in run.trace) == 1
     assert not any(event["kind"] == "network.retry" for event in run.trace)
+    assert "tools" not in run.requests[-1] and "tool_choice" not in run.requests[-1]
 
 
 @pytest.mark.parametrize("error", ["HTTP 500: CUDA out of memory", "HTTP 500: internal server error",

@@ -31,6 +31,8 @@ CC-backend profiles can set an exact per-request output budget with `"max_output
 
 Embedded Desktop browser tabs include a **>_** console for page messages and JavaScript; agents can inspect DOM/canvas and read errors through the same browser tool. See [browser console](docs/configuration/BROWSER_CONSOLE.md).
 
+Confirmed local llama.cpp tasks now review text-only final answers and automatically continue unfinished authorized actions. Cloud completion is unchanged. This adds one local review request; see [local completion control](docs/configuration/LOCAL_COMPLETION_CONTROL.md).
+
 ## What defines Igorek
 
 Igorek is built around a personal workspace: the conversation, actions, and

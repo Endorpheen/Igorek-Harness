@@ -16,6 +16,7 @@ class CcTraceEvent:
     MODEL_ROUND_RESPONSE = "model.round_response"
     MODEL_TEXT_DELTA = "model.text_delta"
     MODEL_REASONING_DELTA = "model.reasoning_delta"
+    MODEL_COMPLETION_REVIEW = "model.completion_review"
     MODEL_SYNTHESIS_CALL = "model.synthesis_call"
     MODEL_TERMINAL_FAL_RESPONSE_CALL = "model.terminal_fal_response_call"
     MODEL_FORCED_WRITE_POSTAMBLE = "model.forced_write_postamble"
