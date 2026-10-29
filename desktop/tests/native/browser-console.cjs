@@ -10,7 +10,7 @@ async function until(check){for(let n=0;n<100;n++){if(await check())return;await
 async function run(){
  await app.whenReady();
  const preload=path.join(root,'preload.cjs');fs.writeFileSync(preload,"const {contextBridge,ipcRenderer}=require('electron');contextBridge.exposeInMainWorld('fixture',{call:(op,fields)=>ipcRenderer.invoke('igorek:workspace-browser',op,fields)});");
- const win=new BrowserWindow({show:true,width:1100,height:850,webPreferences:{sandbox:true,contextIsolation:true,nodeIntegration:false,preload}});
+ const win=new BrowserWindow({show:true,width:1100,height:Number(process.env.IGOREK_TEST_HEIGHT||655),webPreferences:{sandbox:true,contextIsolation:true,nodeIntegration:false,preload}});
  const manager=new WorkspaceBrowser({root:path.join(root,'browser'),BrowserWindow,WebContentsView,session,dialog:{showMessageBox:async()=>({response:1})},shell:{}});manager.unlock();
  const mainSource=fs.readFileSync(path.join(__dirname,'../../main.cjs'),'utf8');
  vm.runInNewContext(mainSource.slice(mainSource.indexOf("ipcMain.handle('igorek:workspace-browser'"),mainSource.indexOf('async function completeQuotaReply')),{ipcMain,sessionMcp:{trusted:event=>event.sender===win.webContents},BrowserWindow,workspaceBrowser:manager,runtime:{requestOwner:async()=>({result:{state:'unlocked'}})}});
@@ -45,7 +45,7 @@ async function run(){
  await win.webContents.executeJavaScript(`document.querySelector('textarea').value='document.querySelector("h1").textContent="Changed by console"; 42';document.querySelector('form').requestSubmit();`);
  await until(()=>win.webContents.executeJavaScript('document.querySelector("[role=status]").textContent===""&&document.querySelector("[role=log]").textContent.includes("42")'));
  assert.equal((await agent({action:'console',expression:'document.querySelector("h1").textContent'})).value,'Changed by console');
- await tab.layout();const bounds=tab.view.getBounds();const panelRect=await win.webContents.executeJavaScript('document.querySelector("section").getBoundingClientRect().toJSON()');assert.ok(bounds.y+bounds.height<=panelRect.y+2,JSON.stringify({bounds,panelRect}));
+ await tab.layout();const bounds=tab.view.getBounds();const panelRect=await win.webContents.executeJavaScript('document.querySelector("section").getBoundingClientRect().toJSON()');const diagnostic={bounds,panelRect,zoom:win.webContents.getZoomFactor(),content:win.getContentSize(),dom:await win.webContents.executeJavaScript('({inner:[innerWidth,innerHeight],host:document.querySelector("#host").getBoundingClientRect().toJSON(),surface:document.querySelector("#workspace-browser-surface").getBoundingClientRect().toJSON()})')};fs.writeFileSync(path.join(output,'layout.json'),JSON.stringify(diagnostic,null,2));assert.ok(bounds.y+bounds.height<=panelRect.y+2,JSON.stringify(diagnostic));
  fs.writeFileSync(path.join(output,'console-panel.png'),(await win.webContents.capturePage()).toPNG());
  results.push('visible panel executes JavaScript and resizes embedded view above its controls');
  await win.webContents.executeJavaScript('document.querySelector("header button").click()');await until(()=>win.webContents.executeJavaScript('document.querySelector("[role=log]").textContent===""'));

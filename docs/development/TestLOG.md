@@ -32,7 +32,7 @@ Full isolated Python acceptance over both roots: 601 files,
 0 errors, 21 existing platform skips and
 924 passed subtests. The changed Python sources match the
 full-run hashes. Coverage retains the existing native-artifact-directory
-limitation; no completeness percentage is claimed. The full Desktop suite passed 572 tests with zero failures. The production IPC
+limitation; no completeness percentage is claimed. Before the final clipping correction, the full Desktop suite passed 572 tests with zero failures. The production IPC
 regression reproduced one failure and one compatibility pass before the route
 allowlist fix, then both passed. Apex review and native output are retained in
 the ignored release evidence.
@@ -44,6 +44,17 @@ web-tool and Linux packaging checks then passed 145 tests. This packaging-only c
 is verified by focused packaging checks and all final-head hosted CI; the full
 local Python counts above describe the preceding source acceptance. Version
 metadata advances once; platform/package checks remain publication gates.
+
+The second Windows candidate passed installer/first-task acceptance and then
+exposed native-view overlap when focusing the console scrolled an oversized
+owner document in a small window. This was reproduced locally at 655px window
+height: the surface started above the viewport but retained its original height.
+Two geometry regressions failed before the fix. Native bounds now use the
+intersection of all four surface edges with the visible parent region, and
+fully offscreen surfaces are hidden. Final Desktop: 574 passed, zero failures.
+Complete native console acceptance then passed at both 655px and 850px window
+heights; the small-window case is now the hosted native default. Final-head
+Windows acceptance is required before release.
 
 No owner app, model server or gateway was restarted; no live Apex browser task
 was run. The owner will update and submit the separate console test himself.

@@ -136,9 +136,11 @@ class ChatGPTWorkspace{
       if(sequence!==this.layoutSequence||parent!==this.parent||view!==this.view||this.blocked||!this.attached||this.overlayActive(parent))return;
       const [width,height]=parent.getContentSize();
       if(!rect||Object.values(rect).some(value=>!Number.isFinite(value))||rect.width<=0||rect.height<=0){view.setVisible(false);return}
+      // Focus can scroll the owner document: clip all four surface edges.
       const x=Math.max(0,Math.round(rect.x)),y=Math.max(36,Math.round(rect.y));
-      if(x>=width||y>=height){view.setVisible(false);return}
-      view.setBounds({x,y,width:Math.max(1,Math.min(Math.round(rect.width),width-x)),height:Math.max(1,Math.min(Math.round(rect.height),height-y))});view.setVisible(true);
+      const right=Math.min(width,Math.round(rect.x+rect.width)),bottom=Math.min(height,Math.round(rect.y+rect.height));
+      if(right<=x||bottom<=y){view.setVisible(false);return}
+      view.setBounds({x,y,width:right-x,height:bottom-y});view.setVisible(true);
     }catch{if(view===this.view&&!view.webContents.isDestroyed())view.setVisible(false)}
   }
   detach(){
