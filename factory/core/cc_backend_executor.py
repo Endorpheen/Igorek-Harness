@@ -1337,6 +1337,7 @@ def execute_cc_backend_task(
     source_platform: str | None = None,
     source_chat_id: str | None = None,
     max_tokens: int = 4000,
+    max_output_tokens: int | None = None,
     timeout_s: int = 300,
     log_fn=None,
     delegate_depth: int = 0,
@@ -1378,7 +1379,9 @@ def execute_cc_backend_task(
         filesystem_mode: Filesystem policy mode for local tool execution.
         guard_mode: Resolved bash-scope guard mode forwarded to local tools
             (None keeps the env-driven default).
-        max_tokens: Max tokens per request.
+        max_tokens: Task output budget, subject to legacy automatic scaling.
+        max_output_tokens: Exact profile override for each model request,
+            including reasoning and answer; bypasses automatic scaling.
         timeout_s: Timeout per HTTP request.
         log_fn: Optional callable for log messages.
         data_root: Optional durable data root for the checkpoint shadow repos and
@@ -1392,6 +1395,11 @@ def execute_cc_backend_task(
     if log_fn is None:
         log_fn = lambda msg: None
     artifact_workdir = artifact_workdir or workdir
+    from .model_output_budget import optional_output_token_limit
+
+    max_output_tokens = optional_output_token_limit(max_output_tokens)
+    if max_output_tokens is not None:
+        max_tokens = max_output_tokens
     if reasoning_format is not None:
         if api_format != "openai" or not isinstance(reasoning_format, str) or reasoning_format not in {"auto", "none", "deepseek", "deepseek-legacy"}:
             raise ValueError("reasoning_format requires an explicit supported OpenAI-compatible transport")
@@ -1687,6 +1695,8 @@ def execute_cc_backend_task(
         "compaction_reserved_output_tokens",
         default=min(max(2048, int(max_tokens or 0)), 8192),
     )
+    if max_output_tokens is not None:
+        reserved_output_tokens = max(reserved_output_tokens, max_output_tokens)
     context_window_tokens, context_window_source = _resolve_backend_context_window(
         base_url=base_url,
         model=model,
@@ -1700,7 +1710,8 @@ def execute_cc_backend_task(
     # Auto-scale output budget for reasoning models that consume output budget
     # with thinking tokens.  Default 4000 is inadequate for large-context models:
     # the model exhausts max_tokens on reasoning and has no room for tool calls.
-    scaled = _auto_scale_max_tokens(max_tokens, context_window_tokens)
+    scaled = (max_output_tokens if max_output_tokens is not None
+              else _auto_scale_max_tokens(max_tokens, context_window_tokens))
     if scaled != max_tokens:
         log_fn(
             f"max_tokens auto-scaled {max_tokens} → {scaled} "
@@ -1720,6 +1731,8 @@ def execute_cc_backend_task(
             "input_files_count": len(input_files or []),
             "model_context_window": context_window_tokens,
             "context_window_source": context_window_source,
+            "max_tokens": max_tokens,
+            "output_budget_source": "profile" if max_output_tokens is not None else "task_or_auto",
             "parent_task_id": parent_task_id or None,
             "delegate_depth": delegate_depth,
             **({"user_message": user_message} if subagent_id else {}),

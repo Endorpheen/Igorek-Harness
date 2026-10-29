@@ -1486,6 +1486,7 @@ class IsolationManager:
                 base_url=base_url,
                 api_format=_payload_text(payload, "api_format"),
                 reasoning_format=_optional_text(payload, "reasoning_format"),
+                max_output_tokens=payload.get("max_output_tokens"),
                 system_prompt=mapping.host_to_guest(_payload_text(payload, "system_prompt")),
                 user_message=mapping.host_to_guest(_payload_text(payload, "user_message")),
                 skills_text=skills_text,

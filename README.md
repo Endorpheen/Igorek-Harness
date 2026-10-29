@@ -27,6 +27,8 @@ Documentation updated **October 29, 2026**. The Python/desktop version is in
 
 Local model repairs use confirmed llama.cpp identity and capabilities for the selected model; a localhost cloud proxy or unknown backend does not enable them. Truncated replies retain partial text and an explicit incomplete outcome. Tool outcomes use execution status and exit codes; ordinary final answers remain valid. Confirmed local llama.cpp receives native tool history across tasks, with linked results and intact batches during compaction. See [runtime outcome boundaries](docs/architecture/MODEL_BACKEND_GUARDS.md).
 
+CC-backend profiles can set an exact per-request output budget with `"max_output_tokens": 65536`; absent/null keeps automatic budgeting. This includes reasoning and does not change the model context window. See [profile output budgets](docs/configuration/PROFILE_OUTPUT_BUDGET.md).
+
 ## What defines Igorek
 
 Igorek is built around a personal workspace: the conversation, actions, and

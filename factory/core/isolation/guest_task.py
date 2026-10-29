@@ -132,6 +132,7 @@ class GuestTask:
     git_gateway: GitGatewayRoute | None = None
     apk_delivery_url: str = ""
     reasoning_format: str = ""
+    max_output_tokens: int | None = None
 
     @classmethod
     def from_wire(
@@ -150,6 +151,12 @@ class GuestTask:
         _require_guest_root("workdir", workdir, guest_roots)
         _require_guest_root("artifact_workdir", artifact_workdir, guest_roots)
         rehydrated = _rehydrate_or_refuse(payload)
+        from ..model_output_budget import optional_output_token_limit
+
+        try:
+            output_budget = optional_output_token_limit(payload.get("max_output_tokens"))
+        except ValueError as exc:
+            raise GuestTaskError("max_output_tokens_invalid") from exc
         return cls(
             payload_version=rehydrated.payload_version,
             task_id=_required_text(payload, "task_id"),
@@ -158,6 +165,7 @@ class GuestTask:
             base_url=_required_text(payload, "base_url"),
             api_format=_required_text(payload, "api_format"),
             reasoning_format=_optional_text(payload, "reasoning_format"),
+            max_output_tokens=output_budget,
             system_prompt=_required_text(payload, "system_prompt"),
             user_message=_required_text(payload, "user_message"),
             skills_text=_required_text(payload, "skills_text"),
@@ -226,6 +234,8 @@ class GuestTask:
             # stays enabled and the host resolves it (todo 9).
             "approvals_enabled_provider": _approvals_enabled,
         }
+        if self.max_output_tokens is not None:
+            kwargs["max_output_tokens"] = self.max_output_tokens
         if self.reasoning_format:
             kwargs["reasoning_format"] = self.reasoning_format
         if self.current_session:

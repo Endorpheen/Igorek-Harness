@@ -1,0 +1,10 @@
+digraph budget {
+ graph [rankdir=TB,bgcolor="white",pad="0.4",nodesep="0.4",ranksep="0.45",fontname="DejaVu Sans",fontsize=21,labelloc=t,label="Бюджет вывода из профиля"];
+ node [shape=box,style="rounded,filled",fillcolor="#eef5e9",color="#527244",fontname="DejaVu Sans",fontsize=14,margin="0.18"];
+ edge [color="#527244"];
+ before [label="Было: бюджет задачи"]; old [label="Автоматический подбор\nСтандартный максимум 32000",fillcolor="#f7eeee"];
+ option [label="Стало: max_output_tokens в профиле?"]; automatic [label="Нет / null\nПрежний автоподбор"]; explicit [label="Положительное целое\nТочное значение, например 65536"];
+ reserve [label="Резерв места под ответ\nОбычный или изолированный исполнитель"]; request [label="Запрос к провайдеру\nReasoning и ответ делят бюджет вывода"]; note [label="Размер контекста модели не меняется\nОграничения модели и провайдера действуют",fillcolor="#f3f0df"];
+ before -> old; old -> option [style=invis]; option -> automatic; option -> explicit;
+ automatic -> reserve; explicit -> reserve; reserve -> request -> note;
+}

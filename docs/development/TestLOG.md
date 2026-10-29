@@ -1,3 +1,36 @@
+## 2026-10-29 — Per-profile output budgets, release 0.2.38
+
+CC-backend JSON profiles accept an optional positive integer `max_output_tokens`.
+Explicit values override the task budget and bypass legacy automatic scaling;
+absent/null retains prior behavior. Validation rejects booleans, strings,
+fractions and nonpositive values before inference. The worker, shared host wire,
+guest parser and executor preserve the option. Compaction reserves at least the
+explicit response budget. Task-start traces record the effective token count and
+its source. Host-state-free validation preserves the guest import boundary.
+
+The original 35-case trigger suite reproduced 32 failures and three compatibility
+passes before implementation. Final new regressions: 37 passed, including real
+synthetic loopback HTTP, exact 2048/65536/98304 output fields, profile JSON loading,
+invalid values, multiple tool rounds, default wire compatibility, isolated
+manager/guest transport, reserved context and trace provenance. One existing
+guest-boundary regression rejected an initial runtime-module import; a pure
+shared validator fixes that without weakening the test. Focused final boundary
+acceptance: 60 passed; other unchanged focused files passed separately.
+
+The frozen full Python run covered both roots: 599 files,
+11880 collected, 11859 passed, 0 failed,
+0 errors, 21 existing platform skips and
+924 passed subtests. Runtime and test source hashes match
+the full-run freeze. Coverage retains the existing native-artifact-directory
+limitation; no completeness percentage is claimed. Release metadata and matching
+README/Wiki/footer documentation advance once to 0.2.38 after this source run.
+Hosted final-source platform/package checks remain publication gates.
+
+Owner profiles, installed applications and model servers were not modified or
+restarted; no live-model inference was performed. Synthetic protocol checks do
+not establish the model's answer quality at a larger output budget. Evidence:
+`build/verification-output-release-038`.
+
 ## 2026-10-29 — Native history release 0.2.37 candidate
 
 The release packages the accepted model-bound native-history correction below. Python/Desktop advance once to 0.2.37 with three matching Russian Desktop notes, bilingual README/Wiki updates, matching Wiki edition/footer and editable before/after history diagrams. Runtime/test hashes match the accepted 598-file Python run: 11843 collected, 11822 passed, no failures/errors, 21 existing platform skips and 924 subtests. The unchanged Android 0.1.139 (140) APK is retained without rebuilding or resending it.
