@@ -21,6 +21,21 @@ class ProfileNotVerifiedError(Exception):
     pass
 
 
+def _execution_options(binding, published):
+    """Allow validated execution options while keeping provider binding exact."""
+    from factory.core.model_output_budget import optional_output_token_limit
+
+    if not isinstance(published, dict):
+        raise ValueError("Invalid runtime profile")
+    options = {}
+    if "max_output_tokens" in published:
+        optional_output_token_limit(published["max_output_tokens"])
+        options["max_output_tokens"] = published["max_output_tokens"]
+    if {key: value for key, value in published.items() if key not in options} != binding:
+        raise ValueError("Existing profile differs")
+    return options
+
+
 class DesktopAgentRuntime:
     def __init__(self, root, lifecycle, service, *, worker_factory=None, execution=None):
         self.root = Path(root)
@@ -77,14 +92,16 @@ class DesktopAgentRuntime:
         validated = profile_config(config["name"], config["model"], config["base_url"], config["api_format"])
         if config != validated:
             raise ValueError("Invalid runtime config")
+        folder = self.root / "profiles"
+        target = folder / (config["name"] + ".json")
+        if target.is_symlink():
+            raise ValueError("Profile publication is a symlink")
+        if target.exists():
+            _execution_options(config, json.loads(target.read_text()))
         if self.available_profiles() == [config["name"]]:
             return self.status()
         self.stop()
-        folder = self.root / "profiles"
         folder.mkdir(mode=0o700, exist_ok=True)
-        target = folder / (config["name"] + ".json")
-        if target.exists() and json.loads(target.read_text()) != config:
-            raise ValueError("Existing profile differs")
         if not target.exists():
             fd, temporary = tempfile.mkstemp(dir=folder, prefix=".profile-")
             try:
@@ -96,8 +113,7 @@ class DesktopAgentRuntime:
                     os.unlink(temporary)
 
         def headers(worker_config, api_format):
-            if worker_config != config:
-                raise ValueError("Worker profile binding changed")
+            _execution_options(config, worker_config)
             return self.lifecycle.provider_runtime_headers(credential_id, config, api_format)
 
         from factory.core.mcp_bridge import set_desktop_access_check
@@ -144,11 +160,20 @@ class DesktopAgentRuntime:
         if target.is_symlink():
             raise ValueError("Profile publication is a symlink")
         if target.exists():
-            if json.loads(target.read_text()) != previous:
-                raise ValueError("Published profile changed outside setup")
+            options = _execution_options(previous, json.loads(target.read_text()))
             if previous != config:
-                # Regenerate the public config at the next verified start.
-                target.unlink()
+                if options:
+                    fd, temporary = tempfile.mkstemp(dir=target.parent, prefix=".profile-")
+                    try:
+                        with os.fdopen(fd, "w") as handle:
+                            json.dump({**config, **options}, handle)
+                        os.replace(temporary, target)
+                    finally:
+                        if os.path.exists(temporary):
+                            os.unlink(temporary)
+                else:
+                    # Regenerate the public config at the next verified start.
+                    target.unlink()
 
     def stop(self):
         with self.control_lock:

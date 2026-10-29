@@ -46,3 +46,7 @@ llama.cpp rebuild or llama-server restart is required for this client option.
 
 [Editable SVG](../architecture/profile-output-budget-en.svg).
 [Graphviz source](../architecture/profile-output-budget-en.dot).
+
+Desktop 0.2.39 fixes startup validation for this local execution option in
+imported profiles. Provider connection fields remain bound to Vault; changing
+`max_output_tokens` does not require reimporting the connection.

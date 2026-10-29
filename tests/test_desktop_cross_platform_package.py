@@ -66,3 +66,19 @@ def test_native_search_gate_requires_real_stages_and_clean_visible_ui(tmp_path,i
     if incomplete:
         with pytest.raises(ValueError):module.verify_search(tmp_path)
     else:assert module.verify_search(tmp_path)==report
+
+
+def test_reviewed_app_inventory_contains_literal_commonjs_dependencies():
+    import re
+    files = set(load('bundle_sources').APP_FILES)
+    desktop = PACKAGING.parent
+    missing = []
+    for name in sorted(files):
+        if not name.endswith('.cjs'):
+            continue
+        source = (desktop / name).read_text(encoding='utf-8')
+        for dependency in re.findall(r"\brequire\(\s*['\"](\./[^'\"]+\.cjs)['\"]\s*\)", source):
+            relative = ((desktop / name).parent / dependency).relative_to(desktop).as_posix()
+            if relative not in files:
+                missing.append((name, relative))
+    assert missing == []

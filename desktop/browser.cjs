@@ -4,6 +4,7 @@ const { isIP } = require('node:net');
 const { BrowserInteraction,validInteraction,compactPage } = require('./browser-interaction.cjs');
 
 const {BrowserReading,validReading} = require('./browser-reading.cjs');
+const {consoleFor,validConsole} = require('./browser-console.cjs');
 const {extractPosts} = require('./browser-posts.cjs');
 const DEFAULTS = Object.freeze({ feed_url: 'https://x.com/home', max_seconds: 600, max_posts: 100 });
 const HEADER_HEIGHT=80;
@@ -188,6 +189,7 @@ class DesktopBrowser {
     controls.loadFile(join(__dirname, 'browser.html')).catch(() => { if(this.controlContents()===controls)this.paused = 'controls_failed'; });
   }
   bindTab(view, ses, opener = null) {
+    consoleFor(view.webContents);
     const wc=view.webContents,tab={id:require('node:crypto').randomUUID(),view,opener};this.tabs.push(tab);
     const chrome=wc.getUserAgent().match(/Chrome\/[\d.]+/)?.[0];
     if(chrome)wc.setUserAgent('Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) '+chrome+' Safari/537.36');
@@ -401,13 +403,22 @@ class DesktopBrowser {
     this.last = { started_at: new Date(start).toISOString(), finished_at: new Date(this.now()).toISOString(), count: found.size, reason, coverage: 'bounded_view_only' };
     this.save('observed.json', { posts: this.records, last: this.last });
   }
+  consoleAccess(contents) {
+    if (this.blocked) return 'desktop_locked';
+    if (this.manual || this.paused) return 'browser_needs_owner';
+    if (!contents || contents.isDestroyed() || this.view?.webContents !== contents) return 'browser_changed';
+    if (!pageUrl(contents.getURL())) return 'invalid_url';
+    return null;
+  }
   agent(fields) {
     if (!fields || typeof fields !== 'object' || Array.isArray(fields)) return Promise.resolve({ error: 'invalid_request' });
     const { action } = fields;
     const interact=['click','hover','fill','press','select','check','scroll_element','drag'].includes(action);
     const reading=validReading(fields);
+    const consoleAction=['console','console_messages','console_clear'].includes(action);
+    if(consoleAction&&!validConsole(fields))return Promise.resolve({error:'invalid_request'});
     if(action==='elements'){if(Object.keys(fields).some(key=>!['action','query','url'].includes(key))||typeof(fields.query??'')!=='string'||(fields.query||'').length>200)return Promise.resolve({error:'invalid_request'});}
-    if(action!=='elements'&&!reading&&(interact?!validInteraction(fields):(!['status', 'open', 'read', 'scroll', 'post', 'collect', 'result'].includes(action)
+    if(!consoleAction&&action!=='elements'&&!reading&&(interact?!validInteraction(fields):(!['status', 'open', 'read', 'scroll', 'post', 'collect', 'result'].includes(action)
         || Object.keys(fields).sort().join(',') !== (action === 'post' || (action === 'open' && 'url' in fields) ? 'action,url' : 'action')))) return Promise.resolve({ error: 'invalid_request' });
     if (action === 'status') {const value=this.status();const clean=raw=>{if(!raw||raw==='about:blank')return 'about:blank';try{const url=new URL(raw);return url.origin+url.pathname;}catch{return '';}};return Promise.resolve({...value,current_url:clean(value.current_url),tabs:value.tabs.map(tab=>({...tab,url:clean(tab.url)}))});}
     if (this.blocked) return Promise.resolve({ error: 'desktop_locked' });
@@ -426,6 +437,7 @@ class DesktopBrowser {
     return this.enqueue(async () => {
       if (this.blocked || this.manual || this.paused) return { error: 'browser_needs_owner' };
       if (action === 'open' || action === 'post') return this.navigate(action === 'post' ? xUrl(fields.url, true) : fields.url ? pageUrl(fields.url) : this.config.feed_url);
+      if(consoleAction){const wc=this.view?.webContents;const denied=this.consoleAccess(wc);return denied?{error:denied}:consoleFor(wc).run(fields,()=>this.consoleAccess(wc));}
       if(action==='elements'){this.ensure(false);return compactPage({auth:this.auth,url:this.view.webContents.getURL(),title:this.view.webContents.getTitle(),text:'',links:[],elements:await this.interaction.snapshot(fields.query||'',fields.url?xUrl(fields.url,true):'')});}
       if(reading){this.ensure(false);if(action==='wait')return this.reading.wait(fields);if(action==='screenshot')return this.reading.screenshot();if(action==='close_menu')return this.reading.close();return action==='read_post'?this.reading.post({...fields,url:xUrl(fields.url,true)}):this.reading.comments({...fields,url:xUrl(fields.url,true)});}
       if(interact){const state=await this.interaction.run(fields);return state.error?state:{...state,...await this.read()};}

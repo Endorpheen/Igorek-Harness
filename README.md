@@ -29,6 +29,8 @@ Local model repairs use confirmed llama.cpp identity and capabilities for the se
 
 CC-backend profiles can set an exact per-request output budget with `"max_output_tokens": 65536`; absent/null keeps automatic budgeting. This includes reasoning and does not change the model context window. See [profile output budgets](docs/configuration/PROFILE_OUTPUT_BUDGET.md).
 
+Embedded Desktop browser tabs include a **>_** console for page messages and JavaScript; agents can inspect DOM/canvas and read errors through the same browser tool. See [browser console](docs/configuration/BROWSER_CONSOLE.md).
+
 ## What defines Igorek
 
 Igorek is built around a personal workspace: the conversation, actions, and

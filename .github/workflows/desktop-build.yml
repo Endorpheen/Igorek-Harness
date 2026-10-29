@@ -244,6 +244,14 @@ jobs:
           else
             xvfb-run -a -s '-screen 0 1920x1080x24' ./desktop/node_modules/.bin/electron desktop/tests/native/composer-resize.cjs
           fi
+      - name: Verify native browser console
+        run: |
+          export IGOREK_TEST_OUTPUT="$GITHUB_WORKSPACE/test-results/browser-console-${{ runner.os }}"
+          if [ '${{ runner.os }}' = Windows ]; then
+            ./desktop/node_modules/.bin/electron.cmd desktop/tests/native/browser-console.cjs
+          else
+            xvfb-run -a -s '-screen 0 1920x1080x24' ./desktop/node_modules/.bin/electron desktop/tests/native/browser-console.cjs
+          fi
       - name: Keep candidate packages and reports
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -261,6 +269,7 @@ jobs:
             test-results/native-windows-diagnostics/summary.json
             test-results/native-windows-diagnostics/thread-stacks.log
             test-results/platform-*-coverage.json
+            test-results/browser-console-*
             test-results/browser-drag-*
             test-results/composer-resize-*
           if-no-files-found: warn
