@@ -1,0 +1,16 @@
+digraph history {
+ graph [rankdir=TB, bgcolor="white", pad="0.35", nodesep="0.35", ranksep="0.45", fontname="DejaVu Sans", fontsize=20, labelloc=t, label="Native tool history across tasks"];
+ node [shape=box, style="rounded,filled", fillcolor="#eef5e9", color="#527244", fontname="DejaVu Sans", fontsize=13, margin="0.16"];
+ edge [color="#527244", arrowsize=0.75];
+ subgraph cluster_before { label="Before"; color="#aab5a4";
+  oldevents [label="Saved tool-call and result events"]; flat [label="Assistant text evidence\nCall/result roles are lost",fillcolor="#f7eeee"]; oldmodel [label="Local model receives flattened history"];
+  oldevents -> flat -> oldmodel;
+ }
+ subgraph cluster_after { label="After"; color="#527244";
+  events [label="Saved tool-call and result events"]; paired [label="Match completed batches\nTask IDs, tool IDs, arguments and event order"]; gate [label="Selected model: confirmed llama.cpp?"];
+  native [label="Local llama.cpp\nNative calls and linked results"]; other [label="Cloud / unknown / Responses\nExisting text projection",fillcolor="#edf2f7"]; compact [label="Compaction preserves all original IDs\nCompleted pairs remain together",fillcolor="#f3f0df"]; model [label="Next model request"];
+  events -> paired -> gate; gate -> native; gate -> other; native -> compact -> model; other -> model;
+ }
+ oldmodel -> events [style=invis];
+ note [label="History replay only: no repeated tool execution\nOrdinary final text answers remain valid",fillcolor="#f3f0df"]; model -> note;
+}

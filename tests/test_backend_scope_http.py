@@ -6,6 +6,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import pytest
 
 from factory.core import cc_backend_executor as executor
+from factory.core.session_history import build_working_history
 from test_cc_stream_wire_contracts import event, chunk
 from test_local_history_output_guard import ECHO
 
@@ -13,6 +14,14 @@ from test_local_history_output_guard import ECHO
 @pytest.mark.parametrize('backend',['llamacpp','cloud','unknown'])
 def test_task_identity_reaches_live_stream_and_durable_response(tmp_path,monkeypatch,backend):
     requests=[]
+    history = build_working_history(
+        [{'role': 'user', 'text': 'Earlier fixture', 'task_id': 'old'},
+         {'role': 'assistant', 'text': 'Earlier answer', 'task_id': 'old'}],
+        [{'seq': 1, 'task_id': 'old', 'kind': 'tool.request_batch', 'payload': {
+            'tools': [{'id': 'a', 'name': 'Read', 'input': {'file_path': 'old.txt'}}]}},
+         {'seq': 2, 'task_id': 'old', 'kind': 'tool.result', 'payload': {
+             'tool_use_id': 'a', 'tool_name': 'Read', 'tool_input': {'file_path': 'old.txt'},
+             'context_output': 'Earlier result', 'status': 'done'}}])
     def models():
         return {} if backend=='unknown' else {'data':[{'id':'fixture','owned_by':backend,
             'architecture':{'input_modalities':['text']}}]}
@@ -41,7 +50,7 @@ def test_task_identity_reaches_live_stream_and_durable_response(tmp_path,monkeyp
     try:
         result=executor.execute_cc_backend_task(base_url=f'http://127.0.0.1:{server.server_port}/v1',
             model='fixture',api_format='openai',system_prompt='Fixture system',user_message='Fixture task',
-            workdir=str(work),artifact_workdir=str(artifacts),enabled_tools=[],
+            workdir=str(work),artifact_workdir=str(artifacts),enabled_tools=[],history_messages=history,
             metadata={'model_context_window':65536},timeout_s=3)
     finally:
         server.shutdown();server.server_close();thread.join(2)
@@ -61,3 +70,20 @@ def test_task_identity_reaches_live_stream_and_durable_response(tmp_path,monkeyp
     assert [row[1] for row in requests if row[0]=='GET']==(
         ['/v1/models','/props?model=fixture'] if backend=='unknown' else ['/v1/models'])
     assert all('backend_capabilities' not in row[2] for row in posts)
+
+    for _, _, payload in posts:
+        messages = payload['messages']
+        calls = [call for message in messages for call in message.get('tool_calls', [])]
+        results = [message for message in messages if message['role'] == 'tool']
+        if backend == 'llamacpp':
+            assert len(calls) == len(results) == 1
+            assert calls[0]['function']['name'] == 'Read'
+            assert json.loads(calls[0]['function']['arguments']) == {'file_path': 'old.txt'}
+            assert results[0]['tool_call_id'] == calls[0]['id']
+            assert results[0]['content'] == 'Earlier result'
+            assert not any('[Historical tool evidence;' in str(message['content']) for message in messages)
+        else:
+            assert calls == results == []
+            assert messages[1:1 + len(history)] == [
+                {'role': row['role'], 'content': row['content']} for row in history]
+        assert 'native_tool_exchange' not in json.dumps(payload)

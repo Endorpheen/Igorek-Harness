@@ -29,6 +29,7 @@ from .cc_backend_tools import execute_tool, get_tool_schemas, needs_approval
 from .multimodal_payload import build_anthropic_user_content
 from .llama_image_input import LlamaImageInput
 from .model_backend_capabilities import ModelBackendCapabilities
+from .session_history import project_history_messages
 from .local_history_output import HistoricalToolEchoFilter, contains_historical_tool_echo, local_history_guard_enabled
 from .post_turn_guards import (
     APPROVAL_REQUIRED,
@@ -247,26 +248,19 @@ def _build_initial_messages(
     trailing_context_text: str,
     user_message: str,
     input_files: list[str] | None,
+    native_tool_history: bool = False,
+    history_message_ids: dict[int, tuple[str, ...]] | None = None,
 ) -> list[dict[str, Any]]:
     """Assemble the initial chat messages for a task.
 
-    ``history_messages`` are prior user/assistant turns replayed verbatim so the
-    system prompt stays byte-stable (stable-prefix/local mode). Per-turn dynamic
-    context is inserted as a trailing system message right before the new user
-    message.
+    Prior turns retain their text projection unless confirmed llama.cpp enables
+    native tool history from paired event sidecars. Dynamic context belongs in
+    the new user message so templates keep the system prompt at the beginning.
     """
-    messages: list[dict[str, Any]] = []
-    for item in history_messages or []:
-        if not isinstance(item, dict):
-            continue
-        role = str(item.get("role") or "")
-        content = item.get("content")
-        if role in {"user", "assistant"} and isinstance(content, str) and content.strip():
-            messages.append({"role": role, "content": content})
-    # Some chat templates (Qwen/llama-server) expect the conversation to start
-    # with a user message; drop leading assistant entries (e.g. bootstrap intro).
-    while messages and messages[0]["role"] != "user":
-        messages.pop(0)
+    projected = project_history_messages(history_messages, native_tool_history=native_tool_history)
+    messages = [message for message, _ in projected]
+    if history_message_ids is not None:
+        history_message_ids.update({id(message): origins for message, origins in projected if origins})
     user_content = build_anthropic_user_content(
         user_message, input_files=input_files
     )
@@ -1467,20 +1461,19 @@ def execute_cc_backend_task(
         base_url, api_format, capabilities=backend_capabilities, model=model
     )
     local_history_rejections = 0
+    message_history_ids: dict[int, tuple[str, ...]] = {}
     messages: list[dict[str, Any]] = _build_initial_messages(
         history_messages=history_messages,
+        native_tool_history=guard_local_history,
+        history_message_ids=message_history_ids,
         trailing_context_text=trailing_context_text,
         user_message=user_message,
         input_files=input_files,
     )
 
-    source_history = [item for item in (history_messages or []) if isinstance(item, dict) and item.get("role") in {"user", "assistant"} and isinstance(item.get("content"), str) and item["content"].strip()]
-    while source_history and source_history[0]["role"] != "user":
-        source_history.pop(0)
-    message_history_ids = {id(message): str(item.get("history_id") or "") for message, item in zip(messages, source_history)}
     covered_history_ids: set[str] = set()
     if task_id:
-        message_history_ids[id(messages[-1])] = f"task-user:{task_id}"
+        message_history_ids[id(messages[-1])] = (f"task-user:{task_id}",)
 
     def _deliver_pending_steers(
         round_index: int,
@@ -1511,7 +1504,7 @@ def execute_cc_backend_task(
             content = build_anthropic_user_content(text, input_files=files or None)
             messages.append({"role": "user", "content": content})
             if item.get("message_id"):
-                message_history_ids[id(messages[-1])] = "message:" + str(item["message_id"])
+                message_history_ids[id(messages[-1])] = ("message:" + str(item["message_id"]),)
             delivered += 1
             append_cc_backend_trace(
                 artifact_workdir,
@@ -1892,9 +1885,10 @@ def execute_cc_backend_task(
             removed = [messages[index] for index in plan.summarize_message_indexes]
             new_covered = set(covered_history_ids)
             for message in removed:
-                origin_id = message_history_ids.get(id(message))
-                if origin_id:
-                    new_covered.add(origin_id)
+                origin_ids = message_history_ids.get(id(message), ())
+                new_covered.update(origin_ids)
+                if origin_ids and all(origin.startswith("tool:") for origin in origin_ids):
+                    continue
                 for block in message.get("content", []) if isinstance(message.get("content"), list) else []:
                     if block.get("type") in {"tool_use", "tool_result"}:
                         tool_id = str(block.get("id") or block.get("tool_use_id") or "")
@@ -1902,7 +1896,7 @@ def execute_cc_backend_task(
                             new_covered.add(f"tool:{task_id}:{tool_id}")
             try:
                 archive_path = Path(artifact_workdir) / ".session_compaction" / (compaction_id + "_" + str(time.time_ns()) + "_history.jsonl")
-                archive_summary_history(removed, archive_path, history_ids=[message_history_ids.get(id(message), "") for message in removed])
+                archive_summary_history(removed, archive_path, history_ids=[message_history_ids.get(id(message), ()) for message in removed])
                 summary_text = summarize_history(
                     removed, request=request_summary,
                     input_budget_tokens=max(512, context_window_tokens - min(summary_max_tokens * 2, max(512, context_window_tokens // 4)) - min(20000, max(1024, context_window_tokens // 20))),
@@ -1920,7 +1914,7 @@ def execute_cc_backend_task(
                     "reason": str(exc) if isinstance(exc, ValueError) else "summary_persistence_failed",
                 })
                 return False
-            preserved_origins = [(message_history_ids.get(id(messages[index]), ""), messages[index]) for index in plan.preserve_message_indexes]
+            preserved_origins = [(message_history_ids.get(id(messages[index]), ()), messages[index]) for index in plan.preserve_message_indexes]
             previous_count = len(messages)
             candidate_messages = build_compacted_messages(plan=plan, artifact=artifact, messages=messages)
             candidate_tokens = estimate_context_tokens(system_prompt=system_prompt, messages=candidate_messages, tools=tools)
@@ -3417,7 +3411,7 @@ def execute_cc_backend_task(
                     assistant_content.append(block)
             messages.append({"role": "assistant", "content": assistant_content})
             if task_id:
-                message_history_ids[id(messages[-1])] = f"round:{task_id}:{round_num + 1}"
+                message_history_ids[id(messages[-1])] = (f"round:{task_id}:{round_num + 1}",)
 
             # Execute tools and build tool_result blocks
             tool_results: list[dict[str, Any]] = []

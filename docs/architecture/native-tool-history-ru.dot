@@ -1,0 +1,16 @@
+digraph history {
+ graph [rankdir=TB, bgcolor="white", pad="0.35", nodesep="0.35", ranksep="0.45", fontname="DejaVu Sans", fontsize=20, labelloc=t, label="История инструментов между задачами"];
+ node [shape=box, style="rounded,filled", fillcolor="#eef5e9", color="#527244", fontname="DejaVu Sans", fontsize=13, margin="0.16"];
+ edge [color="#527244", arrowsize=0.75];
+ subgraph cluster_before { label="Было"; color="#aab5a4";
+  oldevents [label="Сохранённые события вызовов и результатов"]; flat [label="Текст от имени ассистента\nРоли вызова и результата теряются",fillcolor="#f7eeee"]; oldmodel [label="Локальная модель получает плоскую историю"];
+  oldevents -> flat -> oldmodel;
+ }
+ subgraph cluster_after { label="Стало"; color="#527244";
+  events [label="Сохранённые события вызовов и результатов"]; paired [label="Сопоставление завершённых пакетов\nID задач и вызовов, аргументы, порядок событий"]; gate [label="Для выбранной модели подтверждён llama.cpp?"];
+  native [label="Локальный llama.cpp\nНативные вызовы и связанные результаты"]; other [label="Облако / неизвестный backend / Responses\nПрежнее текстовое представление",fillcolor="#edf2f7"]; compact [label="Сжатие сохраняет все исходные ID\nЗавершённые пары остаются целыми",fillcolor="#f3f0df"]; model [label="Следующий запрос к модели"];
+  events -> paired -> gate; gate -> native; gate -> other; native -> compact -> model; other -> model;
+ }
+ oldmodel -> events [style=invis];
+ note [label="История не выполняет прежние действия повторно\nОбычный финальный текст остаётся допустимым",fillcolor="#f3f0df"]; model -> note;
+}

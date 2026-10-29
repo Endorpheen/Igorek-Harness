@@ -248,6 +248,7 @@ def normalize_trace_event(
                 "result_len": int(event.get("raw_result_len") or len(preview)),
                 "duration_ms": int(event.get("duration_ms") or 0),
                 "status": classify_tool_status(preview),
+                **({"succeeded": event["succeeded"]} if type(event.get("succeeded")) is bool else {}),
                 "stored_path": _stored_output_path(
                     artifact_workdir, str(event.get("tool_use_id") or "")
                 ),
