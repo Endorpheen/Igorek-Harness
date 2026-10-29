@@ -2370,6 +2370,11 @@ class Worker:
                 "priority_steer_provider": priority_steer_provider,
                 "approvals_enabled_provider": approvals_enabled_provider,
             }
+            from .runtime import profile_max_output_tokens
+
+            output_budget = profile_max_output_tokens(self.config)
+            if output_budget is not None:
+                executor_kwargs["max_output_tokens"] = output_budget
             if api_format == "openai":
                 from .runtime import profile_llama_cpp_reasoning_format
 

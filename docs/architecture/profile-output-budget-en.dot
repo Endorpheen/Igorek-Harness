@@ -1,0 +1,10 @@
+digraph budget {
+ graph [rankdir=TB,bgcolor="white",pad="0.4",nodesep="0.4",ranksep="0.45",fontname="DejaVu Sans",fontsize=21,labelloc=t,label="Per-profile output budget"];
+ node [shape=box,style="rounded,filled",fillcolor="#eef5e9",color="#527244",fontname="DejaVu Sans",fontsize=14,margin="0.18"];
+ edge [color="#527244"];
+ before [label="Before: task budget"]; old [label="Automatic scaling\nDefault capped at 32000",fillcolor="#f7eeee"];
+ option [label="After: profile max_output_tokens?"]; automatic [label="Absent / null\nExisting automatic behavior"]; explicit [label="Positive integer\nUse exact value, e.g. 65536"];
+ reserve [label="Reserve response space\nHost or isolated executor"]; request [label="Provider request\nReasoning + answer share output budget"]; note [label="Model context window is unchanged\nExisting provider/model limits still apply",fillcolor="#f3f0df"];
+ before -> old; old -> option [style=invis]; option -> automatic; option -> explicit;
+ automatic -> reserve; explicit -> reserve; reserve -> request -> note;
+}

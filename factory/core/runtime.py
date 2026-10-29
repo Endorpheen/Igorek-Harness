@@ -199,10 +199,18 @@ def get_profile_config(profile: str, profiles_dir: str | Path | None = None) -> 
         config.setdefault("model", config.get("model", ""))
         config["filesystem_mode"] = profile_filesystem_mode(config)
         config["checkpoints"] = profile_checkpoint_settings(config)
+        profile_max_output_tokens(config)
     else:
         raise ValueError(f"Unsupported backend in profile {profile}: {backend}")
 
     return config
+
+
+def profile_max_output_tokens(profile_config: dict) -> int | None:
+    """Read an exact per-request output budget; absent/null keeps auto-scaling."""
+    from .model_output_budget import optional_output_token_limit
+
+    return optional_output_token_limit(profile_config.get("max_output_tokens"))
 
 
 def profile_llama_cpp_reasoning_format(profile_config: dict) -> str | None:

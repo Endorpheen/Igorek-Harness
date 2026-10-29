@@ -441,6 +441,7 @@ class HostTaskInput:
     git_gateway: GitGatewayRoute | None = None
     apk_delivery_url: str = ""
     reasoning_format: str = ""
+    max_output_tokens: int | None = None
 
 
 def build_wire_task_payload(task: HostTaskInput) -> dict[str, JsonValue]:
@@ -466,6 +467,11 @@ def build_wire_task_payload(task: HostTaskInput) -> dict[str, JsonValue]:
         "artifact_workdir": task.artifact_workdir,
         "trailing_context_text": task.trailing_context_text,
     }
+    from ..model_output_budget import optional_output_token_limit
+
+    output_budget = optional_output_token_limit(task.max_output_tokens)
+    if output_budget is not None:
+        wire["max_output_tokens"] = output_budget
     for key, text in (
         ("reasoning_format", task.reasoning_format),
         ("current_session", task.current_session),
