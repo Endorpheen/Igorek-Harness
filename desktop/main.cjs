@@ -512,7 +512,7 @@ ipcMain.handle('igorek:opencode',async(event,operation)=>{
   }catch(error){return {...opencodeWorkspace.status(),error:error.message};}
 });
 ipcMain.handle('igorek:workspace-browser' ,async(event,operation,fields)=>{
-  if(!sessionMcp.trusted(event)||!['open','select','close','hide','layout','status','navigate','back','forward','reload','control','zoom','find','print','downloads','removeDownload','clearDownloads','openDownload','clear','stopVoice','resetMicrophone','webrtc','addFavorite','removeFavorite'].includes(operation))throw Error('Доступ запрещён.');
+  if(!sessionMcp.trusted(event)||!['open','select','close','hide','layout','status','navigate','back','forward','reload','control','zoom','find','print','downloads','removeDownload','clearDownloads','openDownload','clear','stopVoice','resetMicrophone','webrtc','addFavorite','removeFavorite','console','console_messages','console_clear'].includes(operation))throw Error('Доступ запрещён.');
   if(!workspaceBrowser)return {tabs:[],history:[],downloads:[]};
   const parent=BrowserWindow.fromWebContents(event.sender);
   if(operation==='open'||operation==='select'||operation==='downloads'||operation==='webrtc'){

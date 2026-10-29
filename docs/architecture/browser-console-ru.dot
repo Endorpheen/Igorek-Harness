@@ -1,0 +1,10 @@
+digraph console {
+ graph [rankdir=TB,bgcolor="white",pad="0.4",nodesep="0.35",ranksep="0.5",fontname="DejaVu Sans",fontsize=21,labelloc=t,label="Консоль встроенного браузера"];
+ node [shape=box,style="rounded,filled",fillcolor="#eef5e9",color="#527244",fontname="DejaVu Sans",fontsize=14,margin="0.2"];
+ edge [color="#527244"];
+ before_owner [label="Было: владелец открывает страницы",fillcolor="#f4eee6"]; before_agent [label="Агент: команды работы с DOM",fillcolor="#f4eee6"];
+ owner [label="Стало: видимая консоль >_"]; agent [label="Агент: действия console в desktop_browser"]; route [label="Приватный канал Desktop"]; guards [label="Проверка вкладки, блокировки и управления"];
+ page [label="JavaScript страницы / ограниченный результат"]; journal [label="Общий журнал сообщений страницы в RAM"]; note [label="При навигации журнал очищается; у страницы нет Node и моста владельца",fillcolor="#f3f0df"];
+ {rank=same;before_owner;before_agent;} before_owner->owner [style=dashed];before_agent->agent [style=dashed];
+ owner->route;agent->route;route->guards;guards->page;guards->journal;page->journal; journal->note;
+}

@@ -1,0 +1,61 @@
+'use strict';
+const {app,BrowserWindow,WebContentsView,session,ipcMain}=require('electron');
+const assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path'),vm=require('node:vm');
+const {WorkspaceBrowser}=require('../../workspace-browser.cjs');
+const root=fs.mkdtempSync(path.join(os.tmpdir(),'igorek-native-console-'));
+const output=process.env.IGOREK_TEST_OUTPUT||path.join(root,'proof');fs.mkdirSync(output,{recursive:true});
+app.setPath('userData',path.join(root,'electron'));app.disableHardwareAcceleration();
+const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+async function until(check){for(let n=0;n<100;n++){if(await check())return;await pause(30);}throw Error('fixture condition timed out');}
+async function run(){
+ await app.whenReady();
+ const preload=path.join(root,'preload.cjs');fs.writeFileSync(preload,"const {contextBridge,ipcRenderer}=require('electron');contextBridge.exposeInMainWorld('fixture',{call:(op,fields)=>ipcRenderer.invoke('igorek:workspace-browser',op,fields)});");
+ const win=new BrowserWindow({show:true,width:1100,height:850,webPreferences:{sandbox:true,contextIsolation:true,nodeIntegration:false,preload}});
+ const manager=new WorkspaceBrowser({root:path.join(root,'browser'),BrowserWindow,WebContentsView,session,dialog:{showMessageBox:async()=>({response:1})},shell:{}});manager.unlock();
+ const mainSource=fs.readFileSync(path.join(__dirname,'../../main.cjs'),'utf8');
+ vm.runInNewContext(mainSource.slice(mainSource.indexOf("ipcMain.handle('igorek:workspace-browser'"),mainSource.indexOf('async function completeQuotaReply')),{ipcMain,sessionMcp:{trusted:event=>event.sender===win.webContents},BrowserWindow,workspaceBrowser:manager,runtime:{requestOwner:async()=>({result:{state:'unlocked'}})}});
+ const component=fs.readFileSync(path.join(__dirname,'../../../factory/web_ui/static/browser-console.js'),'utf8');
+ const css=fs.readFileSync(path.join(__dirname,'../../../factory/web_ui/static/browser-console.css'),'utf8');
+ const html=path.join(root,'owner.html');fs.writeFileSync(html,`<!doctype html><style>body{margin:0;background:#171c19;color:#edf0ec;font:16px sans-serif}#host{height:800px;display:flex;flex-direction:column}#workspace-browser-surface{flex:1;min-height:0}button,textarea{font:inherit}${css}</style><div id="host"><h3>Browser console acceptance</h3><div id="workspace-browser-surface"></div></div><script>${component}</script><script>window.panel=IgorekBrowserConsole.create({host:document.querySelector('#host'),tabId:'one',call:fixture.call,onLayout:()=>fixture.call('layout',{})});</script>`);
+ await win.loadFile(html);
+ const tab=manager.create('one',win),wc=tab.view.webContents;
+ await wc.session.protocol.handle('https',request=>new Response('<!doctype html><title>Console fixture</title><body style="background:#203047;color:white"><h1>Embedded page</h1><canvas width="320" height="180"></canvas><script>console.warn("fixture-warning");</script>',{headers:{'content-type':'text/html',...(request.url.endsWith('/strict')?{'content-security-policy':"script-src 'none'; object-src 'none'"}:{})}}));
+ await manager.select('one',win);await wc.loadURL('https://console.example/fixture');await until(()=>!wc.isLoadingMainFrame());
+ const agent=fields=>manager.agent(win,fields),owner=(op,fields={})=>manager.action(win,op,{tab_id:'one',...fields});
+ const results=[];
+ const value=await agent({action:'console',expression:'({answer:6*7,title:document.title,node:typeof process,bridge:typeof fixture,canvas:document.querySelector("canvas").getBoundingClientRect()})'});
+ assert.equal(value.value?.answer,42,JSON.stringify(value));assert.equal(value.value.title,'Console fixture');assert.equal(value.value.node,'undefined');assert.equal(value.value.bridge,'undefined');assert.equal(value.value.canvas.width,320);
+ results.push('agent evaluates DOM/canvas without owner bridge or Node');
+ await agent({action:'console',expression:'console.error("fixture-error"); 1'});
+ const logs=await agent({action:'console_messages'});assert.ok(logs.entries.some(row=>row.message==='fixture-warning'),JSON.stringify(logs));assert.ok(logs.entries.some(row=>row.message==='fixture-error'&&row.level==='error'),JSON.stringify(logs));
+ const exception=await agent({action:'console',expression:'throw Error("fixture-throw")'});assert.equal(exception.error,'console_evaluation_error');assert.equal(exception.exception.message,'fixture-throw');
+ results.push('native warnings, errors and thrown exceptions are available');
+ for(const expression of ['while(true){}','new Promise(()=>{})']){
+  const timeout=await agent({action:'console',expression,timeout_ms:150});assert.equal(timeout.error,'console_timeout',JSON.stringify(timeout));assert.equal(wc.debugger.isAttached(),false);
+  assert.equal((await agent({action:'console',expression:'40+2'})).value,42);
+ }
+ results.push('synchronous and promise timeouts release debugger; next evaluation works');
+ wc.debugger.attach('1.3');assert.equal((await owner('console',{expression:'1'})).error,'console_debugger_busy');assert.equal(wc.debugger.isAttached(),true);wc.debugger.detach();
+ results.push('existing debugger ownership is preserved');
+ manager.controlSettings({require_handoff:true});assert.equal((await agent({action:'console',expression:'1'})).error,'browser_needs_owner');assert.equal((await owner('console',{expression:'2'})).value,2);manager.controlSettings({require_handoff:false});
+ assert.equal((await manager.action(win,'console',{tab_id:'missing',expression:'1'})).error,'browser_changed');
+ await assert.rejects(manager.action(new BrowserWindow({show:false}),'console',{tab_id:'one',expression:'1'}));
+ results.push('owner handoff and tab/window identity guards are enforced');
+ await win.webContents.executeJavaScript('panel.toggle()');await until(()=>win.webContents.executeJavaScript('document.querySelectorAll(".browser-console-line").length>0'));
+ await win.webContents.executeJavaScript(`document.querySelector('textarea').value='document.querySelector("h1").textContent="Changed by console"; 42';document.querySelector('form').requestSubmit();`);
+ await until(()=>win.webContents.executeJavaScript('document.querySelector("[role=status]").textContent===""&&document.querySelector("[role=log]").textContent.includes("42")'));
+ assert.equal((await agent({action:'console',expression:'document.querySelector("h1").textContent'})).value,'Changed by console');
+ await tab.layout();const bounds=tab.view.getBounds();const panelRect=await win.webContents.executeJavaScript('document.querySelector("section").getBoundingClientRect().toJSON()');assert.ok(bounds.y+bounds.height<=panelRect.y+2,JSON.stringify({bounds,panelRect}));
+ fs.writeFileSync(path.join(output,'console-panel.png'),(await win.webContents.capturePage()).toPNG());
+ results.push('visible panel executes JavaScript and resizes embedded view above its controls');
+ await win.webContents.executeJavaScript('document.querySelector("header button").click()');await until(()=>win.webContents.executeJavaScript('document.querySelector("[role=log]").textContent===""'));
+ assert.equal((await owner('console_messages')).entries.length,0);
+ const pending=agent({action:'console',expression:'new Promise(resolve=>setTimeout(()=>resolve("stale"),200))'});await pause(40);await wc.loadURL('https://console.example/next');assert.equal((await pending).error,'browser_changed');
+ await wc.loadURL('https://console.example/strict');await until(()=>!wc.isLoadingMainFrame());
+ assert.equal((await agent({action:'console',expression:'document.title + ":" + (40+2)'})).value,'Console fixture:42');
+ results.push('clear reaches journal; navigation discards pending result; strict page CSP permits console evaluation');
+ manager.lock();await assert.rejects(owner('console',{expression:'1'}));assert.equal((await agent({action:'console_messages'})).error,'desktop_locked');
+ fs.writeFileSync(path.join(output,'results.json'),JSON.stringify({status:'PASS',electron:process.versions.electron,results},null,2));
+ console.log(JSON.stringify({status:'PASS',results,output}));win.destroy();
+}
+run().then(()=>app.exit(0)).catch(error=>{console.error(error);app.exit(1);});

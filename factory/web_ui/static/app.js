@@ -8635,6 +8635,7 @@ let workspaceBrowserState = { tabs: [], history: [], downloads: [] };
 let workspaceBrowserSequence = Promise.resolve();
 let workspaceSurfaceObserver = null;
 let workspaceDownloadsView=null;
+let workspaceConsoleView=null;
 let workspaceChatTimer = 0;
 let workspaceChatGeneration = 0;
 let workspaceChatProfileChanged = null;
@@ -8644,7 +8645,7 @@ function workspaceBrowserCall(operation, fields = {}) {
   if (!window.IgorekDesktop?.workspaceBrowser) return Promise.resolve({ tabs: [], history: [], downloads: [] });
   const next = workspaceBrowserSequence.catch(() => {}).then(() => window.IgorekDesktop.workspaceBrowser(operation, fields));
   workspaceBrowserSequence = next;
-  return next.then(value => { workspaceBrowserState = value;renderWorkspaceFavorites();updateWorkspaceFavoriteButton();return value; });
+  return next.then(value => { if(['console','console_messages','console_clear'].includes(operation))return value; workspaceBrowserState = value;renderWorkspaceFavorites();updateWorkspaceFavoriteButton();return value; });
 }
 function workspaceGlyph(name) {
   const shapes = {
@@ -8845,6 +8846,7 @@ function workspaceAddress(host, tab, browser) {
   const form = element('form', 'workspace-url-form'), input = element('input'); input.id = 'workspace-url'; input.setAttribute('aria-label', lang === 'en' ? 'Search or enter URL' : 'Поиск или ввод URL'); input.placeholder = lang === 'en' ? 'Search or enter URL' : 'Поиск или ввод URL'; input.value = browser?.url ? new URL(browser.url).hostname : ''; input.dataset.url = browser?.url || ''; input.autocomplete = 'off'; input.spellcheck = false;
   input.addEventListener('focus', () => { input.value = input.dataset.url; input.select(); }); input.addEventListener('blur', () => { if (input.dataset.url) { try { input.value = new URL(input.dataset.url).hostname; } catch {} } }); form.append(input); form.addEventListener('submit', event => { event.preventDefault(); if (input.value.trim()) workspaceOpenSite(input.value.trim(), tab); }); toolbar.append(form);
   const utilities = element('div', 'workspace-utilities');
+  const consoleButton=element('button','workspace-icon-button','>_');consoleButton.type='button';consoleButton.title=lang==='en'?'Page console':'Консоль страницы';consoleButton.setAttribute('aria-label',consoleButton.title);consoleButton.disabled=tab.kind!=='browser';consoleButton.addEventListener('click',()=>workspaceConsoleView?.toggle());utilities.append(consoleButton);
   const control=element('button','workspace-agent-control');control.type='button';control.hidden=!workspaceBrowserState.require_handoff;control.textContent=workspaceBrowserState.manual?'◉ Вы':'◇ Агент';control.title=workspaceBrowserState.manual?'Передать управление агенту':'Забрать управление себе';control.setAttribute('aria-label',control.title);control.addEventListener('click',()=>workspaceBrowserCall('control',{manual:!workspaceBrowserState.manual}).catch(error=>toast(error.message,'error')));utilities.append(control);
   const favorite=element('button','workspace-icon-button workspace-favorite-current','☆');favorite.type='button';favorite.hidden=!browser?.url;favorite.title='Добавить в избранное';favorite.setAttribute('aria-label',favorite.title);favorite.addEventListener('click',()=>workspaceFavoriteDialog(workspaceBrowserState.tabs.find(item=>item.id===tab.id)||browser));utilities.append(favorite);
   const chats = element('button', 'workspace-icon-button workspace-chat-home'); chats.type='button'; chats.title='Чаты ChatGPT'; chats.setAttribute('aria-label',chats.title); chats.append(workspaceGlyph('chat')); chats.hidden=!window.IgorekWorkspaceTabs.isChatGPT(browser?.url); chats.addEventListener('click',()=>workspaceOpenSite(window.IgorekWorkspaceTabs.sites.chatgpt,tab)); utilities.append(chats);
@@ -8922,7 +8924,7 @@ function renderWorkspaceSpecial() {
   if(host.dataset.tab===tab.id&&tab.kind==='opencode'){window.IgorekOpenCode.resume();return;}
   if(host.dataset.tab===tab.id&&tab.kind==='downloads'){workspaceDownloadsView?.update(workspaceBrowserState);return;}
   if (host.dataset.tab === tab.id && host.dataset.kind === tab.kind && (tab.kind === 'chat' || tab.kind === 'plugins' || tab.kind === 'browser')) { updateWorkspaceBrowser(); return; }
-  workspaceSurfaceObserver?.disconnect(); window.IgorekPlugins?.unmount?.(); host.dataset.tab = tab.id; host.dataset.kind = tab.kind; host.replaceChildren();workspaceDownloadsView=null;
+  workspaceSurfaceObserver?.disconnect(); workspaceConsoleView?.destroy();workspaceConsoleView=null; window.IgorekPlugins?.unmount?.(); host.dataset.tab = tab.id; host.dataset.kind = tab.kind; host.replaceChildren();workspaceDownloadsView=null;
   if(tab.kind==='opencode'){window.IgorekOpenCode.mount(host,()=>state.panel.open&&state.panel.workspace.active===tab);return;}
   if(tab.kind==='downloads'){workspaceDownloadsView=window.IgorekDownloads.create({host,model:tab,call:workspaceBrowserCall,glyph:workspaceGlyph});return;}
   if (tab.kind === 'plugins') { window.IgorekPlugins?.mount?.(host); return; }
@@ -8932,6 +8934,7 @@ function renderWorkspaceSpecial() {
   if (tab.kind === 'browser') {
     const surface = element('div', 'workspace-browser-surface'); surface.id = 'workspace-browser-surface'; host.append(surface);
     workspaceSurfaceObserver = new ResizeObserver(() => workspaceBrowserCall('layout').catch(() => {})); workspaceSurfaceObserver.observe(surface);
+    workspaceConsoleView=window.IgorekBrowserConsole.create({host,tabId:tab.id,call:workspaceBrowserCall,lang,onLayout:()=>workspaceBrowserCall('layout').catch(()=>{})});
     workspaceBrowserCall('layout').catch(() => {}); return;
   }
   const home = element('div', 'workspace-home'); home.append(element('h2', '', lang === 'en' ? 'Tools' : 'Инструменты'));

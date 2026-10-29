@@ -1,3 +1,49 @@
+## 2026-10-29 — Embedded browser console, Desktop profile budget fix, 0.2.39
+
+The owner panel and native agent actions share an in-memory per-tab page-message
+journal. JavaScript runs in the page, with bounded serialization, owned debugger
+cleanup, execution deadlines and active-document/lock/handoff checks. Desktop
+profile validation now accepts only the validated max_output_tokens execution
+option outside the exact Vault provider binding. Existing provider fields are
+still checked, settings edits preserve the local option, and invalid startup
+profiles do not stop a running worker before validation.
+
+Apex implemented the journal and its 12 tests; independent review adopted both
+files byte-for-byte. Its tests found and fixed a sequence increment defect.
+An additional isolated Apex panel-test assignment was still debugging its own
+harness at source freeze. Its failing/incomplete draft was not adopted into the
+release; the native owner-panel acceptance below is independent. Helper tasks
+used ordinary tools; the second assignment's observed output budget was 65536
+and the verified sandbox Node path was supplied. These are model-helper coding
+checks, not a live-model acceptance of the installed console.
+
+Native Electron 44.9.3 on Linux passed seven scenario groups on synthetic HTTPS
+fixtures: DOM/canvas evaluation and absent host Node/owner bridge, real page
+warnings/errors/exceptions, synchronous and Promise deadlines with recovery,
+foreign-debugger ownership, manual/active-tab/window guards, production IPC routing, visible panel
+execution/layout/clear and stale-result rejection after navigation. Chromium
+reported an execution deadline as an internal inspector error; deadline-aware
+classification and awaited cleanup fix the confirmed behavior. Windows package
+CI runs the same native console scenario. A renderer-only screenshot records
+the panel; embedded-view placement is asserted from actual view/DOM bounds.
+
+Full isolated Python acceptance over both roots: 601 files,
+11912 collected, 11891 passed, 0 failed,
+0 errors, 21 existing platform skips and
+924 passed subtests. The changed Python sources match the
+full-run hashes. Coverage retains the existing native-artifact-directory
+limitation; no completeness percentage is claimed. The full Desktop suite passed 572 tests with zero failures. The production IPC
+regression reproduced one failure and one compatibility pass before the route
+allowlist fix, then both passed. Apex review and native output are retained in
+the ignored release evidence.
+Version metadata advances once after source acceptance; hosted final-head
+platform/package checks remain publication gates.
+
+No owner app, model server or gateway was restarted; no live Apex browser task
+was run. The owner will update and submit the separate console test himself.
+Profiles are not rewritten by the release. Evidence:
+`build/verification-browser-console-release-039`.
+
 ## 2026-10-29 — Per-profile output budgets, release 0.2.38
 
 CC-backend JSON profiles accept an optional positive integer `max_output_tokens`.

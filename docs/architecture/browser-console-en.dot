@@ -1,0 +1,10 @@
+digraph console {
+ graph [rankdir=TB,bgcolor="white",pad="0.4",nodesep="0.35",ranksep="0.5",fontname="DejaVu Sans",fontsize=21,labelloc=t,label="Embedded browser console"];
+ node [shape=box,style="rounded,filled",fillcolor="#eef5e9",color="#527244",fontname="DejaVu Sans",fontsize=14,margin="0.2"];
+ edge [color="#527244"];
+ before_owner [label="Before: owner navigates pages",fillcolor="#f4eee6"]; before_agent [label="Agent: DOM interaction tools",fillcolor="#f4eee6"];
+ owner [label="After: visible >_ console"]; agent [label="Agent: desktop_browser console actions"]; route [label="Private Desktop routing"]; guards [label="Active tab + lock + handoff checks"];
+ page [label="Page JavaScript / bounded results"]; journal [label="Shared page-message journal in RAM"]; note [label="Navigation clears messages; page has no host Node or owner bridge",fillcolor="#f3f0df"];
+ {rank=same;before_owner;before_agent;} before_owner->owner [style=dashed];before_agent->agent [style=dashed];
+ owner->route;agent->route;route->guards;guards->page;guards->journal;page->journal; journal->note;
+}

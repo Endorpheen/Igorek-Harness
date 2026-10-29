@@ -14,6 +14,12 @@ class WorkspaceAgent extends DesktopBrowser {
     this.stopping=this.blocked||this.manual;
   }
   ensure(){if(!this.view?.webContents||this.view.webContents.isDestroyed())throw Error('browser_closed');}
+  consoleAccess(contents){
+    if(this.manager.blocked)return 'desktop_locked';
+    if(this.manager.requireHandoff&&this.manager.manual)return 'browser_needs_owner';
+    if(this.manager.tabs.get(this.manager.active)?.view?.webContents!==contents)return 'browser_changed';
+    return super.consoleAccess(contents);
+  }
   status(){
     const manager=this.manager,tabs=[...manager.tabs].filter(([,tab])=>!tab.view.webContents.isDestroyed()).map(([id,tab])=>({id,title:tab.view.webContents.getTitle().slice(0,160)||'Новая вкладка',url:tab.view.webContents.getURL(),active:id===manager.active}));
     const current=tabs.find(tab=>tab.active)||tabs.find(tab=>tab.id===manager.lastActive);

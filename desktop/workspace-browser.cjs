@@ -5,6 +5,7 @@ const {ChatGPTPermissions}=require('./chatgpt-permissions.cjs');
 const {DownloadHistory,LIMIT}=require('./download-history.cjs');
 const fs=require('node:fs');
 const {WorkspaceAgent}=require('./workspace-agent.cjs');
+const {consoleFor,validConsole}=require('./browser-console.cjs');
 const {BrowserFavorites}=require('./browser-favorites.cjs');
 class WorkspaceBrowser {
   constructor(options){this.options=options;this.permissions=new ChatGPTPermissions(options.root);this.tabs=new Map();this.active=null;this.parent=null;this.history=[];this.downloadHistory=new DownloadHistory(options.root);this.downloads=[];this.sessions=new Set();this.blocked=true;this.sequence=0;
@@ -21,6 +22,7 @@ class WorkspaceBrowser {
     const tab=new ChatGPTWorkspace({...this.options,permissions:this.permissions,root:path.join(this.options.root,'web'),startURL:'',urlAllowed:value=>Boolean(pageUrl(value))||value==='about:blank',surfaceSelector:'#workspace-browser-surface',openPopup:url=>{if(!this.blocked&&this.parent&&!this.parent.isDestroyed())this.parent.webContents.send('igorek:workspace-popup',url);}});
     tab.notify=()=>this.publish();tab.unlock();tab.ensure();
     const wc=tab.view.webContents,ses=wc.session;
+    consoleFor(wc);
     if(!this.sessions.has(ses)){
       this.sessions.add(ses);
       ses.on('will-download',(event,item,contents)=>{
@@ -138,6 +140,20 @@ class WorkspaceBrowser {
       await this.select(fields.id,parent);tab.view.webContents.loadURL(fields.url).catch(()=>this.publish());return this.status();
     }
     if(this.parent!==parent)throw Error('Доступ запрещён.');
+    if(['console','console_messages','console_clear'].includes(operation)){
+      const {tab_id,...payload}=fields;
+      if(typeof tab_id!=='string'||tab_id!==this.active||'action'in payload)return {error:'browser_changed'};
+      const request={...payload,action:operation};
+      if(!validConsole(request))return {error:'invalid_request'};
+      const tab=this.tabs.get(tab_id),wc=tab?.view?.webContents,sequence=this.sequence;
+      const check=()=>{
+        if(this.blocked)return 'desktop_locked';
+        if(this.parent!==parent||parent.isDestroyed()||this.sequence!==sequence||this.active!==tab_id||this.tabs.get(tab_id)?.view?.webContents!==wc||!wc||wc.isDestroyed())return 'browser_changed';
+        if(!pageUrl(wc.getURL()))return 'invalid_url';
+        return null;
+      };
+      const denied=check();return denied?{error:denied}:consoleFor(wc).run(request,check);
+    }
     if(operation==='close'){
       const tab=this.tabs.get(fields.id);tab?.lock();this.tabs.delete(fields.id);if(this.active===fields.id)this.active=null;this.publish();return this.status();
     }
