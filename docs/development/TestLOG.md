@@ -36,8 +36,14 @@ limitation; no completeness percentage is claimed. The full Desktop suite passed
 regression reproduced one failure and one compatibility pass before the route
 allowlist fix, then both passed. Apex review and native output are retained in
 the ignored release evidence.
-Version metadata advances once after source acceptance; hosted final-head
-platform/package checks remain publication gates.
+The first Windows installer acceptance then found the console modules absent
+from the shared APP_FILES packaging allowlist. A new CommonJS dependency-closure
+regression reproduced one failure with eight compatibility passes, then the
+shared inventory was corrected for both targets. Focused inventory, staging,
+web-tool and Linux packaging checks then passed 145 tests. This packaging-only correction
+is verified by focused packaging checks and all final-head hosted CI; the full
+local Python counts above describe the preceding source acceptance. Version
+metadata advances once; platform/package checks remain publication gates.
 
 No owner app, model server or gateway was restarted; no live Apex browser task
 was run. The owner will update and submit the separate console test himself.
