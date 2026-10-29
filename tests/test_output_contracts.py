@@ -358,13 +358,12 @@ class OutputContractsTest(unittest.TestCase):
         ):
             self.assertFalse(_bash_web_redirect_enabled("", base_url))
 
-    def test_bash_web_redirect_enabled_for_local_backend_by_default(self):
-        self.assertTrue(
-            _bash_web_redirect_enabled("", "http://127.0.0.1:8001/v1")
-        )
-        self.assertTrue(
-            _bash_web_redirect_enabled("", "http://localhost:8001/v1")
-        )
+    def test_bash_web_redirect_requires_confirmed_local_backend(self):
+        from factory.core.model_backend_capabilities import ModelBackendCapabilities
+        for url in ("http://127.0.0.1:8001/v1", "http://localhost:8001/v1"):
+            self.assertFalse(_bash_web_redirect_enabled("", url))
+            self.assertTrue(_bash_web_redirect_enabled("", url,
+                capabilities=ModelBackendCapabilities("llama_cpp", None, url, "fixture"), model="fixture"))
 
     def test_bash_web_redirect_respects_explicit_profile_flag(self):
         def fake_get_profile_config(profile):

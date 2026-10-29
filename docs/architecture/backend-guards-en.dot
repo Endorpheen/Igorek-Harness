@@ -1,0 +1,10 @@
+digraph backend {
+ graph [rankdir=TB, bgcolor="white", pad="0.35", nodesep="0.4", ranksep="0.55", fontname="DejaVu Sans", fontsize=20, label="Backend-scoped model repairs", labelloc=t];
+ node [shape=box, style="rounded,filled", fillcolor="#eef5e9", color="#527244", fontname="DejaVu Sans", fontsize=14, margin="0.18"];
+ edge [color="#527244", arrowsize=0.8];
+ subgraph cluster_before { label="Before"; color="#aab5a4"; oldurl [label="Endpoint address"]; oldguard [label="localhost: history recovery\nand default web redirection"]; oldimage [label="Separate image capability probe"]; oldurl -> oldguard; oldurl -> oldimage; }
+ subgraph cluster_after { label="After"; color="#527244"; metadata [label="Selected model metadata"]; identity [label="Task-scoped backend identity\nand vision capability"]; llama [label="Confirmed llama.cpp\nHistory / images / web policy"]; other [label="Cloud or unknown\nOriginal provider behavior",fillcolor="#edf2f7"]; metadata -> identity; identity -> llama; identity -> other; }
+ oldguard -> metadata [style=invis]; oldimage -> metadata [style=invis];
+ protocol [label="Common protocol checks\nOutput limits, result IDs and tool outcomes",fillcolor="#f3f0df"];
+ llama -> protocol; other -> protocol;
+}

@@ -28,14 +28,14 @@ from .checkpoint_manager import CheckpointManager
 from .cc_backend_tools import execute_tool, get_tool_schemas, needs_approval
 from .multimodal_payload import build_anthropic_user_content
 from .llama_image_input import LlamaImageInput
+from .model_backend_capabilities import ModelBackendCapabilities
 from .local_history_output import HistoricalToolEchoFilter, contains_historical_tool_echo, local_history_guard_enabled
 from .post_turn_guards import (
     APPROVAL_REQUIRED,
-    CORRECTION_REQUIRED,
     RETRY_REQUIRED,
-    evaluate_fact_check_guard,
     evaluate_text_completion_guards,
 )
+from .tool_result_outcome import ToolResultText, tool_result_succeeded
 from .session_budget import (
     DECISION_FORCE_SYNTHESIS,
     REASON_REPEATED_TOOL_LOOP,
@@ -543,7 +543,8 @@ def _missing_required_tool_fields(
     ]
 
 
-def _bash_web_redirect_enabled(profile: str, base_url: str) -> bool:
+def _bash_web_redirect_enabled(profile: str, base_url: str, *,
+                               capabilities: ModelBackendCapabilities | None = None, model: str = "") -> bool:
     try:
         from .runtime import get_profile_config
 
@@ -554,11 +555,7 @@ def _bash_web_redirect_enabled(profile: str, base_url: str) -> bool:
     if isinstance(explicit, bool):
         return explicit
 
-    try:
-        host = urllib.parse.urlparse(str(base_url or "")).hostname or ""
-    except Exception:
-        host = ""
-    return host.lower() in {"localhost", "127.0.0.1", "0.0.0.0", "::1"}
+    return local_history_guard_enabled(base_url, capabilities=capabilities, model=model)
 
 
 def _redirect_bash_web(
@@ -609,22 +606,9 @@ def _redirect_bash_web(
     return None
 
 
-def _result_indicates_success(result_text: str) -> bool:
-    """Check if a tool result is productive (not an error/loop/empty)."""
-    if not result_text or len(result_text.strip()) < 5:
-        return False
-    lowered = result_text.lower()
-    if "loop detected" in lowered:
-        return False
-    if '"success": false' in lowered or '"success":false' in lowered:
-        return False
-    if '"detail":{"error"' in lowered:
-        return False
-    if '"success": true' in lowered or '"success":true' in lowered:
-        return True
-    if "successfully" in lowered:
-        return True
-    return len(result_text.strip()) > 100
+def _result_indicates_success(result_text: str, *, tool_name: str = "") -> bool | None:
+    """Read a tool execution receipt or structured envelope, otherwise abstain."""
+    return tool_result_succeeded(result_text, tool_name=tool_name)
 
 
 def _tool_result_error(result_text: str) -> str | None:
@@ -947,6 +931,42 @@ def _is_prompt_too_long_error(error_text: str) -> bool:
     )
 
 
+def _request_tool_result_ids(messages: object) -> list[str]:
+    """Identify result receipts in the actual provider request, not free text."""
+    ids = set()
+    for message in messages if isinstance(messages, list) else []:
+        if not isinstance(message, dict):
+            continue
+        if message.get("role") == "tool" and isinstance(message.get("tool_call_id"), str):
+            ids.add(message["tool_call_id"])
+        content = message.get("content")
+        for block in content if isinstance(content, list) else []:
+            if isinstance(block, dict) and block.get("type") == "tool_result" and isinstance(block.get("tool_use_id"), str):
+                ids.add(block["tool_use_id"])
+    return sorted(ids - {""})
+
+
+def _model_output_limited(body: object) -> bool:
+    return isinstance(body, dict) and body.get("stop_reason") in ("max_tokens", "length")
+
+
+def _output_limit_failure(*, workdir, partial_text, usage, tool_calls_count):
+    """Preserve visible partial output without admitting unfinished tool calls."""
+    notice = "Ответ модели обрезан лимитом генерации. Задача не завершена; недополученные вызовы инструментов не выполнялись."
+    append_cc_backend_trace(workdir, {
+        "kind": CcTraceEvent.TASK_FINISH, "status": "fail",
+        "reason": "model_output_limit", "tool_calls_count": tool_calls_count,
+        "partial_text_len": len(partial_text),
+    })
+    return {
+        "status": "fail", "failure_reason": "model_output_limit",
+        "failure_details": "Provider stopped generation at its output token limit.",
+        "output_text": f"{partial_text}\n\n{notice}" if partial_text else notice,
+        "partial_output_text": partial_text, "usage": usage,
+        "tool_calls_count": tool_calls_count,
+    }
+
+
 def _terminal_response_text_and_usage(body: Any) -> tuple[str, dict[str, int]]:
     if not isinstance(body, dict):
         return "", {}
@@ -957,6 +977,8 @@ def _terminal_response_text_and_usage(body: Any) -> tuple[str, dict[str, int]]:
             value = raw_usage.get(key)
             if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
                 usage[key] = value
+    if _model_output_limited(body):
+        return "", usage
     content = body.get("content")
     if not isinstance(content, list):
         return "", usage
@@ -1143,6 +1165,9 @@ def _make_synthesis_call(
 
     if isinstance(body, dict) and body.get("error"):
         log_fn(f"[cc-backend] Synthesis call failed: {safe_text(body['error'])}")
+        append_cc_backend_trace(workdir, {
+            "kind": CcTraceEvent.TASK_FINISH, "status": "fail", "reason": "synthesis_http_error",
+        })
         return {
             "status": "fail",
             "output_text": safe_text(body["error"]),
@@ -1153,6 +1178,14 @@ def _make_synthesis_call(
     output_text, usage = _terminal_response_text_and_usage(body)
     total_input_tokens += usage.get("input_tokens", 0)
     total_output_tokens += usage.get("output_tokens", 0)
+    if _model_output_limited(body):
+        return _output_limit_failure(
+            workdir=workdir,
+            partial_text="\n".join(str(block.get("text") or "") for block in body.get("content", [])
+                                   if isinstance(block, dict) and block.get("type") == "text"),
+            usage=_usage(total_input_tokens, total_output_tokens, start_time),
+            tool_calls_count=tool_calls_count,
+        )
     if not isinstance(body, dict) or not isinstance(body.get("content"), list):
         diagnostic = observation(
             "PROTOCOL.INVALID_RESPONSE", component="model", operation="model_round",
@@ -1429,7 +1462,10 @@ def execute_cc_backend_task(
     image_input = LlamaImageInput(
         base_url, model, headers, enabled=api_format in {"openai", "anthropic"}
     )
-    guard_local_history = local_history_guard_enabled(base_url, api_format)
+    backend_capabilities = image_input.resolve()
+    guard_local_history = local_history_guard_enabled(
+        base_url, api_format, capabilities=backend_capabilities, model=model
+    )
     local_history_rejections = 0
     messages: list[dict[str, Any]] = _build_initial_messages(
         history_messages=history_messages,
@@ -1964,7 +2000,6 @@ def execute_cc_backend_task(
                     "approval_blocked_tools": blocked, "output_text": "Дочерний агент ожидает подтверждения.",
                     "usage": _current_usage(), "tool_calls_count": tool_calls_count}
 
-        last_round_tool_results: list[dict[str, Any]] = []
         forced_tool_call = task_metadata.get("forced_tool_call")
         if isinstance(forced_tool_call, dict):
             forced_name = str(forced_tool_call.get("name") or "").strip()
@@ -2647,6 +2682,7 @@ def execute_cc_backend_task(
                         trace_dir=artifact_workdir,
                         round_num=round_num,
                         parent_task_id=parent_task_id,
+                        backend_capabilities=backend_capabilities,
                         cancel_check=lambda: (
                             is_interrupt_requested() or _is_task_cancelling()
                         ),
@@ -2839,6 +2875,12 @@ def execute_cc_backend_task(
                     "http_error": str(body.get("error") or "")
                     if isinstance(body, dict)
                     else "",
+                    "backend_kind": backend_capabilities.backend,
+                    "stop_reason": body.get("stop_reason"),
+                    "consumed_tool_result_ids": (
+                        _request_tool_result_ids(payload.get("messages"))
+                        if not _model_output_limited(body) and not history_echo else []
+                    ),
                     "content_types": [
                         str(block.get("type") or "")
                         for block in content_blocks
@@ -2850,6 +2892,13 @@ def execute_cc_backend_task(
                     "text_full": "" if history_echo else output_text_preview,
                 },
             )
+
+            if _model_output_limited(body):
+                return _output_limit_failure(
+                    workdir=artifact_workdir,
+                    partial_text="" if history_echo else output_text_preview,
+                    usage=_current_usage(), tool_calls_count=tool_calls_count,
+                )
 
             if history_echo:
                 local_history_rejections += 1
@@ -3372,7 +3421,7 @@ def execute_cc_backend_task(
 
             # Execute tools and build tool_result blocks
             tool_results: list[dict[str, Any]] = []
-            round_productive = False
+            round_outcomes: list[bool | None] = []
             round_has_web_tool = False
             schedule_confirmation: str | None = None
             for tool_index, tool_block in enumerate(tool_use_blocks):
@@ -3380,6 +3429,7 @@ def execute_cc_backend_task(
                 tool_input = tool_block.get("input", {})
                 tool_use_id = tool_block.get("id", "")
                 tool_started_at = time.monotonic()
+                execution_completed = False
 
                 log_fn(f"[cc-backend] Executing tool: {tool_name}")
 
@@ -3389,7 +3439,7 @@ def execute_cc_backend_task(
                 if tool_name == "Bash":
                     redirected = _redirect_bash_web(
                         tool_input,
-                        enabled=_bash_web_redirect_enabled(profile, base_url),
+                        enabled=_bash_web_redirect_enabled(profile, base_url, capabilities=backend_capabilities, model=model),
                     )
                     if redirected is not None:
                         effective_name, effective_input = redirected
@@ -3423,6 +3473,7 @@ def execute_cc_backend_task(
                 elif effective_name.startswith("fal_") and effective_name in fal_tools_already_executed:
                     previous = last_fal_result.get(effective_name, "")
                     result_text = previous
+                    execution_completed = True
                     log_fn(f"[cc-backend] Tool blocked (already executed): {effective_name}")
                 elif _requires_approval(
                     str(effective_name or ""),
@@ -3603,6 +3654,7 @@ def execute_cc_backend_task(
                     **({"goal_control_provider": goal_control_provider} if goal_control_provider is not None else {}),
                     user_message=user_message,
                             )
+                            execution_completed = True
                             if effective_name == "suggest_enable_mcp":
                                 refresh_hot_reloaded_mcp_tools(str(result_text))
                             if effective_name == "update_plan" and result_text == "Plan updated":
@@ -3618,7 +3670,7 @@ def execute_cc_backend_task(
                                 fal_tools_already_executed.add(effective_name)
                                 last_fal_result[effective_name] = str(result_text)
                         except Exception as exc:
-                            result_text = f"Error executing {effective_name}: {exc}"
+                            result_text = ToolResultText(f"Error executing {effective_name}: {exc}", False)
                             log_fn(f"[cc-backend] Tool error ({effective_name}): {exc}")
 
                         if progress_callback:
@@ -3634,12 +3686,17 @@ def execute_cc_backend_task(
                                 pass
 
                     if tool_name == "Bash" and effective_name != tool_name:
+                        redirected_outcome = _result_indicates_success(result_text, tool_name=effective_name)
                         result_text = (
                             f"[Redirected: curl/wget -> {effective_name}. "
                             "Use the dedicated web tools directly instead of Bash curl.]\n\n"
                             f"{result_text}"
                         )
+                        if redirected_outcome is not None:
+                            result_text = ToolResultText(result_text, redirected_outcome)
 
+                if not execution_completed:
+                    result_text = ToolResultText(result_text, False)
                 raw_result_text = result_text
                 delegated_approval = _delegated_approval(effective_name, raw_result_text)
                 if delegated_approval is not None:
@@ -3668,8 +3725,8 @@ def execute_cc_backend_task(
                     }
                 if _is_create_schedule_call(str(tool_name or "")):
                     schedule_confirmation = _schedule_created_message(raw_result_text)
-                if _result_indicates_success(raw_result_text):
-                    round_productive = True
+                result_succeeded = _result_indicates_success(raw_result_text, tool_name=effective_name)
+                round_outcomes.append(result_succeeded)
                 result_text = maybe_persist_tool_result(
                     content=result_text,
                     tool_name=tool_name,
@@ -3693,6 +3750,7 @@ def execute_cc_backend_task(
                         "tool_input": tool_input
                         if isinstance(tool_input, dict)
                         else {},
+                        "succeeded": result_succeeded,
                         "raw_result_len": len(raw_result_text),
                         "raw_result_preview": raw_result_text[:500],
                         "result_for_model_len": len(result_text),
@@ -3802,6 +3860,7 @@ def execute_cc_backend_task(
                         "tool_use_id": tool_use_id,
                         "tool_name": tool_name,
                         "bounded": effective_name == "Read",
+                        **({"is_error": True} if result_succeeded is False else {}),
                         "content": result_text,
                     }
                 )
@@ -3850,8 +3909,14 @@ def execute_cc_backend_task(
                     }
                 )
 
+            round_productive = (
+                True if any(value is True for value in round_outcomes)
+                else None if any(value is None for value in round_outcomes)
+                else False
+            )
+            # Unknown outcomes must not prompt a false failure recovery.
             # After a web-tool result, the model is directed to the next correct action.
-            if round_has_web_tool:
+            if round_has_web_tool and round_productive is not None:
                 if round_productive:
                     tool_results.append(
                         {
@@ -3903,20 +3968,6 @@ def execute_cc_backend_task(
                         "snapshot": budget_decision.details,
                     },
                 )
-                append_cc_backend_trace(
-                    artifact_workdir,
-                    {
-                        "kind": CcTraceEvent.TASK_FINISH,
-                        "status": "ok",
-                        "reason": f"stuck_{reason}",
-                        "rounds": round_num + 1,
-                        "tool_calls_count": tool_calls_count,
-                        "consecutive_same_batch": session_budget.consecutive_same_tool_batch,
-                        "consecutive_non_productive": session_budget.consecutive_non_productive,
-                        "has_useful_result": session_budget.has_useful_result,
-                        "session_budget": budget_decision.details,
-                    },
-                )
                 # Add tool results so model sees them in synthesis call
                 messages.append({"role": "user", "content": tool_results})
                 return _make_synthesis_call(
@@ -3935,54 +3986,6 @@ def execute_cc_backend_task(
                     tool_calls_count=tool_calls_count,
                     is_openai_api=is_openai_api,
                 )
-
-            # Save tool results for fact-check before adding to messages
-            last_round_tool_results = list(tool_results)
-
-            # Fact-check: if model hallucinated in previous text response
-            if round_num >= 0 and text_parts and tool_results:
-                model_text = "\n".join(text_parts)
-                fact_guard = evaluate_fact_check_guard(
-                    tool_results=tool_results,
-                    model_text=model_text,
-                    log_fn=log_fn,
-                )
-                append_cc_backend_trace(
-                    artifact_workdir,
-                    {
-                        "kind": CcTraceEvent.POST_TURN_VERDICT,
-                        "round": round_num,
-                        "action": fact_guard.action,
-                        "reason": fact_guard.reason,
-                    },
-                )
-                if fact_guard.action == CORRECTION_REQUIRED:
-                    session_budget.record_fact_check_correction()
-                    log_fn(f"[cc-backend] Fact-check: model hallucinated, adding correction")
-                    append_cc_backend_trace(
-                        artifact_workdir,
-                        {
-                            "kind": CcTraceEvent.FACT_CHECK_CORRECTION_FORCED,
-                            "round": round_num,
-                            "model_text": model_text[:200],
-                        },
-                    )
-                    tool_results = [
-                        {
-                            "type": "tool_result",
-                            "tool_name": "ERROR",
-                            "content": fact_guard.correction_message,
-                        }
-                    ]
-                else:
-                    log_fn(f"[cc-backend] Fact-check: passed, model used tool_result correctly")
-                    append_cc_backend_trace(
-                        artifact_workdir,
-                        {
-                            "kind": CcTraceEvent.FACT_CHECK_PASSED,
-                            "round": round_num,
-                        },
-                    )
 
             # Add tool results as user message
             messages.append({"role": "user", "content": tool_results})
@@ -4401,6 +4404,7 @@ def _http_post_streaming_openai(
     round_num: int = 0,
     parent_task_id: str | None = None,
     cancel_check=None,
+    backend_capabilities: ModelBackendCapabilities | None = None,
 ) -> tuple[dict, int]:
     """SSE streaming POST for OpenAI-compatible APIs.
 
@@ -4467,7 +4471,9 @@ def _http_post_streaming_openai(
     content_parts: list[str] = []
     reasoning_parts: list[str] = []
     content_splitter = TaggedReasoningSplitter()
-    history_filter = HistoricalToolEchoFilter() if local_history_guard_enabled(url) else None
+    history_filter = HistoricalToolEchoFilter() if local_history_guard_enabled(
+        url, capabilities=backend_capabilities, model=payload.get("model", "")
+    ) else None
 
     def accept_content(parts: list[tuple[str, str]]) -> None:
         for kind, value in parts:

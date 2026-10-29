@@ -1,9 +1,7 @@
 """Keep unquoted internal history records out of local model answers."""
 from __future__ import annotations
 
-from urllib.parse import urlsplit
-
-from .local_model_context import is_loopback_model_url
+from .model_backend_capabilities import ModelBackendCapabilities
 
 
 _MARKERS = (
@@ -13,14 +11,12 @@ _MARKERS = (
 )
 
 
-def local_history_guard_enabled(base_url: str, api_format: str = "openai") -> bool:
-    if api_format not in {"openai", "anthropic"}:
-        return False
-    try:
-        target = urlsplit(base_url)
-        return is_loopback_model_url(target._replace(query="", fragment="").geturl())
-    except ValueError:
-        return False
+def local_history_guard_enabled(base_url: str, api_format: str = "openai", *,
+                                capabilities: ModelBackendCapabilities | None = None, model: str = "") -> bool:
+    return (api_format in {"openai", "anthropic"}
+            and isinstance(capabilities, ModelBackendCapabilities)
+            and capabilities.backend == "llama_cpp"
+            and capabilities.matches(base_url, model))
 
 
 class HistoricalToolEchoFilter:

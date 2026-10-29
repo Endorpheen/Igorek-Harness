@@ -21,6 +21,8 @@ from contextlib import ExitStack
 from threading import RLock
 from typing import Any, Callable
 
+from .tool_result_outcome import ToolResultText
+
 logger = logging.getLogger(__name__)
 
 
@@ -170,19 +172,19 @@ class ToolRegistry:
         """
         entry = self._tools.get(name)
         if not entry:
-            return json.dumps({"error": f"Unknown tool: {name}"})
+            return ToolResultText(json.dumps({"error": f"Unknown tool: {name}"}), False)
         try:
             with ExitStack() as stack:
                 for guard in self.execution_guards():
                     error = stack.enter_context(guard.lease(name, args, kwargs))
                     if error:
-                        return json.dumps(error, ensure_ascii=False)
+                        return ToolResultText(json.dumps(error, ensure_ascii=False), False)
                 return entry.handler(args, **kwargs)
         except Exception as e:
             logger.error("Tool %s dispatch error: %s: %s", name, type(e).__name__, e)
-            return json.dumps(
+            return ToolResultText(json.dumps(
                 {"error": f"Tool execution failed: {type(e).__name__}: {e}"}
-            )
+            ), False)
 
     # ------------------------------------------------------------------
     # Query helpers

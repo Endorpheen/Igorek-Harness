@@ -1,0 +1,10 @@
+digraph backend {
+ graph [rankdir=TB, bgcolor="white", pad="0.35", nodesep="0.4", ranksep="0.55", fontname="DejaVu Sans", fontsize=20, label="Исправления по типу backend", labelloc=t];
+ node [shape=box, style="rounded,filled", fillcolor="#eef5e9", color="#527244", fontname="DejaVu Sans", fontsize=14, margin="0.18"];
+ edge [color="#527244", arrowsize=0.8];
+ subgraph cluster_before { label="Было"; color="#aab5a4"; oldurl [label="Адрес подключения"]; oldguard [label="localhost: восстановление истории\nи замена веб-команд"]; oldimage [label="Отдельная проверка изображений"]; oldurl -> oldguard; oldurl -> oldimage; }
+ subgraph cluster_after { label="Стало"; color="#527244"; metadata [label="Метаданные выбранной модели"]; identity [label="Тип backend и поддержка изображений\nв пределах одной задачи"]; llama [label="Подтверждённый llama.cpp\nИстория / изображения / веб-политика"]; other [label="Облако или неизвестный backend\nПрежнее поведение подключения",fillcolor="#edf2f7"]; metadata -> identity; identity -> llama; identity -> other; }
+ oldguard -> metadata [style=invis]; oldimage -> metadata [style=invis];
+ protocol [label="Общие проверки протокола\nЛимиты ответа, ID результатов и статусы",fillcolor="#f3f0df"];
+ llama -> protocol; other -> protocol;
+}

@@ -52,6 +52,7 @@ class SessionBudget:
     persisted_tool_results: int = 0
     productive_rounds: int = 0
     non_productive_rounds: int = 0
+    unknown_outcome_rounds: int = 0
     consecutive_non_productive: int = 0
     has_useful_result: bool = False
     consecutive_same_tool_batch: int = 0
@@ -80,8 +81,11 @@ class SessionBudget:
         if PERSISTED_OUTPUT_TAG in model:
             self.persisted_tool_results += 1
 
-    def record_round_productivity(self, productive: bool) -> None:
-        if productive:
+    def record_round_productivity(self, productive: bool | None) -> None:
+        if productive is None:
+            self.unknown_outcome_rounds += 1
+            self.consecutive_non_productive = 0
+        elif productive:
             self.productive_rounds += 1
             self.has_useful_result = True
             self.consecutive_non_productive = 0
@@ -152,6 +156,7 @@ class SessionBudget:
             "persisted_tool_results": self.persisted_tool_results,
             "productive_rounds": self.productive_rounds,
             "non_productive_rounds": self.non_productive_rounds,
+            "unknown_outcome_rounds": self.unknown_outcome_rounds,
             "consecutive_non_productive": self.consecutive_non_productive,
             "has_useful_result": self.has_useful_result,
             "consecutive_same_tool_batch": self.consecutive_same_tool_batch,

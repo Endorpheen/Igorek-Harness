@@ -175,7 +175,7 @@ def evaluate_fact_check_guard(
     model_text: str,
     log_fn=None,
 ) -> FactCheckGuardVerdict:
-    """Return a structured verdict for post-tool-result factual consistency."""
+    """Legacy compatibility adapter; unbound prose is not fact-checkable."""
     needs_correction, error_msg = check_tool_result_fact(tool_results, model_text, log_fn)
     if needs_correction:
         return FactCheckGuardVerdict(

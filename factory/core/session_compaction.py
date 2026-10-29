@@ -516,7 +516,7 @@ def _tool_result_id(event: dict[str, Any]) -> str:
 
 
 def _is_failed_tool_result(event: dict[str, Any]) -> bool:
-    if event.get("is_error") is True or event.get("ok") is False:
+    if event.get("succeeded") is False or event.get("is_error") is True or event.get("ok") is False:
         return True
     status = str(event.get("status") or "").lower()
     if status in {"error", "failed", "failure"}:
@@ -711,6 +711,16 @@ def read_compaction_guards(artifact_dir: str) -> list[dict[str, Any]]:
             continue
         if not isinstance(event, dict):
             continue
+        if (event.get("kind") == CcTraceEvent.MODEL_ROUND_RESPONSE
+                and not event.get("http_error")
+                and event.get("stop_reason") not in ("max_tokens", "length")):
+            consumed = event.get("consumed_tool_result_ids")
+            if isinstance(consumed, list):
+                consumed_ids = {value for value in consumed if isinstance(value, str) and value}
+                events = [item for item in events if not (
+                    item.get("kind") == CcTraceEvent.TOOL_RESULT
+                    and _tool_result_id(item) in consumed_ids
+                )]
         if event.get("kind") == CcTraceEvent.TOOL_RESULT and _tool_result_id(event):
             events = [item for item in events if not (
                 item.get("kind") == CcTraceEvent.TOOL_APPROVAL_REQUIRED

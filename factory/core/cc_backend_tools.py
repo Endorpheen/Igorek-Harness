@@ -29,6 +29,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any, Iterable
+from .tool_result_outcome import ToolResultText
 from .artifact_files import open_regular_file, atomic_write_file, read_regular_text, private_io_directory
 
 from .running_commands import command_context, run_process
@@ -452,7 +453,7 @@ def _tool_write(
             f"Если это заметка для Obsidian — перезапиши в {vault_target}"
         )
 
-    return result
+    return ToolResultText(result, True)
 
 
 def _is_blocked_device(filepath: str) -> bool:
@@ -474,7 +475,7 @@ def _tool_read(data: dict[str, Any], workdir: str, filesystem_mode: str,
 
     raw_path = data["file_path"]
     if _is_blocked_device(raw_path):
-        return f"Cannot read '{raw_path}': this is a device file that would block or produce infinite output."
+        return ToolResultText(f"Cannot read '{raw_path}': this is a device file that would block or produce infinite output.", False)
     handle = None
     try:
         path = _validate_read_path(raw_path, workdir, filesystem_mode)
@@ -488,19 +489,19 @@ def _tool_read(data: dict[str, Any], workdir: str, filesystem_mode: str,
         path = candidate
     else:
         if not os.path.exists(path):
-            return f"File not found: {path}"
+            return ToolResultText(f"File not found: {path}", False)
         handle = open_regular_file(path)
     with handle:
         guard = _readable_text_guard(path, handle.read(4096))
         if guard is not None:
-            return guard
+            return ToolResultText(guard, False)
         handle.seek(0)
         offset = max(0, int(data.get("offset") or 0))
         limit = int(data["limit"]) if data.get("limit") is not None else None
         cursor = data.get("cursor", 0)
         text = io.TextIOWrapper(handle, encoding="utf-8", errors="replace")
-        return read_text_page(text, offset=offset, limit=limit, cursor=cursor,
-                              max_chars=read_budget(read_context_window_tokens, read_max_chars))
+        return ToolResultText(read_text_page(text, offset=offset, limit=limit, cursor=cursor,
+                              max_chars=read_budget(read_context_window_tokens, read_max_chars)), True)
 
 
 def _tool_edit(
@@ -515,18 +516,18 @@ def _tool_edit(
     new_string = data.get("new_string")
     replace_all = data.get("replace_all", False)
     if not isinstance(old_string, str) or not old_string.strip():
-        return (
+        return ToolResultText(
             "old_string cannot be empty.\n"
             "Hint: Read the current file content first, then retry Edit with a "
             "concrete old_string copied from the file, or use Write with the "
-            "full desired file content. Do not retry Edit with an empty old_string."
+            "full desired file content. Do not retry Edit with an empty old_string.", False
         )
     if not isinstance(new_string, str):
-        return "new_string must be a string"
+        return ToolResultText("new_string must be a string", False)
     if old_string == new_string:
-        return "new_string must differ from old_string"
+        return ToolResultText("new_string must differ from old_string", False)
     if not os.path.exists(path):
-        return f"File not found: {path}"
+        return ToolResultText(f"File not found: {path}", False)
     if checkpoint_manager is not None:
         checkpoint_manager.ensure_checkpoint_for_path(
             target_path=path,
@@ -536,7 +537,7 @@ def _tool_edit(
         )
     content = read_regular_text(path)
     if old_string not in content:
-        return f"old_string not found in {path}"
+        return ToolResultText(f"old_string not found in {path}", False)
     if replace_all:
         content = content.replace(old_string, new_string)
     else:
@@ -547,7 +548,7 @@ def _tool_edit(
             change_tracker.record_edit(path, old_string, new_string)
         except Exception:
             pass
-    return f"File edited successfully: {path}"
+    return ToolResultText(f"File edited successfully: {path}", True)
 
 
 def _bash_scope_denial(
@@ -726,7 +727,7 @@ def _format_bash_result(result: subprocess.CompletedProcess[str]) -> str:
         output += ("\n--- stderr ---\n" + result.stderr) if output else result.stderr
     if result.returncode != 0:
         output += f"\n(exit code: {result.returncode})"
-    return output or "(Bash completed with no output)"
+    return ToolResultText(output or "(Bash completed with no output)", result.returncode == 0)
 
 
 def _run_bash_legacy(command: str, *, workdir: str, timeout_s: float) -> str:
@@ -742,9 +743,9 @@ def _run_bash_legacy(command: str, *, workdir: str, timeout_s: float) -> str:
             timeout=timeout_s,
         )
     except subprocess.TimeoutExpired:
-        return f"Command timed out after {timeout_s}s"
+        return ToolResultText(f"Command timed out after {timeout_s}s", False)
     except Exception as exc:
-        return f"Error executing command: {exc}"
+        return ToolResultText(f"Error executing command: {exc}", False)
     return _format_bash_result(result)
 
 
@@ -763,13 +764,13 @@ def _run_bash_sandboxed(
             timeout=timeout_s,
         )
     except subprocess.TimeoutExpired:
-        return f"Command timed out after {timeout_s}s"
+        return ToolResultText(f"Command timed out after {timeout_s}s", False)
     except Exception:
         _record_sandbox_telemetry("sandbox_error", command, workdir)
-        return _sandbox_denied_text("bwrap_error")
+        return ToolResultText(_sandbox_denied_text("bwrap_error"), False)
     if _sandbox_spawn_error(result):
         _record_sandbox_telemetry("sandbox_error", command, workdir)
-        return _sandbox_denied_text("bwrap_error")
+        return ToolResultText(_sandbox_denied_text("bwrap_error"), False)
     return _format_bash_result(result)
 
 
@@ -791,7 +792,7 @@ def _tool_bash(
 ) -> str:
     command = data["command"]
     if sys.platform == 'win32':
-        return 'ERROR: Windows command sandbox is not available in this preview; no command was executed.'
+        return ToolResultText('ERROR: Windows command sandbox is not available in this preview; no command was executed.', False)
     timeout_ms = data.get("timeout", 120000)
     timeout_s = min(timeout_ms / 1000, 600)
     sudo_argv = _sudo_broker_command(command)
@@ -828,7 +829,7 @@ def _tool_bash(
                 **({'guest_privileged': True} if privileged_guest else {}),
             )
         except subprocess.TimeoutExpired:
-            return "Sudo approval or command timed out"
+            return ToolResultText("Sudo approval or command timed out", False)
         return _format_bash_result(result)
     denial = _bash_scope_denial(
         command,
@@ -837,7 +838,7 @@ def _tool_bash(
         guard_mode=guard_mode,
     )
     if denial is not None:
-        return denial
+        return ToolResultText(denial, False)
 
     # A per-session KVM guest is already the isolation boundary. Do not add a
     # second bubblewrap namespace around commands executed inside that guest.
@@ -852,7 +853,7 @@ def _tool_bash(
     status = _sandbox_status_safe()
     if status is None:
         _record_sandbox_telemetry("sandbox_denied", command, workdir)
-        return _sandbox_denied_text("sandbox_status_unavailable")
+        return ToolResultText(_sandbox_denied_text("sandbox_status_unavailable"), False)
 
     reason = str(status.get("reason") or "")
     enabled = bool(status.get("enabled"))
@@ -870,13 +871,13 @@ def _tool_bash(
         argv = _bash_sandboxed_argv(command, workdir=workdir)
         if argv is None:
             _record_sandbox_telemetry("sandbox_denied", command, workdir)
-            return _sandbox_denied_text("bwrap_missing")
+            return ToolResultText(_sandbox_denied_text("bwrap_missing"), False)
         return _run_bash_sandboxed(
             argv, command=command, workdir=workdir, timeout_s=timeout_s
         )
 
     _record_sandbox_telemetry("sandbox_denied", command, workdir)
-    return _sandbox_denied_text(reason or "bwrap_missing")
+    return ToolResultText(_sandbox_denied_text(reason or "bwrap_missing"), False)
 
 
 def _allowed_glob_matches(pattern: str, workdir: str, filesystem_mode: str):
