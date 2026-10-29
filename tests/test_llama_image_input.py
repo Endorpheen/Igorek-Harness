@@ -59,7 +59,7 @@ def test_live_llama_capabilities_preserve_original_history_and_track_new_tasks(m
     result = policy.prepare(original)
     assert original == before
     assert ("Zml4dHVyZQ==" in json.dumps(result)) == vision
-    assert state["requests"][0][0] == "/props?model=fixture"
+    assert [row[0] for row in state["requests"]] == ["/v1/models", "/props?model=fixture"]
     assert state["requests"][0][1]["Authorization"] == "Bearer fixture-only"
     assert "Origin" not in state["requests"][0][1]
     if not vision:
@@ -159,10 +159,13 @@ def test_browser_screenshot_continues_with_text_or_image_for_actual_capability(l
 
 
 @pytest.mark.parametrize("api", ["openai", "anthropic"])
-def test_explicit_llama_rejection_retries_only_model_and_filters_later_screenshots(loop, monkeypatch, api):
+def test_confirmed_llama_rejection_retries_only_model_and_filters_later_screenshots(loop, monkeypatch, api):
     from factory.core import desktop_browser
     from factory.core.llama_image_input import LlamaImageInput
-    monkeypatch.setattr(LlamaImageInput, "_probe", lambda self: None)
+    def confirmed(policy):
+        policy.backend = "llama_cpp"
+        return None
+    monkeypatch.setattr(LlamaImageInput, "_probe", confirmed)
     monkeypatch.setattr(desktop_browser, "_IMAGES", {"receipt": copy.deepcopy(IMAGE)})
     first = {"id": "shot-one", "name": "desktop_browser", "input": {"action": "screenshot"}}
     later = {"id": "read-one", "name": "desktop_browser", "input": {"action": "read"}}

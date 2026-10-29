@@ -25,7 +25,7 @@ Documentation updated **October 29, 2026**. The Python/desktop version is in
 [`pyproject.toml`](pyproject.toml); Android has its own version in
 [`android/app/build.gradle.kts`](android/app/build.gradle.kts).
 
-Local llama.cpp connections use live server capabilities to withhold unsupported image input. Internal history records accidentally echoed by a local model are withheld from visible answers, with one corrective attempt. Remote model transports keep their existing behavior.
+Local model repairs use confirmed llama.cpp identity and capabilities for the selected model; a localhost cloud proxy or unknown backend does not enable them. Truncated replies retain partial text and an explicit incomplete outcome. Tool outcomes use execution status and exit codes; ordinary final answers remain valid. See [runtime outcome boundaries](docs/architecture/MODEL_BACKEND_GUARDS.md).
 
 ## What defines Igorek
 

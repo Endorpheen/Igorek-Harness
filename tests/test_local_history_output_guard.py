@@ -6,6 +6,7 @@ from unittest.mock import Mock
 import pytest
 
 from factory.core import cc_backend_executor as executor
+from factory.core.model_backend_capabilities import ModelBackendCapabilities
 from test_cc_stream_wire_contracts import wire, event, chunk  # noqa: F401
 from test_executor_tool_loop_edges import loop  # noqa: F401
 from test_executor_workflow_guards import response
@@ -15,11 +16,22 @@ FIXTURE = Path(__file__).parent / 'fixtures/tool_salvage/historical_tool_evidenc
 ECHO = FIXTURE.read_text()
 
 
+@pytest.fixture(autouse=True)
+def confirmed_llama_fixture(monkeypatch):
+    from factory.core.llama_image_input import LlamaImageInput
+    def probe(policy):
+        policy.backend = "llama_cpp"
+        return None
+    monkeypatch.setattr(LlamaImageInput, "_probe", probe)
+
+
 def test_original_echo_is_filtered_before_any_visible_sse_frame(wire, monkeypatch):
+    wire.url = wire.url.split("?", 1)[0]
     events = []
     monkeypatch.setattr(executor, 'append_cc_backend_trace', lambda directory, record: events.append(record))
     wire.chunks = [event(chunk(ECHO[:17])), event(chunk(ECHO[17:43])), event(chunk(ECHO[43:], finish='stop')), b'data: [DONE]\n\n']
-    body, _ = executor._http_post_streaming_openai(wire.url, {'model': 'fixture', 'messages': []}, {}, 3, trace_dir='fixture')
+    body, _ = executor._http_post_streaming_openai(wire.url, {'model': 'fixture', 'messages': []}, {}, 3, trace_dir='fixture',
+        backend_capabilities=ModelBackendCapabilities('llama_cpp', None, wire.url, 'fixture'))
     assert 'error' not in body
     assert body['choices'][0]['message']['content'] == ECHO
     visible = ''.join(record.get('text', '') for record in events if record['kind'] == 'model.text_delta')
@@ -166,7 +178,7 @@ def test_quoted_markers_survive_character_by_character_streaming(text):
 
 @pytest.mark.parametrize('url,enabled', [
     ('http://127.0.0.1:8081/v1', True),
-    ('http://127.0.0.1:8081/v1/chat/completions?fixture=1', True),
+    ('http://127.0.0.1:8081/v1/chat/completions?fixture=1', False),
     ('http://[::1]:8081/v1', True),
     ('http://localhost:8081/v1', True),
     ('https://api.example.test/v1', False),
@@ -175,5 +187,8 @@ def test_quoted_markers_survive_character_by_character_streaming(text):
 ])
 def test_guard_is_scoped_to_local_transports(url, enabled):
     from factory.core.local_history_output import local_history_guard_enabled
-    assert local_history_guard_enabled(url) is enabled
-    assert not local_history_guard_enabled(url, 'openai-responses')
+    from factory.core.model_backend_capabilities import ModelBackendCapabilities
+    capabilities = ModelBackendCapabilities('llama_cpp', None, url, 'fixture')
+    assert not local_history_guard_enabled(url)
+    assert local_history_guard_enabled(url, capabilities=capabilities, model='fixture') is enabled
+    assert not local_history_guard_enabled(url, 'openai-responses', capabilities=capabilities, model='fixture')

@@ -5,9 +5,7 @@ from pathlib import Path
 from factory.core.post_turn_guards import (
     APPROVAL_REQUIRED,
     COMPLETION_ALLOWED,
-    CORRECTION_REQUIRED,
     REASON_ASK_WITHOUT_CONTENT,
-    REASON_FACT_CHECK,
     REASON_FILE_CONTENT_IN_TEXT,
     REASON_PENDING_WRITE,
     RETRY_REQUIRED,
@@ -152,7 +150,7 @@ class PostTurnGuardsTest(unittest.TestCase):
         self.assertEqual(verdict.target, str(target))
         self.assertIn("вместо вызова Write", verdict.retry_message or "")
 
-    def test_fact_check_guard_requires_correction_on_contradiction(self):
+    def test_legacy_fact_check_abstains_without_bound_claims(self):
         verdict = evaluate_fact_check_guard(
             tool_results=[
                 {
@@ -164,9 +162,8 @@ class PostTurnGuardsTest(unittest.TestCase):
             model_text="Результат: wrong-token.",
         )
 
-        self.assertEqual(verdict.action, CORRECTION_REQUIRED)
-        self.assertEqual(verdict.reason, REASON_FACT_CHECK)
-        self.assertIn("expected-token", verdict.correction_message)
+        self.assertEqual(verdict.action, COMPLETION_ALLOWED)
+        self.assertEqual(verdict.correction_message, "")
 
 
 if __name__ == "__main__":

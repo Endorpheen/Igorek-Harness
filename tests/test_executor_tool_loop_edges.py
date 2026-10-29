@@ -65,7 +65,12 @@ def test_repeated_invalid_salvage_never_executes_and_has_bounded_failure(loop,ap
 
 
 @pytest.mark.parametrize('api',['anthropic','openai'])
-def test_redirected_fetch_uses_only_dedicated_web_tool(loop,api):
+def test_redirected_fetch_uses_only_dedicated_web_tool(loop,monkeypatch,api):
+    from factory.core.llama_image_input import LlamaImageInput
+    def confirmed(policy):
+        policy.backend = "llama_cpp"
+        return None
+    monkeypatch.setattr(LlamaImageInput, "_probe", confirmed)
     tool={'id':'fetch-one','name':'Bash','input':{'command':'curl -sL https://example.test/article'}}
     run=loop(api,[response(api,tool=tool),response(api,'Fixture source checked')],names=['Bash','web_extract'])
     assert run.result['status']=='ok'
