@@ -31,7 +31,7 @@ CC-backend profiles can set an exact per-request output budget with `"max_output
 
 Embedded Desktop browser tabs include a **>_** console for page messages and JavaScript; agents can inspect DOM/canvas and read errors through the same browser tool. See [browser console](docs/configuration/BROWSER_CONSOLE.md).
 
-Confirmed local llama.cpp tasks now use a same-turn completion signal, continuing unfinished actions without a separate reviewer request. Cloud completion is unchanged. See [local completion control](docs/configuration/LOCAL_COMPLETION_CONTROL.md). Desktop also supports manual message read-aloud through a configurable TTS server; see [speech settings](docs/configuration/TEXT_TO_SPEECH.md).
+Confirmed local llama.cpp tasks now use a same-turn completion signal, continuing unfinished actions without a separate reviewer request. Cloud completion is unchanged. See [local completion control](docs/configuration/LOCAL_COMPLETION_CONTROL.md). Desktop also supports a visible manual message read-aloud button through a configurable TTS server (the player-loading regression in 0.2.41 is fixed); see [speech settings](docs/configuration/TEXT_TO_SPEECH.md).
 
 ## What defines Igorek
 

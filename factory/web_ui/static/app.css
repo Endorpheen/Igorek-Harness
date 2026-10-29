@@ -1298,6 +1298,11 @@ body.panel-resizing {
   opacity:1
 }
 
+.message-speak {
+  margin-left:8px;
+  opacity:1
+}
+
 .message-copy:hover {
   border-color:#4c565a;
   background:#202528;

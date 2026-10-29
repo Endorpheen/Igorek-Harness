@@ -5,10 +5,12 @@ Enable the feature, enter its API base URL (including `/v1`), model ID and voice
 then save. **Получить модели** reads the server catalog; **Проверить голос** makes
 a short preview. Existing realtime voice settings are independent.
 
-Completed assistant messages show **Озвучить**. Playback starts only when pressed;
+Completed assistant messages show **Озвучить** without requiring mouse hover. Playback starts only when pressed;
 press again to stop pending download or playback. Long text is split into chunks
 of at most 1,000 characters and requested sequentially. Changing settings cancels
 pending synthesis. Audio is held in memory and temporary object URLs are revoked.
+The chat server explicitly serves the player asset and allows local Blob audio
+through its media CSP; external media origins remain blocked.
 This feature is Desktop-only; it does not add an Android playback interface.
 
 The service must support `GET /models` and `POST /audio/speech` below the API base.

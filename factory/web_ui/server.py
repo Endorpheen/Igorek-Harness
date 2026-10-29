@@ -69,6 +69,7 @@ _STATIC_TYPES = {
     "error-catalog.js": "text/javascript; charset=utf-8",
     "error-diagnostics.js": "text/javascript; charset=utf-8",
     "completion-sound.js": "text/javascript; charset=utf-8",
+    "tts-playback.js": "text/javascript; charset=utf-8",
     "alarm1.mp3": "audio/mpeg",
     "audio/task-completed.mp3": "audio/mpeg",
     "index.html": "text/html; charset=utf-8",
@@ -1293,7 +1294,7 @@ class _Handler(BaseHTTPRequestHandler):
             "Content-Security-Policy",
             "default-src 'self'; script-src 'self'; worker-src 'self'; "
             f"style-src {style_sources}; img-src 'self' data: blob:; "
-            "connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
+            "media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'",
         )
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "DENY")

@@ -49,3 +49,61 @@ def test_stalled_main_generation_is_still_cancelable(wire,tmp_path,monkeypatch):
         assert results[0]['status']=='fail' and results[0]['failure_reason']=='interrupted'
     finally:
         cancelled.set();wire.release.set();thread.join(3)
+
+
+def visible_round_text(rows):
+    from factory.core.mobile_bridge.events import normalize_trace_event
+    return [frame['payload']['text'] for row in rows
+            if (frame := normalize_trace_event(row, task_id='fixture-task'))
+            and frame['kind'] == 'model.round_response' and frame['payload']['text']]
+
+
+def test_mixed_local_stream_only_delivers_the_validated_finish_answer(wire, tmp_path, monkeypatch):
+    arguments = json.dumps(dict(status='complete', answer='Привет!', requires_tools=False,
+                                evidence_ids=[], remaining_steps=[]))
+    wire.chunks = [event(chunk(reasoning='PRIVATE_REASONING')),
+                   event(chunk('DRAFT_RESPONSE </arg_value> untagged private reflection')),
+                   event(chunk(tools=[{'index': 0, 'id': 'finish-1', 'type': 'function',
+                                      'function': {'name': 'finish_task', 'arguments': arguments}}], finish='tool_calls')),
+                   b'data: [DONE]\n\n']
+    result = invoke(wire, tmp_path, monkeypatch, threading.Event())
+    rows = [json.loads(line) for line in (tmp_path/'trace/cc_backend_trace.jsonl').read_text().splitlines()]
+    assert result['status'] == 'ok' and result['output_text'] == 'Привет!'
+    assert visible_round_text(rows) == ['Привет!']
+    assert not any(row['kind'] == 'model.text_delta' for row in rows)
+    assert ''.join(row.get('text', '') for row in rows if row['kind'] == 'model.reasoning_delta') == 'PRIVATE_REASONING'
+    assert 'tool_choice' not in wire.requests[0]['body']
+    assert len(wire.requests) == 1
+
+
+def test_tagged_reasoning_inside_finish_answer_stays_out_of_visible_text(wire, tmp_path, monkeypatch):
+    arguments = json.dumps(dict(status='complete', answer='<think>PRIVATE_FINISH_REASONING</think>Привет!',
+                                requires_tools=False, evidence_ids=[], remaining_steps=[]))
+    wire.chunks = [event(chunk(tools=[{'index': 0, 'id': 'finish-1', 'type': 'function',
+                                     'function': {'name': 'finish_task', 'arguments': arguments}}], finish='tool_calls')),
+                   b'data: [DONE]\n\n']
+    result = invoke(wire, tmp_path, monkeypatch, threading.Event())
+    rows = [json.loads(line) for line in (tmp_path/'trace/cc_backend_trace.jsonl').read_text().splitlines()]
+    assert result['output_text'] == 'Привет!'
+    assert visible_round_text(rows) == ['Привет!']
+    assert any(row.get('text') == 'PRIVATE_FINISH_REASONING' and row['kind'] == 'model.reasoning_delta' for row in rows)
+
+
+def test_unfinished_plain_local_output_never_becomes_a_final_chat_message(wire, tmp_path, monkeypatch):
+    wire.chunks = [event(chunk('UNVALIDATED_DRAFT </arg_value>', finish='stop')), b'data: [DONE]\n\n']
+    result = invoke(wire, tmp_path, monkeypatch, threading.Event())
+    rows = [json.loads(line) for line in (tmp_path/'trace/cc_backend_trace.jsonl').read_text().splitlines()]
+    assert result['status'] == 'fail' and result['failure_reason'] == 'unfinished_action_repeated'
+    assert visible_round_text(rows) == []
+    assert not any(row['kind'] == 'model.text_delta' for row in rows)
+    assert len(wire.requests) == 3
+
+
+def test_limited_local_draft_is_preserved_in_diagnostics_not_as_an_answer(wire, tmp_path, monkeypatch):
+    wire.chunks = [event(chunk('UNVALIDATED_PRIVATE_DRAFT', finish='length')), b'data: [DONE]\n\n']
+    result = invoke(wire, tmp_path, monkeypatch, threading.Event())
+    rows = [json.loads(line) for line in (tmp_path/'trace/cc_backend_trace.jsonl').read_text().splitlines()]
+    assert result['status'] == 'fail' and result['failure_reason'] == 'model_output_limit'
+    assert 'UNVALIDATED_PRIVATE_DRAFT' not in result['output_text']
+    assert visible_round_text(rows) == []
+    assert any('UNVALIDATED_PRIVATE_DRAFT' in row.get('draft_text', '') for row in rows)

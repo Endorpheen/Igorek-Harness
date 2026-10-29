@@ -946,6 +946,29 @@ class WebUiHttpTest(WebUiServerTestCase):
         self.assertEqual(status, 200)
         self.assertEqual(headers["Content-Type"], "text/javascript; charset=utf-8")
 
+    def test_tts_player_is_served_before_the_chat_application(self):
+        status, headers, script = self._request("GET", "/tts-playback.js")
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["Content-Type"], "text/javascript; charset=utf-8")
+        self.assertEqual(script, (_WEB_STATIC / "tts-playback.js").read_bytes())
+        self.assertIn("media-src 'self' blob:;", headers["Content-Security-Policy"])
+        self.assertIn("connect-src 'self';", headers["Content-Security-Policy"])
+        status, _, page = self._request("GET", "/")
+        self.assertEqual(status, 200)
+        self.assertLess(page.index(b'src="/tts-playback.js"'), page.index(b'src="/app.js"'))
+
+    def test_every_local_script_referenced_by_the_chat_is_served(self):
+        status, _, page = self._request("GET", "/")
+        self.assertEqual(status, 200)
+        scripts = re.findall(rb'<script[^>]+src="(/[^"?]+)"', page)
+        self.assertIn(b"/tts-playback.js", scripts)
+        for script in scripts:
+            with self.subTest(script=script):
+                status, headers, data = self._request("GET", script.decode())
+                self.assertEqual(status, 200)
+                self.assertIn("javascript", headers["Content-Type"])
+                self.assertTrue(data)
+
     def test_video_preview_helper_is_local_and_loaded_before_the_app(self):
         status, headers, data = self._request("GET", "/media-previews.js")
         self.assertEqual(status, 200)
@@ -3192,8 +3215,9 @@ class WebUiFileViewerAssetsTest(WebUiServerTestCase):
         self.assertEqual(directives["worker-src"], "'self'")
         self.assertEqual(directives["script-src"], "'self'")
         self.assertEqual(directives["img-src"], "'self' data: blob:")
+        self.assertEqual(directives["media-src"], "'self' blob:")
         for directive, value in directives.items():
-            if directive != "img-src":
+            if directive not in {"img-src", "media-src"}:
                 self.assertNotIn("blob:", value)
 
     def test_entry_loads_file_viewer_before_app(self):

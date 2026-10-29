@@ -52,7 +52,7 @@ def test_original_echo_gets_one_correction_before_normal_answer(loop, monkeypatc
     run = loop(api, [response(api, ECHO), response(api, 'Continued with the current task'), finish_signal(api, 'Continued with the current task')], names=['desktop_browser'])
     assert run.result['status'] == 'ok' and len(run.requests) == 3 and run.calls == []
     visible = [record.get('text_full', '') for record in run.trace if record['kind'] == 'model.round_response']
-    assert visible == ['', 'Continued with the current task', '']
+    assert visible == ['', '', '', 'Continued with the current task']
     assert ECHO not in json.dumps(run.requests[1], ensure_ascii=False)
     assert any(record.get('reason') == 'local_tool_history_echo' for record in run.trace)
     salvage.assert_not_called()

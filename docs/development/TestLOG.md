@@ -1,3 +1,37 @@
+## 2026-10-30 — Fix 0.2.41 completion and chat speech regressions (0.2.42)
+
+- Owner evidence showed repeated ordinary replies/private reflections in the text
+  stream and a stray XML argument terminator preceding a different finish answer.
+  Removed the forced provider tool-choice mode; retain native work tools, normal
+  output budgets and bounded same-task continuation when a finish signal is absent.
+- Local preliminary text is retained only as diagnostic draft data. Only the
+  validated finish answer becomes a durable visible response; tagged reasoning
+  remains separate, including tags inside finish arguments. Cloud requests and
+  streaming remain unchanged. No heuristic English/Russian phrase stripping.
+- Eight regression cases failed before correction and passed afterward, including
+  real fragmented SSE, the mobile event projection, omitted finish, output limit,
+  OpenAI/Anthropic request shape and actual HTTP asset loading. All chat-linked
+  scripts are now checked through the real web server (27 subtests).
+- Fixed the missing player route and the chat media CSP for local Blob WAV.
+  Speech buttons are visible without hover. Extended native Electron acceptance
+  from settings-only preview to the actual HTTP-served chat, production message
+  renderer and session preload: visible button → privileged IPC → synthetic HTTP
+  speech server → audio completion with no audio/CSP error. The stronger check
+  exposed the previously untested media-CSP failure before the final passing run.
+- Focused completion/history/mobile-event matrix: 124 passes. Desktop: 595 passes.
+  Full both-root run: 11,977 collected, 11,953 passed, three stale fixture failures,
+  21 existing skips, 951 passing subtests. Scoped reruns cover both history
+  assertions and the former blanket Blob prohibition (only media/image Blob is
+  allowed; script, worker and network policy remain restricted). This is a composed
+  acceptance matrix, not a second monolithic green run.
+  The two existing history fixture expectations were updated to one authoritative
+  finish message; all other assertions are preserved. Both Python roots and hosted
+  platform gates remain required; final counts/provenance are in BUILD_MANIFEST.
+- Owner model/runtime/tasks/profiles are not modified or restarted. No live model
+  benchmark is claimed for this fix. The owner explicitly requested a new release
+  and withdrawal of the faulty 0.2.41 release/assets after the fix is ready; source
+  commits and tags remain available for diagnosis.
+
 ## 2026-10-30 — Same-turn completion and optional Desktop speech (0.2.41)
 
 - Replaced the separate 0.2.40 local completion reviewer with a native internal

@@ -278,3 +278,11 @@ def test_alias_from_another_task_cannot_prove_completion():
     assert validate_finish(value, first).evidence_ids == ('same-native-id',)
     with pytest.raises(ValueError, match='unbound_completion_evidence'):
         validate_finish(value, second)
+
+
+@pytest.mark.parametrize('api', ['openai', 'anthropic'])
+def test_completion_protocol_does_not_force_a_work_tool_or_mask_natural_stop(run, api):
+    result, requests, calls, _, _ = run([finish(api, answer='Привет!')], api=api)
+    assert result['status'] == 'ok' and calls == []
+    assert 'tool_choice' not in requests[0]
+    assert requests[0]['max_tokens'] == 65536
