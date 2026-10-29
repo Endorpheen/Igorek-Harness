@@ -7,6 +7,8 @@ from unittest.mock import Mock
 
 import pytest
 
+from test_completion_control import finish as finish_signal
+
 from factory.core import cc_backend_executor as e, cc_backend_tools as tools, desktop_browser
 from test_executor_workflow_guards import response
 from test_tool_call_salvage import FIXTURES
@@ -72,7 +74,7 @@ def test_redirected_fetch_uses_only_dedicated_web_tool(loop,monkeypatch,api):
         return None
     monkeypatch.setattr(LlamaImageInput, "_probe", confirmed)
     tool={'id':'fetch-one','name':'Bash','input':{'command':'curl -sL https://example.test/article'}}
-    run=loop(api,[response(api,tool=tool),response(api,'Fixture source checked'), response(api, json.dumps({'status':'complete','requires_tools':True,'evidence_ids':['fetch-one']}))],names=['Bash','web_extract'])
+    run=loop(api,[response(api,tool=tool),response(api,'Fixture source checked'), finish_signal(api, 'Fixture source checked', requires=True, ids=['fetch-one'])],names=['Bash','web_extract'])
     assert run.result['status']=='ok'
     assert run.calls==[('web_extract',{'urls':['https://example.test/article']})]
     assert 'Redirected: curl/wget -> web_extract' in json.dumps(run.requests[1])

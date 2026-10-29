@@ -3,6 +3,8 @@ import json
 
 import pytest
 
+from test_completion_control import finish as finish_signal
+
 from factory.core import cc_backend_executor as executor
 from factory.core.llama_image_input import LlamaImageInput
 from test_cc_stream_wire_contracts import wire, event, chunk  # noqa: F401
@@ -70,7 +72,7 @@ def test_bash_web_repair_uses_same_backend_identity(loop,metadata_server,known):
     tool={'id':'fetch','name':'Bash','input':{'command':'curl -sL https://example.test/article'}}
     bodies=[response('openai',tool=tool),response('openai','Checked')]
     if known:
-        bodies.append(response('openai',json.dumps({'status':'complete','requires_tools':True,'evidence_ids':['fetch']})))
+        bodies.append(finish_signal('openai', 'Checked', requires=True, ids=['fetch']))
     run=loop('openai',bodies,
              names=['Bash','web_extract'],base_url=state['url'],raw='{"success":true}')
     assert run.result['status']=='ok' and len(run.calls)==1

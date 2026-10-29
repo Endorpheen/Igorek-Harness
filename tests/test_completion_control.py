@@ -1,4 +1,4 @@
-"""Local completion recovery uses evidence and preserves cloud execution."""
+"""Same-turn completion avoids hidden requests and preserves cloud execution."""
 import copy
 import json
 from collections import deque
@@ -7,7 +7,7 @@ import pytest
 
 from factory.core import cc_backend_executor as e
 from factory.core.completion_review import (
-    CompletionRecovery, completion_review_enabled, parse_completion_review, review_transcript,
+    CompletionRecovery,
 )
 from factory.core.model_backend_capabilities import ModelBackendCapabilities
 from factory.core.tool_result_outcome import ToolResultText
@@ -27,10 +27,6 @@ def response(api, text='', tool=None, *, limited=False):
         blocks.append({'type': 'tool_use', **tool})
     return {'content': blocks, 'usage': {'input_tokens': 2, 'output_tokens': 3},
             'stop_reason': 'max_tokens' if limited else 'tool_use' if tool else 'end_turn'}
-
-
-def review(api, status='complete', requires=False, ids=()):
-    return response(api, json.dumps({'status': status, 'requires_tools': requires, 'evidence_ids': list(ids)}))
 
 
 def tool(name='Read', id='read-1', **args):
@@ -82,40 +78,50 @@ def run(tmp_path, monkeypatch):
     return execute
 
 
+
+
+def finish(api, answer='Проверенный результат.', *, requires=False, ids=(), status='complete', remaining=()):
+    return response(api, tool=tool('finish_task', 'finish-signal', status=status, answer=answer,
+        requires_tools=requires, evidence_ids=list(ids), remaining_steps=list(remaining)))
+
+
 @pytest.mark.parametrize('api', ['openai', 'anthropic'])
+def test_valid_finish_returns_without_any_followup_model_request(run, api):
+    result, requests, calls, events, _ = run([
+        response(api, tool=tool()), finish(api, requires=True, ids=['read-1']),
+    ], api=api, names=('Read',))
+    assert result['status'] == 'ok' and result['tool_calls_count'] == 1
+    assert len(requests) == 2 and len(calls) == 1
+    assert result['usage']['prompt'] == 4 and result['usage']['completion'] == 6
+    assert events[-1]['reason'] == 'explicit_completion'
+    assert not any(row['kind'] == 'model.completion_review' for row in events)
+    assert all(item['max_tokens'] == 65536 for item in requests)
+
+
 @pytest.mark.parametrize('promise', [
     'Три вызова console для регистрации сообщений с разными уровнями:',
     'Добавляю видимый виджет счётчика на страницу через console (DOM-элементы с кнопкой и обработчиком):',
     'I will perform the requested actions now.',
 ])
-def test_preamble_recovers_in_same_task_before_success(run, api, promise):
-    result, requests, calls, events, options = run([
-        response(api, promise), review(api, 'continue', True),
-        response(api, tool=tool('desktop_browser', 'console-1', action='console', expression='3')),
-        response(api, 'Фактический результат проверен: 3.'), review(api, 'complete', True, ['console-1']),
-    ], api=api)
-    assert result['status'] == 'ok' and result['tool_calls_count'] == 1
-    assert len(requests) == 5 and len(calls) == 1
-    assert all(request['max_tokens'] == 65536 for request in requests)
-    assert result['usage']['prompt'] == 10 and result['usage']['completion'] == 15
-    assert sum(row['kind'] == 'post_turn.retry_required' and row.get('reason') == 'completion_blocked_unfinished_action' for row in events) == 1
-    assert events[-1]['kind'] == 'task.finish' and events[-1]['status'] == 'ok'
-    for index in (1, 4):
-        assert 'tools' not in requests[index] and 'tool_choice' not in requests[index]
-        assert not options[index].get('trace_dir')
-
-
-def test_preparation_does_not_discharge_remaining_action_and_is_not_repeated(run):
+def test_original_preamble_recovers_without_a_separate_judge(run, promise):
     result, requests, calls, events, _ = run([
-        response('openai', tool=tool()), response('openai', 'Прочитал. Теперь добавлю счётчик.'),
-        review('openai', 'continue', True, ['read-1']),
-        response('openai', tool=tool('desktop_browser', 'console-1', action='console', expression='3')),
-        response('openai', 'Счётчик проверен.'), review('openai', 'complete', True, ['console-1']),
+        response('openai', promise), response('openai', tool=tool()),
+        finish('openai', requires=True, ids=['read-1']),
     ])
-    assert result['status'] == 'ok' and [name for name, args in calls] == ['Read', 'desktop_browser']
-    assert len(requests) == 6
-    assert any(row.get('reason') == 'completion_blocked_unfinished_action' for row in events)
-    assert 'do not repeat an already successful action' in json.dumps(requests[3])
+    assert result['status'] == 'ok' and len(requests) == 3 and len(calls) == 1
+    assert any(row.get('reason') == 'missing_finish_signal' for row in events)
+    assert all('response_format' not in item for item in requests)
+
+
+def test_preparation_does_not_discharge_remaining_work_or_replay_its_first_action(run):
+    result, requests, calls, _, _ = run([
+        response('openai', tool=tool('desktop_browser', 'effect', action='console', expression='3')),
+        response('openai', 'Теперь проверю журнал.'),
+        response('openai', tool=tool('desktop_browser', 'verify', action='console_messages')),
+        finish('openai', requires=True, ids=['effect', 'verify']),
+    ])
+    assert result['status'] == 'ok' and len(requests) == 4
+    assert [args['action'] for name, args in calls] == ['console', 'console_messages']
 
 
 @pytest.mark.parametrize('api', ['openai', 'anthropic'])
@@ -126,182 +132,149 @@ def test_preparation_does_not_discharge_remaining_action_and_is_not_repeated(run
     ('llama_cpp', 'https://cloud.example.test/v1', None),
     ('llama_cpp', 'http://127.0.0.1:1/v1', 'http://127.0.0.1:2/v1'),
 ])
-def test_cloud_and_unconfirmed_backends_have_no_extra_prompt_or_request(run, api, backend, url, cap_url):
-    result, requests, calls, events, _ = run([response(api, 'Ordinary cloud answer.')],
+def test_cloud_and_unknown_backends_keep_original_prompt_tools_and_request_count(run, api, backend, url, cap_url):
+    result, requests, calls, _, _ = run([response(api, 'Ordinary cloud answer.')],
         api=api, backend=backend, url=url, capability_url=cap_url)
-    assert result['status'] == 'ok' and result['output_text'] == 'Ordinary cloud answer.'
-    assert len(requests) == 1 and calls == []
+    assert result['status'] == 'ok' and len(requests) == 1 and calls == []
     system = requests[0]['messages'][0]['content'] if api == 'openai' else requests[0]['system']
     assert system == 'Fixture policy: no unrelated actions.'
-    assert not any(row['kind'] == 'model.completion_review' for row in events)
+    schemas = requests[0]['tools']
+    assert 'finish_task' not in {item.get('name', item.get('function', {}).get('name')) for item in schemas}
 
 
-@pytest.mark.parametrize('text,status,requires', [
-    ('Привет!', 'complete', False),
-    ('Для счётчика обновляй текст отдельного span. Ничего не менял.', 'complete', False),
-    ('Уточни, какую из двух вкладок нужно закрыть.', 'blocked', True),
-    ('Доступ к браузеру отсутствует. Изменения не выполнены.', 'blocked', True),
+@pytest.mark.parametrize('text,status,requires,remaining', [
+    ('Привет!', 'complete', False, []),
+    ('```python\nprint("example")\n```', 'complete', False, []),
+    ('Уточни, какую вкладку закрыть.', 'blocked', True, ['Уточнить вкладку']),
+    ('Нужен вход владельца.', 'blocked', True, ['Войти']),
 ])
-def test_questions_drafts_and_honest_blockers_do_not_force_actions(run, text, status, requires):
-    result, requests, calls, _, _ = run([response('openai', text), review('openai', status, requires)],
-        user='Объясни, как исправить счётчик. Ничего не делай.')
+def test_answers_and_honest_blockers_finish_in_one_model_request(run, text, status, requires, remaining):
+    result, requests, calls, _, _ = run([finish('openai', text, status=status, requires=requires, remaining=remaining)])
     assert result['status'] == 'ok' and result['output_text'] == text
-    assert len(requests) == 2 and calls == []
+    assert len(requests) == 1 and calls == []
 
 
-def test_no_tools_keeps_plain_text_path(run):
+def test_tool_free_backend_request_keeps_plain_text_path(run):
     result, requests, calls, _, _ = run([response('openai', 'Привет!')], names=())
     assert result['status'] == 'ok' and len(requests) == 1 and calls == []
 
 
-def test_repeated_promises_stop_with_explicit_failure(run):
-    bodies = [item for _ in range(3) for item in
-              (response('openai', 'Начинаю.'), review('openai', 'continue', True))]
-    result, requests, calls, events, _ = run(bodies)
-    assert result['status'] == 'fail' and result['failure_reason'] == 'unfinished_action_repeated'
-    assert len(requests) == 6 and calls == []
-    assert sum(row['kind'] == 'post_turn.retry_required' for row in events) == 2
+def test_repeated_missing_signals_fail_without_unbounded_generation(run):
+    result, requests, calls, events, _ = run([response('openai', 'Начинаю.')] * 3)
+    assert result['failure_reason'] == 'unfinished_action_repeated'
+    assert len(requests) == 3 and calls == []
     assert not any(row['kind'] == 'task.finish' and row['status'] == 'ok' for row in events)
 
 
-@pytest.mark.parametrize('bad', ['not JSON', '{}', '{"status":"complete","requires_tools":true,"evidence_ids":["invented"]}'])
-def test_invalid_review_is_explicit_failure_without_executing_or_accepting_candidate(run, bad):
-    result, requests, calls, _, _ = run([response('openai', 'Сейчас выполню.'), response('openai', bad)])
-    assert result['status'] == 'fail' and result['failure_reason'] == 'completion_review_invalid'
-    assert len(requests) == 2 and calls == []
+@pytest.mark.parametrize('changes', [
+    {'evidence_ids': ['invented']}, {'answer': ''}, {'requires_tools': 'true'},
+    {'remaining_steps': ['Ещё проверить']}, {'status': 'invented'},
+])
+def test_invalid_signal_is_rejected_without_dispatching_it_as_a_work_tool(run, changes):
+    bad=finish('openai')
+    arguments=json.loads(bad['choices'][0]['message']['tool_calls'][0]['function']['arguments'])
+    arguments.update(changes)
+    bad['choices'][0]['message']['tool_calls'][0]['function']['arguments']=json.dumps(arguments)
+    result, requests, calls, events, _=run([bad, finish('openai', 'Текстовый ответ готов.')])
+    assert result['status'] == 'ok' and len(requests) == 2 and calls == []
+    assert any(row['kind'] == 'task.completion_signal' and not row['accepted'] for row in events)
+    results=json.dumps(requests[1], ensure_ascii=False)
+    assert 'rejected' in results and 'tools_executed' in results
 
 
-def test_review_cannot_execute_a_tool(run):
-    result, requests, calls, _, _ = run([
-        response('openai', 'Начинаю.'), response('openai', tool=tool()),
-    ])
-    assert result['status'] == 'fail' and calls == []
+@pytest.mark.parametrize('api', ['openai', 'anthropic'])
+def test_finish_mixed_with_actions_never_swallows_or_executes_that_batch(run, api):
+    batch=response(api, tool=tool())
+    control=finish(api)
+    if api=='openai':
+        batch['choices'][0]['message']['tool_calls']+=control['choices'][0]['message']['tool_calls']
+    else:
+        batch['content']+=control['content']
+    result, requests, calls, events, _=run([batch, finish(api, status='blocked', answer='Требуется уточнение.')], api=api)
+    assert result['status'] == 'ok' and len(requests) == 2 and calls == []
+    assert any(row.get('reason') == 'mixed_finish_batch' for row in events)
 
 
-def test_cancellation_during_review_is_not_completion(run):
-    result, _, calls, events, _ = run([response('openai', 'Начинаю.'), {'__interrupted__': True}])
-    assert result['failure_reason'] == 'interrupted' and calls == []
-    assert events[-1]['reason'] == 'interrupted'
+def test_incomplete_plan_rejects_finish_until_plan_is_closed(run):
+    pending=tool('update_plan', 'plan-1', plan=[{'step':'Read', 'status':'in_progress'}])
+    complete=tool('update_plan', 'plan-2', plan=[{'step':'Read', 'status':'completed'}])
+    result, requests, calls, events, _=run([
+        response('openai', tool=pending), response('openai', tool=tool()),
+        finish('openai', requires=True, ids=['read-1']), response('openai', tool=complete),
+        finish('openai', requires=True, ids=['read-1','plan-2']),
+    ], names=('Read','update_plan'))
+    assert result['status']=='ok' and len(requests)==5 and len(calls)==3
+    assert any(row.get('reason')=='unfinished_steps' for row in events)
 
 
-def test_main_output_limit_is_preserved_without_review_or_retry(run):
-    result, requests, calls, _, _ = run([response('openai', 'Partial answer', limited=True)])
-    assert result['failure_reason'] == 'model_output_limit'
-    assert len(requests) == 1 and calls == []
-
-
-def test_new_user_scope_after_review_takes_priority(run):
-    invocations = []
+def test_new_user_scope_supersedes_a_finish_signal_before_task_completion(run):
+    calls=[]
     def steer():
-        invocations.append(1)
-        return [{'text': 'Стоп, ничего не делай; только объясни.', 'message_id': 'scope'}] if len(invocations) == 2 else []
-    result, requests, calls, _, _ = run([
-        response('openai', 'Начинаю.'), review('openai', 'continue', True),
-        response('openai', 'Остановился. Вот объяснение.'), review('openai'),
+        calls.append(1)
+        return [{'text':'Стоп. Только объясни.', 'message_id':'scope'}] if len(calls)==1 else []
+    result, requests, work_calls, events, _=run([
+        finish('openai','Первый ответ.'), finish('openai','Объяснение без действий.'),
     ], pending_steer_provider=steer)
-    assert result['status'] == 'ok' and calls == []
-    assert 'Стоп, ничего не делай' in json.dumps(requests[2], ensure_ascii=False)
+    assert result['output_text']=='Объяснение без действий.' and len(requests)==2 and work_calls==[]
+    assert sum(row['kind']=='task.finish' for row in events)==1
+    assert 'Стоп. Только объясни.' in json.dumps(requests[1],ensure_ascii=False)
 
 
-def test_claimed_action_with_no_execution_evidence_cannot_complete():
-    decision = parse_completion_review(json.dumps({
-        'status': 'complete', 'requires_tools': True, 'evidence_ids': [],
-    }), [])
-    assert decision.status == 'continue'
+def test_pending_write_approval_is_not_bypassed_by_control_protocol(run):
+    result, requests, calls, events, _=run([
+        response('openai', tool=tool('Write','write-1',file_path='out.txt',content='fixture')),
+    ],names=('Write',),approvals_enabled_provider=lambda:True,source_platform='android')
+    assert result['status']=='waiting_approval' and result['failure_reason']=='approval_required'
+    assert len(requests)==1 and calls==[]
 
 
-def test_retry_budget_resets_only_when_tools_advance():
-    state = CompletionRecovery()
+def test_existing_iteration_budget_counts_only_main_turns_without_hidden_review(run):
+    from factory.core.iteration_budget import IterationBudget
+    budget=IterationBudget(1)
+    result, requests, calls, _, _=run([finish('openai','Привет!')],iteration_budget=budget)
+    assert result['status']=='ok' and budget.used==1 and len(requests)==1 and calls==[]
+
+
+def test_provider_output_limit_stays_explicit_without_control_retries(run):
+    result, requests, calls, _, _=run([response('openai','Partial answer',limited=True)])
+    assert result['failure_reason']=='model_output_limit' and len(requests)==1 and calls==[]
+
+
+def test_standalone_tool_cancellation_keeps_its_failure_state(run):
+    result, requests, calls, _, _=run([{'__interrupted__':True}])
+    assert result['failure_reason']=='interrupted' and len(requests)==1 and calls==[]
+
+
+def test_retry_allowance_resets_on_progress_but_not_failed_calls():
+    state=CompletionRecovery()
     assert state.request_continuation() and state.request_continuation()
     assert not state.request_continuation()
-    state.record('failed', 'Bash', False)
+    state.record('failure','Read',False)
     assert not state.request_continuation()
-    state.record('read', 'Read', True)
+    state.record('success','Read',True)
     assert state.request_continuation()
 
 
-def test_review_projection_does_not_mutate_history_or_include_reasoning():
-    messages = [{'role': 'assistant', 'content': [
-        {'type': '__reasoning', 'text': 'private chain'},
-        {'type': 'text', 'text': 'visible answer'},
-    ]}, {'role': 'user', 'content': [{'type': 'image', 'source': {'data': 'private image'}},
-        {'type': 'tool_result', 'tool_use_id': 'read', 'content': 'actual result'}]}]
-    original = copy.deepcopy(messages)
-    projected = json.dumps(review_transcript(messages))
-    assert 'private chain' not in projected and 'private image' not in projected
-    assert 'actual result' in projected and 'visible answer' in projected and messages == original
-
-
-@pytest.mark.parametrize('api', ['google', 'openai-responses', 'opencode-responses'])
-def test_other_protocols_do_not_opt_in_from_a_model_name(api):
-    caps = ModelBackendCapabilities('llama_cpp', False, 'http://localhost:8081/v1', 'fixture')
-    assert not completion_review_enabled(caps.base_url, api, caps, caps.model, ['Read'])
-
-
-def test_pending_approval_returns_before_review_without_bypassing_it(run):
-    result, requests, calls, events, _ = run([
-        response('openai', tool=tool('Write', 'write-1', file_path='out.txt', content='fixture')),
-    ], names=('Write',), approvals_enabled_provider=lambda: True, source_platform='android')
-    assert result['status'] == 'waiting_approval' and result['failure_reason'] == 'approval_required'
-    assert len(requests) == 1 and calls == []
-    assert not any(row['kind'] == 'model.completion_review' for row in events)
-
-
-def test_iteration_budget_also_counts_the_review_request(run):
-    from factory.core.iteration_budget import IterationBudget
-    budget = IterationBudget(1)
-    result, requests, calls, _, _ = run([response('openai', 'Начинаю.')], iteration_budget=budget)
-    assert result['failure_reason'] == 'iteration_budget_exhausted'
-    assert len(requests) == 1 and calls == [] and budget.used == 1
-
-
-@pytest.mark.parametrize('reply', [
-    {'error': 'fixture transport failure'},
-    response('openai', '{"status":', limited=True),
-])
-def test_review_transport_and_output_failures_do_not_accept_candidate(run, reply):
-    result, requests, calls, _, _ = run([response('openai', 'Начинаю.'), reply])
-    assert result['failure_reason'] == 'completion_review_failed'
-    assert len(requests) == 2 and calls == []
-
-
-def test_recovery_keeps_successful_side_effect_and_only_verifies_remaining_step(run):
+def test_current_receipt_alias_is_visible_in_tool_result_and_task_bound(run):
     result, requests, calls, _, _ = run([
-        response('openai', tool=tool('desktop_browser', 'effect', action='console', expression='3')),
-        response('openai', 'Теперь проверю журнал.'), review('openai', 'continue', True, ['effect']),
-        response('openai', tool=tool('desktop_browser', 'verify', action='console_messages')),
-        response('openai', 'Проверено.'), review('openai', 'complete', True, ['effect', 'verify']),
-    ])
-    assert result['status'] == 'ok' and len(requests) == 6
-    assert [args['action'] for name, args in calls] == ['console', 'console_messages']
+        response('openai', tool=tool()), finish('openai', requires=True, ids=['read-1']),
+    ], names=('Read',))
+    history = requests[-1]['messages']
+    results = [item['content'] for item in history if item.get('role') == 'tool']
+    assert len(results) == 1
+    assert results[0].startswith('[Runtime execution receipt: rt_')
+    assert '; tool=Read; succeeded=True]' in results[0]
+    assert 'fixture input' in results[0]
 
 
-def test_review_context_exhaustion_never_sends_an_oversized_request(monkeypatch):
-    calls = []
-    monkeypatch.setattr(e, '_http_post_streaming_openai', lambda *a, **kw: calls.append(a))
-    review, reason, add_in, add_out = e._review_local_completion(
-        url='http://127.0.0.1:1/v1/chat/completions', model='fixture', system_prompt='fixture',
-        messages=[{'role': 'assistant', 'content': 'x' * 5000}], receipts=[], tools=[], headers={},
-        timeout_s=1, max_tokens=64, context_window_tokens=128, is_openai_api=True,
-        reasoning_format=None, cancel_check=lambda: False,
-    )
-    assert review is None and reason == 'completion_review_context_exceeded'
-    assert calls == [] and add_in == add_out == 0
-
-
-def test_fenced_json_review_is_accepted_without_changing_its_meaning():
-    text = json.dumps({'status': 'complete', 'requires_tools': False, 'evidence_ids': []})
-    decision = parse_completion_review('```json\n' + text + '\n```', [])
-    assert decision.status == 'complete' and decision.requires_tools is False
-
-
-def test_nested_tool_images_and_reasoning_are_not_forwarded_to_text_review():
-    messages = [{'role': 'user', 'content': [{'type': 'tool_result', 'tool_use_id': 'shot', 'content': [
-        {'type': 'text', 'text': 'actual page summary'},
-        {'type': 'image', 'source': {'data': 'private nested image'}},
-        {'type': '__reasoning', 'text': 'private nested reasoning'},
-    ]}]}]
-    original = copy.deepcopy(messages)
-    projected = json.dumps(review_transcript(messages))
-    assert 'actual page summary' in projected
-    assert 'private nested' not in projected and messages == original
+def test_alias_from_another_task_cannot_prove_completion():
+    from factory.core.completion_protocol import validate_finish
+    first = CompletionRecovery(receipt_token='aaaaaa')
+    second = CompletionRecovery(receipt_token='bbbbbb')
+    for state in (first, second):
+        state.record('same-native-id', 'Read', True)
+    value = dict(status='complete', answer='Verified.', requires_tools=True,
+                 evidence_ids=[first.receipts[0]['alias']], remaining_steps=[])
+    assert validate_finish(value, first).evidence_ids == ('same-native-id',)
+    with pytest.raises(ValueError, match='unbound_completion_evidence'):
+        validate_finish(value, second)

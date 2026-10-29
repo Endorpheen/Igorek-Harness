@@ -348,6 +348,7 @@ const I18N = {
     "message.copied": "скопировано",
     "message.copy_unavailable": "недоступно",
     "message.copy_aria": "Скопировать текст сообщения",
+    "message.speak": "Озвучить", "message.speak_stop": "Остановить", "message.speak_cancel": "Остановить загрузку",
     "rail.tick": "Сообщение {n}{suffix}",
     "rail.preview_fallback": "Сообщение",
     "tool.default_name": "Инструмент",
@@ -1002,6 +1003,7 @@ const I18N = {
     "message.copied": "copied",
     "message.copy_unavailable": "unavailable",
     "message.copy_aria": "Copy message text",
+    "message.speak": "Read aloud", "message.speak_stop": "Stop", "message.speak_cancel": "Cancel loading",
     "rail.tick": "Message {n}{suffix}",
     "rail.preview_fallback": "Message",
     "tool.default_name": "Tool",
@@ -2979,6 +2981,20 @@ function renderMessage(item, context = {}) {
   forceButton.addEventListener("click", () => forceQueuedMessage(bound, forceButton, context.sessionId || state.selected, context.changed));
   cancelButton.addEventListener("click", () => cancelQueuedMessage(bound, cancelButton, context.sessionId || state.selected, context.changed));
   heading.append(name, time, queuedChip, prioritizedChip, queuedActions, copy);
+  let speak;
+  if (role === 'assistant' && window.IgorekDesktop?.tts && window.IgorekMessageSpeech) {
+    speak = element('button', 'message-copy message-speak', t('message.speak')); speak.type = 'button'; speak.hidden = true;
+    speak.dataset.speakLabel = t('message.speak'); speak.dataset.stopLabel = t('message.speak_stop'); speak.dataset.loadingLabel = t('message.speak_cancel');
+    speak.setAttribute('aria-label', t('message.speak')); speak.setAttribute('aria-pressed', 'false');
+    speak.addEventListener('click', () => window.IgorekMessageSpeech.play(body.innerText || currentText, speak));
+    const speechError = element('span', 'side-note'); speechError.hidden = true; speechError.setAttribute('role', 'alert');
+    speak.addEventListener('click', () => { speechError.hidden = true; });
+    speak.addEventListener('tts-error', event => { speak.title = event.detail; speechError.textContent = event.detail; speechError.hidden = false; });
+    heading.append(speechError);
+    heading.append(speak);
+    speak.hidden = !window.IgorekSpeechState?.enabled || bound.streaming || !currentText.trim();
+  }
+
   const body = element("div", "message-text");
   const attached = element("div", "message-attachments");
   const sessionId = context.sessionId || state.selected;
@@ -3042,6 +3058,7 @@ function renderMessage(item, context = {}) {
       attached.hidden = !attached.childElementCount;
     }
     currentText = rawText;
+    if (speak) { speak.dataset.streaming = String(Boolean(next.streaming)); speak.dataset.hasText = String(Boolean(rawText.trim())); speak.hidden = !window.IgorekSpeechState?.enabled || Boolean(next.streaming) || !rawText.trim(); }
     name.textContent = role === "user" ? (profile.name || t("message.you")) : t("brand.name");
     const queued = Boolean(next.queued);
     const prioritized = Boolean(next.prioritized);

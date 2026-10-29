@@ -119,3 +119,11 @@ contextBridge.exposeInMainWorld('IgorekWindow', Object.freeze({
   menu: (label, x, y) => invoke('igorek:window-menu', label, x, y),
   control: action => invoke('igorek:window-control', action),
 }));
+
+contextBridge.exposeInMainWorld('IgorekTTSSettings', Object.freeze({
+  read: () => invoke('igorek:tts', 'read'),
+  save: value => invoke('igorek:tts', 'save', value),
+  models: value => invoke('igorek:tts', 'models', value),
+  preview: value => invoke('igorek:tts', 'preview', value),
+  cancel: value => invoke('igorek:tts', 'cancel', value),
+}));

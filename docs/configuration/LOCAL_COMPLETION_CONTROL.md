@@ -1,34 +1,32 @@
 # Local completion control
 
-Confirmed loopback llama.cpp backends using the OpenAI-compatible or Anthropic
-protocol review text-only completion candidates when tools are available.
-Backend identity is bound to the selected endpoint and model; a model name or
-localhost address alone is insufficient. Cloud providers, unconfirmed proxies,
-other protocols and tool-free requests keep their previous completion path.
+Confirmed loopback llama.cpp backends using OpenAI-compatible or Anthropic
+transport finish through an internal `finish_task` signal in the normal model
+turn. Endpoint and model identity must match the capability probe. Cloud models,
+unconfirmed proxies, other transports and tool-free requests keep their existing
+request and completion path.
 
-Before accepting a final answer, the same local provider receives one additional
-read-only request containing visible conversation, execution policy and current
-tool receipts. It returns typed control data: complete, continue or blocked.
-The reviewer cannot execute tools. Its control JSON and reasoning are not shown
-as the user's answer; its token usage and verdict are recorded in task traces.
-OpenAI-compatible reviews request a JSON schema. The configured output budget
-and normal tool permissions are unchanged.
+The local request offers ordinary work tools plus the internal finish signal,
+with tool choice required. A question or requested draft may finish without work
+tools. The signal carries the final answer, complete/blocked status, remaining
+steps and current execution receipts. Receipt aliases are printed in tool results
+because server chat templates may hide native tool-call IDs from the model.
+Invented/failed evidence, unfinished plans and mixed finish/work batches are
+rejected; successful tools are never replayed automatically. Existing approval,
+cancellation, steering and output-budget rules remain in force.
 
-An unfinished authorized action continues within the same task using existing
-results. The runtime does not replay prior tools automatically. Completed
-questions, explanations, requested drafts, necessary clarification and honest
-blocker reports can finish without unnecessary actions. A completed action must
-cite actual current-task receipt IDs; failed or invented receipts do not prove
-success. Approval waits, cancellation and later user scope retain priority.
+A plain preamble without a finish signal continues the same task. Two consecutive
+continuations without tool progress are allowed before an explicit incomplete
+failure. Completion is still model-dependent: typed evidence cannot prove that
+all natural-language requirements were understood. The signal is internal control
+data; it does not count as a work tool or create a separate reviewer request.
 
-Two consecutive continuations without tool progress are allowed; another
-premature completion returns an explicit incomplete failure. Invalid, interrupted,
-output-limited or oversized review requests are not silently accepted as success.
-Semantic decisions remain model-dependent: typed evidence checks cannot prove
-that every natural-language requirement was understood. The extra local request
-adds latency; live-model accuracy and latency were not measured for this release.
+This replaces the 0.2.40 read-only reviewer, which could add a long delay after
+visible final text. Four local-model acceptance cases covered a question,
+premature preambles before/after work and a 101,972-input-token history. The
+measured runtime tail after the final provider response was about 1 ms; total
+prefill/generation time still depends on the model and context.
 
-After updating, fully quit and relaunch Desktop and start a new chat. Update and
-restart any separately managed runtime/gateway before chat. Profiles and model
-server commands need no changes or reimport. Linux/Windows installers include the
-updated runtime; Android continues to use the desktop/runtime executor.
+After updating, fully quit and relaunch Desktop and start a new chat. Separately
+managed runtime/gateway installations must also be updated and restarted. No
+profile reimport or model-server command change is required.

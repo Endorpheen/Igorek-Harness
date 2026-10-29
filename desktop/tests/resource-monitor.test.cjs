@@ -36,7 +36,7 @@ test('monitor preference saving failure leaves its accepted state unchanged',t=>
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'igorek-monitor-failure-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));const setting=new ResourceMonitorSettings(root);assert.throws(()=>setting.set(true));assert.equal(setting.enabled,false);
 });
 test('only the settings frame can change preferences and only the visible monitor can sample',async()=>{
- const text=fs.readFileSync(path.join(__dirname,'../main.cjs'),'utf8'),start=text.indexOf("ipcMain.handle('igorek:resource-monitor'"),end=text.indexOf("ipcMain.handle('igorek:completion-sound'",start);let handler,calls=0,closed=0;
+ const text=fs.readFileSync(path.join(__dirname,'../main.cjs'),'utf8'),start=text.indexOf("ipcMain.handle('igorek:resource-monitor'"),end=text.indexOf("ipcMain.handle('igorek:tts'",start);let handler,calls=0,closed=0;
  const contents={mainFrame:{},getURL:()=> 'file:///monitor'};const setting={enabled:true,set(value){this.enabled=value;return this.state()},state(){return{enabled:this.enabled}}};
  const window={isDestroyed:()=>false,isVisible:()=>true,webContents:contents,close(){closed++}};
  const context={ipcMain:{handle:(_,fn)=>handler=fn},resourceWindow:window,resourceURL:'file:///monitor',resourceSettings:setting,resourceSampler:{snapshot:async()=>{calls++;return{cpu:10}}},isOwnerFrame:e=>e.owner===true,ownerWindow:{},ownerUrl:'file:///owner',openResourceMonitor(){},publishResourceMonitor(){}};

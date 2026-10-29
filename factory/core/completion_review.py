@@ -1,47 +1,17 @@
-"""Evidence-bound completion review for confirmed local model backends."""
+"""Typed completion evidence and bounded recovery for local model backends."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 import json
+import secrets
 
 from .local_history_output import local_history_guard_enabled
-
-
-COMPLETION_REVIEW_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "status": {"type": "string", "enum": ["complete", "continue", "blocked"]},
-        "requires_tools": {"type": "boolean"},
-        "evidence_ids": {"type": "array", "items": {"type": "string"}},
-    },
-    "required": ["status", "requires_tools", "evidence_ids"],
-    "additionalProperties": False,
-}
 
 
 def completion_review_enabled(base_url, api_format, capabilities, model, tools):
     return bool(tools) and local_history_guard_enabled(
         base_url, api_format, capabilities=capabilities, model=model
     )
-
-
-def review_transcript(messages):
-    """Project visible context without leaking reasoning or image payloads."""
-    result = []
-    for message in messages:
-        content = message.get("content", "")
-        if isinstance(content, list):
-            content = [
-                {key: part[key] for key in ("type", "text", "id", "name", "input", "tool_use_id", "content") if key in part}
-                for part in content if isinstance(part, dict)
-                and part.get("type") in {"text", "tool_use", "tool_result"}
-            ]
-            for part in content:
-                if isinstance(part.get("content"), list):
-                    part["content"] = [block for block in part["content"]
-                                       if isinstance(block, dict) and block.get("type") == "text"]
-        result.append({"role": message.get("role"), "content": content})
-    return result
 
 
 @dataclass(frozen=True)
@@ -80,14 +50,18 @@ def parse_completion_review(text, receipts):
 class CompletionRecovery:
     """Bound retries without reducing output budgets or repeating side effects."""
     receipts: list[dict] = field(default_factory=list)
+    receipt_token: str = field(default_factory=lambda: secrets.token_hex(3))
+    plan_pending: bool = False
     _progress: int = 0
     _retry_progress: int = -1
     _retries: int = 0
 
-    def record(self, tool_id, name, succeeded):
-        self.receipts.append({"id": tool_id, "name": name, "succeeded": succeeded})
+    def record(self, tool_id, name, succeeded, tool_input=None):
+        self.receipts.append({"id": tool_id, "alias": "rt_" + self.receipt_token + "_" + str(len(self.receipts) + 1), "name": name, "succeeded": succeeded})
         if succeeded is not False:
             self._progress += 1
+            if name == "update_plan" and isinstance(tool_input, dict) and isinstance(tool_input.get("plan"), list):
+                self.plan_pending = any(item.get("status") != "completed" for item in tool_input["plan"])
 
     def request_continuation(self):
         if self._retry_progress != self._progress:

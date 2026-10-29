@@ -1,0 +1,16 @@
+digraph release {
+graph [rankdir=TB,bgcolor="white",pad="0.4",fontname="DejaVu Sans",labelloc=t,fontsize=22,label="Завершение задач и озвучка сообщений"];
+node [shape=box,style="rounded,filled",fillcolor="#eef5e9",color="#527244",fontname="DejaVu Sans",fontsize=13,margin="0.15"];
+n0 [label="0.2.40: ответ → отдельный проверяющий → завершение"];
+n1 [label="0.2.41: подтверждённый локальный llama.cpp"];
+n2 [label="Инструменты + видимые подтверждения выполнения"];
+n3 [label="Внутренний finish_task в основном ответе"];
+n4 [label="Корректный ответ / препятствие → завершение"];
+n5 [label="Нет сигнала / шаги не выполнены → продолжение"];
+n6 [label="Облако / неизвестный backend: прежний путь"];
+n7 [label="Настройки владельца: TTS URL, модель, голос"];
+n8 [label="Кнопка озвучки → Desktop IPC"];
+n9 [label="Заданный TTS-сервер → WAV → воспроизведение"];
+n10 [label="Стоп отменяет запрос и звук; без автозапуска"];
+n0->n1 [style=dashed]; n1->n2; n2->n3; n3->n4; n3->n5; n5->n2; n1->n6 [style=dotted]; n7->n8; n8->n9; n9->n10;
+}

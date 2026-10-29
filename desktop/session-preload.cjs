@@ -43,6 +43,8 @@ contextBridge.exposeInMainWorld('IgorekNotifications', Object.freeze({
   onChange: callback => { ipcRenderer.on('igorek:notifications-changed', (_, items) => callback(items)); },
 }));
 contextBridge.exposeInMainWorld('IgorekDesktop', Object.freeze({
+  tts: (action, value = {}) => invoke('igorek:tts', action, value),
+  onTTSState: callback => ipcRenderer.on('igorek:tts-state', (_, value) => callback(value)),
   navigation: (action, id) => invoke('igorek:ui-navigation', action, id),
   opencode: operation => invoke('igorek:opencode',operation),
   onOpenCodeState: callback => {ipcRenderer.on('igorek:opencode-state',(_,value)=>callback(value));},

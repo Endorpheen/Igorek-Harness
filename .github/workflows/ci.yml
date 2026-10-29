@@ -158,6 +158,10 @@ jobs:
             xvfb-run -a "$RUNNER_TEMP/igorek-native-snapshot/igorek-desktop/electron/electron" \
               desktop/tests/native/search-settings.cjs
           uv run --no-sync python desktop/packaging/check-native-report.py test-results/search-linux --search
+          IGOREK_TEST_RUNTIME="$RUNNER_TEMP/igorek-native-snapshot/igorek-desktop/app/runtime" \
+          IGOREK_TEST_OUTPUT="$PWD/test-results/tts-linux" \
+            xvfb-run -a "$RUNNER_TEMP/igorek-native-snapshot/igorek-desktop/electron/electron" \
+              desktop/tests/native/tts.cjs
       - name: Keep the sanitized acceptance report
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -170,6 +174,7 @@ jobs:
             test-results/composer-linux/summary.json
             test-results/profile-switch-linux/summary.json
             test-results/search-linux/summary.json
+            test-results/tts-linux/summary.json
           if-no-files-found: warn
           retention-days: 7
 

@@ -72,6 +72,8 @@ app.on('browser-window-created', (_, target) => {
 app.setPath('userData', join(app.getPath('appData'), managed ? 'igorek-desktop-owned' : 'igorek-desktop-prototype'));
 const shortcutStore = new ShortcutStore(join(app.getPath('userData'), 'shortcuts.json'));
 const notificationStore = new NotificationStore(join(app.getPath('userData'), 'notifications.json'));
+const { TextToSpeech } = require('./tts.cjs');
+const textToSpeech = new TextToSpeech(join(app.getPath('userData'), 'tts.json'));
 const completionSound = new CompletionSound(join(app.getPath('userData'), 'completion-sound.json'));
 const resourceSettings = new ResourceMonitorSettings(join(app.getPath('userData'), 'resource-monitor.json'));
 let resourceWindow, resourceSampler, resourceMonitorShutdown = false;
@@ -116,6 +118,20 @@ ipcMain.handle('igorek:resource-monitor', async (event, action, value) => {
   resourceSettings.set(value);
   if (value) openResourceMonitor(); else resourceWindow?.close();
   publishResourceMonitor(); return resourceSettings.state();
+});
+ipcMain.handle('igorek:tts', async (event, action, value = {}) => {
+  const ownerFrame = isOwnerFrame(event, ownerWindow?.webContents, ownerUrl);
+  if (!ownerFrame && !sessionMcp.trusted(event)) throw Error('Доступ запрещён.');
+  if (action === 'read') return textToSpeech.state();
+  if (action === 'cancel') return textToSpeech.cancel(event.sender.id, value.id);
+  const status = await runtime.requestOwner('status');
+  if (status.result?.state !== 'unlocked' || status.result?.interface_locked) throw Error('Разблокируйте Игорька для озвучивания.');
+  if (!ownerFrame && action !== 'speak') throw Error('Доступ запрещён.');
+  if (action === 'save') { const config = textToSpeech.save(value); for (const contents of chromeWindows.keys()) if (!contents.isDestroyed()) contents.send('igorek:tts-state', config); return config; }
+  if (action === 'models') return textToSpeech.models(value);
+  if (action === 'preview') return textToSpeech.speak(event.sender.id, value, true);
+  if (action === 'speak') return textToSpeech.speak(event.sender.id, value);
+  throw Error('Недопустимое действие озвучивания.');
 });
 ipcMain.handle('igorek:completion-sound', (event, action, value) => {
   const target = trustedChromeWindow(event);
