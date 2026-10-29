@@ -12,6 +12,10 @@ from factory.core.trace_taxonomy import (
 
 
 class TraceTaxonomyTest(unittest.TestCase):
+    def test_completion_signal_is_registered(self):
+        self.assertEqual(CcTraceEvent.TASK_COMPLETION_SIGNAL, "task.completion_signal")
+        self.assertIn(CcTraceEvent.TASK_COMPLETION_SIGNAL, all_event_kinds())
+
     def test_completion_review_is_registered(self):
         self.assertEqual(CcTraceEvent.MODEL_COMPLETION_REVIEW, "model.completion_review")
         self.assertIn(CcTraceEvent.MODEL_COMPLETION_REVIEW, all_event_kinds())

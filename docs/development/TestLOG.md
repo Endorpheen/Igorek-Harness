@@ -1,3 +1,32 @@
+## 2026-10-30 — Same-turn completion and optional Desktop speech (0.2.41)
+
+- Replaced the separate 0.2.40 local completion reviewer with a native internal
+  finish signal. Added receipt aliases visible through llama.cpp templates,
+  deterministic evidence checks and bounded recovery; cloud request shapes stay
+  unchanged. Existing local transport fixtures were updated to the new protocol.
+- Python full both-root run: 11,967 collected, 11,944 passed, 2 failed, 21 skipped,
+  924 passing subtests. The two failures (external catalog timeout and worker
+  fixture deadline under load) passed in an isolated 30-test rerun (6.32 s).
+  This is a composed accepted matrix, not a second monolithic green run. Existing
+  environment-dependent skips remain skips, including unavailable KVM acceptance.
+- Protocol contracts: 225 passes; final completion/trace/install contracts: 93 passes; real fragmented SSE/cancellation: 2 passes.
+  Apex supplied eight validator cases, accepted unchanged after review. Initial
+  live failures revealed non-required tool choice and hidden native receipt IDs;
+  both were fixed. Four subsequent real Apex cases passed, including 101,972
+  input tokens: no separate reviewer and about 1 ms runtime tail after response.
+- Final Desktop suite: 595 passed, zero failures. Desktop TTS has 21 contracts for settings, HTTP/WAV boundaries, cancellation,
+  playback sequencing and privileged IPC. Native Electron acceptance uses a
+  synthetic owner and local HTTP server: save/catalog/preview/reset/layout pass.
+  It runs under Xvfb on Linux; physical speaker quality is not asserted.
+- Audio8 was installed separately, outside release assets. The helper supplied
+  the API wrapper and corrected an import issue found during parent review.
+  Parent validation covered the actual FastAPI application and real HTTP WAV.
+  Russian sample: 5.25 s audio in 12.03 s with GPU AR and CPU codec; model weights
+  and optional local server environments are not shipped with the application.
+- Hosted required checks and package receipts are recorded in the release build
+  manifest. Android sources are unchanged; the accepted 0.1.139 (140) APK is reused.
+  No owner application/model restart or post-publication probing was performed.
+
 ## 2026-10-29 — Evidence-bound local completion recovery, 0.2.40 candidate
 
 Confirmed loopback llama.cpp models now review a candidate final answer against

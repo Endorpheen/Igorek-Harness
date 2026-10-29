@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="ru">
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; form-action 'none'; base-uri 'none'; frame-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; media-src data: blob:; form-action 'none'; base-uri 'none'; frame-src 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Хранилище Игорька</title>
 <link rel="stylesheet" href="owner.css">
@@ -109,6 +109,21 @@
       <label class="lock-option"><input id="resource-monitor-enabled" type="checkbox" disabled> Показывать компактный монитор</label>
       <p id="resource-monitor-status" class="note" role="status">Читаю настройку монитора…</p>
       <p class="note">CPU, RAM и доступные показатели GPU этого компьютера. Автообновление каждые 2 секунды; окно можно перетаскивать за заголовок. Закрытие выключает монитор.</p>
+    </section>
+
+    <section id="tts-settings" class="card panel" hidden aria-label="Озвучивание сообщений">
+      <h2>Озвучивание сообщений</h2>
+      <p class="note">Подключите локальный или собственный TTS-сервер с API /v1/audio/speech. Озвучивание запускается кнопкой у ответа.</p>
+      <form id="tts-form">
+        <label class="lock-option"><input id="tts-enabled" type="checkbox"> Показывать кнопку озвучивания ответов</label>
+        <label>Адрес API сервера<input id="tts-url" type="url" required placeholder="http://127.0.0.1:8092/v1"></label>
+        <label>Модель<input id="tts-model" type="text" list="tts-model-list" maxlength="256" placeholder="Имя модели из вашего сервера"><datalist id="tts-model-list"></datalist></label>
+        <button id="tts-models-load" type="button" class="secondary">Получить модели</button>
+        <label>Голос<input id="tts-voice" type="text" maxlength="128" value="default"></label>
+        <p class="note">Имя голоса зависит от сервера. Для Audio8 без образца используйте default.</p>
+        <div class="section-toolbar"><button type="submit">Сохранить</button><button id="tts-preview" data-speak-label="Проверить голос" type="button" class="secondary">Проверить голос</button></div>
+      </form>
+      <p id="tts-status" class="note" role="status"></p>
     </section>
 
     <section id="completion-sound-settings" class="card panel" hidden>
@@ -473,5 +488,7 @@
 <script src="profile-cards.cjs"></script>
 <script src="completion-sound-settings.js"></script>
 <script src="resource-monitor-settings.js"></script>
+<script src="tts-playback.js"></script>
+<script src="tts-settings.js"></script>
 <script src="owner-ui.js"></script>
 </html>

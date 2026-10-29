@@ -5,6 +5,8 @@ from unittest.mock import Mock
 
 import pytest
 
+from test_completion_control import finish as finish_signal
+
 from factory.core import cc_backend_executor as executor
 from factory.core.model_backend_capabilities import ModelBackendCapabilities
 from test_cc_stream_wire_contracts import wire, event, chunk  # noqa: F401
@@ -47,10 +49,10 @@ def test_original_echo_gets_one_correction_before_normal_answer(loop, monkeypatc
             return salvage(text, *args)
         return original_salvage(text, *args)
     monkeypatch.setattr(executor, 'try_salvage_textual_tool_call', check_salvage)
-    run = loop(api, [response(api, ECHO), response(api, 'Continued with the current task'), response(api, json.dumps({'status':'complete','requires_tools':False,'evidence_ids':[]}))], names=['desktop_browser'])
+    run = loop(api, [response(api, ECHO), response(api, 'Continued with the current task'), finish_signal(api, 'Continued with the current task')], names=['desktop_browser'])
     assert run.result['status'] == 'ok' and len(run.requests) == 3 and run.calls == []
     visible = [record.get('text_full', '') for record in run.trace if record['kind'] == 'model.round_response']
-    assert visible == ['', 'Continued with the current task']
+    assert visible == ['', 'Continued with the current task', '']
     assert ECHO not in json.dumps(run.requests[1], ensure_ascii=False)
     assert any(record.get('reason') == 'local_tool_history_echo' for record in run.trace)
     salvage.assert_not_called()
@@ -75,13 +77,13 @@ def test_remote_model_reply_and_request_are_preserved(loop, api):
 
 def test_echo_with_native_calls_is_recovered_without_replaying_old_actions(loop):
     tool = {'id': 'old-call', 'name': 'desktop_browser', 'input': {'action': 'open', 'url': 'https://example.test/old'}}
-    run = loop('openai', [response('openai', ECHO, tool), response('openai', 'Current answer'), response('openai', json.dumps({'status':'complete','requires_tools':False,'evidence_ids':[]}))], names=['desktop_browser'])
+    run = loop('openai', [response('openai', ECHO, tool), response('openai', 'Current answer'), finish_signal('openai', 'Current answer')], names=['desktop_browser'])
     assert run.result['status'] == 'ok' and run.calls == [] and len(run.requests) == 3
 
 
 def test_recovery_can_produce_a_fresh_structured_tool_call(loop):
     tool = {'id': 'new-call', 'name': 'desktop_browser', 'input': {'action': 'read'}}
-    run = loop('openai', [response('openai', ECHO), response('openai', tool=tool), response('openai', 'Page checked'), response('openai', json.dumps({'status':'complete','requires_tools':True,'evidence_ids':['new-call']}))], names=['desktop_browser'])
+    run = loop('openai', [response('openai', ECHO), response('openai', tool=tool), response('openai', 'Page checked'), finish_signal('openai', 'Page checked', requires=True, ids=['new-call'])], names=['desktop_browser'])
     assert run.result['status'] == 'ok' and run.calls == [('desktop_browser', {'action': 'read'})]
     assert len(run.requests) == 4
 

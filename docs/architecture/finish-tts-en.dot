@@ -1,0 +1,16 @@
+digraph release {
+graph [rankdir=TB,bgcolor="white",pad="0.4",fontname="DejaVu Sans",labelloc=t,fontsize=22,label="Completion and optional message speech"];
+node [shape=box,style="rounded,filled",fillcolor="#eef5e9",color="#527244",fontname="DejaVu Sans",fontsize=13,margin="0.15"];
+n0 [label="0.2.40: final text → extra reviewer → finish"];
+n1 [label="0.2.41: confirmed local llama.cpp"];
+n2 [label="Work tools + visible execution receipts"];
+n3 [label="Internal finish_task in the same turn"];
+n4 [label="Valid answer / blocker → finish immediately"];
+n5 [label="Missing signal / unfinished steps → continue"];
+n6 [label="Cloud / unknown: existing completion path"];
+n7 [label="Owner settings: TTS URL, model, voice"];
+n8 [label="Manual read-aloud → Desktop IPC"];
+n9 [label="Configured TTS server → WAV → playback"];
+n10 [label="Stop cancels request and audio; no autoplay"];
+n0->n1 [style=dashed]; n1->n2; n2->n3; n3->n4; n3->n5; n5->n2; n1->n6 [style=dotted]; n7->n8; n8->n9; n9->n10;
+}

@@ -24,6 +24,12 @@
     "description": "Voice model: configure the separate realtime voice connection."
   },
   {
+    "id": "tts",
+    "kind": "settings",
+    "target": "tts",
+    "description": "Message speech: configure a TTS server, model and voice for manual read-aloud."
+  },
+  {
     "id": "notifications",
     "kind": "settings",
     "target": "notifications",

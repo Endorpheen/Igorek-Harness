@@ -11,6 +11,7 @@ EVENT_KIND_RE = re.compile(r"^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$")
 
 class CcTraceEvent:
     TASK_START = "task.start"
+    TASK_COMPLETION_SIGNAL = "task.completion_signal"
     TASK_FINISH = "task.finish"
 
     MODEL_ROUND_RESPONSE = "model.round_response"
