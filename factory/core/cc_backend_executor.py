@@ -31,10 +31,6 @@ from .llama_image_input import LlamaImageInput
 from .model_backend_capabilities import ModelBackendCapabilities
 from .session_history import project_history_messages
 from .local_history_output import HistoricalToolEchoFilter, contains_historical_tool_echo, local_history_guard_enabled
-from .completion_review import (
-    CompletionRecovery, completion_review_enabled,
-)
-from .completion_protocol import FINISH_TASK, FINISH_SCHEMA, validate_finish
 from .post_turn_guards import (
     APPROVAL_REQUIRED,
     RETRY_REQUIRED,
@@ -1472,16 +1468,6 @@ def execute_cc_backend_task(
     guard_local_history = local_history_guard_enabled(
         base_url, api_format, capabilities=backend_capabilities, model=model
     )
-    controlled_completion = completion_review_enabled(
-        base_url, api_format, backend_capabilities, model, anthropic_tools
-    )
-    if controlled_completion:
-        from .prompt_assembly import local_completion_guidance
-        system_prompt += "\n\n" + local_completion_guidance()
-        anthropic_tools.append(FINISH_SCHEMA)
-        valid_tool_names.add(FINISH_TASK)
-        tools = _anthropic_tools_to_openai(anthropic_tools) if is_openai_api else anthropic_tools
-    completion_recovery = CompletionRecovery()
     local_history_rejections = 0
     message_history_ids: dict[int, tuple[str, ...]] = {}
     messages: list[dict[str, Any]] = _build_initial_messages(
@@ -1539,7 +1525,6 @@ def execute_cc_backend_task(
                 },
             )
         if delivered:
-            completion_recovery.plan_pending = False
             log_fn(
                 f"[cc-backend] Delivered {delivered} pending session message(s) "
                 "into the current task"
@@ -2000,45 +1985,6 @@ def execute_cc_backend_task(
                 ),
             )
 
-        def _completion_results(results):
-            if not controlled_completion:
-                return results
-            for item in results:
-                if item.get("type") != "tool_result":
-                    continue
-                receipt = next((r for r in reversed(completion_recovery.receipts) if r["id"] == item.get("tool_use_id")), None)
-                if receipt is None:
-                    continue
-                header = "[Runtime execution receipt: " + receipt["alias"] + "; tool=" + receipt["name"] + "; succeeded=" + str(receipt["succeeded"]) + "]\n"
-                content = item.get("content", "")
-                item["content"] = header + content if isinstance(content, str) else [{"type": "text", "text": header}, *content]
-            return results
-
-        def _completion_failure(reason, round_index):
-            answer = ("Задача остановлена пользователем." if reason == "interrupted" else
-                      "Модель повторно остановилась без корректного завершения задачи. Задача не выполнена.")
-            append_cc_backend_trace(artifact_workdir, {
-                "kind": CcTraceEvent.TASK_FINISH, "status": "fail", "reason": reason,
-                "rounds": round_index, "tool_calls_count": tool_calls_count,
-            })
-            return {"status": "fail", "failure_reason": reason, "output_text": answer,
-                    "usage": _current_usage(), "tool_calls_count": tool_calls_count}
-
-        def _continue_completion(reason, round_index):
-            allowed = completion_recovery.request_continuation()
-            append_cc_backend_trace(artifact_workdir, {
-                "kind": CcTraceEvent.POST_TURN_RETRY_REQUIRED, "round": round_index,
-                "reason": reason, "attempt": completion_recovery.attempts, "will_continue": allowed,
-            })
-            if allowed:
-                from .prompt_assembly import incomplete_action_retry_message
-                messages.append({"role": "user", "content": [
-                    {"type": "text", "text": incomplete_action_retry_message() + "\nCurrent runtime receipts: " + json.dumps([
-                        {"id": r["alias"], "tool": r["name"], "succeeded": r["succeeded"]} for r in completion_recovery.receipts
-                    ])}
-                ]})
-            return allowed
-
         def _delegated_approval(name, result):
             if name != "delegate_task":
                 return None
@@ -2237,11 +2183,6 @@ def execute_cc_backend_task(
                     "duration_ms": int((time.monotonic() - tool_started_at) * 1000),
                 },
             )
-            completion_recovery.record(
-                forced_tool_id, forced_name,
-                False if _tool_result_error(str(forced_result_text)) else
-                _result_indicates_success(forced_result_text, tool_name=forced_name), forced_input,
-            )
             delegated_approval = _delegated_approval(forced_name, forced_result_text)
             if delegated_approval is not None:
                 return delegated_approval
@@ -2398,7 +2339,7 @@ def execute_cc_backend_task(
                                     *seeded_tool_uses,
                                 ],
                             },
-                            {"role": "user", "content": _completion_results(seeded_tool_results)},
+                            {"role": "user", "content": seeded_tool_results},
                         ]
                         if approval_context_messages:
                             blocked_tool["approval_context_messages"] = (
@@ -2511,11 +2452,6 @@ def execute_cc_backend_task(
                                 ),
                             },
                         )
-                    completion_recovery.record(
-                        pending_tool_id, pending_name,
-                        False if _tool_result_error(str(pending_result_text)) else
-                        _result_indicates_success(pending_result_text, tool_name=pending_name), pending_input,
-                    )
                     delegated_approval = _delegated_approval(pending_name, pending_result_text)
                     if delegated_approval is not None:
                         return delegated_approval
@@ -2572,7 +2508,7 @@ def execute_cc_backend_task(
                 messages.append(
                     {
                         "role": "user",
-                        "content": _completion_results(seeded_tool_results),
+                        "content": seeded_tool_results,
                     }
                 )
                 append_cc_backend_trace(
@@ -2754,7 +2690,6 @@ def execute_cc_backend_task(
                         round_num=round_num,
                         parent_task_id=parent_task_id,
                         backend_capabilities=backend_capabilities,
-                        **({"emit_text_deltas": False} if controlled_completion else {}),
                         cancel_check=lambda: (
                             is_interrupt_requested() or _is_task_cancelling()
                         ),
@@ -2959,18 +2894,16 @@ def execute_cc_backend_task(
                         if isinstance(block, dict)
                     ],
                     "usage": body.get("usage", {}) if isinstance(body, dict) else {},
-                    "completion_pending": controlled_completion,
-                    "draft_text": output_text_preview if controlled_completion and not history_echo else "",
-                    "text_len": 0 if history_echo or controlled_completion else len(output_text_preview),
-                    "text_preview": "" if history_echo or controlled_completion else output_text_preview[:1000],
-                    "text_full": "" if history_echo or controlled_completion else output_text_preview,
+                    "text_len": 0 if history_echo else len(output_text_preview),
+                    "text_preview": "" if history_echo else output_text_preview[:1000],
+                    "text_full": "" if history_echo else output_text_preview,
                 },
             )
 
             if _model_output_limited(body):
                 return _output_limit_failure(
                     workdir=artifact_workdir,
-                    partial_text="" if history_echo or controlled_completion else output_text_preview,
+                    partial_text="" if history_echo else output_text_preview,
                     usage=_current_usage(), tool_calls_count=tool_calls_count,
                 )
 
@@ -3230,74 +3163,6 @@ def execute_cc_backend_task(
                     )
                     continue
 
-            if controlled_completion and any(block.get("name") == FINISH_TASK for block in tool_use_blocks):
-                finish = None
-                finish_reasoning = []
-                reason = "mixed_finish_batch"
-                if len(tool_use_blocks) == 1:
-                    try:
-                        finish_input = tool_use_blocks[0].get("input")
-                        if isinstance(finish_input, dict) and isinstance(finish_input.get("answer"), str):
-                            answer_blocks = _normalize_tagged_reasoning_blocks([
-                                {"type": "text", "text": finish_input["answer"]}
-                            ])
-                            finish_reasoning = [block["text"] for block in answer_blocks if block["type"] == "__reasoning"]
-                            finish_input = {**finish_input, "answer": "".join(
-                                block["text"] for block in answer_blocks if block["type"] == "text"
-                            )}
-                        finish = validate_finish(finish_input, completion_recovery)
-                        if finish.status == "complete":
-                            guard = evaluate_text_completion_guards(
-                                user_message=user_message, assistant_text=finish.answer, workdir=workdir,
-                                must_write_skills=must_write_skills, called_tool_names=called_tool_names,
-                                called_write_paths=called_write_paths,
-                            )
-                            if not guard.allowed:
-                                raise ValueError(guard.reason)
-                        reason = "completion_allowed"
-                    except ValueError as exc:
-                        reason = str(exc)
-                append_cc_backend_trace(artifact_workdir, {
-                    "kind": CcTraceEvent.TASK_COMPLETION_SIGNAL, "round": round_num + 1,
-                    "accepted": finish is not None and reason == "completion_allowed",
-                    "reason": reason, "status": finish.status if finish else None,
-                    "evidence_ids": list(finish.evidence_ids) if finish else [],
-                })
-                messages.append({"role": "assistant", "content": content_blocks})
-                messages.append({"role": "user", "content": [
-                    {"type": "tool_result", "tool_use_id": block.get("id", ""),
-                     "is_error": reason != "completion_allowed",
-                     "content": json.dumps({"status": "accepted" if reason == "completion_allowed" else "rejected",
-                                            "reason": reason, "tools_executed": False})}
-                    for block in tool_use_blocks
-                ]})
-                if is_interrupt_requested() or _is_task_cancelling():
-                    return _completion_failure("interrupted", round_num + 1)
-                if _deliver_pending_steers(round_num + 1) > 0:
-                    continue
-                if reason != "completion_allowed":
-                    if not _continue_completion(reason, round_num + 1):
-                        return _completion_failure("unfinished_action_repeated", round_num + 1)
-                    continue
-                for reasoning_text in finish_reasoning:
-                    append_cc_backend_trace(artifact_workdir, {
-                        "kind": CcTraceEvent.MODEL_REASONING_DELTA, "round": round_num + 1,
-                        "text": reasoning_text, "parent_task_id": parent_task_id or None,
-                    })
-                append_cc_backend_trace(artifact_workdir, {
-                    "kind": CcTraceEvent.MODEL_ROUND_RESPONSE, "round": round_num + 1,
-                    "completion_final": True, "content_types": ["text"], "usage": {},
-                    "text_len": len(finish.answer), "text_preview": finish.answer[:1000],
-                    "text_full": finish.answer, "parent_task_id": parent_task_id or None,
-                })
-                append_cc_backend_trace(artifact_workdir, {
-                    "kind": CcTraceEvent.TASK_FINISH, "status": "ok", "reason": "explicit_completion",
-                    "rounds": round_num + 1, "tool_calls_count": tool_calls_count,
-                    "output_preview": finish.answer[:500],
-                })
-                return {"status": "ok", "output_text": finish.answer, "usage": _current_usage(),
-                        "tool_calls_count": tool_calls_count}
-
             if not tool_use_blocks:
                 consecutive_textual_artifact_rounds = 0
                 consecutive_reasoning_only_rounds = 0
@@ -3366,17 +3231,16 @@ def execute_cc_backend_task(
                     called_tool_names=called_tool_names,
                     called_write_paths=called_write_paths,
                 )
-                if not (controlled_completion and text_guard.allowed):
-                    append_cc_backend_trace(
-                        artifact_workdir,
-                        {
-                            "kind": CcTraceEvent.POST_TURN_VERDICT,
-                            "round": round_num + 1,
-                            "action": text_guard.action,
-                            "reason": text_guard.reason,
-                            "target": text_guard.target or "",
-                        },
-                    )
+                append_cc_backend_trace(
+                    artifact_workdir,
+                    {
+                        "kind": CcTraceEvent.POST_TURN_VERDICT,
+                        "round": round_num + 1,
+                        "action": text_guard.action,
+                        "reason": text_guard.reason,
+                        "target": text_guard.target or "",
+                    },
+                )
 
                 if (
                     text_guard.action == APPROVAL_REQUIRED
@@ -3483,12 +3347,7 @@ def execute_cc_backend_task(
                 if _deliver_pending_steers(round_num + 1) > 0:
                     continue
 
-                if controlled_completion:
-                    if not _continue_completion("missing_finish_signal", round_num + 1):
-                        return _completion_failure("unfinished_action_repeated", round_num + 1)
-                    continue
-
-                # Model returned a completed answer or a genuine blocker.
+                # Model returned text only — done
                 log_fn(
                     f"[cc-backend] Completed after {round_num + 1} round(s), {tool_calls_count} tool calls"
                 )
@@ -3874,7 +3733,6 @@ def execute_cc_backend_task(
                 if _is_create_schedule_call(str(tool_name or "")):
                     schedule_confirmation = _schedule_created_message(raw_result_text)
                 result_succeeded = _result_indicates_success(raw_result_text, tool_name=effective_name)
-                completion_recovery.record(tool_use_id, effective_name, result_succeeded, effective_input)
                 round_outcomes.append(result_succeeded)
                 result_text = maybe_persist_tool_result(
                     content=result_text,
@@ -4118,7 +3976,7 @@ def execute_cc_backend_task(
                     },
                 )
                 # Add tool results so model sees them in synthesis call
-                messages.append({"role": "user", "content": _completion_results(tool_results)})
+                messages.append({"role": "user", "content": tool_results})
                 return _make_synthesis_call(
                     url=url,
                     model=model,
@@ -4137,7 +3995,7 @@ def execute_cc_backend_task(
                 )
 
             # Add tool results as user message
-            messages.append({"role": "user", "content": _completion_results(tool_results)})
+            messages.append({"role": "user", "content": tool_results})
             if priority_steer_provider is not None:
                 _deliver_pending_steers(round_num + 1, priority_steer_provider)
 
@@ -4554,7 +4412,6 @@ def _http_post_streaming_openai(
     parent_task_id: str | None = None,
     cancel_check=None,
     backend_capabilities: ModelBackendCapabilities | None = None,
-    emit_text_deltas: bool = True,
 ) -> tuple[dict, int]:
     """SSE streaming POST for OpenAI-compatible APIs.
 
@@ -4629,7 +4486,7 @@ def _http_post_streaming_openai(
         for kind, value in parts:
             (reasoning_parts if kind == "__reasoning" else content_parts).append(value)
             visible = history_filter.feed(value) if kind == "text" and history_filter else value
-            if trace_dir and visible and (kind == "__reasoning" or emit_text_deltas):
+            if trace_dir and visible:
                 append_cc_backend_trace(trace_dir, {
                     "kind": CcTraceEvent.MODEL_REASONING_DELTA if kind == "__reasoning" else CcTraceEvent.MODEL_TEXT_DELTA,
                     "round": round_num + 1, "text": visible,
@@ -4911,7 +4768,7 @@ def _http_post_streaming_openai(
     accept_content(content_splitter.finish())
     if history_filter:
         visible = history_filter.finish()
-        if trace_dir and visible and emit_text_deltas:
+        if trace_dir and visible:
             append_cc_backend_trace(trace_dir, {
                 "kind": CcTraceEvent.MODEL_TEXT_DELTA,
                 "round": round_num + 1, "text": visible,

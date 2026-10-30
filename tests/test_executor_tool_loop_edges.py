@@ -7,8 +7,6 @@ from unittest.mock import Mock
 
 import pytest
 
-from test_completion_control import finish as finish_signal
-
 from factory.core import cc_backend_executor as e, cc_backend_tools as tools, desktop_browser
 from test_executor_workflow_guards import response
 from test_tool_call_salvage import FIXTURES
@@ -40,7 +38,7 @@ def loop(tmp_path,monkeypatch):
             if isinstance(raw,Exception):raise raw
             return raw
         monkeypatch.setattr(e,'_http_post',post);monkeypatch.setattr(e,'_http_post_streaming_openai',post);monkeypatch.setattr(e,'execute_tool',execute)
-        result=e.execute_cc_backend_task(base_url=kwargs.pop('base_url','http://127.0.0.1:1'),model='fixture',api_format=api,system_prompt='fixture system',user_message='Respond to fixture',workdir=str(work),artifact_workdir=str(artifact),enabled_tools=[schemas[n] for n in names],metadata={'model_context_window':65536,**(metadata or {})},approvals_enabled_provider=lambda:False,**kwargs)
+        result=e.execute_cc_backend_task(base_url=kwargs.pop('base_url','http://127.0.0.1:1'),model='fixture',api_format=api,system_prompt='fixture system',user_message=kwargs.pop('user_message','Respond to fixture'),workdir=str(work),artifact_workdir=str(artifact),enabled_tools=[schemas[n] for n in names],metadata={'model_context_window':65536,**(metadata or {})},approvals_enabled_provider=lambda:False,**kwargs)
         trace=[json.loads(row) for row in (artifact/'cc_backend_trace.jsonl').read_text().splitlines()]
         return SimpleNamespace(result=result,requests=requests,calls=calls,trace=trace,work=work)
     return run
@@ -74,7 +72,7 @@ def test_redirected_fetch_uses_only_dedicated_web_tool(loop,monkeypatch,api):
         return None
     monkeypatch.setattr(LlamaImageInput, "_probe", confirmed)
     tool={'id':'fetch-one','name':'Bash','input':{'command':'curl -sL https://example.test/article'}}
-    run=loop(api,[response(api,tool=tool),response(api,'Fixture source checked'), finish_signal(api, 'Fixture source checked', requires=True, ids=['fetch-one'])],names=['Bash','web_extract'])
+    run=loop(api,[response(api,tool=tool),response(api,'Fixture source checked')],names=['Bash','web_extract'])
     assert run.result['status']=='ok'
     assert run.calls==[('web_extract',{'urls':['https://example.test/article']})]
     assert 'Redirected: curl/wget -> web_extract' in json.dumps(run.requests[1])
