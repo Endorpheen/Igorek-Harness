@@ -2686,8 +2686,6 @@ def execute_cc_backend_task(
                 "messages": messages,
                 "tools": tools,
             }
-            if controlled_completion:
-                payload["tool_choice"] = "required" if is_openai_api else {"type": "any"}
             if is_responses_api:
                 pass  # The Responses adapter consumes the native internal history.
             elif is_openai_api:
@@ -2756,6 +2754,7 @@ def execute_cc_backend_task(
                         round_num=round_num,
                         parent_task_id=parent_task_id,
                         backend_capabilities=backend_capabilities,
+                        **({"emit_text_deltas": False} if controlled_completion else {}),
                         cancel_check=lambda: (
                             is_interrupt_requested() or _is_task_cancelling()
                         ),
@@ -2960,16 +2959,18 @@ def execute_cc_backend_task(
                         if isinstance(block, dict)
                     ],
                     "usage": body.get("usage", {}) if isinstance(body, dict) else {},
-                    "text_len": 0 if history_echo else len(output_text_preview),
-                    "text_preview": "" if history_echo else output_text_preview[:1000],
-                    "text_full": "" if history_echo else output_text_preview,
+                    "completion_pending": controlled_completion,
+                    "draft_text": output_text_preview if controlled_completion and not history_echo else "",
+                    "text_len": 0 if history_echo or controlled_completion else len(output_text_preview),
+                    "text_preview": "" if history_echo or controlled_completion else output_text_preview[:1000],
+                    "text_full": "" if history_echo or controlled_completion else output_text_preview,
                 },
             )
 
             if _model_output_limited(body):
                 return _output_limit_failure(
                     workdir=artifact_workdir,
-                    partial_text="" if history_echo else output_text_preview,
+                    partial_text="" if history_echo or controlled_completion else output_text_preview,
                     usage=_current_usage(), tool_calls_count=tool_calls_count,
                 )
 
@@ -3231,10 +3232,20 @@ def execute_cc_backend_task(
 
             if controlled_completion and any(block.get("name") == FINISH_TASK for block in tool_use_blocks):
                 finish = None
+                finish_reasoning = []
                 reason = "mixed_finish_batch"
                 if len(tool_use_blocks) == 1:
                     try:
-                        finish = validate_finish(tool_use_blocks[0].get("input"), completion_recovery)
+                        finish_input = tool_use_blocks[0].get("input")
+                        if isinstance(finish_input, dict) and isinstance(finish_input.get("answer"), str):
+                            answer_blocks = _normalize_tagged_reasoning_blocks([
+                                {"type": "text", "text": finish_input["answer"]}
+                            ])
+                            finish_reasoning = [block["text"] for block in answer_blocks if block["type"] == "__reasoning"]
+                            finish_input = {**finish_input, "answer": "".join(
+                                block["text"] for block in answer_blocks if block["type"] == "text"
+                            )}
+                        finish = validate_finish(finish_input, completion_recovery)
                         if finish.status == "complete":
                             guard = evaluate_text_completion_guards(
                                 user_message=user_message, assistant_text=finish.answer, workdir=workdir,
@@ -3268,6 +3279,17 @@ def execute_cc_backend_task(
                     if not _continue_completion(reason, round_num + 1):
                         return _completion_failure("unfinished_action_repeated", round_num + 1)
                     continue
+                for reasoning_text in finish_reasoning:
+                    append_cc_backend_trace(artifact_workdir, {
+                        "kind": CcTraceEvent.MODEL_REASONING_DELTA, "round": round_num + 1,
+                        "text": reasoning_text, "parent_task_id": parent_task_id or None,
+                    })
+                append_cc_backend_trace(artifact_workdir, {
+                    "kind": CcTraceEvent.MODEL_ROUND_RESPONSE, "round": round_num + 1,
+                    "completion_final": True, "content_types": ["text"], "usage": {},
+                    "text_len": len(finish.answer), "text_preview": finish.answer[:1000],
+                    "text_full": finish.answer, "parent_task_id": parent_task_id or None,
+                })
                 append_cc_backend_trace(artifact_workdir, {
                     "kind": CcTraceEvent.TASK_FINISH, "status": "ok", "reason": "explicit_completion",
                     "rounds": round_num + 1, "tool_calls_count": tool_calls_count,
@@ -4532,6 +4554,7 @@ def _http_post_streaming_openai(
     parent_task_id: str | None = None,
     cancel_check=None,
     backend_capabilities: ModelBackendCapabilities | None = None,
+    emit_text_deltas: bool = True,
 ) -> tuple[dict, int]:
     """SSE streaming POST for OpenAI-compatible APIs.
 
@@ -4606,7 +4629,7 @@ def _http_post_streaming_openai(
         for kind, value in parts:
             (reasoning_parts if kind == "__reasoning" else content_parts).append(value)
             visible = history_filter.feed(value) if kind == "text" and history_filter else value
-            if trace_dir and visible:
+            if trace_dir and visible and (kind == "__reasoning" or emit_text_deltas):
                 append_cc_backend_trace(trace_dir, {
                     "kind": CcTraceEvent.MODEL_REASONING_DELTA if kind == "__reasoning" else CcTraceEvent.MODEL_TEXT_DELTA,
                     "round": round_num + 1, "text": visible,
@@ -4888,7 +4911,7 @@ def _http_post_streaming_openai(
     accept_content(content_splitter.finish())
     if history_filter:
         visible = history_filter.finish()
-        if trace_dir and visible:
+        if trace_dir and visible and emit_text_deltas:
             append_cc_backend_trace(trace_dir, {
                 "kind": CcTraceEvent.MODEL_TEXT_DELTA,
                 "round": round_num + 1, "text": visible,
