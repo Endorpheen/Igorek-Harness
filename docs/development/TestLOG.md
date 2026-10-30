@@ -16,6 +16,7 @@
 - Retain the separately verified TTS route, local Blob media CSP and visible
   button. Native acceptance covers the actual HTTP-served chat, production
   renderer/session preload, IPC, HTTP synthesis and playback without audio errors.
+- Final both-root run: 11,948 collected, 11,927 passed, 21 existing environment skips, zero failures/errors, 951 passing subtests. Desktop: 595 passes. Statement coverage 87.32%, branch coverage 79.25%. This is an all-green full run.
 - Both Python roots and hosted platform gates remain required; final counts and
   provenance are in BUILD_MANIFEST. The first 0.2.42 preview was never published.
   The owner installed a second local rollback build and confirmed ordinary replies.
