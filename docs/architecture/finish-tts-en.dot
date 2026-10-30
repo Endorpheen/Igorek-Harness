@@ -1,16 +1,16 @@
 digraph release {
-graph [rankdir=TB,bgcolor="white",pad="0.4",fontname="DejaVu Sans",labelloc=t,fontsize=22,label="Completion and optional message speech"];
+graph [rankdir=TB,bgcolor="white",pad="0.4",fontname="DejaVu Sans",labelloc=t,fontsize=22,label="Normal completion restored; message speech retained"];
 node [shape=box,style="rounded,filled",fillcolor="#eef5e9",color="#527244",fontname="DejaVu Sans",fontsize=13,margin="0.15"];
-n0 [label="0.2.41 regression: forced tool call + raw draft stream"];
-n1 [label="0.2.42: natural stop + validated final delivery"];
-n2 [label="Work tools + visible execution receipts"];
-n3 [label="Internal finish_task in the same turn"];
-n4 [label="Valid answer / blocker → finish immediately"];
-n5 [label="Missing signal / unfinished steps → continue"];
-n6 [label="Cloud / unknown: existing completion path"];
-n7 [label="Owner settings: TTS URL, model, voice"];
+n0 [label="Before: mandatory completion signal"];
+n1 [label="Valid ordinary answer rejected / retried"];
+n2 [label="Final 0.2.42: ordinary provider response"];
+n3 [label="Tagged reasoning → reasoning channel"];
+n4 [label="Final text → chat and task completion"];
+n5 [label="Real tools → existing tool loop"];
+n6 [label="Permissions and required-artifact checks retained"];
+n7 [label="Owner TTS settings: URL, model, voice"];
 n8 [label="Visible button → served player → Desktop IPC"];
-n9 [label="Configured TTS server → local Blob WAV → playback"];
-n10 [label="Stop cancels request and audio; no autoplay"];
-n0->n1 [style=dashed]; n1->n2; n2->n3; n3->n4; n3->n5; n5->n2; n1->n6 [style=dotted]; n7->n8; n8->n9; n9->n10;
+n9 [label="Configured TTS → local Blob WAV → playback"];
+n10 [label="Stop cancels request/audio; no autoplay"];
+n0->n1; n1->n2 [style=dashed]; n2->n3; n2->n4; n2->n5; n5->n4; n4->n6 [style=dotted]; n7->n8; n8->n9; n9->n10;
 }

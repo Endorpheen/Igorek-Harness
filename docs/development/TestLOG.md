@@ -1,3 +1,30 @@
+## 2026-10-30 — Final 0.2.42: withdraw mandatory completion enforcement
+
+- Owner evidence showed three valid greeting replies rejected only because a
+  synthetic completion call was absent. At the owner's explicit request remove
+  the experimental controller entirely, rather than adding more exceptions.
+  Executor and prompt assembly restore their established pre-0.2.40 behavior.
+- Remove the unused internal completion modules and their parser-only tests
+  because that feature/API is withdrawn. Replace runtime enforcement tests with
+  positive one-request completion contracts for local/cloud OpenAI and Anthropic:
+  greetings, questions, requested drafts, explanations and acknowledgements.
+  Work tools, clarification, tagged/structured reasoning and cancellation remain
+  covered. Restore old transport/history fixture expectations for this contract.
+- Focused rollback matrix: 212 passes. An initial fixture reserved an entire 64K
+  context for 64K output; it now supplies 256K context and still verifies that the
+  requested 64K output budget is preserved. No production budget is reduced.
+- Retain the separately verified TTS route, local Blob media CSP and visible
+  button. Native acceptance covers the actual HTTP-served chat, production
+  renderer/session preload, IPC, HTTP synthesis and playback without audio errors.
+- Final both-root run: 11,948 collected, 11,927 passed, 21 existing environment skips, zero failures/errors, 951 passing subtests. Desktop: 595 passes. Statement coverage 87.32%, branch coverage 79.25%. This is an all-green full run.
+- Both Python roots and hosted platform gates remain required; final counts and
+  provenance are in BUILD_MANIFEST. The first 0.2.42 preview was never published.
+  The owner installed a second local rollback build and confirmed ordinary replies.
+- 0.2.41 release assets and visible Git tags were removed on GitHub and Gitea at
+  the owner's request; source commits remain in history. Existing concrete tool,
+  approval, cancellation and required-artifact checks remain. No claim is made
+  that this rollback solves all model-generated promises without action.
+
 ## 2026-10-30 — Fix 0.2.41 completion and chat speech regressions (0.2.42)
 
 - Owner evidence showed repeated ordinary replies/private reflections in the text

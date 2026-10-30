@@ -4,8 +4,6 @@ import json
 
 import pytest
 
-from test_completion_control import finish as finish_signal
-
 from factory.core import cc_backend_executor as executor
 from factory.core.session_history import build_working_history
 from factory.core.session_compaction import build_compaction_dry_run_plan
@@ -172,15 +170,12 @@ def test_executor_replays_only_confirmed_local_native_history_and_never_executes
     monkeypatch.setattr(LlamaImageInput, '_probe', probe)
     history = build_working_history(*session())
     current_call = {'id': 'current', 'name': 'Read', 'input': {'file_path': 'input.txt'}}
-    is_native = backend == 'llama_cpp' and url.startswith('http://127.0.0.1')
-    bodies = [response(api, tool=current_call), response(api, 'Fixture answer')]
-    if is_native:
-        bodies.append(finish_signal(api, 'Fixture answer', requires=True, ids=['current']))
-    run = loop(api, bodies, names=['Read'], history_messages=history, base_url=url)
-    assert len(run.requests) == (3 if is_native else 2)
+    run = loop(api, [response(api, tool=current_call), response(api, 'Fixture answer')],
+               names=['Read'], history_messages=history, base_url=url)
     assert run.result['status'] == 'ok' and run.result['output_text'] == 'Fixture answer'
     assert run.calls == [('Read', {'file_path': 'input.txt'})]
     first = run.requests[0]['messages']
+    is_native = backend == 'llama_cpp' and url.startswith('http://127.0.0.1')
     if api == 'openai':
         old_calls = [c for m in first for c in m.get('tool_calls', [])]
         assert len(old_calls) == int(is_native)
@@ -198,10 +193,9 @@ def test_confirmed_local_text_final_is_allowed_without_forcing_tools(loop, monke
         policy.backend = 'llama_cpp'
         return None
     monkeypatch.setattr(LlamaImageInput, '_probe', probe)
-    run = loop(api, [response(api, 'Fixture answer'), finish_signal(api, 'Fixture answer')], names=['Read'], history_messages=build_working_history(*session()))
-    assert run.result['status'] == 'ok' and run.calls == [] and len(run.requests) == 2
-    assert all(any(t.get('name', t.get('function', {}).get('name')) == 'finish_task' for t in request['tools']) for request in run.requests)
-    assert run.calls == []
+    run = loop(api, [response(api, 'Fixture answer')], names=['Read'], history_messages=build_working_history(*session()))
+    assert run.result['status'] == 'ok' and run.calls == [] and len(run.requests) == 1
+    assert not any(request.get('tool_choice') == 'required' for request in run.requests)
 
 
 @pytest.mark.parametrize('api', ['openai', 'anthropic'])
@@ -218,9 +212,9 @@ def test_reactive_compaction_covers_all_native_batch_origins_without_resurrectio
     entries, events = session(calls=calls, output='stored fixture ' + 'x' * 80000)
     history = json.loads(json.dumps(build_working_history(entries, events)))
     summary = '\n'.join(heading + '\n- carried fixture' for heading in SESSION_SUMMARY_HEADINGS)
-    run = loop(api, [{'error': 'prompt too long'}, response(api, summary), response(api, 'Fixture answer'), finish_signal(api, 'Fixture answer')],
+    run = loop(api, [{'error': 'prompt too long'}, response(api, summary), response(api, 'Fixture answer')],
                history_messages=history, names=['Read'], max_tokens=1024, task_id='current')
-    assert run.result['status'] == 'ok' and run.calls == [] and len(run.requests) == 4
+    assert run.result['status'] == 'ok' and run.calls == [] and len(run.requests) == 3
     completed = next(row for row in run.trace if row['kind'] == 'compaction.completed')
     assert {'tool:old:a', 'tool:old:b'} <= set(completed['covered_history_ids'])
     assert not any(origin.startswith('tool:current:hist_') for origin in completed['covered_history_ids'])

@@ -1,37 +1,22 @@
-# Local completion control
+# Normal completion restored
 
-Confirmed loopback llama.cpp backends using OpenAI-compatible or Anthropic
-transport finish through an internal `finish_task` signal in the normal model
-turn. Endpoint and model identity must match the capability probe. Cloud models,
-unconfirmed proxies, other transports and tool-free requests keep their existing
-request and completion path.
+The experimental local completion controllers have been withdrawn after
+regressions in 0.2.41 and the first local 0.2.42 preview. They could reject a
+valid ordinary response solely because an internal completion signal was absent.
 
-The local request offers ordinary work tools plus the internal finish signal,
-without forcing the provider tool-choice mode. A question or requested draft may finish without work
-tools. The signal carries the final answer, complete/blocked status, remaining
-steps and current execution receipts. Receipt aliases are printed in tool results
-because server chat templates may hide native tool-call IDs from the model.
-Invented/failed evidence, unfinished plans and mixed finish/work batches are
-rejected; successful tools are never replayed automatically. Existing approval,
-cancellation, steering and output-budget rules remain in force.
+The final 0.2.42 executor and prompt assembly restore the established path from
+before 0.2.40. A normal provider terminal answer is accepted directly. There is no
+synthetic finish tool, missing-signal retry, injected completion protocol or
+separate semantic reviewer. Greetings, explanations and requested text need no
+work tool. Real tool calls retain the existing loop and result handling.
 
-A plain preamble without a finish signal continues the same task. Two consecutive
-continuations without tool progress are allowed before an explicit incomplete
-failure. Completion is still model-dependent: typed evidence cannot prove that
-all natural-language requirements were understood. The signal is internal control
-data; it does not count as a work tool or create a separate reviewer request.
-A provider response that omits it can stop naturally and receive a bounded
-continuation; EOS is not forced behind a tool call. Only the validated signal's
-answer becomes a visible final message. Preliminary text stays in diagnostic
-traces, while explicitly tagged reasoning stays in the reasoning channel.
-The 0.2.41 forced tool-choice and premature-text regression is fixed in 0.2.42.
+Concrete safeguards remain: tool permissions, owner approvals, cancellation,
+actual output limits, required file artifacts and skill write contracts, plus
+filtering of historical tool echoes. Structured/tagged reasoning remains in its
+separate channel. This rollback does not claim to solve every model promise
+without action; the rejected mandatory controller is no longer used for that.
 
-This replaces the 0.2.40 read-only reviewer, which could add a long delay after
-visible final text. Four local-model acceptance cases in 0.2.41 covered a question,
-premature preambles before/after work and a 101,972-input-token history. The
-then-measured runtime tail after the final provider response was about 1 ms; total
-prefill/generation time still depends on the model and context.
-
-After updating, fully quit and relaunch Desktop and start a new chat. Separately
-managed runtime/gateway installations must also be updated and restarted. No
-profile reimport or model-server command change is required.
+Fully quit and relaunch Desktop after updating, then start a new chat so old
+experimental protocol context is not carried forward. Update/restart separately
+installed runtime/gateway services too. Profiles, output budgets and model-server
+commands need no changes or reimport.
