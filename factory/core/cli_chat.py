@@ -81,6 +81,9 @@ def _load_entries(path: Path) -> list[dict]:
         except (UnicodeDecodeError, json.JSONDecodeError):
             continue
         if isinstance(entry, dict) and entry.get("role") in {"user", "assistant"}:
+            if entry.get("role") == "assistant" and isinstance(entry.get("text"), str):
+                from .local_history_output import visible_history_text
+                entry["text"] = visible_history_text(entry["text"])
             entries.append(entry)
     return entries
 

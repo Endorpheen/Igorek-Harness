@@ -14,14 +14,14 @@ from test_local_history_output_guard import ECHO
 
 @pytest.mark.parametrize('api', ['openai', 'anthropic'])
 @pytest.mark.parametrize('owner', ['cloud', 'unknown'])
-def test_localhost_cloud_proxy_and_unknown_backend_preserve_original_reply(loop, metadata_server, api, owner):
+def test_localhost_cloud_proxy_and_unknown_backend_recover_internal_echo(loop, metadata_server, api, owner):
     state=metadata_server
     state['props']={}
     state['models']={'data':[{'id':'fixture','owned_by':owner}]}
-    run=loop(api,[response(api,ECHO)],base_url=state['url'])
-    assert run.result['status']=='ok' and run.result['output_text']==ECHO
-    assert len(run.requests)==1 and run.calls==[]
-    assert not any(row.get('reason')=='local_tool_history_echo' for row in run.trace)
+    run=loop(api,[response(api,ECHO),response(api,'Current answer')],base_url=state['url'])
+    assert run.result['status']=='ok' and run.result['output_text']=='Current answer'
+    assert len(run.requests)==2 and run.calls==[]
+    assert any(row.get('reason')=='local_tool_history_echo' for row in run.trace)
 
 
 @pytest.mark.parametrize('api', ['openai','anthropic'])
@@ -53,13 +53,13 @@ def test_unknown_loopback_backend_cannot_trigger_image_recovery(metadata_server)
     assert policy.recover(payload(),REJECTION) is None
 
 
-def test_stream_transport_does_not_guess_backend_from_localhost(wire,monkeypatch):
+def test_stream_output_guard_does_not_require_backend_identity(wire,monkeypatch):
     records=[]
     monkeypatch.setattr(executor,'append_cc_backend_trace',lambda directory,record:records.append(record))
     wire.chunks=[event(chunk(ECHO,finish='stop')),b'data: [DONE]\n\n']
     body,_=executor._http_post_streaming_openai(wire.url,{'model':'fixture','messages':[]},{},3,trace_dir='fixture')
     assert body['choices'][0]['message']['content']==ECHO
-    assert ''.join(row['text'] for row in records if row['kind']=='model.text_delta')==ECHO
+    assert ''.join(row['text'] for row in records if row['kind']=='model.text_delta')==''
 
 
 @pytest.mark.parametrize('known',[False,True])
@@ -134,7 +134,7 @@ def test_resolved_identity_cannot_be_reused_for_another_route_model_or_transport
 
 
 @pytest.mark.parametrize('confirmed',[False,True])
-def test_same_resolved_identity_controls_live_stream_without_metadata_requests(wire,monkeypatch,confirmed):
+def test_output_guard_needs_no_additional_metadata_requests(wire,monkeypatch,confirmed):
     from factory.core.model_backend_capabilities import ModelBackendCapabilities
     wire.url=wire.url.split("?",1)[0]
     records=[]
@@ -144,7 +144,7 @@ def test_same_resolved_identity_controls_live_stream_without_metadata_requests(w
     body,_=executor._http_post_streaming_openai(wire.url,{'model':'fixture','messages':[]},{},3,
         trace_dir='fixture',backend_capabilities=capabilities)
     assert body['choices'][0]['message']['content']==ECHO
-    assert ''.join(row['text'] for row in records if row['kind']=='model.text_delta')==('' if confirmed else ECHO)
+    assert ''.join(row['text'] for row in records if row['kind']=='model.text_delta')==''
     assert len(wire.requests)==1
 
 

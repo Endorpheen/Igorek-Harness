@@ -59,14 +59,10 @@ def test_task_identity_reaches_live_stream_and_durable_response(tmp_path,monkeyp
     rounds=[row for row in records if row['kind']=='model.round_response']
     posts=[row for row in requests if row[0]=='POST']
     assert result['status']=='ok' and result['tool_calls_count']==0
-    if backend=='llamacpp':
-        assert result['output_text']==visible=='Current answer'
-        assert [row['text_full'] for row in rounds]==['','Current answer']
-        assert len(posts)==2 and all(row['backend_kind']=='llama_cpp' for row in rounds)
-    else:
-        assert result['output_text']==visible==ECHO
-        assert len(posts)==1 and rounds[0]['text_full']==ECHO
-        assert rounds[0]['backend_kind']=='unknown'
+    assert result['output_text']==visible=='Current answer'
+    assert [row['text_full'] for row in rounds]==['','Current answer']
+    assert len(posts)==2
+    assert all(row['backend_kind']==('llama_cpp' if backend=='llamacpp' else 'unknown') for row in rounds)
     assert [row[1] for row in requests if row[0]=='GET']==(
         ['/v1/models','/props?model=fixture'] if backend=='unknown' else ['/v1/models'])
     assert all('backend_capabilities' not in row[2] for row in posts)

@@ -2862,7 +2862,7 @@ def execute_cc_backend_task(
                         reasoning_parts.append(str(block.get("text", "")))
 
             output_text_preview = "\n".join(text_parts)
-            history_echo = guard_local_history and contains_historical_tool_echo(output_text_preview)
+            history_echo = contains_historical_tool_echo(output_text_preview)
             if not is_openai_api and not is_google_api:
                 for reasoning_text in reasoning_parts:
                     append_cc_backend_trace(
@@ -4478,9 +4478,7 @@ def _http_post_streaming_openai(
     content_parts: list[str] = []
     reasoning_parts: list[str] = []
     content_splitter = TaggedReasoningSplitter()
-    history_filter = HistoricalToolEchoFilter() if local_history_guard_enabled(
-        url, capabilities=backend_capabilities, model=payload.get("model", "")
-    ) else None
+    history_filter = HistoricalToolEchoFilter()
 
     def accept_content(parts: list[tuple[str, str]]) -> None:
         for kind, value in parts:

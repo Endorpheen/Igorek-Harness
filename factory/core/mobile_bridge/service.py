@@ -74,6 +74,7 @@ from ..mcp_config import list_mcp_capabilities_for_profile
 from ..opencode_quota import OPENCODE_MOBILE_USER_AGENT, usage_payload
 from ..external_sessions import ExternalSessionCatalog
 from ..session_history import read_history, build_working_history
+from ..local_history_output import visible_history_text
 from ..runtime import (
     get_data_root,
     get_db_path,
@@ -525,7 +526,7 @@ class MobileService:
                     "status": row[2],
                     "profile": row[3],
                     "input_text": row[4] or "",
-                    "output_text": row[5] or "",
+                    "output_text": visible_history_text(row[5] or ""),
                     "metadata": _loads(row[6], {}),
                     "approval_blocked_tools": _loads(row[7], []),
                     "created_at": int(row[8] or 0),
@@ -1122,7 +1123,7 @@ class MobileService:
         messages = [{"role": "user", "text": record.get("goal_text") or record["goal_title"], "history_id": "goal-" + session_id}]
         has_trace = bool(self.store.list_events(session_id=session_id, limit=1))
         if not has_trace and record.get("summary"):
-            messages.append({"role": "assistant", "text": record["summary"], "history_id": "summary-" + session_id})
+            messages.append({"role": "assistant", "text": visible_history_text(record["summary"]), "history_id": "summary-" + session_id})
         meta = {**main["meta"], "title": record["goal_title"], "parent_session_id": record.get("parent_session_id") or root,
                 "root_session_id": root, "agent_session": True, "subagent_id": record["subagent_id"], "agent_status": record["status"]}
         return {"session_id": session_id, "meta": meta, "messages": messages,
@@ -1665,7 +1666,8 @@ class MobileService:
         messages = [
             {
                 "role": str(entry.get("role") or ""),
-                "text": str(entry.get("text") or ""),
+                "text": (visible_history_text(str(entry.get("text") or ""))
+                         if entry.get("role") == "assistant" else str(entry.get("text") or "")),
                 "ts": entry.get("ts"),
                 "task_id": entry.get("task_id"),
                 "message_id": entry.get("message_id"),
@@ -2004,7 +2006,7 @@ class MobileService:
             "status": row[2],
             "profile": row[3],
             "input_text": row[4] or "",
-            "output_text": row[5] or "",
+            "output_text": visible_history_text(row[5] or ""),
             "metadata": _loads(row[6], {}),
             "approval_blocked_tools": _loads(row[7], []),
             "created_at": int(row[8] or 0),
@@ -2054,7 +2056,7 @@ class MobileService:
                 "status": row[2],
                 "profile": row[3],
                 "input_text": row[4] or "",
-                "output_text": row[5] or "",
+                "output_text": visible_history_text(row[5] or ""),
                 "metadata": _loads(row[6], {}),
                 "approval_blocked_tools": _loads(row[7], []),
                 "created_at": int(row[8] or 0),
@@ -2647,10 +2649,10 @@ class MobileService:
                     continue
 
                 raw_text = str(task.get("output_text") or task.get("error_message") or "").strip()
-                text = raw_text
+                text = visible_history_text(raw_text)
                 memory_writes: list[dict[str, Any]] = []
                 if status == "ok" and not metadata.get('demo_workspace'):
-                    text, requested_writes = extract_memory_write_blocks(raw_text)
+                    text, requested_writes = extract_memory_write_blocks(text)
                     text = strip_memory_status_lines(text)
                     if requested_writes:
                         memory_writes = self._memory_manager.review_turn(

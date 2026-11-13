@@ -8,7 +8,7 @@
 
 # Igorek Harness
 
-Documentation reviewed: 2026-10-30.
+Documentation reviewed: 2026-11-13.
 
 **A personal AI agent: Electron desktop, Android, and terminal.**
 
@@ -21,9 +21,11 @@ settings in one workspace. Igorek Remote for Android controls the same agent
 from your phone. Terminal, local Web UI, Telegram, and ACP interfaces are also
 available.
 
-Documentation updated **October 29, 2026**. The Python/desktop version is in
+Documentation updated **November 13, 2026**. The Python/desktop version is in
 [`pyproject.toml`](pyproject.toml); Android has its own version in
 [`android/app/build.gradle.kts`](android/app/build.gradle.kts).
+
+Internal history echoes are blocked before visible streaming, intermediate cards and saved-history replay for every provider. Restart the desktop runtime after updating; fully reopen mobile clients to reload old cards.
 
 Local model repairs use confirmed llama.cpp identity and capabilities for the selected model; a localhost cloud proxy or unknown backend does not enable them. Truncated replies retain partial text and an explicit incomplete outcome. Tool outcomes use execution status and exit codes; ordinary final answers remain valid. Confirmed local llama.cpp receives native tool history across tasks, with linked results and intact batches during compaction. See [runtime outcome boundaries](docs/architecture/MODEL_BACKEND_GUARDS.md).
 

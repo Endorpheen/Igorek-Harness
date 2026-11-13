@@ -1908,6 +1908,8 @@ class Worker:
         output_payload = stored_result.get("output")
         output_payload = output_payload if isinstance(output_payload, dict) else {}
         output_text = str(output_payload.get("text", stored_result.get("output_text", "")))
+        from .local_history_output import visible_history_text
+        output_text = visible_history_text(output_text)
         usage_payload = stored_result.get("usage")
         usage_payload = usage_payload if isinstance(usage_payload, dict) else {}
         update_data = {

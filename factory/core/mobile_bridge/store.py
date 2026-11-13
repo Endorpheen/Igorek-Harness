@@ -30,6 +30,7 @@ from typing import Any
 
 from ..runtime import get_db_path
 from ..schema import initialize_database, open_db
+from ..local_history_output import HistoricalToolEchoFilter, visible_event_payload
 
 # Special 'salt' for hashing device tokens: prevents reuse of the same digest in another table and explicitly marks the hash's purpose.
 _DEVICE_TOKEN_PEPPER = b"igorek-mobile-device-v1"
@@ -415,7 +416,7 @@ class MobileStore:
         params.append(bounded)
         with open_db(self.db_path) as conn:
             rows = conn.execute(query, params).fetchall()
-        return [
+        events = [
             {
                 "seq": int(row[0]),
                 "session_id": row[1],
@@ -426,6 +427,33 @@ class MobileStore:
             }
             for row in rows
         ]
+        filters = {}
+        with open_db(self.db_path) as conn:
+            for event in events:
+                kind, payload = event["kind"], event["payload"]
+                event["payload"] = visible_event_payload(kind, payload)
+                if kind in {"model.round_response", "task.start", "task.finish"}:
+                    filters = {key: guard for key, guard in filters.items()
+                               if key[:2] != (event["task_id"], event["session_id"])}
+                if kind != "model.text_delta":
+                    continue
+                key = (event["task_id"], event["session_id"], payload.get("round", 0))
+                if key not in filters:
+                    guard = filters[key] = HistoricalToolEchoFilter()
+                    # Rebuild the prefix when reconnect starts inside a streamed marker.
+                    prior = conn.execute(
+                        "SELECT payload_json FROM mobile_events WHERE task_id IS ? AND session_id IS ? "
+                        "AND kind = 'model.text_delta' AND seq < ? "
+                        "AND seq > COALESCE((SELECT MAX(seq) FROM mobile_events WHERE task_id IS ? "
+                        "AND session_id IS ? AND kind IN ('model.round_response', 'task.start', 'task.finish') "
+                        "AND seq < ?), 0) "
+                        "AND COALESCE(json_extract(payload_json, '$.round'), 0) = ? ORDER BY seq",
+                        (*key[:2], event["seq"], *key[:2], event["seq"], key[2]),
+                    )
+                    for row in prior:
+                        guard.feed(str(json.loads(row[0]).get("text") or ""))
+                event["payload"]["text"] = filters[key].feed(str(payload.get("text") or ""))
+        return events
 
     def agent_record_event(self, session_id: str) -> dict[str, Any] | None:
         with open_db(self.db_path) as conn:

@@ -5,6 +5,7 @@ import os
 from typing import Any
 
 from ..trace_taxonomy import CcTraceEvent
+from ..local_history_output import HistoricalToolEchoFilter, visible_history_text
 from .cells.history_cell import (
     DiffCell,
     ErrorCell,
@@ -124,6 +125,7 @@ class TraceEventReducer:
         self._stream_controller: StreamController | None = None
         self._stream_marker_emitted = False
         self._task_finish_applied = False
+        self._history_filters: dict[int, HistoricalToolEchoFilter] = {}
         self.dirty = False
 
     def apply_many(self, events: list[dict[str, Any]]) -> None:
@@ -137,6 +139,24 @@ class TraceEventReducer:
 
     def apply(self, event: dict[str, Any]) -> None:
         kind = str(event.get("kind") or "")
+        round_num = int(event.get("round") or 0)
+        if kind == CcTraceEvent.MODEL_TEXT_DELTA and not event.get("_history_filtered"):
+            guard = self._history_filters.setdefault(round_num, HistoricalToolEchoFilter())
+            text = guard.feed(str(event.get("text") or ""))
+            if not text:
+                return
+            event = {**event, "text": text}
+        elif kind == CcTraceEvent.MODEL_ROUND_RESPONSE:
+            guard = self._history_filters.pop(round_num, None)
+            pending = guard.finish() if guard else ""
+            if pending:
+                self.apply({"kind": CcTraceEvent.MODEL_TEXT_DELTA, "round": round_num,
+                            "text": pending, "_history_filtered": True})
+            event = {**event, "text_full": visible_history_text(str(event.get("text_full") or "")),
+                     "text_preview": visible_history_text(str(event.get("text_preview") or ""))}
+        elif kind == CcTraceEvent.TASK_FINISH:
+            self._history_filters.clear()
+            event = {**event, "output_preview": visible_history_text(str(event.get("output_preview") or ""))}
         if kind in {CcTraceEvent.NETWORK_RETRY, CcTraceEvent.NETWORK_RECOVERED}:
             diagnostic = event.get('diagnostic') or {}
             attempt = diagnostic.get('attempt') or (int(event.get('attempt') or 0)+1)
