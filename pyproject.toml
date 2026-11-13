@@ -63,6 +63,6 @@ dev = [
     "requests>=2.34.2",
     "ruff>=0.14,<1",
     "tree-sitter==0.26.0",
-    "tree-sitter-language-pack==1.22.1",
+    "tree-sitter-language-pack==1.25.0",
     "uvicorn>=0.54.0",
 ]
