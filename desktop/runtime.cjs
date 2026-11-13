@@ -127,8 +127,11 @@ class OwnedRuntime extends EventEmitter {
               if (event.type === 'owner_state') {
                 const value = event.state;
                 if (value && ['locked', 'unlocked', 'not_initialized'].includes(value.state)
-                    && typeof value.interface_locked === 'boolean')
-                  this.emit('owner-state', { state: value.state, interface_locked: value.interface_locked });
+                    && typeof value.interface_locked === 'boolean') {
+                  const state = { state: value.state, interface_locked: value.interface_locked };
+                  this.emit('owner-state', state);
+                  this.emit('remote-owner-state', state);
+                }
                 continue;
               }
               if (event.type === 'owner_reply') {

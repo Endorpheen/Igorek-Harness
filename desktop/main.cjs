@@ -1011,7 +1011,8 @@ app.whenReady().then(async () => {
         if(!parent||parent.isDestroyed()||!chatWindows.has(parent)||!sameOrigin(parent.webContents.getURL(),config.origin))return {error:'desktop_locked'};
         return workspaceBrowser.agent(parent,fields);
       };
-      runtime.on('owner-state', state => { if(ownerWindow&&!ownerWindow.isDestroyed())ownerWindow.webContents.send('igorek:owner-state'); opencodeUnlocked=state.state==='unlocked'&&!state.interface_locked; if (!opencodeUnlocked) { desktopBrowser.lock();chatgptWorkspace.lock();workspaceBrowser.lock();opencodeWorkspace?.lock();opencodeService?.stop().catch(()=>{});opencodeTasks?.stop().catch(()=>{});githubReviews?.lock();for(const target of chatWindows)if(!target.isDestroyed())target.webContents.send('igorek:github-locked'); } else {desktopBrowser.unlock();workspaceBrowser.unlock();opencodeWorkspace?.unlock();} });
+      runtime.on('remote-owner-state', () => { if(ownerWindow&&!ownerWindow.isDestroyed())ownerWindow.webContents.send('igorek:owner-state'); });
+      runtime.on('owner-state', state => { opencodeUnlocked=state.state==='unlocked'&&!state.interface_locked; if (!opencodeUnlocked) { desktopBrowser.lock();chatgptWorkspace.lock();workspaceBrowser.lock();opencodeWorkspace?.lock();opencodeService?.stop().catch(()=>{});opencodeTasks?.stop().catch(()=>{});githubReviews?.lock();for(const target of chatWindows)if(!target.isDestroyed())target.webContents.send('igorek:github-locked'); } else {desktopBrowser.unlock();workspaceBrowser.unlock();opencodeWorkspace?.unlock();} });
       runtime.on('failed', () => {
         if (config && !quitting) { dialog.showErrorBox('Игорёк', 'Локальный backend остановился. Закройте и заново откройте приложение.'); app.quit(); }
       });

@@ -15,7 +15,13 @@
 - Final focused Python matrix: 207 passes (14 remote Vault, 21 mobile access,
   76 owner lifecycle, 96 mobile server). Earlier separate actual backend startup
   matrix passed six cases. Scoped desktop contracts passed 133; the final
-  extended runtime file passed 35. No owner services were used for these tests.
+  extended runtime file passed 36. No owner services were used for these tests.
+- Initial hosted native Linux CI exposed a settings refresh feedback loop: local
+  status replies triggered another status request, eventually returning
+  `operation_busy`. Forward only unsolicited remote owner changes to settings,
+  while retaining local owner-state permission updates. The regression fails
+  before the fix (eight refreshes instead of one) and passes afterward; the
+  complete runtime file passes 36/36. Final-source hosted CI must pass again.
 - Android: 514 unit tests, zero failures/errors/skips; lint and both debug APK
   targets passed. Native Android plus an actual separate Desktop backend passed
   incorrect/correct code, real process restart, retained pairing/certificate and
