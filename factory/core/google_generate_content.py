@@ -111,6 +111,8 @@ def post_stream(url, payload, headers, timeout_s, *, trace_dir=None, round_num=0
     from .cc_backend_trace import append_cc_backend_trace
     from .diagnostics import safe_text, transport_failure
     from .trace_taxonomy import CcTraceEvent
+    from .local_history_output import HistoricalToolEchoFilter
+    history_filter = HistoricalToolEchoFilter()
     start = time.monotonic()
     done, aborted = threading.Event(), threading.Event()
     parsed = urlsplit(url)
@@ -182,8 +184,11 @@ def post_stream(url, payload, headers, timeout_s, *, trace_dir=None, round_num=0
                 for part in candidate.get('content', {}).get('parts', []):
                     parts.append(part)
                     if trace_dir and isinstance(part.get('text'), str):
+                        text = part['text'] if part.get('thought') else history_filter.feed(part['text'])
+                        if not text:
+                            continue
                         append_cc_backend_trace(trace_dir, {'kind': CcTraceEvent.MODEL_REASONING_DELTA if part.get('thought') else CcTraceEvent.MODEL_TEXT_DELTA,
-                            'round': round_num + 1, 'text': part['text'], 'parent_task_id': parent_task_id or None})
+                            'round': round_num + 1, 'text': text, 'parent_task_id': parent_task_id or None})
         if aborted.is_set():
             if cancel_check and cancel_check():
                 return {'__interrupted__': True}, int((time.monotonic() - start) * 1000)
@@ -192,6 +197,10 @@ def post_stream(url, payload, headers, timeout_s, *, trace_dir=None, round_num=0
             raise ValueError('google_stream_incomplete')
         names = {str(tool.get('name') or tool.get('function', {}).get('name') or '') for tool in payload.get('tools', [])}
         body = to_anthropic({'candidates': [{'content': {'parts': parts}, 'finishReason': finish}], 'usageMetadata': usage}, names)
+        pending = history_filter.finish()
+        if trace_dir and pending:
+            append_cc_backend_trace(trace_dir, {'kind': CcTraceEvent.MODEL_TEXT_DELTA,
+                'round': round_num + 1, 'text': pending, 'parent_task_id': parent_task_id or None})
         return body, int((time.monotonic() - start) * 1000)
     except Exception as exc:
         if aborted.is_set() and cancel_check and cancel_check():

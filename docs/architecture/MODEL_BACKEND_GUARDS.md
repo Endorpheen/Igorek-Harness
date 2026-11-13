@@ -12,7 +12,7 @@ matching selected alias and llama.cpp fields. Unknown metadata leaves local
 repairs inactive. Observations are cached within the task and do not invoke
 generation; there is no global capability cache.
 
-The descriptor binds identity to the model and endpoint path. History recovery,
+The descriptor binds identity to the model and endpoint path. Native input-history projection,
 image policy and default Bash web redirection consume the same observation.
 The executor passes it to SSE processing before any visible text delta. The
 stream transport performs no independent address-based inference. Existing
@@ -75,3 +75,31 @@ text-only completion disappears.
 ![Было и стало: нативная история](native-tool-history-ru.png)
 
 [Редактируемый SVG](native-tool-history-ru.svg). [Исходник Graphviz](native-tool-history-ru.dot).
+
+## Provider-independent history output boundary in 0.2.43
+
+Internal historical-tool/reasoning records are context, not assistant answers.
+Their output guard applies to OpenAI Chat Completions, Anthropic, Responses
+(including OpenCode) and Google, independently of local backend identity. It
+holds fragmented marker prefixes before publishing text and also rejects a
+marker followed by inline JSON. Explicit documentation quotes remain readable.
+
+The executor rejects the whole affected model round before textual salvage or
+structured tool execution, requests one correction without copying the rejected
+text, and fails safely on a repeated echo. Normal provider completion and normal
+structured calls remain valid; no synthetic completion tool is required. Native
+input-history projection and image/web repairs retain their original scope.
+
+A second output boundary covers worker results, CLI/TUI replay, mobile live
+events, stored round cards and session messages. Reconnecting inside a fragmented
+legacy marker reconstructs its prefix from the same task/session/round, bounded
+by the latest round or task boundary. Saved raw diagnostics are not rewritten.
+Previously echoed assistant messages do not become fresh answer examples. User
+messages and structured tool results keep their content.
+
+The shared runtime change serves desktop, web and Android clients; Android
+source and APK are unchanged. After the desktop update, fully restart Desktop,
+unlock the Vault, then fully restart the mobile app: its in-memory timeline
+deduplicates already seen event IDs and otherwise retains old cards. The new
+server sanitizes the replay. Tests use synthetic providers and real local HTTP,
+SQLite and journal paths, not a claim that a model can never invent a new format.

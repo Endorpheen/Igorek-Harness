@@ -1,4 +1,4 @@
-"""Keep unquoted internal history records out of local model answers."""
+"""Keep internal history records out of provider-independent visible answers."""
 from __future__ import annotations
 
 from .model_backend_capabilities import ModelBackendCapabilities
@@ -65,6 +65,8 @@ class HistoricalToolEchoFilter:
                 tail = text[len(marker):]
                 if not tail.strip():
                     return "block" if "\n" in tail or final else "hold"
+                if tail.lstrip().startswith(("{", "[")):
+                    return "block"
         return "emit"
 
     def feed(self, text: str) -> str:
@@ -104,3 +106,25 @@ def contains_historical_tool_echo(text: str) -> bool:
     guard.feed(text)
     guard.finish()
     return guard.blocked
+
+
+HISTORY_OUTPUT_NOTICE = "Служебный фрагмент ответа скрыт. Повторите запрос, чтобы получить обычный ответ."
+
+
+def visible_history_text(text: str, *, replacement: str = HISTORY_OUTPUT_NOTICE) -> str:
+    """Sanitize complete assistant text without changing user or tool records."""
+    return replacement if contains_historical_tool_echo(text) else text
+
+
+def visible_event_payload(kind: str, payload: dict) -> dict:
+    """Cover complete replies and previews at durable client boundaries."""
+    fields = {
+        "model.round_response": ("text",),
+        "task.finish": ("output_preview",),
+        "task.status": ("output_text",),
+    }.get(kind, ())
+    result = dict(payload)
+    for field in fields:
+        if isinstance(result.get(field), str):
+            result[field] = visible_history_text(result[field])
+    return result

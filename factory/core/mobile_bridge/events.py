@@ -24,6 +24,7 @@ from ..runtime import get_db_path, get_workspace_root
 from ..schema import open_db
 from ..trace_taxonomy import CcTraceEvent
 from ..vault.logging_redaction import redact_text
+from ..local_history_output import HistoricalToolEchoFilter, visible_history_text
 
 def _with_memory_note(text: str) -> str:
     cleaned, _writes = extract_memory_write_blocks(text)
@@ -178,7 +179,7 @@ def normalize_trace_event(
                 "reason": str(event.get("reason") or ""),
                 "rounds": int(event.get("rounds") or 0),
                 "tool_calls_count": int(event.get("tool_calls_count") or 0),
-                "output_preview": _clip(event.get("output_preview"), _MAX_PREVIEW_CHARS),
+                "output_preview": _clip(visible_history_text(str(event.get("output_preview") or "")), _MAX_PREVIEW_CHARS),
                 "approval_blocked_count": len(blocked) if isinstance(blocked, list) else 0,
                 "error_diagnostics": model_failure_diagnostics(event.get('error_diagnostics')),
                 "diagnostic": sanitize_observation(event.get('diagnostic')),
@@ -192,7 +193,7 @@ def normalize_trace_event(
             {
                 "round": int(event.get("round") or 0),
                 "text": _clip(
-                    _with_memory_note(event.get("text_full") or event.get("text_preview") or ""),
+                    visible_history_text(_with_memory_note(event.get("text_full") or event.get("text_preview") or "")),
                     _MAX_TEXT_CHARS,
                 ),
                 "usage": event.get("usage") if isinstance(event.get("usage"), dict) else {},
@@ -294,6 +295,7 @@ class TraceJournaler:
         self._subagent_cursors: dict[str, dict[str, int]] = {}
         self._sessions: dict[str, str | None] = {}
         self._reasoning: dict[str, list[str]] = {}
+        self._text_filters: dict[tuple[str, str, int], HistoricalToolEchoFilter] = {}
         self._statuses: dict[str, str] = {}
         self._finished_tasks: set[str] = set()
         self._live_hooks: list[LiveHook] = []
@@ -380,6 +382,19 @@ class TraceJournaler:
 
         if child:
             session_id = agent_id
+
+        stream_key = (task_id, agent_id if child else "", int(raw.get("round") or 0))
+        if kind == CcTraceEvent.MODEL_TEXT_DELTA:
+            guard = self._text_filters.setdefault(stream_key, HistoricalToolEchoFilter())
+            text = guard.feed(str(raw.get("text") or ""))
+            if not text:
+                return 0
+            raw = {**raw, "text": text}
+        elif kind == CcTraceEvent.MODEL_ROUND_RESPONSE:
+            self._text_filters.pop(stream_key, None)
+        elif kind == CcTraceEvent.TASK_FINISH:
+            self._text_filters = {key: value for key, value in self._text_filters.items()
+                                  if key[:2] != stream_key[:2]}
 
         frame = normalize_trace_event(
             raw,

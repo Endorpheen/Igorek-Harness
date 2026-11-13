@@ -9,6 +9,7 @@ from pathlib import Path
 
 from .runtime import get_db_path, get_workspace_root
 from .schema import initialize_database
+from .local_history_output import visible_history_text
 
 
 def _workspace_files(task_id: str) -> list[str]:
@@ -157,8 +158,8 @@ def get_task(task_id: str) -> dict | None:
         "status": row[1],
         "profile": row[2],
         "input_text": row[3],
-        "result_text": row[4],
-        "output_text": row[4],
+        "result_text": visible_history_text(row[4]) if isinstance(row[4], str) else row[4],
+        "output_text": visible_history_text(row[4]) if isinstance(row[4], str) else row[4],
         "workspace_files": _workspace_files(workspace_files_target),
         "created_at": row[6],
         "updated_at": row[7],
@@ -207,8 +208,8 @@ def list_tasks(limit: int = 20) -> dict:
             "status": row[1],
             "profile": row[2],
             "input_text": row[3],
-            "result_text": row[4],
-            "output_text": row[4],
+            "result_text": visible_history_text(row[4]) if isinstance(row[4], str) else row[4],
+            "output_text": visible_history_text(row[4]) if isinstance(row[4], str) else row[4],
             "workspace_files": _workspace_files(row[0]),
             "created_at": row[6],
             "updated_at": row[7],

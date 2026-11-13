@@ -1,0 +1,6 @@
+[Historical tool evidence; already executed]
+{"name": "Bash", "input": {"command": "printf fixture"}, "reason": "Fixture inspection", "output": "Fixture tool result\\n", "status": "done", "stored_path": null}
+[Historical tool evidence; already executed]
+{"name": "Bash", "input": {"command": "printf fixture"}, "reason": "Fixture inspection", "output": "Fixture tool result\\n", "status": "done", "stored_path": null}
+[Historical tool evidence; already executed]
+{"name": "Bash", "input": {"command": "printf fixture"}, "reason": "Fixture inspection", "output": "Fixture tool result\\n", "status": "done", "stored_path": null}

@@ -66,9 +66,10 @@ def test_repeated_echo_is_bounded_and_never_returns_raw_history(loop, api):
 
 
 @pytest.mark.parametrize('api', ['openai', 'anthropic', 'openai-responses'])
-def test_remote_model_reply_and_request_are_preserved(loop, api):
-    run = loop(api, [response(api, ECHO)], base_url='https://api.example.test/v1')
-    assert run.result['status'] == 'ok' and run.result['output_text'] == ECHO
+def test_remote_quoted_reply_and_request_are_preserved(loop, api):
+    quoted = '```text\n' + ECHO + '```\nExplanation.'
+    run = loop(api, [response(api, quoted)], base_url='https://api.example.test/v1')
+    assert run.result['status'] == 'ok' and run.result['output_text'] == quoted
     assert len(run.requests) == 1
     assert not any(record.get('reason') == 'local_tool_history_echo' for record in run.trace)
 
@@ -156,11 +157,12 @@ def test_remote_sse_stream_is_preserved_byte_for_byte(wire, monkeypatch):
     monkeypatch.setattr(executor.http.client, 'HTTPSConnection', lambda *args, **kwargs: connection('127.0.0.1', port, timeout=3))
     events = []
     monkeypatch.setattr(executor, 'append_cc_backend_trace', lambda directory, record: events.append(record))
-    wire.chunks = [event(chunk(ECHO[:10])), event(chunk(ECHO[10:], finish='stop')), b'data: [DONE]\n\n']
+    quoted = '```text\n' + ECHO + '```\nExplanation.'
+    wire.chunks = [event(chunk(quoted[:10])), event(chunk(quoted[10:], finish='stop')), b'data: [DONE]\n\n']
     body, _ = executor._http_post_streaming_openai('https://api.example.test/v1/chat/completions',
         {'model': 'fixture', 'messages': []}, {}, 3, trace_dir='fixture')
-    assert body['choices'][0]['message']['content'] == ECHO
-    assert ''.join(record['text'] for record in events if record['kind'] == 'model.text_delta') == ECHO
+    assert body['choices'][0]['message']['content'] == quoted
+    assert ''.join(record['text'] for record in events if record['kind'] == 'model.text_delta') == quoted
 
 
 @pytest.mark.parametrize('text', [

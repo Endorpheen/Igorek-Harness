@@ -1,3 +1,39 @@
+## 2026-11-13 — Provider-independent internal-history output protection (0.2.43)
+
+- A real OpenCode/DeepSeek response streamed historical-tool records in an
+  intermediate round, then finished with clean text. Intermediate round cards
+  survived in the mobile event journal. The existing output guard was limited
+  to confirmed llama.cpp; cloud and unknown backends bypassed it.
+- Extend output enforcement to every API format while retaining the original
+  capability scope for native input-history projection and local image/web
+  repairs. Reject contaminated rounds before salvage or tool execution, permit
+  one correction, and stop safely on repetition. Preserve normal completion,
+  ordinary JSON, quoted examples and structured tool results.
+- Cover Chat Completions, Responses and Google live SSE, worker persistence,
+  mobile live events/session messages/saved cards, and CLI/TUI history replay.
+  Reconnect tests rebuild split-marker prefixes; approval continuation resets
+  the boundary when round numbers repeat. Poisoned assistant text is not reused
+  as an answer example. Raw diagnostic records are not rewritten.
+- Add a sanitized three-record real-output fixture and 28 collected boundary
+  checks. Focused compatibility: 244 passes; final backend-scope file: 32 passes.
+  Initial regressions confirmed the provider gate and inline-JSON escape; an
+  initial denied test socket and a Google substitute mismatch were test setup
+  issues, corrected without accessing owner services. Three later test failures
+  were fixture assertions about Google text-part joining, a pending fence and
+  JSONL escaping; those assertions were corrected and all 28 checks passed.
+- Both-root full run: 604 files, 11,976 collected, 11,949 passed, six failures in
+  obsolete expectations that cloud echoes pass through, 21 environment skips,
+  951 passing subtests. Updated that explicit old contract; its whole 32-case
+  file passed on unchanged production code. Per-file acceptance is therefore
+  11,955 passes and 21 skips, not a claimed second all-green full run. Hosted CI
+  remains the final frozen-source authority. Desktop: 595 passes. Locked uv/npm
+  dependencies and fatal Ruff/publication checks passed.
+- Python/Desktop bump once to 0.2.43; Android source/version remain unchanged.
+  This is shared-runtime protection, not physical-phone or Windows 11 acceptance.
+  Desktop must fully restart and the Vault must be unlocked after upgrading.
+  Mobile must fully restart to clear its deduplicated in-memory old timeline.
+  Owner Desktop, model services, Vault and active work were not restarted.
+
 ## 2026-10-30 — Final 0.2.42: withdraw mandatory completion enforcement
 
 - Owner evidence showed three valid greeting replies rejected only because a

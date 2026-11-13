@@ -241,6 +241,8 @@ def post(url, payload, headers, timeout_s, *, trace_dir=None, round_num=0, paren
     io_socket = None
     phase = 'request_build'
     response_details = {}
+    from .local_history_output import HistoricalToolEchoFilter
+    history_filter = HistoricalToolEchoFilter()
     def watch():
         while not done.wait(0.1):
             if time.monotonic() - start >= timeout_s or cancel_check and cancel_check():
@@ -360,6 +362,10 @@ def post(url, payload, headers, timeout_s, *, trace_dir=None, round_num=0, paren
                 names = ({tool['name'] for tool in request.get('tools', [])} if generic else
                          {f['name'] for tool in request.get('tools', []) for f in tool['tools']})
                 body = to_anthropic(completed_response(event.get('response'), output_items), names)
+                pending = history_filter.finish()
+                if trace_dir and pending:
+                    append_cc_backend_trace(trace_dir, {"kind": CcTraceEvent.MODEL_TEXT_DELTA,
+                        "round": round_num + 1, "text": pending, "parent_task_id": parent_task_id or None})
                 return body, int((time.monotonic() - start) * 1000)
             if kind in {"response.failed", "response.incomplete", "error"}:
                 terminal_details={'terminal_event':kind}
@@ -373,6 +379,10 @@ def post(url, payload, headers, timeout_s, *, trace_dir=None, round_num=0, paren
             if trace_dir and kind in {"response.output_text.delta", "response.reasoning_summary_text.delta"}:
                 text = event.get("delta")
                 if isinstance(text, str) and text:
+                    if kind == "response.output_text.delta":
+                        text = history_filter.feed(text)
+                    if not text:
+                        continue
                     append_cc_backend_trace(trace_dir, {"kind": CcTraceEvent.MODEL_TEXT_DELTA if kind == "response.output_text.delta" else CcTraceEvent.MODEL_REASONING_DELTA,
                         "round": round_num + 1, "text": text, "parent_task_id": parent_task_id or None})
             phase = 'sse_read'
