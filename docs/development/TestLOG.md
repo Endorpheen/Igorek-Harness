@@ -22,6 +22,10 @@
   while retaining local owner-state permission updates. The regression fails
   before the fix (eight refreshes instead of one) and passes afterward; the
   complete runtime file passes 36/36. Final-source hosted CI must pass again.
+- The next hosted Desktop run exposed two browser-routing fixtures that extract
+  only the browser handler and therefore do not provide an event-emitter runtime.
+  Register the independent remote-state listener outside that handler boundary;
+  retain both original browser assertions. Runtime and browser suites pass 63/63.
 - Android: 514 unit tests, zero failures/errors/skips; lint and both debug APK
   targets passed. Native Android plus an actual separate Desktop backend passed
   incorrect/correct code, real process restart, retained pairing/certificate and
