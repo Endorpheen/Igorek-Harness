@@ -34,11 +34,13 @@ function fixture(mode = 'ready', timeoutMs = 2000) {
     if(mode==='error') { console.log(JSON.stringify({type:'error'})); process.exit(1); }
     if(mode!=='timeout') console.log(JSON.stringify({type:'ready',web_port:mode==='invalid'?99999:54321,
       cert,pairing_code:'ABCD-1234-ABCD'}));
-    if(mode==='owner') {
+    if(mode==='owner'||mode==='owner-state') {
+      let pushed=false;
       require('node:readline').createInterface({input:process.stdin}).on('line',line=>{
         if(line==='stop') { process.exit(0); return; }
         const request=JSON.parse(line);
         console.log(JSON.stringify({type:'owner_reply',id:request.id,result:{state:'locked'}}));
+        if(mode==='owner-state'&&!pushed){pushed=true;console.log(JSON.stringify({type:'owner_state',state:{state:'unlocked',interface_locked:false,secret:'excluded-fixture'}}));console.log(JSON.stringify({type:'owner_state',state:{state:'invalid',interface_locked:false}}));}
       });
     }
     else if(mode==='hang') setInterval(()=>{},1000);
@@ -66,10 +68,15 @@ if mode != 'timeout':
                      'cert': str(cert), 'pairing_code': 'ABCD-1234-ABCD'}), flush=True)
 if mode == 'hang':
     while True: time.sleep(1)
+pushed = False
 for line in sys.stdin:
-    if mode != 'owner' or line.strip() == 'stop': break
+    if mode not in {'owner','owner-state'} or line.strip() == 'stop': break
     request = json.loads(line)
     print(json.dumps({'type': 'owner_reply', 'id': request['id'], 'result': {'state': 'locked'}}), flush=True)
+    if mode == 'owner-state' and not pushed:
+        pushed = True
+        print(json.dumps({'type':'owner_state','state':{'state':'unlocked','interface_locked':False,'secret':'excluded-fixture'}}),flush=True)
+        print(json.dumps({'type':'owner_state','state':{'state':'invalid','interface_locked':False}}),flush=True)
 `);
   }
   writeFileSync(join(bundle, 'manifest.json'), JSON.stringify({ schema_version: 1, python, entry: 'backend.py' }));
@@ -501,4 +508,45 @@ test('search settings pass through the real managed runtime owner contract',asyn
     assert.ok((await f.runtime.requestOwner('save_search',{provider:'off',api_key:'',password:'fixture-password'})).result);
     await assert.rejects(f.runtime.requestOwner('save_search',{provider:'exa',api_key:'fixture-key',password:'fixture-password',endpoint:'https://other.invalid/'}));
   }finally{await f.runtime.stop();f.cleanup();}
+});
+
+
+test('remote unlock updates owner state without a pending local request or private fields', async () => {
+  const f = fixture('owner-state');
+  const states = [];
+  f.runtime.on('owner-state', value => states.push(value));
+  try {
+    await f.runtime.start();
+    await f.runtime.requestOwner('status');
+    for (let attempt = 0; attempt < 100 && !states.some(value => value.state === 'unlocked'); attempt++)
+      await new Promise(resolve => setTimeout(resolve, 10));
+    assert.deepEqual(states, [{state:'locked'}, {state:'unlocked',interface_locked:false}]);
+  } finally { await f.runtime.stop(); f.cleanup(); }
+});
+
+
+test('remote owner refresh cannot feed local status replies back into itself', async () => {
+  const vm = require('node:vm');
+  const lines = readFileSync(join(__dirname, '../main.cjs'), 'utf8').split('\n');
+  const handlers = lines.filter(line => line.includes("runtime.on('owner-state'") || line.includes("runtime.on('remote-owner-state'"));
+  const f = fixture('owner-state');
+  let refreshes = 0;
+  const idle = {lock(){},unlock(){}};
+  const ownerWindow = {isDestroyed:()=>false,webContents:{send(){
+    refreshes++;
+    if(refreshes<8)f.runtime.requestOwner('status').catch(()=>{});
+  }}};
+  vm.runInNewContext(handlers.join('\n'), {runtime:f.runtime,ownerWindow,opencodeUnlocked:false,
+    desktopBrowser:idle,chatgptWorkspace:idle,workspaceBrowser:idle,opencodeWorkspace:null,
+    opencodeService:null,opencodeTasks:null,githubReviews:null,chatWindows:new Set()});
+  try {
+    await f.runtime.start();
+    await f.runtime.requestOwner('status');
+    for(let attempt=0;attempt<100 && (refreshes===0 || f.runtime.requests.size || f.runtime.ownerQueue.length);attempt++)
+      await new Promise(resolve=>setTimeout(resolve,10));
+    await new Promise(resolve=>setTimeout(resolve,50));
+    assert.equal(refreshes,1);
+    assert.equal(f.runtime.requests.size,0);
+    assert.equal(f.runtime.ownerQueue.length,0);
+  } finally { await f.runtime.stop(); f.cleanup(); }
 });

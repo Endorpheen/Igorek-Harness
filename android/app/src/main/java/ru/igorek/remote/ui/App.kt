@@ -196,6 +196,9 @@ private fun AppRootContent() {
     val destination = runCatching { ControlDestination.valueOf(destinationName) }
         .getOrDefault(ControlDestination.Sessions)
     val openMenu = { scope.launch { drawerState.open() }; Unit }
+    val vaultAccess by Bridge.vaultAccess.collectAsState()
+    val vaultBusy by Bridge.vaultUnlockBusy.collectAsState()
+    val vaultError by Bridge.vaultUnlockError.collectAsState()
 
     LaunchedEffect(serverScope) {
         selectedSessionId = null; pendingSkillId = null
@@ -213,6 +216,11 @@ private fun AppRootContent() {
         selectedSessionId = sessionId
         destinationName = ControlDestination.Session.name
         scope.launch { drawerState.close() }
+    }
+
+    if (vaultAccess?.requiresUnlock == true) {
+        VaultUnlockScreen(vaultAccess!!, serverScope, connection == "online", vaultBusy, vaultError)
+        return
     }
 
     ModalNavigationDrawer(

@@ -159,6 +159,10 @@ def run(data_dir: str) -> int:
             from mobile_access import DesktopMobileAccess
             mobile_access=DesktopMobileAccess(bridge,cert,key,root)
             owner.mobile_access=mobile_access
+            from remote_vault import RemoteVault
+            bridge.vault_access = RemoteVault(owner, on_state=lambda state: emit_protocol({
+                "type": "owner_state", "state": state}))
+            mobile_access.restore()
             tls = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
             tls.minimum_version = ssl.TLSVersion.TLSv1_2
             tls.load_cert_chain(str(cert), str(key))

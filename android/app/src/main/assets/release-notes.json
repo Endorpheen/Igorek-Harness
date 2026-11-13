@@ -1,35 +1,25 @@
 {
-  "versionName": "0.1.139",
-  "versionCode": 140,
+  "versionName": "0.1.140",
+  "versionCode": 141,
   "changes": [
     {
       "ru": {
-        "title": "Модели OpenRouter",
-        "text": "Выбирайте модели OpenRouter в меню чата после обновления десктопа до 0.2.32."
+        "title": "Удалённая разблокировка",
+        "text": "После перезапуска Desktop вводите привычный код хранилища на телефоне. Повторная привязка не требуется. Нужен Desktop 0.2.44 или новее."
       },
       "en": {
-        "title": "OpenRouter models",
-        "text": "Choose OpenRouter models from the chat menu after updating the desktop app to 0.2.32."
+        "title": "Remote unlock",
+        "text": "After restarting Desktop, enter your existing Vault code on the phone. Pairing is retained. Requires Desktop 0.2.44 or later."
       }
     },
     {
       "ru": {
-        "title": "Больше Пепе",
-        "text": "Теперь доступны 32 анимированные реакции, а в меню «+» вместо надписи показана рожица Пепе."
+        "title": "Возврат в чат",
+        "text": "Приложение различает закрытое хранилище и обрыв связи, автоматически переподключается и возвращается в чат после разблокировки."
       },
       "en": {
-        "title": "More Pepe",
-        "text": "There are now 32 animated reactions, and the + menu shows a Pepe face instead of a text label."
-      }
-    },
-    {
-      "ru": {
-        "title": "Понятные ошибки хранилища",
-        "text": "После обновления десктопа нехватка места, квота и блокировка базы показываются с отдельными причинами и подсказками."
-      },
-      "en": {
-        "title": "Clear storage errors",
-        "text": "After updating the desktop app, low space, quota exhaustion and database contention show distinct causes and guidance."
+        "title": "Return to chat",
+        "text": "The app distinguishes a locked Vault from a connection outage, reconnects automatically and returns to chat after unlocking."
       }
     }
   ]

@@ -99,7 +99,8 @@ messages and structured tool results keep their content.
 
 The shared runtime change serves desktop, web and Android clients; Android
 source and APK are unchanged. After the desktop update, fully restart Desktop,
-unlock the Vault, then fully restart the mobile app: its in-memory timeline
+unlock the Vault (locally, or from a paired phone with Desktop 0.2.44 and
+Android 0.1.140), then fully restart the mobile app: its in-memory timeline
 deduplicates already seen event IDs and otherwise retains old cards. The new
 server sanitizes the replay. Tests use synthetic providers and real local HTTP,
 SQLite and journal paths, not a claim that a model can never invent a new format.

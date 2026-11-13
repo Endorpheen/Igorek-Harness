@@ -29,6 +29,8 @@ Internal history echoes are blocked before visible streaming, intermediate cards
 
 Local model repairs use confirmed llama.cpp identity and capabilities for the selected model; a localhost cloud proxy or unknown backend does not enable them. Truncated replies retain partial text and an explicit incomplete outcome. Tool outcomes use execution status and exit codes; ordinary final answers remain valid. Confirmed local llama.cpp receives native tool history across tasks, with linked results and intact batches during compaction. See [runtime outcome boundaries](docs/architecture/MODEL_BACKEND_GUARDS.md).
 
+An already paired phone can unlock the Vault after Desktop restarts. Install Android **0.1.140 (141)** first, then Desktop **0.2.44**; enter the same Vault code on the phone. Saved pairing and certificate pinning are retained. See [remote Vault unlock](docs/architecture/REMOTE_VAULT_UNLOCK.md).
+
 CC-backend profiles can set an exact per-request output budget with `"max_output_tokens": 65536`; absent/null keeps automatic budgeting. This includes reasoning and does not change the model context window. See [profile output budgets](docs/configuration/PROFILE_OUTPUT_BUDGET.md).
 
 Embedded Desktop browser tabs include a **>_** console for page messages and JavaScript; agents can inspect DOM/canvas and read errors through the same browser tool. See [browser console](docs/configuration/BROWSER_CONSOLE.md).

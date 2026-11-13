@@ -989,6 +989,7 @@ app.whenReady().then(async () => {
           }});
         runtime.opencodeHandler=fields=>opencodeTasks.handle(fields);
       }catch{opencodeService=null;opencodeWorkspace=null;}
+      runtime.on('remote-owner-state', () => { if(ownerWindow&&!ownerWindow.isDestroyed())ownerWindow.webContents.send('igorek:owner-state'); });
       githubReviews=new GitHubReviews({root:join(app.getPath('userData'),'github-reviews'),authorized:async()=>{const reply=await runtime.requestOwner('status');return reply.result?.state==='unlocked'&&!reply.result?.interface_locked;}});
       runtime.browserHandler = async fields => {
         if(fields?.action==='preview'&&Object.keys(fields).length===1){

@@ -35,6 +35,7 @@ contextBridge.exposeInMainWorld('IgorekNotifications', Object.freeze({
 ipcRenderer.on('igorek:owner-panel', (_, panel) => {
   if ((typeof panel === 'string' && /^[a-z]+$/.test(panel)) || (panel?.panel === 'mcp' && ['openai_docs','google_calendar'].includes(panel.plugin))) window.dispatchEvent(new CustomEvent('igorek-owner-panel', {detail:panel}));
 });
+ipcRenderer.on('igorek:owner-state', () => window.dispatchEvent(new Event('igorek-owner-state')));
 contextBridge.exposeInMainWorld('igorekVault', {
   browserControl: value => ipcRenderer.invoke('igorek:browser-control-settings',value),
   releaseInfo: () => ipcRenderer.invoke('igorek:release-info'),

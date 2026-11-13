@@ -233,6 +233,7 @@ class _BridgeHTTPServer(TLSHandshakeMixin, ThreadingHTTPServer):
 
     def __init__(self, address: tuple[str, int], handler: type[BaseHTTPRequestHandler], bridge: MobileBridge) -> None:
         self.bridge = bridge
+        self.vault_access = None
         self.closing = threading.Event()
         super().__init__(address, handler)
 
@@ -306,6 +307,9 @@ class MobileRequestHandler(BaseHTTPRequestHandler):
             return
 
         if path == f"{API_PREFIX}/pair/complete" and method == "POST":
+            if self.server.vault_access is not None and not self.server.vault_access.allows_requests():
+                self._send_json(423, {"error": "vault_locked"})
+                return
             self._handle_pair_complete(client)
             return
 
@@ -316,6 +320,21 @@ class MobileRequestHandler(BaseHTTPRequestHandler):
         device = self._authenticate()
         if device is None:
             return
+
+        vault = self.server.vault_access
+        if vault is not None:
+            if path == f"{API_PREFIX}/vault/status" and method == "GET":
+                if query:
+                    self._send_json(400, {"error": "invalid_unlock_request"})
+                else:
+                    self._send_json(200, vault.status())
+                return
+            if path == f"{API_PREFIX}/vault/unlock" and method == "POST":
+                self._handle_vault_unlock(vault, device, query)
+                return
+            if not vault.allows_requests():
+                self._send_json(423, {"error": "vault_locked", "vault": vault.status()})
+                return
 
         if path == f'{API_PREFIX}/diagnostics' and method == 'GET':
             from importlib.metadata import version
@@ -993,6 +1012,29 @@ class MobileRequestHandler(BaseHTTPRequestHandler):
         self.bridge.auth.record_success(client)
         return device
 
+    def _handle_vault_unlock(self, vault, device, query):
+        if (self.server._tls_context is None or self.headers.get("Origin")
+                or str(device.get("platform") or "").lower() not in {"android", "ios"}):
+            self._send_json(403, {"error": "native_tls_required"})
+            return
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+            media = str(self.headers.get("Content-Type") or "").split(";", 1)[0].strip().lower()
+            if query or not 0 < length <= 8192 or media != "application/json":
+                raise ValueError()
+            self.connection.settimeout(10)
+            body = self._read_json_body()
+            if set(body) != {"password"}:
+                raise ValueError()
+        except (ValueError, UnicodeError, MobileInvalid):
+            self._send_json(400, {"error": "invalid_unlock_request"})
+            return
+        def authorized():
+            current = self.bridge.store.get_device(device["device_id"])
+            return current is not None and current.get("revoked_at") is None
+        code, reply = vault.unlock(body["password"], authorized=authorized)
+        self._send_json(code, reply)
+
     def _handle_pair_complete(self, client: str) -> None:
         if self.bridge.auth.is_locked(client):
             self._send_json(429, {"error": "too many failed attempts, try later"})
@@ -1139,7 +1181,9 @@ class MobileRequestHandler(BaseHTTPRequestHandler):
         session_id = (query.get("session_id") or [""])[0] or None
         def active():
             current=self.bridge.store.get_device(device_id)
-            return current is not None and current.get('revoked_at') is None
+            vault = self.server.vault_access
+            return (current is not None and current.get('revoked_at') is None
+                    and (vault is None or vault.allows_requests()))
         channel = self.bridge.broadcaster.subscribe()
         try:
             self.connection.settimeout(45)
@@ -1205,7 +1249,11 @@ class MobileRequestHandler(BaseHTTPRequestHandler):
         return parsed
 
     def _send_json(self, code: int, payload: dict[str, Any]) -> None:
-        if code >= 400:
+        path = urlparse(self.path).path.rstrip('/')
+        vault_control = (code == 423 and payload.get('error') == 'vault_locked') or (
+            path == f'{API_PREFIX}/vault/unlock' and payload.get('error') in {
+                'authentication_failed', 'unlock_rate_limited', 'vault_setup_required'})
+        if code >= 400 and not vault_control:
             payload = dict(payload)
             diagnostic = payload.get('diagnostic')
             if not isinstance(diagnostic, dict):
@@ -1225,7 +1273,9 @@ class MobileRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         if getattr(self, 'http_request_id', ''):
             self.send_header('X-Request-Id', self.http_request_id)
-        if code >= 400 or urlparse(self.path).path.rstrip('/') in {f'{API_PREFIX}/browser/preview',f'{API_PREFIX}/diagnostics'}:self.send_header('Cache-Control','no-store')
+        if code >= 400 or urlparse(self.path).path.rstrip('/') in {f'{API_PREFIX}/browser/preview',f'{API_PREFIX}/diagnostics',f'{API_PREFIX}/vault/status',f'{API_PREFIX}/vault/unlock'}:self.send_header('Cache-Control','no-store')
+        if code == 429 and type(payload.get('retry_after')) is int:
+            self.send_header('Retry-After', str(payload['retry_after']))
         self.end_headers()
         try:
             self.wfile.write(body)

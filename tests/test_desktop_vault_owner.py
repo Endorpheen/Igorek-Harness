@@ -614,10 +614,10 @@ def test_owner_unlock_restores_mobile_access_and_network_failure_does_not_fail_u
     owner=_module.OwnerVault(tmp_path);calls=[]
     try:
         owner.dispatch({'id':'create','action':'create','password':'fixture-password'})
-        owner.mobile_access=SimpleNamespace(restore=lambda:calls.append('restore'),close=lambda:calls.append('close'))
+        owner.mobile_access=SimpleNamespace(restore=lambda:calls.append('restore'),locked=lambda:calls.append('locked'))
         owner.dispatch({'id':'lock','action':'lock'})
         reply=owner.dispatch({'id':'unlock','action':'unlock','password':'fixture-password'})
-        assert reply['result']['state']=='unlocked' and calls==['close','restore']
+        assert reply['result']['state']=='unlocked' and calls==['locked','restore']
         owner.dispatch({'id':'lock2','action':'lock'})
         def fail():raise OSError('private diagnostic')
         owner.mobile_access.restore=fail

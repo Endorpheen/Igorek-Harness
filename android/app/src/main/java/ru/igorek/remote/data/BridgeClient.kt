@@ -6,6 +6,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import okhttp3.Call
+import okhttp3.ConnectionPool
 import okhttp3.Callback
 import okhttp3.Response
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -55,6 +56,10 @@ class BridgeClient(
         .readTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
         .let { builder -> applyPinning(builder, pinnedFingerprint) }
+        .build()
+
+    private val vaultHttp: OkHttpClient = http.newBuilder()
+        .connectionPool(ConnectionPool(0, 1, TimeUnit.SECONDS))
         .build()
 
     private val streamHttp: OkHttpClient = OkHttpClient.Builder()
@@ -160,6 +165,45 @@ class BridgeClient(
 
     private fun <T> execute(request: Request, decode: (String) -> T): T = executeWithClient(http, request, decode)
 
+    fun vaultStatus(): VaultAccess = vaultRequest(requestBuilder("/vault/status").get().build())
+
+    fun unlockVault(password: String): VaultAccess {
+        require(password.isNotBlank() && password.length <= 1024)
+        val body = buildJsonObject { put("password", password) }.toString()
+        return vaultRequest(requestBuilder("/vault/unlock")
+            .post(body.toRequestBody(JSON_MEDIA)).build())
+    }
+
+    private fun vaultRequest(request: Request): VaultAccess {
+        try {
+        vaultHttp.newBuilder().callTimeout(20, TimeUnit.SECONDS).build().newCall(request).execute().use { response ->
+            if (request.method == "GET" && response.code == 404) return VaultAccess(supported = false)
+            val source = response.body?.source() ?: throw IOException("Vault response unavailable")
+            if (source.request(8193)) throw IOException("Vault response too large")
+            val body = source.buffer.readUtf8()
+            if (!response.isSuccessful) {
+                val raw = runCatching { parse<JsonObject>(body)["error"] as? JsonPrimitive }.getOrNull()?.content
+                val code = raw?.takeIf { it in setOf("authentication_failed", "unlock_rate_limited", "vault_setup_required",
+                    "vault_busy", "migration_required", "vault_unlock_failed", "native_tls_required", "invalid_unlock_request", "device_revoked") }
+                throw BridgeException(response.code, "Vault unlock unavailable", code)
+            }
+            val state = parse<VaultAccess>(body)
+            if (state.state !in setOf("locked", "unlocked", "not_initialized")) throw IOException("Invalid Vault state")
+            return state
+        }
+        } catch (error: Exception) {
+            if (request.method == "POST" && vaultUnlockFailure(error) == "unavailable") {
+                runCatching { onDiagnostic?.invoke(ErrorObservation(
+                    code = classifyDiagnostic(error, status = (error as? BridgeException)?.status),
+                    component = "mobile-vault", operation = "unlock", owner = "vault-unlock:" + connectionScope(api),
+                    phase = "response", httpStatus = (error as? BridgeException)?.status,
+                    nativeCode = (error as? BridgeException)?.code ?: error.javaClass.simpleName,
+                )) }
+            }
+            throw error
+        }
+    }
+
     private fun <T> executeWithClient(client: OkHttpClient, request: Request, decode: (String) -> T): T {
         val started=System.nanoTime()
         var attempt=1
@@ -179,6 +223,8 @@ class BridgeClient(
             val body = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
                 val parsed = runCatching { parse<ErrorResponse>(body) }.getOrNull()
+                if (response.code == 423 && parsed?.error == "vault_locked")
+                    throw BridgeException(423, "vault_locked", "vault_locked")
                 val message = parsed?.error ?: "HTTP ${response.code}"
                 val diagnostic=parsed?.diagnostic?.let(::sanitizeDiagnostic) ?: ErrorObservation(
                     code=classifyDiagnostic(status=response.code),component="bridge",operation=if(request.method=="GET")"read" else "write",
@@ -196,6 +242,7 @@ class BridgeClient(
         }
         } catch(error: Exception) {
             if(error is java.util.concurrent.CancellationException)throw error
+            if(error is BridgeException && error.status==423 && error.code=="vault_locked")throw error
             val diagnostic=(when(error){is BridgeException->error.diagnostic;is DiagnosticIOException->error.diagnostic;else->null}
                 ?: ErrorObservation(code=classifyDiagnostic(error,phase=phase.get()),owner=transportOwner,operation=if(request.method=="GET")"read" else "write",phase=phase.get(),
                     delivery=if(phase.get()=="connect")"not_sent" else "unknown",outcome=if(request.method=="GET" || phase.get()=="connect")"failed" else "unknown",
@@ -719,7 +766,12 @@ class BridgeClient(
             try {
                 call.execute().use { response ->
                     if (!response.isSuccessful) {
-                        onClosed(BridgeException(response.code, "stream failed"))
+                        val locked = response.code == 423 && runCatching {
+                            val source = response.body?.source()
+                            source != null && !source.request(8193) &&
+                                parse<ErrorResponse>(source.buffer.readUtf8()).error == "vault_locked"
+                        }.getOrDefault(false)
+                        onClosed(BridgeException(response.code, "stream failed", if (locked) "vault_locked" else null))
                         return@use
                     }
                     val source = response.body?.source()
