@@ -1,0 +1,21 @@
+digraph remote_vault {
+graph [rankdir=TB,bgcolor="white",pad="0.3",nodesep="0.3",ranksep="0.4",fontname="DejaVu Sans",fontsize=19,labelloc=t,label="Remote Vault unlock with retained pairing"];
+node [shape=box,style="rounded,filled",fillcolor="#eef5e9",color="#527244",fontname="DejaVu Sans",fontsize=12,margin="0.16"];
+edge [color="#527244",arrowsize=0.75];
+subgraph cluster_before {label="Before";color="#aab5a4";
+a [label="Desktop starts"];
+b [label="Enter Vault code at the computer",fillcolor="#f7eeee"];
+c [label="Mobile HTTPS becomes reachable"];
+d [label="Phone reconnects; agent is available"];
+a -> b -> c -> d;
+}
+subgraph cluster_after {label="After";color="#527244";
+e [label="Desktop restores the saved HTTPS listener"];
+f [label="Existing paired phone authenticates\nClosed Vault: state and unlock only",fillcolor="#f3f0df"];
+g [label="Enter the existing Vault code on the phone"];
+h [label="Vault opens in the desktop process"];
+i [label="Same pairing and saved chat\nNormal tools and output protection retained"];
+e -> f -> g -> h -> i;
+}
+d -> e [style=invis];
+}

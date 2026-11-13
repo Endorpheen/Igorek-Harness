@@ -307,6 +307,7 @@ async function refreshOnboardingProgress() {
 }
 window.addEventListener('focus', refreshOnboardingProgress);
 window.setInterval(refreshOnboardingProgress, 3000);
+window.addEventListener('igorek-owner-state', () => perform('status'));
 el('onboarding-next').addEventListener('click', () => {
   const progress = window.igorekOnboardingState(state, onboardingProfiles(), agent, selectedProfileId, profilesState,
     successfulProfiles, Boolean(el('workspace-path').dataset.path), onboardingHistoryState);

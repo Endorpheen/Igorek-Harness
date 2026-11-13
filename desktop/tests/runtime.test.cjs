@@ -34,11 +34,12 @@ function fixture(mode = 'ready', timeoutMs = 2000) {
     if(mode==='error') { console.log(JSON.stringify({type:'error'})); process.exit(1); }
     if(mode!=='timeout') console.log(JSON.stringify({type:'ready',web_port:mode==='invalid'?99999:54321,
       cert,pairing_code:'ABCD-1234-ABCD'}));
-    if(mode==='owner') {
+    if(mode==='owner'||mode==='owner-state') {
       require('node:readline').createInterface({input:process.stdin}).on('line',line=>{
         if(line==='stop') { process.exit(0); return; }
         const request=JSON.parse(line);
         console.log(JSON.stringify({type:'owner_reply',id:request.id,result:{state:'locked'}}));
+        if(mode==='owner-state'){console.log(JSON.stringify({type:'owner_state',state:{state:'unlocked',interface_locked:false,secret:'excluded-fixture'}}));console.log(JSON.stringify({type:'owner_state',state:{state:'invalid',interface_locked:false}}));}
       });
     }
     else if(mode==='hang') setInterval(()=>{},1000);
@@ -67,9 +68,12 @@ if mode != 'timeout':
 if mode == 'hang':
     while True: time.sleep(1)
 for line in sys.stdin:
-    if mode != 'owner' or line.strip() == 'stop': break
+    if mode not in {'owner','owner-state'} or line.strip() == 'stop': break
     request = json.loads(line)
     print(json.dumps({'type': 'owner_reply', 'id': request['id'], 'result': {'state': 'locked'}}), flush=True)
+    if mode == 'owner-state':
+        print(json.dumps({'type':'owner_state','state':{'state':'unlocked','interface_locked':False,'secret':'excluded-fixture'}}),flush=True)
+        print(json.dumps({'type':'owner_state','state':{'state':'invalid','interface_locked':False}}),flush=True)
 `);
   }
   writeFileSync(join(bundle, 'manifest.json'), JSON.stringify({ schema_version: 1, python, entry: 'backend.py' }));
@@ -501,4 +505,18 @@ test('search settings pass through the real managed runtime owner contract',asyn
     assert.ok((await f.runtime.requestOwner('save_search',{provider:'off',api_key:'',password:'fixture-password'})).result);
     await assert.rejects(f.runtime.requestOwner('save_search',{provider:'exa',api_key:'fixture-key',password:'fixture-password',endpoint:'https://other.invalid/'}));
   }finally{await f.runtime.stop();f.cleanup();}
+});
+
+
+test('remote unlock updates owner state without a pending local request or private fields', async () => {
+  const f = fixture('owner-state');
+  const states = [];
+  f.runtime.on('owner-state', value => states.push(value));
+  try {
+    await f.runtime.start();
+    await f.runtime.requestOwner('status');
+    for (let attempt = 0; attempt < 100 && !states.some(value => value.state === 'unlocked'); attempt++)
+      await new Promise(resolve => setTimeout(resolve, 10));
+    assert.deepEqual(states, [{state:'locked'}, {state:'unlocked',interface_locked:false}]);
+  } finally { await f.runtime.stop(); f.cleanup(); }
 });

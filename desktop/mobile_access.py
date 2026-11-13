@@ -101,6 +101,7 @@ class DesktopMobileAccess:
                     context=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER);context.minimum_version=ssl.TLSVersion.TLSv1_2
                     context.load_cert_chain(str(self.cert),str(self.key));server.enable_tls(context)
                 except Exception:server.server_close();raise
+                server.vault_access = getattr(self.bridge, 'vault_access', None)
                 self.port=server.server_address[1]
                 self.server=server;self.thread=threading.Thread(target=server.serve_forever,daemon=True,name='desktop-mobile-https');self.thread.start()
             self.restore_error=''
@@ -125,6 +126,18 @@ class DesktopMobileAccess:
         with self.lock:
             self.resume_enabled=False;self.restore_error='';self.save()
             self.close();return self.status()
+
+    def locked(self):
+        """Keep paired-device unlock reachable while closing privileged channels."""
+        self.bridge.terminals.manager.close_all()
+        with self.bridge.voice_devices_lock:
+            calls = list(self.bridge.voice_devices)
+            self.bridge.voice_devices.clear()
+        for call in calls:
+            try:
+                self.bridge.voice.hangup(call)
+            except Exception:
+                pass
 
     def revoke(self,device_id):
         device=self.bridge.store.get_device(device_id)

@@ -1,0 +1,21 @@
+digraph remote_vault {
+graph [rankdir=TB,bgcolor="white",pad="0.3",nodesep="0.3",ranksep="0.4",fontname="DejaVu Sans",fontsize=19,labelloc=t,label="Удалённая разблокировка без новой привязки"];
+node [shape=box,style="rounded,filled",fillcolor="#eef5e9",color="#527244",fontname="DejaVu Sans",fontsize=12,margin="0.16"];
+edge [color="#527244",arrowsize=0.75];
+subgraph cluster_before {label="Было";color="#aab5a4";
+a [label="Запуск Desktop"];
+b [label="Ввод кода хранилища на компьютере",fillcolor="#f7eeee"];
+c [label="Включение мобильного HTTPS-доступа"];
+d [label="Телефон подключается; агент доступен"];
+a -> b -> c -> d;
+}
+subgraph cluster_after {label="Стало";color="#527244";
+e [label="Desktop восстанавливает сохранённый HTTPS-доступ"];
+f [label="Проверка уже привязанного телефона\nЗакрытое хранилище: только состояние и разблокировка",fillcolor="#f3f0df"];
+g [label="Ввод привычного кода на телефоне"];
+h [label="Хранилище открывается в процессе Desktop"];
+i [label="Та же привязка и сохранённый чат\nИнструменты и защита ответов сохранены"];
+e -> f -> g -> h -> i;
+}
+d -> e [style=invis];
+}

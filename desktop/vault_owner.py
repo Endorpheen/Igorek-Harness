@@ -97,6 +97,7 @@ class OwnerVault:
         self.pin_salt = None
         self.pin_failures = 0
         self.host_access = None
+        self._dispatch_lock = threading.RLock()
 
     def _start_agent_profile(self, credential_id):
         service = getattr(self, 'browser_service', None)
@@ -261,6 +262,10 @@ class OwnerVault:
             return {'error': 'profile_start_failed'}
 
     def dispatch(self, request):
+        with self._dispatch_lock:
+            return self._dispatch(request)
+
+    def _dispatch(self, request):
         identity = request.get("id") if isinstance(request, dict) else None
         reply = {"type": "owner_reply", "id": identity}
         try:
@@ -412,7 +417,7 @@ class OwnerVault:
                 self.chatgpt.cancel(); self.codex_quota.close()
                 self.private_mcp.calendar.cancel.set()
                 self.private_mcp.clear()
-                if self.mobile_access:self.mobile_access.close()
+                if self.mobile_access:self.mobile_access.locked()
                 self.service.lock()
                 self.pin_salt = self.pin_digest = None
                 self.pin_failures = 0

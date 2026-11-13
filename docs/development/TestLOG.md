@@ -1,3 +1,44 @@
+## 2026-11-13 — Paired-phone Vault unlock and restart recovery (0.2.44)
+
+- Restore previously enabled external HTTPS access at Desktop startup, preserving
+  the certificate, port and paired-device database. Closed-state access permits
+  authenticated Vault state and native TLS unlock only; history/files/tools/SSE
+  and new pairing remain blocked. The local owner Web UI is unchanged.
+- Use the existing Vault code and cryptographic lifecycle, with exact request
+  schemas, revocation checks, five failures per sixty seconds, serialized owner
+  mutations and no password in URLs, preferences or diagnostic observations.
+  Full Vault lock retains the restricted listener and closes privileged streams.
+- Android handles locked state independently from authentication/network failure,
+  clears masked code input on submission and returns to the retained session.
+  Older Desktop state-endpoint 404 remains compatible. Add native owner-state
+  notifications so remote unlock updates the Desktop process and settings UI.
+- Final focused Python matrix: 207 passes (14 remote Vault, 21 mobile access,
+  76 owner lifecycle, 96 mobile server). Earlier separate actual backend startup
+  matrix passed six cases. Scoped desktop contracts passed 133; the final
+  extended runtime file passed 35. No owner services were used for these tests.
+- Android: 514 unit tests, zero failures/errors/skips; lint and both debug APK
+  targets passed. Native Android plus an actual separate Desktop backend passed
+  incorrect/correct code, real process restart, retained pairing/certificate and
+  second unlock into the same saved session. Synthetic data and an emulator do
+  not establish physical-phone acceptance.
+- Native acceptance exposed a real stale keep-alive connection failure on the
+  second unlock after restart. A seven-case TLS regression reproduced one
+  `unexpected end of stream` failure before the fix; all seven pass after using
+  a separate no-idle-connection Vault client. TLS pinning remains unchanged and
+  unlock writes are not automatically replayed. Earlier native attempts also
+  exposed missing Surface contrast and stale/disabled accessibility nodes in the
+  test driver; fix the UI colors/insets and wait for the actual enabled controls.
+  Keep the full restart/session assertions intact.
+- Existing CI discovers the new Python HTTPS and Android unit regressions and
+  retains its Linux/Windows native/package and Android emulator gates. The new
+  full Android-to-desktop unlock/restart helper is retained with its passing
+  local receipt; extending the hosted workflow is deferred. Hosted final-source
+  CI remains authoritative; no redundant local full-suite/package tours are requested.
+- Python/Desktop bump once to 0.2.44; Android 0.1.140 (141), same debug signer.
+  Update Android first. Owner Desktop installation/restart is authorized only
+  after functional proof and confirmation that the new phone APK is installed.
+  The owner enters the existing code in the phone form, never in chat.
+
 ## 2026-11-13 — Provider-independent internal-history output protection (0.2.43)
 
 - A real OpenCode/DeepSeek response streamed historical-tool records in an

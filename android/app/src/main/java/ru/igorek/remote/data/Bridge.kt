@@ -22,6 +22,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.ConcurrentHashMap
 import java.util.UUID
@@ -233,6 +234,43 @@ object Bridge {
 
     private val _connection = MutableStateFlow("offline")
     val connection = _connection.asStateFlow()
+    private val _vaultAccess = MutableStateFlow<VaultAccess?>(null)
+    val vaultAccess = _vaultAccess.asStateFlow()
+    private val _vaultUnlockBusy = MutableStateFlow(false)
+    val vaultUnlockBusy = _vaultUnlockBusy.asStateFlow()
+    private val _vaultUnlockError = MutableStateFlow<String?>(null)
+    val vaultUnlockError = _vaultUnlockError.asStateFlow()
+    private val vaultMutex = Mutex()
+
+    fun unlockVault(password: String) {
+        val active = client ?: return
+        if (_vaultUnlockBusy.value || password.isBlank() || password.length > 1024) return
+        _vaultUnlockBusy.value = true
+        _vaultUnlockError.value = null
+        scope.launch {
+            try {
+                vaultMutex.withLock {
+                    val result = active.unlockVault(password)
+                    if (client === active) _vaultAccess.value = result
+                }
+                if (client === active) {
+                    clearLastError()
+                    refreshSessions(); refreshApprovals(); refreshApprovalSettings()
+                    refreshSecuritySettings(); refreshSandboxSettings()
+                    selectedSessionId?.let { openSession(it) }
+                    networkWake.trySend(Unit)
+                }
+            } catch (error: Exception) {
+                if (client === active) {
+                    _vaultUnlockError.value = vaultUnlockFailure(error)
+                    if (error is BridgeException && error.status == 401) handleFailure(error)
+                    networkWake.trySend(Unit)
+                }
+            } finally {
+                if (client === active) _vaultUnlockBusy.value = false
+            }
+        }
+    }
 
     private val _sessions = MutableStateFlow<List<SessionSummary>>(emptyList())
     val sessions = _sessions.asStateFlow()
@@ -493,6 +531,9 @@ object Bridge {
     }
 
     private fun clearConnectionState() {
+        _vaultAccess.value = null
+        _vaultUnlockBusy.value = false
+        _vaultUnlockError.value = null
         backgroundTimeoutJob?.cancel()
         backgroundTimeoutJob = null
         stopStream()
@@ -1673,8 +1714,25 @@ object Bridge {
                 val closed=CompletableDeferred<Throwable?>()
                 val owner="bridge-events:"+connectionScope(store.baseUrl)
                 var ready=false
-                _connection.value="connecting"
-                val call=active.openEventStream(store.lastSeq,null,
+                if (_vaultAccess.value?.requiresUnlock != true) _connection.value="connecting"
+                var call: Call? = null
+                val error = try {
+                    val access = vaultMutex.withLock {
+                        active.vaultStatus().also {
+                            if (client === active) {
+                                _vaultAccess.value = it
+                                if (it.state == "unlocked") _vaultUnlockError.value = null
+                            }
+                        }
+                    }
+                    if (client !== active || !isActive) return@launch
+                    if (access.requiresUnlock) {
+                        _connection.value = "online"
+                        attempt = 0
+                        withTimeoutOrNull(3000) { networkWake.receive() }
+                        continue
+                    }
+                    call=active.openEventStream(store.lastSeq,null,
                     onEvent={ event -> if(client===active && isActive) {
                         if(event.kind=="stream.ready") {
                             ready=true
@@ -1691,10 +1749,19 @@ object Bridge {
                         }
                         handleEvent(event)
                     } },onClosed={ closed.complete(it) })
-                streamCall=call
-                val error=try { closed.await() } finally { call.cancel() }
+                    streamCall=call
+                    closed.await()
+                } catch (failure: Exception) {
+                    failure
+                } finally {
+                    call?.cancel()
+                }
                 streamReadyJob?.cancel()
                 if(client!==active || !isActive)return@launch
+                if (error is BridgeException && error.status == 423 && error.code == "vault_locked") {
+                    networkWake.trySend(Unit)
+                    continue
+                }
                 _connection.value="offline"
                 val code=if(error==null)"STREAM.INTERRUPTED" else classifyDiagnostic(error,status=(error as? BridgeException)?.status)
                 if(code=="AUTH.REJECTED" || code=="TLS.CERTIFICATE_REJECTED" || code=="TLS.PROTOCOL_FAILURE") {
@@ -1860,6 +1927,12 @@ object Bridge {
 
     private fun handleFailure(error: Throwable) {
         if(error is java.util.concurrent.CancellationException)return
+        if(error is BridgeException && error.status==423 && error.code=="vault_locked") {
+            if (_vaultAccess.value?.state != "unlocked")
+                _vaultAccess.value=VaultAccess(state="locked",unlockAvailable=true)
+            networkWake.trySend(Unit)
+            return
+        }
         val diagnostic=when(error){is BridgeException->error.diagnostic;is DiagnosticIOException->error.diagnostic;else->null}
         if(diagnostic!=null) {
             val detail=if(error is BridgeException && !error.message.isNullOrBlank())"\n"+safeDiagnosticText(error.message.orEmpty()) else ""
